@@ -10,18 +10,24 @@
   <img src="public/logo/icons/1024x1024.png" alt="ZCode" width="128" height="128" />
 </div>
 <p align="center">
-  <a href="https://applink.feishu.cn/client/chat/chatter/add_by_link?link_token=47ag983c-8fcb-4d6d-814b-5395193a712c&amp;qr_code=true">Feishu community</a> ·
-  <a href="https://discord.gg/z9aBcQXZQ3">Discord</a>
-</p>
-<p align="center">
   <a href="README.md">简体中文</a> | English
 </p>
 
-ZCode is an AI coding workspace with desktop, browser, and terminal interfaces. This repository contains the clients, backend services, shared UI, and Agent CLI and runtime source code.
+Myzcode is a personal customization of ZCode, an AI coding workspace with desktop, browser, and terminal interfaces. This repository contains the clients, backend services, shared UI, and Agent CLI and runtime source code, plus this fork's self-hosted Companion gateway and Android app.
 
-## Updates
+## Upstream Version and Sync Status
 
-- 2026-9-23: Updated to ZCode v3.14.3.
+- **Latest official source**: As of 2026-10-11, official `main` points to [the v3.15.1 commit `aac47556`](https://github.com/zai-org/ZCode/commit/aac4755666d09fdcd70272fcf063c077a639015f), updated on 2026-10-10. That update adds UI plugins and inline Gen UI experiences, and expands desktop, remote workspace, Agent capabilities, and regression coverage.
+- **This fork's upstream baseline**: [The v3.14.3 commit `29628c9a`](https://github.com/zai-org/ZCode/commit/29628c9acdb81b703bbd4080c207a0e7ce5e276e). The root `package.json` version remains `3.14.3`. This fork has not merged upstream v3.15.1; updating this documentation does not upgrade the source code.
+- **Official documentation**: [Chinese README](https://github.com/zai-org/ZCode/blob/main/README.md), [English README](https://github.com/zai-org/ZCode/blob/main/README.en.md), and [UI Plugin development guide](https://github.com/zai-org/ZCode/blob/aac4755666d09fdcd70272fcf063c077a639015f/UI_PLUGIN.en.md). Features, directories, and commands in newer official versions may not exist in this fork. Use the checked-out source and `package.json` as the source of truth.
+
+## Fork Customizations
+
+This fork adds or modifies phone remote control (Companion), the Android app, model channels, dual-model review (Oracle), execution-model selection during plan approval, turn navigation, permission modes, prompt optimization, and bundled SSH/WSL runtime assets. See [README.md](README.md) for details.
+
+These customizations are described relative to the upstream v3.14.3 baseline, not as an exhaustive comparison with the latest `origin/main` or a claim of exclusive features. Later official versions may offer similar capabilities. Companion is an independent self-hosted implementation and does not claim compatibility with the official remote-control protocol.
+
+The development and packaging instructions below describe this fork's current commands, including its runtime asset preparation changes; they are not a complete mirror of the latest official README.
 
 ## Setup
 
@@ -202,8 +208,12 @@ Open `http://127.0.0.1:3030` to validate the complete flow, with one backend ser
 
 ## Repository Structure
 
+The following lists this fork's main directories, not the complete latest upstream source tree. Fork additions are identified relative to the v3.14.3 baseline.
+
 | Directory                                            | Responsibility                                                                          |
 | ---------------------------------------------------- | --------------------------------------------------------------------------------------- |
+| `packages/companion`                                 | **Fork addition**: self-hosted phone remote-control gateway, pairing, and authorization |
+| `packages/mobile`                                    | **Fork addition**: Myzcode Android app (Capacitor)                                      |
 | `packages/desktop`                                   | Electron Main, Host, Renderer, and desktop packaging                                    |
 | `packages/web`                                       | Web client                                                                              |
 | `packages/server`                                    | HTTP / WebSocket services and remote connections                                        |
