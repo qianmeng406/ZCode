@@ -26,7 +26,6 @@ export type {
   GitGraphRefKind,
 } from "./git-graph/layout.js";
 export { SSHDialog, RemoteConnectionDialog } from "./SSHDialog.js";
-export { CompanionSettingsDialog } from "./CompanionSettingsDialog.js";
 export { useTheme } from "./useTheme.js";
 export type { Theme } from "./useTheme.js";
 export { useTestActions } from "./test-actions.js";

@@ -1,6 +1,6 @@
 # 构建说明（发布包）
 
-本文汇总本定制版产出**真实安装包 / APK** 的完整构建要点、已知坑位与发布前核对清单。
+本文汇总本定制版产出**真实安装包**的完整构建要点、已知坑位与发布前核对清单。
 日常开发命令见 [README.md](README.md) 的「开发与运行」；本文只讲**打包出可分发产物**这一段。
 
 ## 1. 产物清单
@@ -9,9 +9,8 @@
 | ----------------------------- | ------------------------------------------- | ---------------------------------------------------------------------------------------------------- |
 | Windows 桌面安装包（正式）    | `pnpm bundle:desktop`                       | `packages/desktop/dist*/ZCode-<版本>-win-x64.exe`                                                    |
 | Windows 桌面安装包（预览）    | 同上 + `ZCODE_PREVIEW_IDENTITY=1`           | `packages/desktop/dist*/ZCode Preview-<版本>-...exe`                                                 |
-| Android APK（debug）          | `pnpm --filter @zcode/mobile run apk:debug` | `packages/mobile/android/app/build/outputs/apk/debug/`                                               |
 | 远端运行时资源树（随包用）    | `pnpm prepare:local-remote-assets`          | `packages/desktop/dist-remote-assets-local/`                                                         |
-| 接入服务 / 远端 server bundle | `pnpm --filter @zcode/server build`         | `packages/server/dist/companion/zcode-companion.cjs`、`packages/server/dist/remote/zcode-server.cjs` |
+| 远端 server bundle            | `pnpm --filter @zcode/server build`         | `packages/server/dist/remote/zcode-server.cjs`                                                       |
 
 版本号统一取根目录 `package.json` 的 `version`（当前 `3.14.3`），
 与远端资源树 `dist-remote-assets-local/releases/<version>/` 的目录名**必须一致**——
@@ -20,7 +19,6 @@
 ## 2. 工具链
 
 - Node.js **24.14.0**、pnpm **10.33.2**，版本以 [mise.toml](mise.toml) 为准（`mise install` 一键装齐）。
-- Android APK 需要 **JDK 21+**（`JAVA_HOME` 指向 Android Studio 自带 JBR 即可）与 Android SDK。
 - 打包目标平台要在**同平台机器**上做：Windows 包要在 Windows 上构建，macOS 包要在 macOS 上构建。
 
 ## 3. Windows 桌面安装包（完整序列）
@@ -209,9 +207,8 @@ electron-builder 写 `packages/desktop/dist*/win-unpacked/` 时会覆盖 `ZCode 
 按顺序过一遍，全绿再分发：
 
 1. **门禁**：`pnpm typecheck`、`pnpm lint`、`pnpm fmt:check`、`pnpm architecture:check`，
-   以及相关包测试。仓库没有统一的 `test` 聚合脚本，按包各自跑：
-   `pnpm --filter @zcode/companion test`、`pnpm --filter @zcode/mobile test`
-   这两个包自带 `test` 脚本；其余包直接用 `tsx` 跑各自的测试目录，例如
+   以及相关包测试。仓库没有统一的 `test` 聚合脚本，按包各自跑，
+   直接用 `tsx` 跑各自的测试目录，例如
    `npx tsx --test packages/provider/test/*.test.ts`、`npx tsx --test packages/ui/test/*.test.ts`
    （UI 包测试需 `--tsconfig packages/ui/tsconfig.json` 才能解析 `@/` 别名）。
 2. **产物存在且体积达标**：两个 `.exe` 都在，均 < 500 MiB。
@@ -228,39 +225,24 @@ electron-builder 写 `packages/desktop/dist*/win-unpacked/` 时会覆盖 `ZCode 
 8. **图标**（坑 2）：装完后任务栏/开始菜单图标是 Z 标而非白纸；
    图标不对先查快捷方式 target，再重启 explorer。
 
-## 7. Android APK
-
-```bash
-# 构建 Web UI → 同步到 Android 工程 → 产出 debug APK
-export JAVA_HOME="C:\Program Files\Android\Android Studio\jbr"   # JDK 21+
-pnpm --filter @zcode/mobile run apk:debug
-```
-
-- **顺序约束**：`cap copy` 会重建 `assets/public`，`copy-webui.mjs`（完整 UI → `assets/public/webui/`）
-  必须在其后执行。`apk:debug` 已按此顺序串联，**不要单独手动跑 `cap copy` 后直接打包**（会丢完整 UI）。
-- 配对页预填地址取自构建期 `VITE_COMPANION_GATEWAY_URL`（未跟踪的 `packages/mobile/.env.local`）。
-  **仓库内不内置任何具体地址**；分发 APK 前务必确认该文件未被提交、且预填地址符合预期。
-- 正式签名需要 release 密钥；未配置签名前用 debug 包即可完成配对与功能验收。
-
-## 8. 接入服务 / 远端 bundle
+## 7. 远端 bundle
 
 ```bash
 pnpm --filter @zcode/server build          # tsup + build:remote
 ```
 
-产物为 `zcode-companion.cjs` / `zcode-server.cjs` 等，部署方式见
-[packages/companion/specs/DEPLOY.md](packages/companion/specs/DEPLOY.md)。
+产物为 `zcode-server.cjs` 等。
 远端运行时资源树用 `node scripts/pack-remote-assets-cdn.mjs --platforms linux-x64`
 生成 CDN 布局（仅在需要「远端服务器下载」也走 fork 产物时才做）。
 
-## 9. 改了源码，什么时候需要重新打包
+## 8. 改了源码，什么时候需要重新打包
 
 | 改动范围                                              | 需要重打包？                                                  |
 | ----------------------------------------------------- | ------------------------------------------------------------- |
-| `packages/ui` / `packages/web` / renderer             | 是（桌面包 + 若要发 APK 还需 `apk:debug`）                    |
+| `packages/ui` / `packages/web` / renderer             | 是（桌面包）                                                  |
 | `packages/desktop` 主进程 / preload                   | 是（只影响桌面包）                                            |
 | `apps/zcode-cli`（Agent 源码）                        | 是，且 `bundle.mjs` 会自动重建 agent bundle，无需手动预跑     |
-| `packages/server` / `packages/companion`              | 桌面包内嵌的 server bundle 受影响则需重打；部署侧单独 `build` |
+| `packages/server`                                     | 桌面包内嵌的 server bundle 受影响则需重打；部署侧单独 `build` |
 | `config/provider/zcode-builtin.json`                  | 是（记得升 `revision`，见坑 7）                               |
 | 远端资源树 / 目标平台（`ZCODE_REMOTE_CDN_PLATFORMS`） | 是（重跑 `prepare:local-remote-assets` 后再 bundle，见 4.1）  |
 | 纯文档 / 测试                                         | 否                                                            |
@@ -268,6 +250,5 @@ pnpm --filter @zcode/server build          # tsup + build:remote
 ---
 
 相关文档：[README.md](README.md)（功能清单与开发命令）、
-[packages/companion/specs/DEPLOY.md](packages/companion/specs/DEPLOY.md)（自建接入服务部署）、
 [THIRD-PARTY-NOTICES.md](THIRD-PARTY-NOTICES.md) 与 [NOTICE.md](NOTICE.md)（第三方声明；
 声明生成脚本见 `scripts/licenses.mjs` / `scripts/generate-third-party-notices.mjs`）。

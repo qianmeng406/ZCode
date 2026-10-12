@@ -14,8 +14,7 @@
     "./replay": "./src/replay.ts",
     "./v4-agent-transport": "./src/v4/agentConversationTransport.ts",
     "./v4-sessions-index-transport": "./src/v4/agentSessionsIndexTransport.ts",
-    "./v4-command-factory": "./src/v4/commandFactory.ts",
-    "./companion-workspace-visibility": "./src/companionWorkspaceVisibility.ts"
+    "./v4-command-factory": "./src/v4/commandFactory.ts"
   },
   "scripts": {
     "lint": "oxlint",

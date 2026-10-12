@@ -3,8 +3,6 @@
 > **This repository is a community fork / secondary development of the official ZCode open-source project. It is NOT an official release.**
 >
 > This project has **no affiliation, sponsorship, partnership, or endorsement** from Z.ai, Zhipu, or the official ZCode team. See [Fork notice](#fork-notice) and [Disclaimer](#disclaimer) below. For the full documentation, see the Chinese [README.md](README.md).
->
-> **Remote control requires your own server.** The phone remote-control feature (Companion) ships with **no** access-service address and never uses an official private relay — you must self-host the gateway yourself. Setup steps and a copy-paste prompt for an AI coding agent are in [README.md](README.md) under “手机远控：自建服务器与接入配置”.
 
 <div align="center">
   <img src="public/logo/icons/1024x1024.png" alt="ZCode" width="128" height="128" />
@@ -13,7 +11,7 @@
   <a href="README.md">简体中文</a> | English
 </p>
 
-Myzcode is a personal customization of ZCode, an AI coding workspace with desktop, browser, and terminal interfaces. This repository contains the clients, backend services, shared UI, and Agent CLI and runtime source code, plus this fork's self-hosted Companion gateway and Android app.
+Myzcode is a personal customization of ZCode, an AI coding workspace with desktop, browser, and terminal interfaces. This repository contains the clients, backend services, shared UI, and Agent CLI and runtime source code.
 
 ## Upstream Version and Sync Status
 
@@ -23,9 +21,9 @@ Myzcode is a personal customization of ZCode, an AI coding workspace with deskto
 
 ## Fork Customizations
 
-This fork adds or modifies phone remote control (Companion), the Android app, model channels, dual-model review (Oracle), execution-model selection during plan approval, turn navigation, permission modes, prompt optimization, and bundled SSH/WSL runtime assets. See [README.md](README.md) for details.
+This fork adds or modifies model channels, dual-model review (Oracle), execution-model selection during plan approval, turn navigation, permission modes, prompt optimization, and bundled SSH/WSL runtime assets. See [README.md](README.md) for details.
 
-These customizations are described relative to the upstream v3.14.3 baseline, not as an exhaustive comparison with the latest `origin/main` or a claim of exclusive features. Later official versions may offer similar capabilities. Companion is an independent self-hosted implementation and does not claim compatibility with the official remote-control protocol.
+These customizations are described relative to the upstream v3.14.3 baseline, not as an exhaustive comparison with the latest `origin/main` or a claim of exclusive features. Later official versions may offer similar capabilities.
 
 The development and packaging instructions below describe this fork's current commands, including its runtime asset preparation changes; they are not a complete mirror of the latest official README.
 
@@ -212,8 +210,6 @@ The following lists this fork's main directories, not the complete latest upstre
 
 | Directory                                            | Responsibility                                                                          |
 | ---------------------------------------------------- | --------------------------------------------------------------------------------------- |
-| `packages/companion`                                 | **Fork addition**: self-hosted phone remote-control gateway, pairing, and authorization |
-| `packages/mobile`                                    | **Fork addition**: Myzcode Android app (Capacitor)                                      |
 | `packages/desktop`                                   | Electron Main, Host, Renderer, and desktop packaging                                    |
 | `packages/web`                                       | Web client                                                                              |
 | `packages/server`                                    | HTTP / WebSocket services and remote connections                                        |
@@ -228,8 +224,8 @@ The following lists this fork's main directories, not the complete latest upstre
 ## Fork notice
 
 1. **Origin**: This project is a secondary development (fork) of the open-source [zai-org/ZCode](https://github.com/zai-org/ZCode) repository, under the upstream Apache-2.0 license. Copyright in the original upstream code, documentation, and assets belongs to their respective authors and the zai-org/ZCode project.
-2. **Not official**: This project is maintained by an individual. It is **not** an official product and has **no affiliation, sponsorship, partnership, or endorsement** from Z.ai, Zhipu, or the official ZCode team. Any installer, APK, or bundle produced from this repository is not an official release.
-3. **Scope of changes**: On top of upstream, this fork adds a phone remote-control stack (Companion), a mobile app, a user-managed model channel, and dual-model turn review, among other changes. Feature details are documented in the Chinese [README.md](README.md).
+2. **Not official**: This project is maintained by an individual. It is **not** an official product and has **no affiliation, sponsorship, partnership, or endorsement** from Z.ai, Zhipu, or the official ZCode team. Any installer or bundle produced from this repository is not an official release.
+3. **Scope of changes**: On top of upstream, this fork adds a user-managed model channel and dual-model turn review, among other changes. Feature details are documented in the Chinese [README.md](README.md).
 4. **Protocols and compatibility**: This project does **not** copy official minified code, does **not** connect to the official private relay or account backend, and does **not** claim protocol compatibility or official certification. Do not describe this project as an official release or an official partner product.
 5. **Names and marks**: The "ZCode" name and logo appear here only to indicate the code's origin and purpose. They do not imply official authorization.
 

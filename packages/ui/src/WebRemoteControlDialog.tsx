@@ -2,7 +2,6 @@ import { memo, useState } from "react";
 import type { BotProvider } from "@zcode/shared";
 import { Bot as BotIcon, MonitorSmartphone, XIcon } from "lucide-react";
 import { BotsDialog } from "@/BotsDialog.js";
-import { CompanionSettingsDialog } from "@/CompanionSettingsDialog.js";
 import { ProviderIcon } from "@/BotsDialog/shared.js";
 import { Button } from "@/components/ui/button.js";
 import {
@@ -43,7 +42,6 @@ export const WebRemoteControlDialog = memo(function WebRemoteControlDialogCompon
 }) {
   const { intl } = useZCodeIntl();
   const [botsDialogOpen, setBotsDialogOpen] = useState(false);
-  const [companionOpen, setCompanionOpen] = useState(false);
   const [botEntryProvider, setBotEntryProvider] =
     useState<RemoteControlBotProvider | null>(null);
 
@@ -183,28 +181,6 @@ export const WebRemoteControlDialog = memo(function WebRemoteControlDialogCompon
                   </Button>
                 </div>
               </section>
-              <section className="rounded-xl border border-border bg-card p-4">
-                <div className="mb-3 flex items-start gap-2">
-                  <MonitorSmartphone className="mt-0.5 size-4 shrink-0 text-foreground-subtle" />
-                  <div className="min-w-0 space-y-1">
-                    <div className="text-ui-base font-medium text-foreground">
-                      {intl.formatMessage({ id: "companionDirect.title" })}
-                    </div>
-                    <p className="text-ui-base/relaxed text-foreground-subtle">
-                      {intl.formatMessage({ id: "companionDirect.description" })}
-                    </p>
-                  </div>
-                </div>
-                <Button
-                  type="button"
-                  variant="outline"
-                  size="lg"
-                  className="w-full justify-center gap-2 enabled:cursor-pointer"
-                  onClick={() => setCompanionOpen(true)}
-                >
-                  {intl.formatMessage({ id: "companionDirect.openSettings" })}
-                </Button>
-              </section>
             </div>
           </div>
         </DialogContent>
@@ -215,12 +191,6 @@ export const WebRemoteControlDialog = memo(function WebRemoteControlDialogCompon
         workspacePath={workspacePath}
         workspaceIdentity={workspaceIdentity}
         entryProvider={botEntryProvider}
-      />
-      <CompanionSettingsDialog
-        open={companionOpen}
-        onOpenChange={setCompanionOpen}
-        workspacePath={workspacePath}
-        workspaceIdentity={workspaceIdentity}
       />
     </>
   );

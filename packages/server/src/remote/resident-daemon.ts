@@ -218,8 +218,8 @@ async function handleDaemonConnection(options: DaemonConnectionOptions): Promise
     const protocol = new SocketProtocol(wrapNetSocket(socket));
     const channelServer = new ChannelServer(protocol, `resident-${index}`);
     const agentService = services.getOptional(IZCodeAgentService);
-    // ack 可选声明的 clientMode 决定 v4 投递档（companion connector 为手机请求
-    // web-remote-replayable；旧 bridge 不带该字段 → 维持 desktop-continuous）。
+    // ack 可选声明的 clientMode 决定 v4 投递档（远端客户端声明 web-remote-replayable；
+    // 不带该字段 → 维持 desktop-continuous）。
     const clientMode = ack.clientMode ?? "desktop-continuous";
     const connectionScope = agentService
       ? createZCodeAgentConnectionScope(agentService, {

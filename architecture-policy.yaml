@@ -49,14 +49,6 @@ modules:
   - id: desktop
     roots: [packages/desktop/src]
     managed: false
-  - id: companion
-    roots: [packages/companion/src]
-    managed: true
-    requires: [shared, rpc]
-    publicEntrypoints: [packages/companion/src/contract.ts, packages/companion/src/client.ts]
-    layers: { domain: domain, app: app, adapters: adapters }
-    layerOrder: [domain, app, adapters]
-    owner: mobile-companion
   - id: formal-proof
     roots: [packages/formal-proof/src]
     managed: false

@@ -40,7 +40,6 @@
     "@opentelemetry/sdk-metrics": "2.6.1",
     "@opentelemetry/sdk-trace-base": "2.6.1",
     "@zcode/client": "workspace:*",
-    "@zcode/companion": "workspace:*",
     "@zcode/provider": "workspace:*",
     "@zcode/provider-node": "workspace:*",
     "@zcode/rpc": "workspace:*",

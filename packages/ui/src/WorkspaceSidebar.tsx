@@ -77,7 +77,6 @@ import { selectWorkspaceZCodeState, useZCodeSessionStore } from "@/store/zcodeSe
 import { useZCodeStore } from "@/store/StoreProvider.js";
 import { useTabStore } from "@/store/TabStoreProvider.js";
 import { isWorkspaceReadOnly, isWorkspaceTab, type WorkspaceTabState } from "@/store/tabStore.js";
-import { useCompanionWorkspaceRestriction } from "@/companionWorkspaceVisibility.js";
 import { useWorkspaceTaskLists } from "@/hooks/useWorkspaceTaskLists.js";
 import {
   persistSidebarTaskPreferences,
@@ -373,23 +372,7 @@ export const WorkspaceSidebar = memo(function WorkspaceSidebarComponent({
   const expandAllWorkspaceTabs = useTabStore((state) => state.expandAllWorkspaceTabs);
   const collapseAllWorkspaceTabs = useTabStore((state) => state.collapseAllWorkspaceTabs);
 
-  // companion（手机远控）场景：Host 恢复的是桌面端全部标签，其中未共享的工作区
-  // 数据面读不到，会在侧栏呈现成永远空列表（「暂无任务」）。这里按 gateway 目录
-  // （共享集合）过滤展示；桌面渲染器/浏览器没有注入集合，行为不变。
-  const companionWorkspaceRestriction = useCompanionWorkspaceRestriction();
-  const workspaceTabs = useMemo(
-    () =>
-      tabs.filter(
-        (tab): tab is WorkspaceTabState =>
-          isWorkspaceTab(tab) &&
-          (companionWorkspaceRestriction === null ||
-            companionWorkspaceRestriction.has(tab.workspacePath) ||
-            (tab.workspaceIdentity !== undefined
-              ? companionWorkspaceRestriction.has(tab.workspaceIdentity)
-              : false)),
-      ),
-    [tabs, companionWorkspaceRestriction],
-  );
+  const workspaceTabs = useMemo(() => tabs.filter(isWorkspaceTab), [tabs]);
   const { conversationWorkspaceTabs, projectWorkspaceTabs } = useMemo(
     () => partitionWorkspaceTabsByPurpose(workspaceTabs),
     [workspaceTabs],

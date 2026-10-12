@@ -191,49 +191,6 @@ import {
 } from "./desktopDeepLinkUrl.js";
 import { createRemoteWorkspaceSessionManager } from "./desktopRemoteSessions.js";
 import {
-  startDesktopCompanionConnector,
-  type DesktopCompanionConnectorHandle,
-  type OpenWorkspaceEntry,
-} from "./companion/desktopConnector.js";
-import {
-  loadCompanionConfig,
-  saveCompanionConfig,
-  upgradeCompanionConfigTokenStorage,
-  type CompanionTokenCipher,
-  type DesktopCompanionConfig,
-} from "./companion/companionConfig.js";
-import { requestCompanionPairingCode } from "./companion/desktopPairing.js";
-
-/**
- * 节点令牌落盘保护：electron safeStorage（Windows DPAPI / macOS Keychain /
- * Linux libsecret）。不可用（如 Linux 无 keyring）时保持 0600 明文 JSON，
- * 不阻塞桌面直连功能。惰性初始化：safeStorage 在 app ready 前不可用，
- * 模块加载期调用会抛错，不能缓存成永久 null。
- */
-let companionTokenCipherCache: CompanionTokenCipher | null | undefined;
-function companionTokenCipher(): CompanionTokenCipher | null {
-  if (companionTokenCipherCache !== undefined) return companionTokenCipherCache;
-  try {
-    if (!safeStorage.isEncryptionAvailable()) {
-      companionTokenCipherCache = null;
-      return null;
-    }
-    companionTokenCipherCache = {
-      encrypt: (plain: string) => `enc:v1:${safeStorage.encryptString(plain).toString("base64")}`,
-      decrypt: (payload: string) => {
-        try {
-          return safeStorage.decryptString(Buffer.from(payload.slice("enc:v1:".length), "base64"));
-        } catch {
-          return null;
-        }
-      },
-    };
-  } catch {
-    companionTokenCipherCache = null;
-  }
-  return companionTokenCipherCache;
-}
-import {
   reportRemoteConnectionStateChangedToArms,
   reportRemoteDisconnectToArms,
   stopRemoteUsageArmsPeriodicSampling,
@@ -833,195 +790,6 @@ const remoteSessionManager = createRemoteWorkspaceSessionManager({
   reportRemoteConnectionStateChanged: reportRemoteConnectionStateChangedToArms,
   reportRemoteDisconnect: reportRemoteDisconnectToArms,
 });
-
-// ── My zcode 桌面直连：手机控制电脑已打开工作区的既有 Host（不为手机新建执行者） ──
-let companionConnector: DesktopCompanionConnectorHandle | null = null;
-// 桌面连接器断线自愈：指数退避重连（2s→30s）。网关重启/网络抖动后无需重启 App。
-const COMPANION_RECONNECT_MIN_MS = 2_000;
-const COMPANION_RECONNECT_MAX_MS = 30_000;
-let companionReconnectTimer: ReturnType<typeof setTimeout> | null = null;
-let companionReconnectBackoffMs = COMPANION_RECONNECT_MIN_MS;
-let companionReconnectInFlight = false;
-let companionConfigRef: DesktopCompanionConfig | null = null;
-
-function cancelCompanionReconnect(): void {
-  if (companionReconnectTimer !== null) {
-    clearTimeout(companionReconnectTimer);
-    companionReconnectTimer = null;
-  }
-  companionReconnectInFlight = false;
-}
-
-function scheduleCompanionReconnect(reason: string): void {
-  if (companionReconnectInFlight) return;
-  const config = companionConfigRef;
-  if (!config?.enabled || config.gatewayUrl.trim() === "" || config.nodeToken.trim() === "") return;
-  companionReconnectInFlight = true;
-  // full jitter：延迟在 [0.5, 1)×退避之间抖动，避免多端同步重连打满网关。
-  const delay = Math.floor(
-    companionReconnectBackoffMs * (0.5 + Math.random() * 0.5),
-  );
-  companionReconnectBackoffMs = Math.min(companionReconnectBackoffMs * 2, COMPANION_RECONNECT_MAX_MS);
-  logger.info("[companion-desktop] reconnect scheduled", { reason, delayMs: delay });
-  companionReconnectTimer = setTimeout(() => {
-    companionReconnectTimer = null;
-    void (async () => {
-      try {
-        await applyCompanionConfig(companionConfigRef!);
-      } catch (restartError) {
-        logger.warn("[companion-desktop] reconnect attempt failed", {
-          error: restartError instanceof Error ? restartError.message : String(restartError),
-        });
-      } finally {
-        companionReconnectInFlight = false;
-        // 连接器没有起来（connectControlChannel 抛错等）就不会有 onDisconnected
-        // 回调来驱动下一轮：这里必须自行续排，否则一次失败后重连永久停摆。
-        // 注意 applyCompanionConfig 每次都会先 cancel 重连——重排放在其后。
-        if (companionConnector === null) scheduleCompanionReconnect("previous attempt failed");
-      }
-    })();
-  }, delay);
-  companionReconnectTimer.unref?.();
-}
-let companionConfigCache: DesktopCompanionConfig = {
-  enabled: false,
-  gatewayUrl: "",
-  nodeToken: "",
-  allowedWorkspaces: [],
-};
-
-function companionWorkspaceTitle(workspacePath: string): string {
-  return (
-    workspacePath.replace(/[\\/]+$/, "").split(/[\\/]/).pop() || workspacePath
-  );
-}
-
-function listCompanionOpenWorkspaces(): OpenWorkspaceEntry[] {
-  const entries: OpenWorkspaceEntry[] = [];
-  for (const [windowId, paths] of windowWorkspaceMap) {
-    for (const workspacePath of paths) {
-      entries.push({
-        windowId,
-        workspacePath,
-        workspaceIdentity: workspacePath.trim(),
-        title: companionWorkspaceTitle(workspacePath),
-      });
-    }
-  }
-  for (const session of remoteSessionManager.listAttachableRemoteSessions()) {
-    entries.push({
-      windowId: session.windowId,
-      workspacePath: session.workspacePath,
-      workspaceIdentity: session.workspaceIdentity,
-      title: companionWorkspaceTitle(session.workspacePath),
-      remoteSessionId: session.remoteSessionId,
-    });
-  }
-  return entries;
-}
-
-async function applyCompanionConfig(next: DesktopCompanionConfig): Promise<void> {
-  companionConfigCache = next;
-  cancelCompanionReconnect();
-  await companionConnector?.stop().catch(() => undefined);
-  companionConnector = null;
-  await saveCompanionConfig(app.getPath("userData"), next, companionTokenCipher());
-  companionConfigRef = next;
-  if (!next.enabled || next.gatewayUrl.trim() === "" || next.nodeToken.trim() === "") {
-    return;
-  }
-  const instance = await startDesktopCompanionConnector({
-    gatewayUrl: next.gatewayUrl.trim(),
-    nodeToken: next.nodeToken.trim(),
-    allowedWorkspaces: next.allowedWorkspaces,
-    onDisconnected: (reason) => {
-      // 旧连接的迟到断线回调不得重启刚接管的新连接器。
-      if (companionConnector !== instance) return;
-      logger.warn("[companion-desktop] control channel lost", { reason });
-      companionConnector = null;
-      scheduleCompanionReconnect(reason);
-    },
-    deps: {
-      listOpenWorkspaces: listCompanionOpenWorkspaces,
-      resolveAttachmentPort: (entry, attachmentId) => {
-        if (entry.remoteSessionId !== undefined) {
-          // 远程工作区：复用既有远程连接的 attachment（不新建远程连接）。
-          return remoteSessionManager
-            .attachRemoteWorkspaceSessionHost({
-              windowId: entry.windowId,
-              remoteSessionId: entry.remoteSessionId,
-              workspacePath: entry.workspacePath,
-              workspaceIdentity: entry.workspaceIdentity,
-              workspaceKey: entry.workspaceIdentity,
-              clientMode: "web-remote-replayable",
-            })
-            .port;
-        }
-        // 本地工作区：窗口 Host 的 local attachment（Host 内等待现有启动准备，不启动第二个执行者）。
-        const { port1, port2 } = new MessageChannelMain();
-        const host = windowHostProcessMap.get(entry.windowId);
-        if (!host) {
-          port2.close();
-          port1.close();
-          throw Object.assign(new Error("window host is not running"), {
-            code: "workspace_unavailable",
-          });
-        }
-        host.postMessage(
-          {
-            type: HostMessageTypes.AttachServicePort,
-            requestId: randomUUID(),
-            attachmentId,
-            clientMode: "web-remote-replayable",
-            scope: { kind: "local" },
-          },
-          [port2],
-        );
-        return port1;
-      },
-      resolveListPort: (entry, listId) => {
-        // 任务索引临时端口：与 attachment 同机制、短生命周期（读取器取到快照即 close）。
-        if (entry.remoteSessionId !== undefined) {
-          return remoteSessionManager
-            .attachRemoteWorkspaceSessionHost({
-              windowId: entry.windowId,
-              remoteSessionId: entry.remoteSessionId,
-              workspacePath: entry.workspacePath,
-              workspaceIdentity: entry.workspaceIdentity,
-              workspaceKey: entry.workspaceIdentity,
-              clientMode: "web-remote-replayable",
-            })
-            .port;
-        }
-        const { port1, port2 } = new MessageChannelMain();
-        const host = windowHostProcessMap.get(entry.windowId);
-        if (!host) {
-          port2.close();
-          port1.close();
-          throw Object.assign(new Error("window host is not running"), {
-            code: "workspace_unavailable",
-          });
-        }
-        host.postMessage(
-          {
-            type: HostMessageTypes.AttachServicePort,
-            requestId: randomUUID(),
-            attachmentId: listId,
-            clientMode: "web-remote-replayable",
-            scope: { kind: "local" },
-          },
-          [port2],
-        );
-        return port1;
-      },
-      log: (message, details) => logger.info("[companion-desktop] " + message, details),
-    },
-  });
-  companionConnector = instance;
-  // 只有连接器真正建立才重置退避；失败路径由 scheduleCompanionReconnect 续排。
-  companionReconnectBackoffMs = COMPANION_RECONNECT_MIN_MS;
-}
-
 
 const deviceMid = ensureDesktopDeviceMidSync();
 // 帮助配置是公开读取，不能复用下面附带账号鉴权的灰度响应缓存。
@@ -2190,30 +1958,6 @@ app.whenReady().then(async () => {
     // 读取失败不影响启动，使用默认 homedir
   }
 
-  // My zcode 桌面直连：启用过则启动时自动重连 gateway（连接失败不阻塞启动）。
-  try {
-    const persistedCompanionConfig = await loadCompanionConfig(
-      app.getPath("userData"),
-      companionTokenCipher(),
-    );
-    companionConfigCache = persistedCompanionConfig;
-    // 明文令牌一次性升级为 OS 凭证保护（DPAPI/Keychain）；失败不阻塞启动。
-    await upgradeCompanionConfigTokenStorage(app.getPath("userData"), companionTokenCipher());
-    if (
-      persistedCompanionConfig.enabled &&
-      persistedCompanionConfig.gatewayUrl.trim() !== "" &&
-      persistedCompanionConfig.nodeToken.trim() !== ""
-    ) {
-      void applyCompanionConfig(persistedCompanionConfig).catch((error: unknown) => {
-        logger.warn("[companion-desktop] startup connect failed", {
-          error: error instanceof Error ? error.message : String(error),
-        });
-      });
-    }
-  } catch {
-    // 配置读取失败不影响启动。
-  }
-
   // scheduler 也会打开 tasks-index；等 Host 完成统一准备，避免在启动页出现前抢先迁移。
   configureDatabaseStartupQuit(() => {
     markExplicitQuit("database-startup-exit");
@@ -2318,45 +2062,6 @@ app.whenReady().then(async () => {
   registerPlatformIpcHandlers({
     fetchHelpConfig: readHelpConfig,
     logger,
-    companionHandlers: {
-      getConfig: async () => {
-        const config = await loadCompanionConfig(app.getPath("userData"), companionTokenCipher());
-        companionConfigCache = config;
-        return {
-          enabled: config.enabled,
-          gatewayUrl: config.gatewayUrl,
-          hasNodeToken: config.nodeToken !== "",
-          allowedWorkspaces: config.allowedWorkspaces,
-        };
-      },
-      setConfig: async (input) => {
-        const current = await loadCompanionConfig(app.getPath("userData"), companionTokenCipher());
-        await applyCompanionConfig({
-          enabled: input.enabled,
-          gatewayUrl: input.gatewayUrl,
-          // nodeToken 缺省 = 保留已存令牌（renderer 不回传秘密）。
-          nodeToken: input.nodeToken ?? current.nodeToken,
-          allowedWorkspaces: input.allowedWorkspaces,
-        });
-      },
-      requestPairingCode: async () => {
-        const config =
-          companionConfigCache ?? (await loadCompanionConfig(app.getPath("userData"), companionTokenCipher()));
-        const issued = await requestCompanionPairingCode({
-          gatewayUrl: config.gatewayUrl,
-          nodeToken: config.nodeToken,
-          // 码绑定当前共享范围：配对后的设备 grants 精确到此刻勾选的工作区。
-          ...(config.allowedWorkspaces.length > 0
-            ? { scopeWorkspaceIdentities: config.allowedWorkspaces }
-            : {}),
-        });
-        return {
-          code: issued.code,
-          expiresAt: issued.expiresAt,
-          displayName: issued.displayName,
-        };
-      },
-    },
     // CDP-on-guest pivot：renderer `<webview>` dom-ready 上报 guest webContentsId → attach。
     attachBrowserGuest: (key, webContentsId, options) => {
       const result = browserGuestManager.attachGuest(key, webContentsId, options);
@@ -2608,8 +2313,6 @@ app.on("browser-window-created", (_, win) => {
     browserGuestManager.closeWindow(win.id);
     windowWorkspaceMap.delete(win.id);
     windowTaskRealtimeHostIdMap.delete(win.id);
-    // 窗口关闭 = 其工作区对手机即时不可用：拆除该窗口的 attachment 并刷新目录。
-    companionConnector?.handleWindowClosed(win.id);
     if (windowUnreadCountMap.delete(win.id)) {
       syncApplicationUnreadBadge(windowUnreadCountMap);
     }

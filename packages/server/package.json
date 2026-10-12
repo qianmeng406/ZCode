@@ -6,11 +6,7 @@
     ".": "./src/index.ts",
     "./stdio": "./src/stdio.ts",
     "./remote": "./src/remote/index.ts",
-    "./remote/*.js": "./src/remote/*.ts",
-    "./companion": "./src/companion/cloudConnector.ts",
-    "./companion-control": "./src/companion/controlChannel.js",
-    "./companion-relay": "./src/companion/relayAttachment.js",
-    "./companion-task-index": "./src/companion/ephemeralTaskIndex.ts"
+    "./remote/*.js": "./src/remote/*.ts"
   },
   "scripts": {
     "dev": "tsup --watch --onSuccess 'node dist/entry-http.js'",
@@ -22,7 +18,6 @@
   "dependencies": {
     "@hono/node-server": "^1.19.11",
     "@hono/node-ws": "^1.3.0",
-    "@zcode/companion": "workspace:*",
     "@lydell/node-pty-darwin-arm64": "1.2.0-beta.10",
     "@lydell/node-pty-darwin-x64": "1.2.0-beta.10",
     "@lydell/node-pty-linux-arm64": "1.2.0-beta.10",

@@ -56,29 +56,3 @@ validateRemoteServerBundle({ bundledInputs, source: remoteBundleSource });
 await stageThirdPartyNotices("dist/remote");
 
 console.log("Built dist/remote/zcode-server.cjs");
-
-// companion 自托管栈 bundle：gateway + resident 守护 + 云端连接器的单文件 CLI。
-// 与 remote 同一套 native-addon/banner/define 约定（entry 里用 import.meta.dirname
-// 解析部署目录下相邻的 zcode-server.cjs）。平台无关，Windows 构建可直接部署 Linux。
-await build({
-  entryPoints: ["src/companion/entry-companion-stack.ts"],
-  bundle: true,
-  outfile: "dist/companion/zcode-companion.cjs",
-  platform: "node",
-  format: "cjs",
-  target: "node22",
-  plugins: [nativeAddonPlugin],
-  banner: {
-    js: 'var __import_meta_url = require("url").pathToFileURL(__filename).href; var __import_meta_dirname = __dirname;',
-  },
-  define: {
-    "import.meta.url": "__import_meta_url",
-    "import.meta.dirname": "__import_meta_dirname",
-    __ZCODE_VERSION__: JSON.stringify(version),
-    __ZCODE_BUILTIN_PROVIDER_CONFIG_JSON__: JSON.stringify(zcodeBuiltinProviderConfigJson),
-  },
-});
-// bundle 内联第三方代码，同样附完整声明。
-await stageThirdPartyNotices("dist/companion");
-
-console.log("Built dist/companion/zcode-companion.cjs");

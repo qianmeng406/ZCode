@@ -349,6 +349,10 @@ export function resolveRemoteAssetDirs(
   // 顺序上必须先判本地再解析 CDN 基址：resolveRemoteCdnBaseUrls 会校验并规范化 URL，
   // 若把 CDN 解析放在前面，一个格式写错的 ZCODE_CDN_BASE_URL 会让本来就该走本地资源的
   // 部署路径直接抛错——本地模式不应受任何 CDN 配置影响。
+  // remoteCacheDir 必须先于本地资源分支声明：命中随包资源的返回也带它
+  // （用户切「远端服务器下载」时要用 manifest/组件缓存目录），晚声明会 TDZ。
+  const remoteCacheDir = resolveRemoteAssetCacheDir(localEnv);
+
   const localAssetDir = resolveLocalRemoteAssetDir(localEnv);
   if (localAssetDir) {
     return { mockCdnDir: localAssetDir, remoteCacheDir };
@@ -356,7 +360,6 @@ export function resolveRemoteAssetDirs(
 
   const remoteCdnBaseUrls = resolveRemoteCdnBaseUrls(options, localEnv);
   const remoteCdnBaseUrl = remoteCdnBaseUrls[0];
-  const remoteCacheDir = resolveRemoteAssetCacheDir(localEnv);
 
   // remote 资源之前和 desktop 本地 provider 资源共用安装包内路径，
   // 结果打包后会把整套 Linux 远程运行时一起塞进 .app，和“remote 资源走 CDN / mock-cdn”的职责边界冲突。
