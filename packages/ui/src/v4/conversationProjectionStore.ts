@@ -1365,9 +1365,6 @@ export class ConversationProjectionStore {
         logEpoch: initialLogEpoch,
         directoryRevision,
       });
-        logEpoch: initialLogEpoch,
-        directoryRevision,
-      });
     } catch (error) {
       logger.warn(
         `[v4-store] 完整问题目录 rowsRange ${this.topic} 失败: ${error instanceof Error ? error.message : String(error)}`,
