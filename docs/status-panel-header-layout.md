@@ -23,3 +23,11 @@ Status 面板的 Git、Goal、Progress、Run 区块标题需要保持一致的�
 - DOM 节点及输入 refs 不变时，提示开关、父组件重渲染、菜单开关不能触发 ref detach/attach；真实卸载及 ref 替换仍须执行 React 19 cleanup 或旧式 `ref(null)`，不得吞掉清理或延迟状态更新。
 - 验收覆盖真实 Radix 触发器（不 mock Tooltip/Dropdown）、面板反复挂载及菜单开关；生产测试必须先创建 DOM 再加载组件依赖，并断言 ref 生命周期而不只是没有抛出 #185。
 - React 根级及局部错误边界通过生产可用的生命周期诊断出口记录序列化 error message、运行时 stack 与组件 stack，不重新打开普通消息流日志。
+
+## 修复验证记录与边界
+
+- 第一版（`9e833ca4` / `dist-react185-fix`）是未验证成功的修复尝试，用户随后确认该包仍崩溃。其生产测试只检查挂载后未抛异常，不足以支持“交换层级避免 ref 回流”的机制说明；该说明已撤回。
+- 后续加强的生产断言在未修补依赖时捕获 `["attach","detach","attach","detach","attach"]`，证明不变的按钮仍发生 ref 生命周期抖动。第二版（`171611ad` / `dist-react185-v2`）缓存 Slot 与 DropdownMenuTrigger 的组合 ref，并保留父组件更新、Tooltip 状态、菜单开关以及真实卸载的生命周期断言和 React 19 cleanup 测试。不能退回只检查未抛异常的验收方式。
+- 第二版已有冻结安装、103 项定向测试及包内补丁检查通过的记录；这些证据不等同于用户实际历史会话窗口的现场验收，该场景仍未验证。
+- 第一、二版构建使用 Node `24.11.0`（`S:\vue\node.exe`）及 pnpm `10.33.2`，与 `mise.toml` 规定的 Node `24.14.0` 存在偏差。安装与构建记录还出现 pnpm 忽略 `package.json` 中 `pnpm.overrides`、`pnpm.patchedDependencies` 的警告。此前交付说明遗漏了这些警告，本记录补充披露。
+- 该警告不能单独证明补丁未生效：当时冻结安装成功，实际依赖与最终打包资源也已检查到补丁。规定工具链下的重新构建尚未执行，因此不宣称已经确认规定环境下的可重复构建，也不宣称安装包字节级可复现。

@@ -2053,8 +2053,8 @@ function ConversationStatusPanelImpl({
             )}
           >
             <DropdownMenu>
-              {/* Dropdown 内部每次渲染都会重组 ref；TooltipTrigger 必须在它内层，
-                  避免 Tooltip 的 setTrigger 经 ref detach/attach 回流形成 React #185。 */}
+              {/* 两个触发器共享 button；仅交换层级不能保证 ref 稳定，
+                  还依赖 Slot 与 DropdownMenuTrigger 补丁按输入 refs 缓存组合 ref。 */}
               <Tooltip>
                 <DropdownMenuTrigger asChild>
                   <TooltipTrigger asChild>
