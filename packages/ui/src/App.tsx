@@ -1326,7 +1326,6 @@ export function App({
           handleOpenBrowserTab={handleOpenBrowserTab}
           handleOpenBrowserPermissionSettings={handleOpenBrowserPermissionSettings}
           handleOpenFileExplorerTab={handleOpenFileExplorerTab}
-          handleOpenBrowserPermissionSettings={handleOpenBrowserPermissionSettings}
           handleOpenTreemapping={handleOpenTreemappingIfWritable}
           handleOpenWhiteboard={handleOpenWhiteboard}
           handleOpenDeveloperTools={handleOpenDeveloperTools}
