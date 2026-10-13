@@ -569,8 +569,16 @@ export function ProviderModelsSection({
                 sortableModelIds={activeModels.map((model) => model.modelId)}
                 // 折叠区不参与拖拽排序；提交时把移出的成员按原相对位置接回尾部，
                 // 避免只提交可见子集导致被移出的模型顺序丢失。
-                onReorder={(modelIds) =>
-                  onReorderModelIds?.([...modelIds, ...removedModels.map((model) => model.modelId)])
+                // 未提供调序入口（onReorderModelIds 缺省）时必须传 undefined：
+                // 否则 SortableProviderModelList 仍会渲染拖动 handle（无调序能力也显示）。
+                onReorder={
+                  onReorderModelIds
+                    ? (modelIds) =>
+                        onReorderModelIds([
+                          ...modelIds,
+                          ...removedModels.map((model) => model.modelId),
+                        ])
+                    : undefined
                 }
                 renderModel={(_modelId, index) => renderModelRow(activeModels[index]!, index)}
               />

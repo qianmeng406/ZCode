@@ -501,7 +501,9 @@ function submissionConfigFromCommand(
     modelSelection: candidate.modelSelection as ComposerSubmissionConfig["modelSelection"],
     mode: candidate.mode as ComposerSubmissionConfig["mode"],
     planEnabled:
-      typeof candidate.planEnabled === "boolean" ? candidate.planEnabled : candidate.mode === "plan",
+      typeof candidate.planEnabled === "boolean"
+        ? candidate.planEnabled
+        : candidate.mode === "plan",
     contextProfile: state.contextProfile,
   };
 }
@@ -779,9 +781,7 @@ export function SessionPane({
   );
   const eligibleShareRowIds = useMemo(
     () =>
-      shareActive
-        ? new Set(eligibleShareItems.map((item) => item.rowId))
-        : EMPTY_SHARE_ROW_IDS,
+      shareActive ? new Set(eligibleShareItems.map((item) => item.rowId)) : EMPTY_SHARE_ROW_IDS,
     [shareActive, eligibleShareItems],
   );
   useEffect(() => {
@@ -4529,12 +4529,13 @@ export function SessionPane({
     // busy/stale 返回时会把未完成的补齐误标成已加载。
     shareHydratedSessionRef.current = key;
     const controller = new AbortController();
-    void (lease
-      ? lease.store.loadAllOlder({ consumer: "share", signal: controller.signal })
-      : Promise.resolve({
-          status: "stale" as const,
-          logEpoch: snapshot?.logEpoch ?? "unknown",
-        })
+    void (
+      lease
+        ? lease.store.loadAllOlder({ consumer: "share", signal: controller.signal })
+        : Promise.resolve({
+            status: "stale" as const,
+            logEpoch: snapshot?.logEpoch ?? "unknown",
+          })
     ).then((result) => {
       if (controller.signal.aborted) return;
       if (result.status === "hydrated") return;
@@ -5276,27 +5277,35 @@ export function SessionPane({
 
   // subagent 右侧 child tab 是观察视图；复用普通 SessionPane 时
   // 若仍创建 composer，会让用户误以为可以直接向 child session 继续输入。
+  // 传给 memo 化的 ConversationComposer 的必须是稳定引用：内联对象会逐渲染换新身份，
+  // 击穿 memo 并触发 UI 稳定引用边界检查（reactStableReferences）。这里按字段 memo，只在实质变化时换对象。
+  const oracleReviewComposerProps = useMemo(
+    () => ({
+      state: oracleReview.state,
+      enabled: oracleReview.enabled,
+      pendingElapsedSeconds: oracleReview.pendingElapsedSeconds,
+      pendingOutputChars: oracleReview.pendingOutputChars,
+      manualReview: oracleReview.manualReview,
+      deepReview: oracleReview.deepReview,
+      reviewTurnHeader: oracleReview.reviewTurnHeader,
+      reviewTurnHeaderDeep: oracleReview.reviewTurnHeaderDeep,
+      retryReview: oracleReview.retryReview,
+      dismiss: oracleReview.dismiss,
+      acknowledge: oracleReview.acknowledge,
+      model: oracleModel,
+      onSelectModel: handleSelectOracleModel,
+    }),
+    // 依赖逐字段列出：oracleReview 是 store 聚合对象，整体引用每渲染都变。
+    Object.values(oracleReview) as unknown as unknown[],
+  );
+
   const composerNode = readOnly ? null : (
     <ConversationComposer
       key="conversation-composer"
       // Snapshot 仍服务用量、路由与运行态；工具栏的 mode/model 只读下方 Composer Draft。
       snapshot={snapshot}
       sessionId={sessionId}
-      oracleReview={{
-        state: oracleReview.state,
-        enabled: oracleReview.enabled,
-        pendingElapsedSeconds: oracleReview.pendingElapsedSeconds,
-        pendingOutputChars: oracleReview.pendingOutputChars,
-        manualReview: oracleReview.manualReview,
-        deepReview: oracleReview.deepReview,
-        reviewTurnHeader: oracleReview.reviewTurnHeader,
-        reviewTurnHeaderDeep: oracleReview.reviewTurnHeaderDeep,
-        retryReview: oracleReview.retryReview,
-        dismiss: oracleReview.dismiss,
-        acknowledge: oracleReview.acknowledge,
-        model: oracleModel,
-        onSelectModel: handleSelectOracleModel,
-      }}
+      oracleReview={oracleReviewComposerProps}
       // 草稿 taskId 仍为 null，但 prewarm 已经拥有独立 AgentRuntime。
       // 只给 Skill catalog 下发 effective id，避免 UI 扫到 prewarm runtime 尚未加载的新 Skill。
       skillCatalogSessionId={effectiveSessionId}

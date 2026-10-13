@@ -45,6 +45,11 @@ it("compiles real UAC calls when the plugin directory follows the custom include
       // 只编译不执行：载荷复用当前文件，所有平台都能验证真实 NSIS 插件解析。
       const args = [
         "-V2",
+        // 与 electron-builder 的 NsisTarget.executeMakensis 对齐：fixture 的中文注释是
+        // UTF-8 编码，不显式声明输入字符集时 makensis 在部分 Windows 环境会按 ANSI
+        // 解析并报 "Bad text encoding"。
+        "-INPUTCHARSET",
+        "UTF8",
         ...(uninstaller ? ["-WX", "-DBUILD_UNINSTALLER"] : []),
         `-DNSIS_INCLUDE_DIR=${join(nsisDir, "Include")}`,
         `-DELECTRON_BUILDER_NSIS_INCLUDE_DIR=${join(builderDir, "templates/nsis/include")}`,

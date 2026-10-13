@@ -45,7 +45,7 @@ import {
   resolveRegistryThoughtLevel,
   type ResolvedRegistrySelection,
 } from "./provider-registry-selection.js";
-import { isClosableSessionStore } from "./session-store.js";
+import { isClosableSessionStore, isInheritableProjectPermissionMode } from "./session-store.js";
 import { createSubagentObservation } from "./subagent-observation.js";
 import type { PrepareUserExecutionBoundary, ZCodeApp } from "./types.js";
 
@@ -604,7 +604,12 @@ export function createSessionFacade(deps: CreateSessionFacadeDeps): SessionFacad
       await deps.runtime.setExecutionState({ mode }, deps.traceContext);
       // 项目偏好只承接可继承模式：zcodeUpdate/minimal 是任务/兼容身份，写进项目偏好
       // 会让下个普通新任务静默继承；Session 自身执行状态已在上面照常持久化。
-      if (deps.localSettingStore && isInheritableProjectPermissionMode(mode)) {
+      // 群模式（session scope）属于任务授权，同样不得写入工作区默认模式。
+      if (
+        deps.localSettingStore &&
+        isInheritableProjectPermissionMode(mode) &&
+        session?.permission?.scope !== "session"
+      ) {
         try {
           await deps.localSettingStore.saveProjectPermissionMode({
             mode: deps.runtime.getMode(),

@@ -1,5 +1,6 @@
 import { execFile } from "node:child_process";
 import { mkdtemp, readFile, realpath, rm, writeFile } from "node:fs/promises";
+import { realpathSync } from "node:fs";
 import { createRequire } from "node:module";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
@@ -17,7 +18,10 @@ afterEach(async () => {
 });
 
 async function fixture(source: string) {
-  const dir = await mkdtemp(join(tmpdir(), "zcode bytecode 中文 "));
+  // tmpdir() 在 Windows 上可能返回 8.3 短路径；字节码里的 __dirname 会原样保留该形态，
+  // 而 realpath 比对值会展开成长路径。先归一化基准目录，保证两侧同源。
+  const base = realpathSync.native(tmpdir());
+  const dir = await mkdtemp(join(base, "zcode bytecode 中文 "));
   directories.push(dir);
   const entryPath = join(dir, "zcode.cjs");
   await writeFile(entryPath, source);

@@ -1,4 +1,5 @@
 import { mkdtemp, mkdir, readdir, writeFile, symlink, rm } from "node:fs/promises";
+import { dirname } from "node:path";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterEach, describe, expect, it } from "vitest";
@@ -60,7 +61,21 @@ describe("Gen UI executor file reader", () => {
     await expect(readGenUiDocument({ ...target, path: oldPath }, outputRoot)).rejects.toThrow(
       "host output directory",
     );
-    await symlink(oldPath, target.path);
+    // 无符号链接特权的主机（Windows 普通用户）无法创建文件符号链接：退化为把
+    // workspace 目录以 junction 形式挂到目标位置。readGenUiDocument 的越界检查按
+    // realpath 解析，junction 与 symlink 走同一条 "symbolic links" 拒绝路径。
+    try {
+      await symlink(oldPath, target.path);
+    } catch (error) {
+      if (
+        !(error instanceof Error) ||
+        !("code" in error) ||
+        (error as { code?: string }).code !== "EPERM"
+      ) {
+        throw error;
+      }
+      await symlink(dirname(oldPath), target.path, "junction");
+    }
     await expect(readGenUiDocument(target, outputRoot)).rejects.toThrow("symbolic links");
     await rm(directory, { recursive: true });
     await symlink(target.workspacePath, directory, "junction");

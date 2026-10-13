@@ -396,6 +396,11 @@ async function executeToolCallImpl(
     let skillTelemetryMetadata: SkillTelemetryMetadata | undefined;
     let failureStage: "handler" | "serialize" | "post_hook" = "handler";
 
+    // 计划批准换模守卫必须在 handler **之前**固定计划状态：ExitPlanMode 成功退出后
+    // 会把 planEnabled 清成 false，若在 wrapper（handler 之后）读取就会把真实的批准
+    // 路径误判为非计划模式，换模与停回合都不会触发。这里在执行前捕获唯一事实。
+    const planEnabledBeforeHandler = deps.sessionModePort?.isPlanEnabled?.() ?? mode === "plan";
+
     try {
       const model = options?.model ?? deps.model;
       const embeddedSearchDecision = resolveEmbeddedSearchBranchCapability({

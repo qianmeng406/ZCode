@@ -139,7 +139,14 @@ describe("OpenExternal 对 file URL 的分流", () => {
     const { listener } = await registerOpenExternalListener();
     const sender = { getURL: vi.fn(() => "about:blank") };
 
-    listener({ sender }, "file:///tmp/report.html#section");
+    // Windows 的 fileURLToPath 要求盘符/UNC 路径，无盘符 POSIX 路径会抛
+    // ERR_INVALID_FILE_URL_PATH；按平台构造各自合法的带锚点 URL。
+    const url =
+      process.platform === "win32"
+        ? "file:///C:/tmp/report.html#section"
+        : "file:///tmp/report.html#section";
+
+    listener({ sender }, url);
 
     await vi.waitFor(() => expect(h.shellOpenPath).toHaveBeenCalledTimes(1));
     expect(h.shellOpenPath).not.toHaveBeenCalledWith(expect.stringContaining("#"));
@@ -161,7 +168,12 @@ describe("OpenExternal 对 file URL 的分流", () => {
     const { listener, options } = await registerOpenExternalListener();
     const sender = { getURL: vi.fn(() => "about:blank") };
 
-    listener({ sender }, "file://server/share/page.html");
+    // fileURLToPath 无 URL 解析错误可稳定触发的形态是非法结构（坏百分号转义）；
+    // win32 上无盘符路径也会报 ERR_INVALID_FILE_URL_PATH，按平台选用。
+    const url =
+      process.platform === "win32" ? "file:///tmp/report.html" : "file://server/share/page.html";
+
+    listener({ sender }, url);
 
     await vi.waitFor(() => expect(options.logger.warn).toHaveBeenCalledTimes(1));
     expect(h.shellOpenPath).not.toHaveBeenCalled();

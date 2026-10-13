@@ -11,6 +11,7 @@ import {
   residentDaemonStatusPath,
   writeResidentDaemonStatus,
 } from "../src/remote/resident-protocol.js";
+import { ZCODE_VERSION } from "@zcode/shared";
 
 async function withTempRoot(run: (root: string) => Promise<void>): Promise<void> {
   const root = await mkdtemp(join(tmpdir(), "zcode-resident-"));
@@ -49,13 +50,13 @@ test("daemon.json 读写往返；坏文件按缺席处理", async () => {
     await writeResidentDaemonStatus(statusPath, {
       pid: process.pid,
       port: 45678,
-      version: "3.14.3",
+      version: ZCODE_VERSION,
       startedAt: 1,
     });
     const status = await readResidentDaemonStatus(statusPath);
     assert.equal(status?.pid, process.pid);
     assert.equal(status?.port, 45678);
-    assert.equal(status?.version, "3.14.3");
+    assert.equal(status?.version, ZCODE_VERSION);
 
     await writeFile(statusPath, "{not-json", "utf8");
     assert.equal(await readResidentDaemonStatus(statusPath), undefined);
@@ -68,7 +69,7 @@ test("ensure：已存活 daemon 直接复用，不再 spawn", async () => {
     await writeResidentDaemonStatus(residentDaemonStatusPath(root), {
       pid: process.pid,
       port: 45678,
-      version: "3.14.3",
+      version: ZCODE_VERSION,
       startedAt: 1,
     });
     const status = await ensureResidentDaemonRunning({
@@ -113,7 +114,7 @@ test("ensure：陈旧状态（探活失败）→ spawn 自身 serve 并等待新
     await writeResidentDaemonStatus(statusPath, {
       pid: process.pid,
       port: 45679,
-      version: "3.14.3",
+      version: ZCODE_VERSION,
       startedAt: 2,
     });
     const status = await result;
@@ -173,7 +174,7 @@ test("stop：优雅终止后清理状态文件；无状态文件返回 false", a
     await writeResidentDaemonStatus(statusPath, {
       pid: process.pid,
       port: 45678,
-      version: "3.14.3",
+      version: ZCODE_VERSION,
       startedAt: 1,
     });
     const stopped = await stopResidentDaemon({
@@ -200,7 +201,7 @@ test("stop：SIGTERM 宽限内仍存活 → 追加 SIGKILL", async () => {
     await writeResidentDaemonStatus(statusPath, {
       pid: 999_999_999,
       port: 1,
-      version: "3.14.3",
+      version: ZCODE_VERSION,
       startedAt: 1,
     });
     const signals: string[] = [];

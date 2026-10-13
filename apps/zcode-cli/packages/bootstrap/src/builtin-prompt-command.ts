@@ -54,10 +54,13 @@ export function resolveZCodeBuiltinPromptCommandInvocation(
   }
 
   if (invocation.name === ZCODE_UPDATE_COMMAND_NAME) {
-    return buildZCodeUpdatePrompt({
-      args: invocation.args,
-      workingDirectory: options.workingDirectory ?? process.cwd(),
-    });
+    return {
+      name: ZCODE_UPDATE_COMMAND_NAME,
+      prompt: buildZCodeUpdatePrompt({
+        args: invocation.args,
+        workingDirectory: options.workingDirectory ?? process.cwd(),
+      }),
+    };
   }
 
   if (invocation.name === BUILTIN_WORKFLOW_COMMAND_NAME) {

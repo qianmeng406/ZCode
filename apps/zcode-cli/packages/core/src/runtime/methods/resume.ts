@@ -221,30 +221,6 @@ export async function resumeFromStore(
 
   await restoreWorkspaceCheckpointEntries(this, traceContext);
   await restoreWorkspaceFileRewindEntries(this, traceContext);
-  const restoredEvents = await this.eventStore.getEvents(this.sessionId);
-  const restoredModeEvents = restoredEvents.filter(
-    (event) =>
-      event.type === SessionEventType.SessionCreated ||
-      event.type === SessionEventType.SessionModeChanged,
-  );
-  const restoredMode =
-    restoredModeEvents.length > 0 ? this.eventReducer.reduce(restoredModeEvents).mode : undefined;
-  const resolvedMode = options?.modeOverride ?? restoredMode ?? session.permission?.mode;
-  if (resolvedMode !== undefined) {
-    // cold resume 会先把 checkpoint/rewind 等局部事件恢复到新的内存 eventStore。
-    // 这些事件不携带 mode，若仅按“存在任意事件”reduce，会用默认 build 覆盖 headless yolo。
-    // 只有权威 mode 事件能恢复历史值；本次 invocation 的显式/default mode 仍保持最高优先级。
-    Object.assign(this.config, resolveExecutionState({ mode: resolvedMode }));
-  }
-  // 会话自己的新记录优先于项目偏好；旧记录仅兼容读取，不批量回填。
-  const executionEntries = await this.sessionStore.sessionEntries?.({
-    sessionID: this.sessionId,
-    type: SESSION_ENTRY_EXECUTION_STATE,
-  });
-  const savedExecution = executionStateSchema.safeParse(executionEntries?.at(-1)?.data);
-  if (savedExecution.success && options?.modeOverride === undefined) {
-    Object.assign(this.config, savedExecution.data);
-  }
   // onDemand 会话的工具面随记录恢复（launch.md「On demand: activation」）：entry 在场，或历史里
   // 有过 `/workflow` / 十个工具的调用。要在首轮之前完成，所以放在 resume 里而不是等下一次 turn。
   await restoreDynamicWorkflowActivationOnResume.call(this, messages);

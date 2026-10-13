@@ -78,7 +78,9 @@ describe("daemon service registration", () => {
 
   it("stops and unregisters a same-root legacy service before registering the root-scoped identity", async () => {
     const root = await mkdtemp(join(process.platform === "win32" ? tmpdir() : "/tmp", "zdr-"));
-    const layout = resolveServerLayout(join(root, "server"));
+    // CLI 的 serve 生命周期统一走 canonical root（realpath）；Windows 短路径 TEMP 下
+    // 8.3 形式会派生不同 pipe id。测试的 control server 必须建在同一 canonical layout 上。
+    const layout = await resolveCanonicalServerLayout(join(root, "server"));
     const platform = process.platform === "darwin" || process.platform === "linux" ? process.platform : "win32";
     const kind = platform === "darwin" ? "launchd" : platform === "linux" ? "systemd" : "task-scheduler";
     const legacyDescriptor = createServiceDescriptor({

@@ -8,13 +8,26 @@ import { fileURLToPath } from "node:url";
 if (process.argv.includes("app-server") && process.argv.includes("--stdio")) {
   // 仅由本组 WDIO 预加载的透明 stdio 代理。真实 Host/CLI 完成保存、解析和执行；
   // 故障位于传输边界，不修改业务对象，也不记录其他 RPC 的鉴权或模型凭据。
-  const preload = `--import=${JSON.stringify(fileURLToPath(import.meta.url))}`;
+  // 预加载条目可能是 `--import="C:\path"`（JSON.stringify 转义反斜杠）或 `--import=file:///...`
+  // 两种形式；strip 必须同时识别，否则嵌套子进程递归加载本代理直至 spawn 失败。
+  // 预加载条目有四种形态：`--import="C:\path"`（路径转义）、`--import=C:\path`（裸路径）、
+  // `--import="file:///..."`（带引号 URL）与 `--import=file:///...`；strip 必须全部识别，
+  // 否则嵌套子进程递归加载本代理直至 spawn 失败。
+  const preloadVariants = [
+    `--import=${JSON.stringify(fileURLToPath(import.meta.url))}`,
+    `--import=${fileURLToPath(import.meta.url)}`,
+    `--import=${JSON.stringify(import.meta.url)}`,
+    `--import=${import.meta.url}`,
+  ];
   const child = spawn(process.execPath, process.argv.slice(1), {
     stdio: ["pipe", "pipe", "inherit"],
     // 只移除当前代理预加载，保留覆盖采集等其他 Node 参数，防止递归启动代理。
     env: {
       ...process.env,
-      NODE_OPTIONS: (process.env.NODE_OPTIONS ?? "").replace(preload, "").trim(),
+      NODE_OPTIONS: preloadVariants.reduce(
+        (value, variant) => value.replace(variant, ""),
+        process.env.NODE_OPTIONS ?? "",
+      ).trim(),
     },
   });
   const root = process.env.ZCODE_E2E_ARTIFACT_DIR;

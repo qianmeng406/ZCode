@@ -81,6 +81,7 @@ function makeSnapshotFrame(title: string): ConversationTopicFrame {
       model: "glm-5",
       thought: "medium",
       thoughtLevels: [],
+      contextProfile: "standard",
       followupMode: "queue",
       mode: "build",
     },

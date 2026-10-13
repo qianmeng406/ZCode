@@ -7,7 +7,11 @@ import { acquireFileLock } from "./atomicFileLock.js";
 const DEFAULT_LOCK_RETRY_DELAYS_MS = [25, 50, 100, 200, 400] as const;
 const DEFAULT_LOCK_OWNERLESS_GRACE_MS = 100;
 const DEFAULT_LOCK_MAX_WAIT_MS = 8_000;
-const DEFAULT_RENAME_RETRY_DELAYS_MS = [50, 100, 200, 400, 800] as const;
+const DEFAULT_RENAME_RETRY_DELAYS_MS = [50, 100, 200, 400, 800, 1_600, 3_200] as const;
+// Bugfix: Windows 上并发的 readFile 打开目标文件时不带 FILE_SHARE_DELETE，
+// rename 会 EPERM。原预算只覆盖 ~1.55s，全量测试高负载下连续读取循环能让
+// 重试窗口整体落在句柄打开期，原子写直接失败；延长退避把窗口拉到 ~6.3s，
+// 与锁等待上限（8s）保持同量级。
 const processFileLockTails = new Map<string, Promise<void>>();
 
 export interface SharedFileLockOptions {

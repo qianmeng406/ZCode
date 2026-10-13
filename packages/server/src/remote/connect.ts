@@ -30,6 +30,8 @@ import {
 
 // 公开类型原从 connect.ts 导出（remote/index.ts 与桌面 host 依赖），拆分后原位再导出保持兼容。
 export type { RemoteRuntimeEnv, RemoteRuntimeEnvKey, RemoteRuntimeNetworkOptions };
+// 公开函数原从 connect.ts 导出；拆分后原位再导出保持兼容。
+export { pickRemoteRuntimeEnv } from "./server-command.js";
 
 const BACKEND_DISCONNECT_EXIT_CODE = -1;
 

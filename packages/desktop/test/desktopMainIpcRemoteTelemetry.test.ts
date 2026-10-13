@@ -172,14 +172,19 @@ describe("remote workspace connect telemetry IPC", () => {
 
     listener?.({}, "https://example.com/docs");
     listener?.({}, "http://localhost:3000/index.html");
-    listener?.({}, "file:///tmp/secret");
+    // Windows 的 fileURLToPath 要求盘符/UNC，期望值按平台与产品同源构造。
+    const [fileUrl, expectedPath] =
+      process.platform === "win32"
+        ? ["file:///C:/tmp/secret", "C:\\tmp\\secret"]
+        : ["file:///tmp/secret", "/tmp/secret"];
+    listener?.({}, fileUrl);
     listener?.({}, "javascript:alert(1)");
     listener?.({}, "not a url");
 
     expect(h.shellOpenExternal).toHaveBeenCalledTimes(2);
     expect(h.shellOpenExternal).toHaveBeenCalledWith("https://example.com/docs");
     expect(h.shellOpenExternal).toHaveBeenCalledWith("http://localhost:3000/index.html");
-    await vi.waitFor(() => expect(h.shellOpenPath).toHaveBeenCalledWith("/tmp/secret"));
+    await vi.waitFor(() => expect(h.shellOpenPath).toHaveBeenCalledWith(expectedPath));
     expect(options.logger.warn).toHaveBeenCalledTimes(2);
   });
 

@@ -110,6 +110,7 @@ function makeSnapshot(): ConversationSnapshot {
       model: "glm-5",
       thought: "medium",
       thoughtLevels: ["medium", "high", "max"],
+      contextProfile: "standard",
       followupMode: "queue",
       mode: "build",
     },

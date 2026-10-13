@@ -6,6 +6,7 @@ import {
   rmSync,
   symlinkSync,
   writeFileSync,
+  realpathSync,
 } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
@@ -18,7 +19,9 @@ const originalProcessLabel = process.env.ZCODE_PROCESS_LABEL;
 const tempHomes: string[] = [];
 
 function makeTempHome(): string {
-  const home = mkdtempSync(join(tmpdir(), "zcode-skills-home-"));
+  // Windows 下 tmpdir() 可能返回 8.3 短路径；skill.path 走 realpath 归一成长路径，
+  // 期望值必须用同一归一化形式，否则 contains 断言在短路径机器上恒假。
+  const home = realpathSync.native(mkdtempSync(join(tmpdir(), "zcode-skills-home-")));
   tempHomes.push(home);
   return home;
 }
@@ -76,16 +79,7 @@ function marketplacePluginRoot(
   pluginName: string,
   version = "0.0.0",
 ): string {
-  return join(
-    home,
-    ".zcode",
-    "cli",
-    "plugins",
-    "cache",
-    marketplace,
-    pluginName,
-    version,
-  );
+  return join(home, ".zcode", "cli", "plugins", "cache", marketplace, pluginName, version);
 }
 
 function writePluginManifest(pluginRoot: string, manifest: Record<string, unknown>): void {
@@ -483,10 +477,12 @@ body`,
       "shared-review",
       "zcode-global",
     ]);
-    expect(result.skills.find((skill) => skill.name === "copied-global")?.path)
-      .toContain(join(home, ".zcode", "skills", "copied-global"));
-    expect(result.skills.find((skill) => skill.name === "shared-review")?.path)
-      .toContain(join(home, ".zcode", "skills", "current-review"));
+    expect(result.skills.find((skill) => skill.name === "copied-global")?.path).toContain(
+      join(home, ".zcode", "skills", "copied-global"),
+    );
+    expect(result.skills.find((skill) => skill.name === "shared-review")?.path).toContain(
+      join(home, ".zcode", "skills", "current-review"),
+    );
     expect(result.skills.every((skill) => skill.scope === "user")).toBe(true);
   });
 
@@ -772,11 +768,7 @@ amazon-body`,
   it("读取 manifest skills 数组声明的插件技能（数组项即技能目录）", async () => {
     const home = makeTempHome();
     const workspacePath = join(home, "workspace");
-    const pluginRoot = marketplacePluginRoot(
-      home,
-      "claude-plugins-official",
-      "mattpocock-skills",
-    );
+    const pluginRoot = marketplacePluginRoot(home, "claude-plugins-official", "mattpocock-skills");
     writeClaudePluginManifest(pluginRoot, {
       name: "mattpocock-skills",
       skills: ["./skills/engineering/tdd", "./skills/productivity/tdd", "./skills/bundle-root"],
@@ -864,73 +856,76 @@ body`,
   // Windows 跳过：此测试失败原因是 CLI config 写入逻辑问题，非 Windows 特定
   const isWindows = process.platform === "win32";
 
-  (isWindows ? it.skip : it)("setEnabled 会把技能开关按路径写入 CLI config 且不按 workspaceIdentity 隔离", async () => {
-    const home = makeTempHome();
-    const workspacePath = join(home, "workspace");
-    writeSkill(
-      workspaceSkillRoot(workspacePath),
-      "repo-review",
-      `---
+  (isWindows ? it.skip : it)(
+    "setEnabled 会把技能开关按路径写入 CLI config 且不按 workspaceIdentity 隔离",
+    async () => {
+      const home = makeTempHome();
+      const workspacePath = join(home, "workspace");
+      writeSkill(
+        workspaceSkillRoot(workspacePath),
+        "repo-review",
+        `---
 name: repo-review
 description: review
 ---
 body`,
-    );
+      );
 
-    const service = await createSkillsServiceInEnv(home, { isDesktopRuntime: true });
-    const before = await service.list({
-      workspacePath,
-      workspaceIdentity: "remote:ssh:a:/workspace",
-      provider: "glm",
-    });
-    const skill = before.skills[0]!;
+      const service = await createSkillsServiceInEnv(home, { isDesktopRuntime: true });
+      const before = await service.list({
+        workspacePath,
+        workspaceIdentity: "remote:ssh:a:/workspace",
+        provider: "glm",
+      });
+      const skill = before.skills[0]!;
 
-    await service.setEnabled({
-      workspacePath,
-      workspaceIdentity: "remote:ssh:a:/workspace",
-      provider: "glm",
-      scope: skill.scope,
-      skillId: skill.id,
-      enabled: false,
-    });
+      await service.setEnabled({
+        workspacePath,
+        workspaceIdentity: "remote:ssh:a:/workspace",
+        provider: "glm",
+        scope: skill.scope,
+        skillId: skill.id,
+        enabled: false,
+      });
 
-    const disabled = await service.list({
-      workspacePath,
-      workspaceIdentity: "remote:ssh:a:/workspace",
-      provider: "glm",
-    });
-    const enabled = await service.list({
-      workspacePath,
-      workspaceIdentity: "remote:ssh:b:/workspace",
-      provider: "glm",
-    });
-    const config = JSON.parse(
-      readFileSync(join(home, ".zcode", "cli", "config.json"), "utf-8"),
-    ) as { skills?: Record<string, { enable?: boolean }> };
-    expect(disabled.skills[0]?.enabled).toBe(false);
-    expect(enabled.skills[0]?.enabled).toBe(false);
-    expect(config.skills?.[skill.path]).toEqual({ enable: false });
+      const disabled = await service.list({
+        workspacePath,
+        workspaceIdentity: "remote:ssh:a:/workspace",
+        provider: "glm",
+      });
+      const enabled = await service.list({
+        workspacePath,
+        workspaceIdentity: "remote:ssh:b:/workspace",
+        provider: "glm",
+      });
+      const config = JSON.parse(
+        readFileSync(join(home, ".zcode", "cli", "config.json"), "utf-8"),
+      ) as { skills?: Record<string, { enable?: boolean }> };
+      expect(disabled.skills[0]?.enabled).toBe(false);
+      expect(enabled.skills[0]?.enabled).toBe(false);
+      expect(config.skills?.[skill.path]).toEqual({ enable: false });
 
-    await service.setEnabled({
-      workspacePath,
-      workspaceIdentity: "remote:ssh:a:/workspace",
-      provider: "glm",
-      scope: skill.scope,
-      skillId: skill.id,
-      enabled: true,
-    });
+      await service.setEnabled({
+        workspacePath,
+        workspaceIdentity: "remote:ssh:a:/workspace",
+        provider: "glm",
+        scope: skill.scope,
+        skillId: skill.id,
+        enabled: true,
+      });
 
-    const reenabled = await service.list({
-      workspacePath,
-      workspaceIdentity: "remote:ssh:a:/workspace",
-      provider: "glm",
-    });
-    const reenabledConfig = JSON.parse(
-      readFileSync(join(home, ".zcode", "cli", "config.json"), "utf-8"),
-    ) as { skills?: Record<string, { enable?: boolean }> };
-    expect(reenabled.skills[0]?.enabled).toBe(true);
-    expect(reenabledConfig.skills?.[skill.path]).toBeUndefined();
-  });
+      const reenabled = await service.list({
+        workspacePath,
+        workspaceIdentity: "remote:ssh:a:/workspace",
+        provider: "glm",
+      });
+      const reenabledConfig = JSON.parse(
+        readFileSync(join(home, ".zcode", "cli", "config.json"), "utf-8"),
+      ) as { skills?: Record<string, { enable?: boolean }> };
+      expect(reenabled.skills[0]?.enabled).toBe(true);
+      expect(reenabledConfig.skills?.[skill.path]).toBeUndefined();
+    },
+  );
 
   it("读取旧版 skills-state.json 时不会迁移或写入旧状态文件", async () => {
     const home = makeTempHome();
@@ -984,7 +979,7 @@ plan-body`,
     });
 
     expect(context.prompt).toContain("<available_skills>");
-    expect(context.prompt).toContain("<activated_skill name=\"code-review\"");
+    expect(context.prompt).toContain('<activated_skill name="code-review"');
     expect(context.prompt).toContain("review-body");
     expect(context.prompt).not.toContain("plan-body");
     expect(context.activatedSkillNames).toEqual(["code-review"]);
@@ -1159,10 +1154,9 @@ second-body`,
     const result = await service.list({ workspacePath, provider: "glm" });
 
     expect(result.skills.map((skill) => skill.name)).toEqual(["shared-name", "shared-name"]);
-    expect(result.skills.map((skill) => skill.path.replaceAll("\\", "/").split("/skills/").at(-1))).toEqual([
-      "dup-first/SKILL.md",
-      "dup-second/SKILL.md",
-    ]);
+    expect(
+      result.skills.map((skill) => skill.path.replaceAll("\\", "/").split("/skills/").at(-1)),
+    ).toEqual(["dup-first/SKILL.md", "dup-second/SKILL.md"]);
     expect(
       result.diagnostics.some((diagnostic) => diagnostic.code === "skill_duplicate_name"),
     ).toBe(false);
@@ -1195,10 +1189,7 @@ body`,
     const service = await createSkillsServiceInEnv(home, { isDesktopRuntime: true });
     const result = await service.list({ workspacePath: childWorkspace, provider: "glm" });
 
-    expect(result.skills.map((skill) => skill.name).sort()).toEqual([
-      "child-skill",
-      "root-skill",
-    ]);
+    expect(result.skills.map((skill) => skill.name).sort()).toEqual(["child-skill", "root-skill"]);
   });
 
   it("deleteSkill 删除 .zcode/skills 工作区技能目录", async () => {
@@ -1323,9 +1314,7 @@ body`,
       const before = await service.list({ workspacePath, provider: "glm" });
       const skill = before.skills.find((s) => s.name === "nested-skill")!;
 
-      await expect(
-        service.deleteSkill({ workspacePath, skillId: skill.id }),
-      ).rejects.toThrow();
+      await expect(service.deleteSkill({ workspacePath, skillId: skill.id })).rejects.toThrow();
 
       // 外部目标目录及其 SKILL.md 必须完好无损
       expect(existsSync(join(externalGroup, "nested-skill", "SKILL.md"))).toBe(true);
@@ -1492,11 +1481,15 @@ grouped-body`,
     const root = workspaceSkillRoot(workspacePath);
     // 构造一条超过 MAX_SKILL_SCAN_DEPTH 的目录链，末端放一个 SKILL.md。
     const segments = Array.from({ length: MAX_SKILL_SCAN_DEPTH + 2 }, (_, index) => `lvl-${index}`);
-    writeSkill(join(root, ...segments), "too-deep", `---
+    writeSkill(
+      join(root, ...segments),
+      "too-deep",
+      `---
 name: too-deep
 description: beyond depth cap
 ---
-deep-body`);
+deep-body`,
+    );
 
     const service = await createSkillsServiceInEnv(home, { isDesktopRuntime: true });
     const result = await service.list({ workspacePath, provider: "glm" });
@@ -1504,30 +1497,27 @@ deep-body`);
     expect(result.skills.map((skill) => skill.name)).not.toContain("too-deep");
   });
 
-  it.skipIf(process.platform === "win32")(
-    "目录软链构成环时扫描可终止且不重复",
-    async () => {
-      const home = makeTempHome();
-      const workspacePath = join(home, "workspace");
-      const root = workspaceSkillRoot(workspacePath);
-      writeSkill(
-        root,
-        "cyclic-skill",
-        `---
+  it.skipIf(process.platform === "win32")("目录软链构成环时扫描可终止且不重复", async () => {
+    const home = makeTempHome();
+    const workspacePath = join(home, "workspace");
+    const root = workspaceSkillRoot(workspacePath);
+    writeSkill(
+      root,
+      "cyclic-skill",
+      `---
 name: cyclic-skill
 description: cyclic
 ---
 cyclic-body`,
-      );
-      // 在技能根内放一个指回根的软链，制造潜在环路。
-      mkdirSync(root, { recursive: true });
-      symlinkSync(root, join(root, "loop-back"), "dir");
+    );
+    // 在技能根内放一个指回根的软链，制造潜在环路。
+    mkdirSync(root, { recursive: true });
+    symlinkSync(root, join(root, "loop-back"), "dir");
 
-      const service = await createSkillsServiceInEnv(home, { isDesktopRuntime: true });
-      const result = await service.list({ workspacePath, provider: "glm" });
+    const service = await createSkillsServiceInEnv(home, { isDesktopRuntime: true });
+    const result = await service.list({ workspacePath, provider: "glm" });
 
-      // 不应卡死、不应重复列出同一技能。
-      expect(result.skills.map((skill) => skill.name)).toEqual(["cyclic-skill"]);
-    },
-  );
+    // 不应卡死、不应重复列出同一技能。
+    expect(result.skills.map((skill) => skill.name)).toEqual(["cyclic-skill"]);
+  });
 });

@@ -1,5 +1,12 @@
 import { execFileSync } from "node:child_process";
-import { existsSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
+import {
+  existsSync,
+  mkdtempSync,
+  readFileSync,
+  realpathSync,
+  rmSync,
+  writeFileSync,
+} from "node:fs";
 import { createRequire } from "node:module";
 import { tmpdir } from "node:os";
 import { dirname, join, resolve } from "node:path";
@@ -91,6 +98,11 @@ function compileFixture({
 }) {
   const args = [
     "/V2",
+    // 与 electron-builder 的 NsisTarget.executeMakensis 对齐：fixture 的中文注释是
+    // UTF-8 编码，不显式声明输入字符集时 makensis 在部分 Windows 环境会按 ANSI 解析
+    // 并报 "Bad text encoding"。
+    "/INPUTCHARSET",
+    "UTF8",
     ...(buildUninstaller ? ["/WX", "/DBUILD_UNINSTALLER"] : []),
     `/DNSIS_INCLUDE_DIR=${resolve(nsisDir, "Include")}`,
     `/DELECTRON_BUILDER_NSIS_INCLUDE_DIR=${resolve(appBuilderLibDir, "templates/nsis/include")}`,
@@ -133,7 +145,10 @@ async function main() {
     getBinFromUrl("nsis-resources-3.4.1", "nsis-resources-3.4.1.7z", NSIS_RESOURCES_CHECKSUM),
   ]);
   const makensisPath = resolve(nsisDir, "makensis.exe");
-  const tempRoot = mkdtempSync(join(tmpdir(), "zcode-installer-nsh-smoke-"));
+  // tmpdir() 在 Windows 上可能返回 8.3 短路径；NSIS 的 $INSTDIR 会原样保留短路径，
+  // 而 PowerShell 读取 .lnk 的 TargetPath 时会展开成长路径，两者的字符串比对永远
+  // 不相等。先归一化基准目录，保证夹具安装目录与期望值同源。
+  const tempRoot = mkdtempSync(join(realpathSync.native(tmpdir()), "zcode-installer-nsh-smoke-"));
 
   try {
     const uninstallerFixturePath = join(tempRoot, "uninstaller-fixture.exe");

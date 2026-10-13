@@ -81,6 +81,9 @@ export function captureComposerRecentSubmission(
   const key = resolveComposerRecentKey(workspacePath, workspaceIdentity);
   const mode = submissionModeSchema.safeParse(submission.mode);
   const modelSelection = normalizeSparseModelSelection(submission.modelSelection);
+  // 专用任务身份（zcodeUpdate）与旧组合语义（minimal）不进 Recent；模型照记。
+  const inheritableMode =
+    mode.success && isInheritableSubmissionMode(mode.data) ? mode.data : undefined;
   if (modelSelection && isHighspeedProviderId(modelSelection.providerId)) {
     // 兜底（spec §5.1）：加速 Provider 是单轮执行身份，不在任何模型目录里，写进 Recent 会让
     // 新任务草稿种子解析为空。正常链路由 SessionPane 在加速轮传入 Composer 原始选择，这里
@@ -91,10 +94,7 @@ export function captureComposerRecentSubmission(
     });
     return () => {};
   }
-  // 专用任务身份（zcodeUpdate）与旧组合语义（minimal）不进 Recent；模型照记。
-  const inheritableMode =
-    mode.success && isInheritableSubmissionMode(mode.data) ? mode.data : undefined;
-  if (!modelSelection) {
+  if (!mode.success || !modelSelection) {
     // Recent 是发送后的附带偏好；输入异常时只放弃记录，不能阻断权威 command。
     logger.warn("[ComposerRecent] 最近提交配置格式无效，跳过偏好记录", {
       workspacePath,
