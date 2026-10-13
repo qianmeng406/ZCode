@@ -13,8 +13,8 @@ interface TaskPathState {
   loading: boolean;
   path: string | null;
   exists: boolean;
-  error: string | null;
-  retry: () => void;
+  error?: string | null;
+  retry?: () => void;
 }
 
 interface TaskListItemContextActionsResult {

@@ -400,6 +400,8 @@ export function App({
     workspaceHeaderProvider,
     activeTaskChangeSummary,
     activeTaskTitle,
+    taskNativeSessionLogFile,
+    taskSessionFile,
   } = useWorkspaceActiveTaskState({
     workspaceAbsPath,
     activeTaskId,
