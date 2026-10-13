@@ -33,7 +33,6 @@ import type {
   HighspeedCardSnapshot,
   HighspeedPrepareTurnResult,
   GitRepositorySummary,
-  ModelSelection,
   ZCodeProvider,
   ZCodeTaskChangeSummary,
 } from "@zcode/shared";

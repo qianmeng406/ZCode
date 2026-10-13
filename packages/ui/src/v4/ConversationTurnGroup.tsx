@@ -75,7 +75,6 @@ import {
 } from "@/lib/assistantCodeComment.js";
 import { useAssistantPreviewCardsForAssistantTextRow } from "@/v4/useAssistantPreviewCardsForRow.js";
 import type { AssistantPreviewLoadAction } from "@/lib/onDemandLoadingGuards.js";
-import { Button } from "@/components/ui/button.js";
 import { shouldShowTurnChatLoading } from "@/v4/chatLoadingVisibility.js";
 import {
   buildAssistantWorkRenderItems,
