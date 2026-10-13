@@ -71,6 +71,7 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu.js";
 import { HoverCard, HoverCardContent, HoverCardTrigger } from "@/components/ui/hover-card.js";
+import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip.js";
 import { ControlHintTooltip } from "@/ControlHintTooltip.js";
 import { formatBackgroundTaskElapsedLabel } from "@/BackgroundTaskElapsedLabel.js";
 import { GitActionMenu } from "@/GitActionMenu.js";
@@ -2052,19 +2053,26 @@ function ConversationStatusPanelImpl({
             )}
           >
             <DropdownMenu>
-              <ControlHintTooltip title={panelMenuLabel} side="left">
+              {/* Dropdown 内部每次渲染都会重组 ref；TooltipTrigger 必须在它内层，
+                  避免 Tooltip 的 setTrigger 经 ref detach/attach 回流形成 React #185。 */}
+              <Tooltip>
                 <DropdownMenuTrigger asChild>
-                  <Button
-                    type="button"
-                    variant="ghost"
-                    size="icon-sm"
-                    className="size-6"
-                    aria-label={panelMenuLabel}
-                  >
-                    <EllipsisIcon className="size-3.5" />
-                  </Button>
+                  <TooltipTrigger asChild>
+                    <Button
+                      type="button"
+                      variant="ghost"
+                      size="icon-sm"
+                      className="size-6 shrink-0"
+                      aria-label={panelMenuLabel}
+                    >
+                      <EllipsisIcon className="size-3.5" />
+                    </Button>
+                  </TooltipTrigger>
                 </DropdownMenuTrigger>
-              </ControlHintTooltip>
+                <TooltipContent side="left" sideOffset={2}>
+                  {panelMenuLabel}
+                </TooltipContent>
+              </Tooltip>
               <DropdownMenuContent align="end" side="bottom" className="w-44">
                 <DropdownMenuRadioGroup
                   value={panelModeValue}

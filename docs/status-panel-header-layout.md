@@ -18,3 +18,6 @@ Status 面板的 Git、Goal、Progress、Run 区块标题需要保持一致的�
 - 该布局不改变 status 面板的数据来源，只改变标题行的信息排列。
 - Mini 状态仍使用原有胶囊行展开入口。
 - 文案继续使用现有 i18n key，不新增语言资源。
+- 历史会话窗口挂载状态面板时，右上角菜单必须保留悬停提示、键盘开关及焦点恢复，且不能触发 React #185。
+- 菜单触发器采用 `Tooltip > DropdownMenuTrigger asChild > TooltipTrigger asChild > Button`。Tooltip 的 DOM ref 不穿过内部会在渲染时重新组合 ref 的 DropdownMenuTrigger，两个触发器仍共享同一个 button，不额外包裹 DOM。
+- 验收覆盖真实 Radix 触发器（不 mock Tooltip/Dropdown）、面板反复挂载及菜单开关；开发模式与生产 React 均需通过。

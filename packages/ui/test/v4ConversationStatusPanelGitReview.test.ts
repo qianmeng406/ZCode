@@ -9,6 +9,12 @@ vi.mock("@/ControlHintTooltip.js", () => ({
   ControlHintTooltip: ({ children }: { children: ReactNode }) => children,
 }));
 
+vi.mock("@/components/ui/tooltip.js", () => ({
+  Tooltip: ({ children }: { children: ReactNode }) => children,
+  TooltipTrigger: ({ children }: { children: ReactNode }) => children,
+  TooltipContent: () => null,
+}));
+
 vi.mock("@/GitActionMenu.js", () => ({
   GitActionMenu: () => createElement("div", { "data-testid": "mock-git-action-menu" }),
 }));
