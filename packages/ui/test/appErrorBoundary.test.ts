@@ -3,6 +3,7 @@ import { renderToStaticMarkup } from "react-dom/server";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { AppErrorBoundary, ScopedErrorBoundary } from "@/ErrorBoundary.js";
 import type { ArmsCustomEventPayload } from "@zcode/shared";
+import { logger } from "@/logger.js";
 import {
   clearReactErrorArmsReporterForTest,
   setReactErrorArmsReporter,
@@ -24,6 +25,26 @@ afterEach(() => {
 });
 
 describe("AppErrorBoundary", () => {
+  it("records serialized root and scoped crashes through production lifecycle diagnostics", () => {
+    const diagnostic = vi.spyOn(logger.lifecycle, "error").mockImplementation(() => {});
+    const ordinary = vi.spyOn(logger, "error").mockImplementation(() => {});
+    const error = new Error("Maximum update depth exceeded");
+    const info = { componentStack: "\n    at TooltipTrigger" };
+    const root = new AppErrorBoundary({ children: null });
+    const scoped = new ScopedErrorBoundary({ children: null, scope: "workspace-chat" });
+    root.setState = vi.fn();
+    scoped.setState = vi.fn();
+    root.componentDidCatch(error, info);
+    scoped.componentDidCatch(error, info);
+    expect(ordinary).not.toHaveBeenCalled();
+    expect(diagnostic).toHaveBeenCalledTimes(2);
+    expect(diagnostic).toHaveBeenCalledWith(
+      "[ScopedErrorBoundary:workspace-chat] React subtree crashed:",
+      expect.objectContaining({ message: error.message, stack: error.stack }),
+      info.componentStack,
+    );
+  });
+
   it("出错后会渲染 fallback，而不是返回空白内容", () => {
     const boundary = new AppErrorBoundary({
       children: createElement("div", null, "ok"),

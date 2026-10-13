@@ -1,0 +1,44 @@
+diff --git a/dist/index.js b/dist/index.js
+index 2087d670495a7664b83f0a910dbd09727a0b5679..c4a3ae8f08bf9138cb18321a13b14711a61ada17 100644
+--- a/dist/index.js
++++ b/dist/index.js
+@@ -125,6 +125,8 @@ var DropdownMenuTrigger = React.forwardRef(
+     const { __scopeDropdownMenu, disabled = false, ...triggerProps } = props;
+     const context = useDropdownMenuContext(TRIGGER_NAME, __scopeDropdownMenu);
+     const menuScope = useMenuScope(__scopeDropdownMenu);
++    // 菜单开关不改变触发器 DOM，不能重新创建组合 ref 触发 Tooltip 状态回流。
++    const composedRef = React.useMemo(() => (0, import_react_compose_refs.composeRefs)(forwardedRef, context.triggerRef), [forwardedRef, context.triggerRef]);
+     return /* @__PURE__ */ (0, import_jsx_runtime.jsx)(MenuPrimitive.Anchor, { asChild: true, ...menuScope, children: /* @__PURE__ */ (0, import_jsx_runtime.jsx)(
+       import_react_primitive.Primitive.button,
+       {
+@@ -137,7 +139,7 @@ var DropdownMenuTrigger = React.forwardRef(
+         "data-disabled": disabled ? "" : void 0,
+         disabled,
+         ...triggerProps,
+-        ref: (0, import_react_compose_refs.composeRefs)(forwardedRef, context.triggerRef),
++        ref: composedRef,
+         onPointerDown: (0, import_primitive.composeEventHandlers)(props.onPointerDown, (event) => {
+           if (!disabled && event.button === 0 && event.ctrlKey === false) {
+             context.onOpenToggle();
+diff --git a/dist/index.mjs b/dist/index.mjs
+index 1799d5816f33aee1c512953bdd2acff61e91dd54..069d99cc9860b17630744787bc329756ec26520f 100644
+--- a/dist/index.mjs
++++ b/dist/index.mjs
+@@ -58,6 +58,8 @@ var DropdownMenuTrigger = React.forwardRef(
+     const { __scopeDropdownMenu, disabled = false, ...triggerProps } = props;
+     const context = useDropdownMenuContext(TRIGGER_NAME, __scopeDropdownMenu);
+     const menuScope = useMenuScope(__scopeDropdownMenu);
++    // 菜单开关不改变触发器 DOM，不能重新创建组合 ref 触发 Tooltip 状态回流。
++    const composedRef = React.useMemo(() => composeRefs(forwardedRef, context.triggerRef), [forwardedRef, context.triggerRef]);
+     return /* @__PURE__ */ jsx(MenuPrimitive.Anchor, { asChild: true, ...menuScope, children: /* @__PURE__ */ jsx(
+       Primitive.button,
+       {
+@@ -70,7 +72,7 @@ var DropdownMenuTrigger = React.forwardRef(
+         "data-disabled": disabled ? "" : void 0,
+         disabled,
+         ...triggerProps,
+-        ref: composeRefs(forwardedRef, context.triggerRef),
++        ref: composedRef,
+         onPointerDown: composeEventHandlers(props.onPointerDown, (event) => {
+           if (!disabled && event.button === 0 && event.ctrlKey === false) {
+             context.onOpenToggle();

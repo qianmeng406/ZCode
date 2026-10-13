@@ -19,5 +19,7 @@ Status 面板的 Git、Goal、Progress、Run 区块标题需要保持一致的�
 - Mini 状态仍使用原有胶囊行展开入口。
 - 文案继续使用现有 i18n key，不新增语言资源。
 - 历史会话窗口挂载状态面板时，右上角菜单必须保留悬停提示、键盘开关及焦点恢复，且不能触发 React #185。
-- 菜单触发器采用 `Tooltip > DropdownMenuTrigger asChild > TooltipTrigger asChild > Button`。Tooltip 的 DOM ref 不穿过内部会在渲染时重新组合 ref 的 DropdownMenuTrigger，两个触发器仍共享同一个 button，不额外包裹 DOM。
-- 验收覆盖真实 Radix 触发器（不 mock Tooltip/Dropdown）、面板反复挂载及菜单开关；开发模式与生产 React 均需通过。
+- 菜单触发器采用 `Tooltip > DropdownMenuTrigger asChild > TooltipTrigger asChild > Button`，两个触发器共享同一个 button，不额外包裹 DOM。仅交换层级不能保证 ref 稳定，依赖中的 Slot 与 DropdownMenuTrigger 必须以输入 refs 为依赖缓存组合 ref。
+- DOM 节点及输入 refs 不变时，提示开关、父组件重渲染、菜单开关不能触发 ref detach/attach；真实卸载及 ref 替换仍须执行 React 19 cleanup 或旧式 `ref(null)`，不得吞掉清理或延迟状态更新。
+- 验收覆盖真实 Radix 触发器（不 mock Tooltip/Dropdown）、面板反复挂载及菜单开关；生产测试必须先创建 DOM 再加载组件依赖，并断言 ref 生命周期而不只是没有抛出 #185。
+- React 根级及局部错误边界通过生产可用的生命周期诊断出口记录序列化 error message、运行时 stack 与组件 stack，不重新打开普通消息流日志。
