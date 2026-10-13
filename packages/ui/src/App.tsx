@@ -1238,12 +1238,6 @@ export function App({
           }
           initialWebRemoteControlWorkspaceList={initialWebRemoteControlWorkspaceList}
           webRemoteControlTerminalTransportState={webRemoteControlTerminalTransportState}
-          webRemoteControlWorkspaceSwitcher={webRemoteControlWorkspaceSwitcher}
-          initialWebRemoteControlMobileNavigationIntent={
-            initialWebRemoteControlMobileNavigationIntent
-          }
-          initialWebRemoteControlWorkspaceList={initialWebRemoteControlWorkspaceList}
-          webRemoteControlTerminalTransportState={webRemoteControlTerminalTransportState}
           allowRemoteWorkspace={allowRemoteWorkspace}
           remoteWorkspaceSessions={remoteWorkspaceSessions}
           workspaceAbsPath={workspaceAbsPath}
@@ -1334,6 +1328,7 @@ export function App({
           handleToggleBrowser={handleToggleBrowser}
           handleOpenBrowserTab={handleOpenBrowserTab}
           handleOpenBrowserPermissionSettings={handleOpenBrowserPermissionSettings}
+          handleOpenFileExplorerTab={handleOpenFileExplorerTab}
           handleOpenBrowserPermissionSettings={handleOpenBrowserPermissionSettings}
           handleOpenTreemapping={handleOpenTreemappingIfWritable}
           handleOpenWhiteboard={handleOpenWhiteboard}

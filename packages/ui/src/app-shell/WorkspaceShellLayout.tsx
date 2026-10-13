@@ -1946,6 +1946,7 @@ export const WorkspaceShellLayout = memo(
     const renderSidePanePanel = (options: { mobileOverlay?: boolean } = {}) => (
       <AnimatedSidePanePanel
         services={services}
+        onOpenFileExplorerTab={handleOpenFileExplorerTab}
         isDesktop={isDesktop}
         isWindowsDesktop={isWindowsDesktop}
         frameClassName={resolveWorkspaceShellWindowChromeClass({
@@ -2119,14 +2120,6 @@ export const WorkspaceShellLayout = memo(
                     activeSessionId={activeSessionId}
                     activeTaskProvider={activeTaskProvider}
                     resolvedActiveTaskMeta={resolvedActiveTaskMeta}
-                    sessionLogPath={taskSessionFile.path}
-                    nativeSessionLogProvider={taskNativeSessionLogFile.provider}
-                    nativeSessionLogPath={taskNativeSessionLogFile.path}
-                    nativeSessionLogExists={taskNativeSessionLogFile.exists}
-                    nativeSessionLogLoading={taskNativeSessionLogFile.loading}
-                    providerWorkspaceConfigPath={providerConfigFile.path}
-                    providerWorkspaceConfigExists={providerConfigFile.exists}
-                    providerWorkspaceConfigLoading={providerConfigFile.loading}
                     workspaceHeaderState={workspaceShellZCodeState}
                     gitSummary={gitState.summary}
                     gitDirtyFileCount={gitDirtyFileCount}
