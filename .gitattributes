@@ -14,3 +14,6 @@ third-party/runtime/*.txt -text -whitespace
 docs/knip/docs/LICENSE -text -whitespace
 docs/knip/docs/licenses/** -text -whitespace
 third-party/inventory.json linguist-generated=true
+
+# Gen UI vendor 快照带 sha256 清单，构建期按字节校验；autocrlf 的 CRLF 转换会让哈希全部失配。
+apps/zcode-cli/packages/visualize-plugin/skills/visualize/assets/** -text -whitespace
