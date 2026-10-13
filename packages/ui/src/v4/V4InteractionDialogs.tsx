@@ -43,58 +43,21 @@ export interface V4InteractionDialogsProps {
   onPlanInteractionAccepted?: (interactionId: string) => void;
 }
 
-export function getCurrentSessionInteractionSnapshot(
-  sessionId: string,
-  snapshot: ConversationSnapshot | null,
-): ConversationSnapshot | null {
-  return snapshot?.sessionId === sessionId ? snapshot : null;
-}
+import {
+  buildV4ElicitationProgressKey,
+  createInteractionAutoResolutionIntentTracker,
+  getCurrentSessionInteractionSnapshot,
+  resolveV4ElicitationRequest,
+} from "@/v4/v4InteractionDialogHelpers.js";
 
-export function resolveV4ElicitationRequest(
-  projected: ZCodeElicitationRequest | null,
-  botProgress: ZCodeElicitationRequest | null,
-): ZCodeElicitationRequest | null {
-  // Bugfix：V4 snapshot 只保留原始阻塞请求，Bot 代答后的逐题进度必须覆盖同一 request 的投影。
-  if (projected && botProgress?.requestId === projected.requestId) {
-    return botProgress;
-  }
-  return projected;
-}
+export {
+  buildV4ElicitationProgressKey,
+  createInteractionAutoResolutionIntentTracker,
+  getCurrentSessionInteractionSnapshot,
+  resolveV4ElicitationRequest,
+} from "@/v4/v4InteractionDialogHelpers.js";
+export type { InteractionAutoResolutionIntentTracker } from "@/v4/v4InteractionDialogHelpers.js";
 
-export function buildV4ElicitationProgressKey(request: ZCodeElicitationRequest): string {
-  return `${request.requestId}:${request.currentQuestionIndex ?? 0}:${JSON.stringify(request.answerDrafts ?? {})}`;
-}
-
-export interface InteractionAutoResolutionIntentTracker {
-  markInteracted(interactionId: string): void;
-  consumeSnooze(interactionId: string, autoResolutionReady: boolean): boolean;
-  releaseSnooze(interactionId: string): void;
-}
-
-export function createInteractionAutoResolutionIntentTracker(): InteractionAutoResolutionIntentTracker {
-  const interactedIds = new Set<string>();
-  const sentIds = new Set<string>();
-  return {
-    markInteracted(interactionId) {
-      interactedIds.add(interactionId);
-    },
-    consumeSnooze(interactionId, autoResolutionReady) {
-      if (!autoResolutionReady || !interactedIds.has(interactionId) || sentIds.has(interactionId)) {
-        return false;
-      }
-      sentIds.add(interactionId);
-      return true;
-    },
-    releaseSnooze(interactionId) {
-      sentIds.delete(interactionId);
-    },
-  };
-}
-
-/**
- * 竖切：把 projection.pendingInteractions 接到 PermissionDialog / userInput 弹窗。
- * ChatView 删除后若无此组件，带 tool 权限的会话会永久阻塞。
- */
 export function V4InteractionDialogs({
   sessionId,
   workspacePath,
@@ -364,10 +327,12 @@ export function V4InteractionDialogs({
         isWebRemoteControl={isWebRemoteControl}
         provider={provider}
         responding={
-          permissionResponse?.interactionId === pending.interactionId && permissionResponse.pending
+          permissionResponse?.interactionId === pending.interactionId &&
+          permissionResponse.pending === true
         }
         responseError={
-          permissionResponse?.interactionId === pending.interactionId && permissionResponse.failed
+          permissionResponse?.interactionId === pending.interactionId &&
+          permissionResponse.failed === true
             ? intl.formatMessage({ id: "chat.permission.responseFailed" })
             : undefined
         }
