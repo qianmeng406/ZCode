@@ -38,12 +38,20 @@ export function TaskListItemContextMenu({
   };
   isPinned: boolean;
   fileManagerLabel: string;
-  taskSessionFile: { loading: boolean; path: string | null; exists: boolean };
+  taskSessionFile: {
+    loading: boolean;
+    path: string | null;
+    exists: boolean;
+    error?: string | null;
+    retry?: () => void;
+  };
   activeSessionId?: string | null;
   taskNativeSessionLogFile: {
     loading: boolean;
     path: string | null;
     exists: boolean;
+    error?: string | null;
+    retry?: () => void;
   };
   providerConfigFile: { loading: boolean; path: string | null; exists: boolean };
   onTogglePinTask: () => void;

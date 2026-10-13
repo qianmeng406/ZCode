@@ -431,6 +431,7 @@ function resolveConfigDiagnosticLogMessage(
   code: LoadedConfig["diagnostics"][number]["code"],
 ): string {
   if (code === "config_mcp_server_invalid") return "MCP server config skipped";
+  if (code === "config_permission_mode_invalid") return "Permission mode config skipped";
   if (code === "config_project_hooks_pending_trust") {
     return "Project hooks pending workspace trust";
   }
@@ -441,6 +442,7 @@ function resolveConfigDiagnosticLogEvent(
   code: LoadedConfig["diagnostics"][number]["code"],
 ): string {
   if (code === "config_mcp_server_invalid") return "config.mcp_server.skipped";
+  if (code === "config_permission_mode_invalid") return "config.permission.mode.skipped";
   if (code === "config_project_hooks_pending_trust") {
     return "config.project_hooks.pending_trust";
   }

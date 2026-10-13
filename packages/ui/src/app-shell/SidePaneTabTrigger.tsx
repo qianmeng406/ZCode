@@ -8,6 +8,7 @@ import {
   BugIcon,
   FileCode2Icon,
   FileDiffIcon,
+  FolderIcon,
   MapIcon,
   MessageSquareTextIcon,
   ListTreeIcon,
@@ -321,6 +322,12 @@ export function SidePaneTabIcon({ tab }: { tab: WorkspaceSidePaneTab }) {
     return <FileDiffIcon className="size-3.5" />;
   }
 
+  // 文件树标签与工作区边栏文件树同一枚「文件夹」图标；它是 workspace 级 tab，
+  // 图标在打开前就稳定（内存恢复时无外部状态），不按文件类型变。
+  if (tab.type === "file-explorer") {
+    return <FolderIcon className="size-3.5" />;
+  }
+
   if (tab.type === "treemapping") {
     return <MapIcon className="size-3.5" />;
   }
@@ -531,6 +538,10 @@ export function getSidePaneTabTitle(
 
   if (tab.type === "git") {
     return formatMessage({ id: "sidePane.review" });
+  }
+
+  if (tab.type === "file-explorer") {
+    return formatMessage({ id: "fileExplorer.title" });
   }
 
   if (tab.type === "treemapping") {

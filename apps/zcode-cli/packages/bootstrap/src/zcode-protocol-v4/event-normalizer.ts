@@ -294,6 +294,9 @@ function normalizeTurnStarted(
       ? { conversationQuotes: payload.intent.conversationQuotes }
       : {}),
     ...(payload.intent?.botGroupSource ? { botGroupSource: payload.intent.botGroupSource } : {}),
+    ...(payload.intent?.contextProfile !== undefined
+      ? { contextProfile: payload.intent.contextProfile }
+      : {}),
     ...(payload.intent?.provenance ? { provenance: payload.intent.provenance } : {}),
     ...(payload.intent?.source ? { source: payload.intent.source } : {}),
     ...normalizeAttachments(payload),

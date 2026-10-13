@@ -3093,6 +3093,8 @@ async function setupRemoteConnection(
     // 这里只透传 server 侧白名单允许的公开环境变量，避免把 credential/token 带到远端机器。
     remoteRuntimeEnv: pickRemoteRuntimeEnv(process.env),
     assetInstallMode: target.kind === "ssh" ? target.assetInstallMode : undefined,
+    // 常驻模式：远端 server 以 daemon 运行，桌面断开只释放连接与订阅，任务继续。
+    resident: target.kind === "ssh" ? target.resident === true : false,
     // SSH 由窗口级 registry 串行复用，其余 transport 仍保留远端 connector 自身锁。
     deployLockMode,
     onDidRemoteClose: ({ code }) => {

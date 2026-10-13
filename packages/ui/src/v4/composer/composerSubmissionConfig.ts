@@ -1,4 +1,8 @@
-import { resolveExecutionState, type ModelSelection } from "@zcode/shared";
+import {
+  resolveExecutionState,
+  type ContextProfile,
+  type ModelSelection,
+} from "@zcode/shared";
 import { submissionModeSchema, type SubmissionMode } from "@zcode/shared/zcode-protocol-v4";
 import type { ModelSelectionView } from "@zcode/services";
 import { validateModelSelectionOptions } from "@zcode/provider";
@@ -7,12 +11,14 @@ export interface ComposerSubmissionConfig {
   modelSelection: ModelSelection;
   mode: SubmissionMode;
   planEnabled: boolean;
+  /** 上下文档位：与权限一起冻结，但独立选择、独立生效。 */
+  contextProfile: ContextProfile;
 }
 
 /** 在点击提交的瞬间，把 Composer 意图冻结成本次 Submission 的执行配置。 */
 export function createComposerSubmissionConfig(
   composer:
-    | { mode?: string; planEnabled?: boolean; modelSelection?: ModelSelection }
+    | { mode?: string; planEnabled?: boolean; contextProfile?: string; modelSelection?: ModelSelection }
     | null
     | undefined,
   view: ModelSelectionView | null,
@@ -32,9 +38,11 @@ export function createComposerSubmissionConfig(
   if (!mode.success || !selection || !model || !validateModelSelectionOptions(model, selection).ok)
     return null;
   // 不读取 Session 或显示别名；复制所有选择叶子，防止 await 后用户切模改变本次请求。
+  const state = resolveExecutionState(composer);
   return Object.freeze({
     mode: mode.data === "plan" ? "build" : mode.data,
-    planEnabled: resolveExecutionState(composer).planEnabled,
+    planEnabled: state.planEnabled,
+    contextProfile: state.contextProfile,
     modelSelection: Object.freeze({
       providerId: selection.providerId,
       modelId: selection.modelId,

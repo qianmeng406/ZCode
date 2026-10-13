@@ -58,24 +58,30 @@ export function useWorkspaceFileSearchIndex({
 
   useEffect(() => {
     if (!enabled) {
+      // 关闭搜索/隐藏文件树：使在途分块拉取失效，停止请求后续块。
+      requestVersionRef.current += 1;
+      setLoading(false);
       return;
     }
 
+    const controller = new AbortController();
     const currentVersion = requestVersionRef.current + 1;
     requestVersionRef.current = currentVersion;
     setLoading(true);
     setError(null);
 
-    void fetchWorkspaceFileEntriesPacked(fileService, workspacePath)
+    void fetchWorkspaceFileEntriesPacked(fileService, workspacePath, {
+      signal: controller.signal,
+    })
       .then((result) => {
-        if (requestVersionRef.current !== currentVersion) {
+        if (controller.signal.aborted || requestVersionRef.current !== currentVersion) {
           return;
         }
         setPacked(result);
         setLoaded(true);
       })
       .catch((nextError) => {
-        if (requestVersionRef.current !== currentVersion) {
+        if (controller.signal.aborted || requestVersionRef.current !== currentVersion) {
           return;
         }
         setError(nextError instanceof Error ? nextError : new Error(String(nextError)));
@@ -85,6 +91,10 @@ export function useWorkspaceFileSearchIndex({
           setLoading(false);
         }
       });
+    return () => {
+      controller.abort();
+      requestVersionRef.current += 1;
+    };
   }, [enabled, fileService, refreshVersion, workspacePath]);
 
   return {

@@ -448,15 +448,27 @@ async function requestExitPlanModeApproval(
     options?.onRegistered,
   );
 
-  return planApprovalResponseToBrokerResult(response);
+  return planApprovalResponseToBrokerResult(request, response);
 }
 
-function v4AnswerToPlanApprovalResponse(answer: V4InteractionAnswer): ZCodeUserInputResponse {
+/** 导出仅供单测：v4 应答 → 计划批准响应（含 UI action 路径的执行模型选择搬运）的纯映射。 */
+export function v4AnswerToPlanApprovalResponse(
+  answer: V4InteractionAnswer,
+): ZCodeUserInputResponse {
   // 同 v4AnswerToUserInputResponse——host adapter 收敛路径直传
   // action/content，planApprovalResponseToBrokerResult 继续做 approve/feedback 归一。
   if (answer.action) {
     return answer.action === "accept"
-      ? { action: "accept", content: answer.content ?? {} }
+      ? {
+          action: "accept",
+          // 批准时附带的执行模型选择经 content 搭载（ZCodeUserInputResponse.content
+          // 是宽松 record），planApprovalResponseToBrokerResult 据此把 modify 输入
+          // 注入 ExitPlanMode 工具输入。缺省键 = 跟随会话模型，旧行为不变。
+          content: {
+            ...(answer.content ?? {}),
+            ...(answer.modelSelection ? { executionModelSelection: answer.modelSelection } : {}),
+          },
+        }
       : { action: answer.action };
   }
   if (answer.optionId === "allowOnce" || answer.optionId === "allowAlways") {
@@ -545,7 +557,9 @@ function userInputResponseToBrokerResult(
   };
 }
 
-function planApprovalResponseToBrokerResult(
+/** 导出仅供单测：批准应答 → broker 结果（含 modify 换模路径）的纯映射。 */
+export function planApprovalResponseToBrokerResult(
+  request: PermissionBrokerRequest,
   response: ZCodeUserInputResponse,
 ): PermissionBrokerResult {
   if (response.action !== "accept") {
@@ -557,7 +571,20 @@ function planApprovalResponseToBrokerResult(
   }
 
   const answer = normalizePlanApprovalAnswer(response.content);
+  const executionModelSelection = readPlanApprovalModelSelection(response.content);
   if (answer === EXIT_PLAN_MODE_APPROVAL_APPROVE) {
+    if (executionModelSelection) {
+      // 批准 + 指定执行模型：走 modify 决策把选择合并进工具输入（AskUserQuestion
+      // 同款先例），executor 的归一化/校验机器原样复用，ExitPlanModeInputSchema
+      // 声明该可选字段后 handler 透传到输出，turn-control 据此停回合并入队新模型执行。
+      const input = isRecord(request.input) ? request.input : {};
+      return {
+        decision: "modify",
+        modifiedInput: { ...input, executionModelSelection },
+        reason: response.reason,
+        resolvedAt: new Date(),
+      };
+    }
     return {
       decision: "allow",
       reason: response.reason,
@@ -578,6 +605,26 @@ function planApprovalResponseToBrokerResult(
     reason: answer,
     reasonSource: "plan_approval_feedback",
     resolvedAt: new Date(),
+  };
+}
+
+/** plan-approval 批准附带执行模型的最小形状校验；非法/缺席返回 undefined（走 allow 原路径）。 */
+function readPlanApprovalModelSelection(
+  content: Record<string, unknown> | undefined,
+): { providerId: string; modelId: string; options?: { reasoningLevel?: string } } | undefined {
+  if (!content) return undefined;
+  const value = content.executionModelSelection;
+  if (!isRecord(value)) return undefined;
+  if (typeof value.providerId !== "string" || typeof value.modelId !== "string") return undefined;
+  const options = isRecord(value.options) ? value.options : undefined;
+  const reasoningLevel =
+    options && typeof options.reasoningLevel === "string" && options.reasoningLevel.trim()
+      ? options.reasoningLevel
+      : undefined;
+  return {
+    providerId: value.providerId,
+    modelId: value.modelId,
+    ...(reasoningLevel ? { options: { reasoningLevel } } : {}),
   };
 }
 

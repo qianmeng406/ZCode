@@ -1,5 +1,6 @@
 import { useEffect, useRef } from "react";
 import type { IFileWatcherService } from "@zcode/services";
+import { shouldCommitDeferredRequest } from "@/lib/onDemandLoadingGuards.js";
 import { logger } from "@/logger.js";
 import type { WorkspaceFileTreeWatcherRegistration } from "@/workspace-file-tree/types.js";
 
@@ -66,10 +67,18 @@ export function useWorkspaceFileTreeWatchers({
       void fileWatcherService
         .watch({ path: directoryPath })
         .then(({ id }) => {
-          pendingWatcherDirectoryPathsRef.current.delete(directoryPath);
+          // 只释放同代 pending 登记：换代（服务变更/卸载）后 pending 已被整体重置，
+          // 这里再删会误删新一代尝试的登记。同代时登记就是本尝试创建的，删它不会泄漏。
+          if (watcherGeneration === watcherGenerationRef.current) {
+            pendingWatcherDirectoryPathsRef.current.delete(directoryPath);
+          }
+          // 迟到的 watch 结果只在“仍被需要且未换代”时安装订阅；否则立即 unwatch。
           if (
-            watcherGeneration !== watcherGenerationRef.current ||
-            !watchedDirectoryPathsRef.current.has(directoryPath)
+            !shouldCommitDeferredRequest({
+              active: watchedDirectoryPathsRef.current.has(directoryPath),
+              generation: watcherGeneration,
+              expectedGeneration: watcherGenerationRef.current,
+            })
           ) {
             void fileWatcherService.unwatch({ id });
             return;
@@ -84,8 +93,10 @@ export function useWorkspaceFileTreeWatchers({
             unwatch: () => fileWatcherService.unwatch({ id }),
           });
         })
-        .catch((error) => {
-          pendingWatcherDirectoryPathsRef.current.delete(directoryPath);
+        .catch((error: unknown) => {
+          if (watcherGeneration === watcherGenerationRef.current) {
+            pendingWatcherDirectoryPathsRef.current.delete(directoryPath);
+          }
           logger.warn("[WorkspaceFileTree] 监听目录失败", {
             path: directoryPath,
             error: error instanceof Error ? error.message : String(error),

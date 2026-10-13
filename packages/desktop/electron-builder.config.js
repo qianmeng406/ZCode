@@ -78,6 +78,10 @@ const bundledCuaHelperSource = resolve(
   targetPlatform.arch,
   HELPER_APP_NAME,
 );
+// 本地远端资源树（由 scripts/prepare-local-remote-assets.mjs 产出）。
+// 打进 resources/remote-assets 后，桌面端部署 SSH/WSL 远端工作区时直接读本地文件再 SFTP 上传，
+// 全程不访问 CDN，从而不会从官方 CDN 拿到未含本仓库改动的远端 server/agent 产物。
+const localRemoteAssetsDir = resolve(desktopPackageRoot, "dist-remote-assets-local");
 const DEFAULT_ELECTRON_MIRROR = "https://npmmirror.com/mirrors/electron/";
 // `pnpm exec asar` 依赖 `.bin/asar`，但 @electron/asar 仅是 electron-builder 传递依赖时，
 // Linux CI（pnpm hoisted）往往解析不到该二进制，`asar list` 未运行即 exit 1。
@@ -734,6 +738,17 @@ export default {
       from: builtinProviderConfig.sourcePath,
       to: "config/provider/zcode-builtin.json",
     },
+    ...(existsSync(localRemoteAssetsDir)
+      ? [
+          {
+            // 远端工作区（SSH/WSL）运行时资源：随包分发后部署时直接本地上传，不访问 CDN。
+            // 目录缺失时不做失败断言，让未准备该资源的构建仍能产出可用包（此时运行时回退 CDN）。
+            from: localRemoteAssetsDir,
+            to: "remote-assets",
+            filter: ["**/*"],
+          },
+        ]
+      : []),
     {
       // 应用图标：打包后放入 resources 目录，主进程通过 process.resourcesPath 加载
       from: "build/icon.png",

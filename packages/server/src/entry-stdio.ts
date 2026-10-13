@@ -17,6 +17,8 @@ import {
   materializeBundledZCodeBuiltinProviderConfig,
   readBundledZCodeBuiltinProviderConfig,
 } from "./bundledZCodeBuiltinProviderConfig.js";
+import { resolveResidentArgvCommand } from "./remote/resident-protocol.js";
+import { runResidentEntryCommand } from "./remote/resident-entry.js";
 
 // In stdio mode, all logging goes to stderr
 const log = (...args: unknown[]) =>
@@ -36,6 +38,26 @@ console.debug = stderrConsoleLog;
 if (process.argv.includes("--version")) {
   process.stdout.write(ZCODE_VERSION + "\n");
   process.exit(0);
+}
+
+// 常驻模式子命令（--resident-start/serve/bridge/stop）：与 stdio 会话模式共用同一
+// bundle 与部署面。分发必须在 --version 之后；不带常驻参数时走原 stdio 路径，行为零变化。
+// 规格见 ./specs/remote-resident-server.md。
+const residentCommand = resolveResidentArgvCommand(process.argv);
+if (residentCommand) {
+  runResidentEntryCommand(residentCommand)
+    .then((code) => {
+      process.exit(code);
+    })
+    .catch((error: unknown) => {
+      log("resident fatal:", error);
+      process.exit(1);
+    });
+} else {
+  main().catch((err: unknown) => {
+    log("fatal:", err);
+    process.exit(1);
+  });
 }
 
 async function main() {
@@ -141,7 +163,4 @@ function waitForAck(): Promise<HelloAckMessage> {
   });
 }
 
-main().catch((err) => {
-  log("fatal:", err);
-  process.exit(1);
-});
+// main 的调用在常驻子命令分发改写过的入口顶部：仅在不带 --resident-* 时执行。

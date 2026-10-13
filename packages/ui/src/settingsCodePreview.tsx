@@ -85,6 +85,10 @@ export function AppearanceSectionContent({
   setTheme,
   uiFontSizePx,
   setUiFontSizePx,
+  conversationTurnNavigatorEnabled,
+  setConversationTurnNavigatorEnabled,
+  assistantAutoFilePreviewEnabled,
+  setAssistantAutoFilePreviewEnabled,
 }: {
   codePreviewSettings: CodePreviewSettings;
   setCodePreviewSettings: (settings: Partial<CodePreviewSettings>) => void;
@@ -92,6 +96,10 @@ export function AppearanceSectionContent({
   setTheme: (theme: Theme) => void;
   uiFontSizePx: number;
   setUiFontSizePx: (fontSizePx: number) => void;
+  conversationTurnNavigatorEnabled: boolean;
+  setConversationTurnNavigatorEnabled: (enabled: boolean) => void;
+  assistantAutoFilePreviewEnabled: boolean;
+  setAssistantAutoFilePreviewEnabled: (enabled: boolean) => void;
 }) {
   const { intl } = useZCodeIntl();
   const activePreviewMode = resolveTheme(theme);
@@ -149,6 +157,30 @@ export function AppearanceSectionContent({
                   value={uiFontSizePx}
                   onChange={setUiFontSizePx}
                   ariaLabel={intl.formatMessage({ id: "settings.uiFontSize" })}
+                />
+              }
+            />
+            <SettingsRow
+              label={intl.formatMessage({ id: "settings.conversationTurnNavigator" })}
+              description={intl.formatMessage({
+                id: "settings.conversationTurnNavigatorDescription",
+              })}
+              control={
+                <Switch
+                  checked={conversationTurnNavigatorEnabled}
+                  onCheckedChange={setConversationTurnNavigatorEnabled}
+                />
+              }
+            />
+            <SettingsRow
+              label={intl.formatMessage({ id: "settings.assistantAutoFilePreview" })}
+              description={intl.formatMessage({
+                id: "settings.assistantAutoFilePreviewDescription",
+              })}
+              control={
+                <Switch
+                  checked={assistantAutoFilePreviewEnabled}
+                  onCheckedChange={setAssistantAutoFilePreviewEnabled}
                 />
               }
             />

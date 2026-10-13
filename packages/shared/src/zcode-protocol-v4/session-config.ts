@@ -1,5 +1,6 @@
 import { z } from "zod";
 import { modelSelectionSchema } from "../model-selection.js";
+import { contextProfileSchema } from "../execution-state.js";
 
 // ── config──
 export const sessionConfigStateSchema = z.object({
@@ -16,6 +17,8 @@ export const sessionConfigStateSchema = z.object({
   // 必须带 default 才不破坏旧快照/旧发送端的解析；投影经 SessionModeChanged 事件更新。
   mode: z.string().default("build"),
   planEnabled: z.boolean().optional(),
+  // 上下文档位（与权限正交）；旧快照缺省 standard，旧 mode=minimal 由读取边界补极简档位。
+  contextProfile: contextProfileSchema.default("standard"),
   /** 明确审批结果；草稿按 interactionId 消费一次，普通 mode 更新不重置它。 */
   permissionGrant: z.object({ interactionId: z.string().min(1) }).optional(),
   /** 最近工具转换的关联，供草稿定向同步；不新增可见历史事件。 */

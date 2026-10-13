@@ -105,6 +105,7 @@ export function RemoteConnectionDialog({
     username,
     sshAuthMethod,
     assetInstallMode,
+    resident,
     password,
     privateKeyPath,
     privateKeyPassphrase,
@@ -130,6 +131,7 @@ export function RemoteConnectionDialog({
     setUsername,
     setSshAuthMethod,
     setAssetInstallMode,
+    setResident,
     setPassword,
     setPrivateKeyPath,
     setPrivateKeyPassphrase,
@@ -328,6 +330,7 @@ export function RemoteConnectionDialog({
       username,
       sshAuthMethod,
       assetInstallMode,
+      resident,
       password,
       privateKeyPath,
       privateKeyPassphrase,
@@ -530,6 +533,7 @@ export function RemoteConnectionDialog({
                     username={username}
                     sshAuthMethod={sshAuthMethod}
                     assetInstallMode={assetInstallMode}
+                    resident={resident}
                     password={password}
                     privateKeyPath={privateKeyPath}
                     privateKeyPassphrase={privateKeyPassphrase}
@@ -562,6 +566,7 @@ export function RemoteConnectionDialog({
                     onUsernameChange={setUsername}
                     onSshAuthMethodChange={setSshAuthMethod}
                     onAssetInstallModeChange={setAssetInstallMode}
+                    onResidentChange={setResident}
                     onPasswordChange={setPassword}
                     onPrivateKeyPathChange={setPrivateKeyPath}
                     onPrivateKeyPassphraseChange={setPrivateKeyPassphrase}

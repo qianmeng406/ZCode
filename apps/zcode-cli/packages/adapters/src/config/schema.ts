@@ -10,8 +10,28 @@ const modelStreamSchema = z.object({
   idleTimeoutMs: positiveNumberSchema.optional(),
 });
 
+// 与 CliPermissionMode 同值域（CLI 接受 --mode research/minimal/zcodeUpdate，
+// 配置文件必须同样能存；guarded 为上游新增模式）。
+const PERMISSION_MODES = [
+  "plan",
+  "build",
+  "edit",
+  "yolo",
+  "guarded",
+  "auto",
+  "research",
+  "minimal",
+  "zcodeUpdate",
+] as const;
+
+function isPermissionMode(value: string): value is (typeof PERMISSION_MODES)[number] {
+  return (PERMISSION_MODES as readonly string[]).includes(value);
+}
+
 const permissionSchema = z.object({
-  mode: z.enum(["plan", "build", "edit", "yolo", "guarded", "auto"]).optional(),
+  // 已移除的模式（如项目开发模式 workflow）出现在旧配置里时，不能让整份配置失效：
+  // 解析边界先由 normalizeConfigFileInput 剔除，这里的 catch 是兜底，最终回退到默认 build。
+  mode: z.enum(PERMISSION_MODES).optional().catch(undefined),
   allowedTools: z.array(z.string()).optional(),
   disallowedTools: z.array(z.string()).optional(),
   autoApproveHighRisk: z.boolean().optional(),
@@ -316,6 +336,7 @@ export type ConfigDiagnosticSeverity = "warning" | "error";
 export type ConfigDiagnosticCode =
   | "config_file_invalid"
   | "config_mcp_server_invalid"
+  | "config_permission_mode_invalid"
   | "config_project_hooks_pending_trust";
 
 export interface ConfigDiagnostic {
@@ -470,6 +491,25 @@ function normalizeConfigFileInput(value: unknown, diagnostics: ConfigDiagnostic[
   if (!isPlainRecord(value)) return value;
 
   const root = { ...value };
+
+  // permission.mode 的已知失效值（如已移除的项目开发模式 workflow）在读取边界剔除，
+  // 回退到默认档位（build），同时保留配置文件其余部分——一个旧模式值不该让整份配置失效。
+  const permission = root.permission;
+  if (
+    isPlainRecord(permission) &&
+    typeof permission.mode === "string" &&
+    !isPermissionMode(permission.mode)
+  ) {
+    diagnostics.push({
+      code: "config_permission_mode_invalid",
+      message: `permission.mode "${permission.mode}" is not a supported mode; ignoring it.`,
+      path: "permission.mode",
+      severity: "warning",
+    });
+    const { mode: _ignored, ...restPermission } = permission;
+    root.permission = restPermission;
+  }
+
   const mcp = root.mcp;
   if (!isPlainRecord(mcp)) return root;
 

@@ -154,6 +154,7 @@ export function RemoteConnectionSettingsStep({
   username,
   sshAuthMethod,
   assetInstallMode,
+  resident,
   password,
   privateKeyPath,
   privateKeyPassphrase,
@@ -183,6 +184,7 @@ export function RemoteConnectionSettingsStep({
   onUsernameChange,
   onSshAuthMethodChange,
   onAssetInstallModeChange,
+  onResidentChange,
   onPasswordChange,
   onPrivateKeyPathChange,
   onPrivateKeyPassphraseChange,
@@ -205,6 +207,7 @@ export function RemoteConnectionSettingsStep({
   username: string;
   sshAuthMethod: SSHAuthMethod;
   assetInstallMode: RemoteAssetInstallMode;
+  resident: boolean;
   password: string;
   privateKeyPath: string;
   privateKeyPassphrase: string;
@@ -234,6 +237,7 @@ export function RemoteConnectionSettingsStep({
   onUsernameChange: (value: string) => void;
   onSshAuthMethodChange: (value: SSHAuthMethod) => void;
   onAssetInstallModeChange: (value: RemoteAssetInstallMode) => void;
+  onResidentChange: (value: boolean) => void;
   onPasswordChange: (value: string) => void;
   onPrivateKeyPathChange: (value: string) => void;
   onPrivateKeyPassphraseChange: (value: string) => void;
@@ -274,6 +278,7 @@ export function RemoteConnectionSettingsStep({
           username={username}
           sshAuthMethod={sshAuthMethod}
           assetInstallMode={assetInstallMode}
+          resident={resident}
           password={password}
           privateKeyPath={privateKeyPath}
           privateKeyPassphrase={privateKeyPassphrase}
@@ -301,6 +306,7 @@ export function RemoteConnectionSettingsStep({
           setUsername={onUsernameChange}
           setSshAuthMethod={onSshAuthMethodChange}
           setAssetInstallMode={onAssetInstallModeChange}
+          setResident={onResidentChange}
           setPassword={onPasswordChange}
           setPrivateKeyPath={onPrivateKeyPathChange}
           setPrivateKeyPassphrase={onPrivateKeyPassphraseChange}

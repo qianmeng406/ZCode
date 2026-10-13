@@ -12,7 +12,10 @@ export interface WorkspaceFileTreeProps {
   temporaryExternalDirectory?: boolean;
   canOpenLocalFileManager?: boolean;
   activePreviewPath?: string | null;
-  onClose: () => void;
+  /** 树真实可见资格（默认 true）：隐藏时暂停树专属查询/watcher/搜索索引，保留缓存。 */
+  active?: boolean;
+  /** 缺席时隐藏「返回任务列表」行：侧边面板等宿主没有任务列表可返回，关 tab 走各自的 tab 关闭按钮。 */
+  onClose?: () => void;
   onOpenBrowserUrl?: (url: string) => void;
   onOpenPreview?: (source: CodeViewerSource) => void;
 }
@@ -32,6 +35,7 @@ export interface WorkspaceFileTreeContextMenuLabels {
   addToChat: string;
   copyAbsolutePath: string;
   copyRelativePath: string;
+  copyFile: string;
   open: string;
   openInBrowser: string;
   openFailed: string;

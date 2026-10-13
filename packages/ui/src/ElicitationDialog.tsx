@@ -12,12 +12,38 @@ import type { InteractionAutoResolution } from "@zcode/shared/zcode-protocol-v4"
 import { CheckIcon, ChevronDown, ChevronLeft, ChevronRight, ChevronUp, Info } from "lucide-react";
 import { Badge } from "@/components/ui/badge.js";
 import { Button } from "@/components/ui/button.js";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuLabel,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu.js";
 import { cn } from "@/components/lib/utils.js";
 import { Textarea } from "@/components/ui/textarea.js";
 import { InteractionRequestOriginBadge } from "@/InteractionRequestOriginBadge.js";
 import { isImeComposingKeyEvent } from "@/lib/imeComposition.js";
+import {
+  completePlanExecutionModelChoice,
+  isPlanExecutionModelChoiceValid,
+} from "@/lib/planExecutionModel.js";
 import type { ElicitationFormDraft } from "@/store/zcodeSessionStoreTypes.js";
 import { useZCodeIntl } from "./i18n/IntlProvider.js";
+
+/** 计划批准卡片「执行模型」下拉的候选清单（按 provider 分组，含每档推理档）。 */
+export interface PlanExecutionModelGroup {
+  providerId: string;
+  providerName?: string;
+  models: Array<{ modelId: string; reasoningLevels: readonly string[] }>;
+}
+
+/** 用户在批准卡片上选定的执行模型；选中模型即由 completePlanExecutionModelChoice 补齐最高档，reasoningLevel 缺省仅表示模型无档位。 */
+export interface PlanExecutionModelChoice {
+  providerId: string;
+  modelId: string;
+  reasoningLevel?: string;
+}
 
 interface ElicitationDialogProps {
   request: ZCodeElicitationRequest;
@@ -26,6 +52,8 @@ interface ElicitationDialogProps {
     requestId: string,
     action: "accept" | "decline" | "cancel",
     content?: Record<string, unknown>,
+    /** 计划批准 accept 时附带：用户为本回合执行指定的模型（含推理档）。 */
+    executionModel?: PlanExecutionModelChoice,
   ) => void;
   /** 普通 AskUserQuestion 首次暂停来源；失败返回 false 后允许下一次操作重试。 */
   onFirstInteraction?: (
@@ -33,6 +61,8 @@ interface ElicitationDialogProps {
   ) => boolean | void | Promise<boolean | void>;
   initialFormDraft?: ElicitationFormDraft;
   onFormDraftChange?: (requestId: string, draft: ElicitationFormDraft) => void;
+  /** plan_approval 专用：执行模型下拉候选；缺席或为空时下拉不渲染（跟随会话模型）。 */
+  planExecutionModelGroups?: PlanExecutionModelGroup[];
 }
 
 export type ElicitationAutoResolutionSnoozeSource =
@@ -347,6 +377,7 @@ function ElicitationDialogContent({
   onFirstInteraction,
   initialFormDraft,
   onFormDraftChange,
+  planExecutionModelGroups,
 }: ElicitationDialogProps) {
   const { intl } = useZCodeIntl();
   const questions = useMemo(() => normalizeElicitationQuestions(request), [request]);
@@ -404,6 +435,46 @@ function ElicitationDialogContent({
     : undefined;
   const isPlanApproval = isPlanApprovalElicitationRequest(request);
 
+  // 计划批准卡片的「执行模型/推理档」选择：null = 跟随会话模型（批准后同回合
+  // 无缝继续，现行行为）。组件按 requestId 重建，无需随 request 重置。
+  const [executionModel, setExecutionModel] = useState<PlanExecutionModelChoice | null>(null);
+  const selectPlanExecutionModel = useCallback(
+    (picked: PlanExecutionModelChoice) => {
+      // 选中模型即补齐最高档：与 Composer 切模型（completeNewModelSelection）同语义，
+      // 避免“选了模型但档位为空”生成 registry 拒绝的 ModelSelection。
+      setExecutionModel(completePlanExecutionModelChoice(planExecutionModelGroups, picked) ?? null);
+    },
+    [planExecutionModelGroups],
+  );
+  // 候选目录更新（模型被禁用/删除、档位变化）后，当前选择可能失效。失效时回退到
+  // 「跟随会话模型」，防止批准仍提交 registry 会拒绝的模型/档位。
+  useEffect(() => {
+    setExecutionModel((current) =>
+      current && !isPlanExecutionModelChoiceValid(planExecutionModelGroups, current)
+        ? null
+        : current,
+    );
+  }, [planExecutionModelGroups]);
+  const executionModelGroup = executionModel
+    ? planExecutionModelGroups?.find((group) => group.providerId === executionModel.providerId)
+    : undefined;
+  const executionModelOption = executionModelGroup?.models.find(
+    (model) => model.modelId === executionModel?.modelId,
+  );
+  const showPlanExecutionPicker = isPlanApproval && (planExecutionModelGroups?.length ?? 0) > 0;
+  const planExecutionFollowLabel = intl.formatMessage({
+    id: "chat.elicitation.planExecutionFollow",
+  });
+  const planExecutionModelLabel = intl.formatMessage({
+    id: "chat.elicitation.planExecutionModel",
+  });
+  const planExecutionThoughtLabel = intl.formatMessage({
+    id: "chat.elicitation.planExecutionThought",
+  });
+  const planExecutionThoughtDefaultLabel = intl.formatMessage({
+    id: "chat.elicitation.planExecutionThoughtDefault",
+  });
+
   useEffect(() => {
     if (getQuestionOptionCount(currentQuestion) === 0 || activeOptionIndex < 0) {
       return;
@@ -453,9 +524,23 @@ function ElicitationDialogContent({
   const submitWithDrafts = useCallback(
     (nextDrafts: DraftState) => {
       const content = buildElicitationResponseContent(questions, nextDrafts);
-      onRespond(request.requestId, "accept", content);
+      // 提交前再校验一次选择仍有效（目录可能在批准瞬间刚更新），失效则按跟随会话模型提交。
+      const executionModelChoice =
+        isPlanApproval &&
+        executionModel &&
+        isPlanExecutionModelChoiceValid(planExecutionModelGroups, executionModel)
+          ? executionModel
+          : undefined;
+      onRespond(request.requestId, "accept", content, executionModelChoice);
     },
-    [onRespond, questions, request.requestId],
+    [
+      onRespond,
+      questions,
+      request.requestId,
+      isPlanApproval,
+      executionModel,
+      planExecutionModelGroups,
+    ],
   );
 
   const advanceFromQuestion = useCallback(
@@ -704,7 +789,10 @@ function ElicitationDialogContent({
       }
       if (action === "submit") {
         event.preventDefault();
-        submit();
+        // 复用 continueOrSubmit：计划批准在空答案时会显式补 approve（空答案在
+        // 计划审批协议里表示拒绝）。直接在空反馈框按 Enter 若走 submit() 会把
+        // 「接受计划」变成「拒绝计划」，与主提交按钮语义不一致。
+        continueOrSubmit();
         return;
       }
       if (action === "previous") {
@@ -721,6 +809,7 @@ function ElicitationDialogContent({
     },
     [
       advanceFromQuestion,
+      continueOrSubmit,
       dismiss,
       drafts,
       goBack,
@@ -729,7 +818,6 @@ function ElicitationDialogContent({
       questionIndex,
       questions,
       reportFirstInteraction,
-      submit,
     ],
   );
 
@@ -1094,6 +1182,108 @@ function ElicitationDialogContent({
                 {intl.formatMessage({ id: "chat.elicitation.noQuestions" })}
               </p>
             )}
+
+            {showPlanExecutionPicker ? (
+              // 计划批准的执行模型交接：默认「跟随会话模型」= 现行同回合继续；
+              // 选定具体模型后批准会停掉规划回合、以该模型开启执行回合。
+              <div className="flex flex-wrap items-center gap-2 px-1">
+                <span className="shrink-0 text-ui-sm text-foreground-subtle">
+                  {planExecutionModelLabel}
+                </span>
+                <DropdownMenu>
+                  <DropdownMenuTrigger asChild>
+                    <Button
+                      type="button"
+                      size="xs"
+                      variant="outline"
+                      data-testid="v4-plan-approval-execution-model"
+                      className="max-w-56"
+                    >
+                      <span className="min-w-0 truncate">
+                        {executionModel
+                          ? `${executionModel.providerId}/${executionModel.modelId}`
+                          : planExecutionFollowLabel}
+                      </span>
+                      <ChevronDown className="size-3 shrink-0 text-foreground-subtle" />
+                    </Button>
+                  </DropdownMenuTrigger>
+                  <DropdownMenuContent align="start" className="max-h-72 w-64 overflow-y-auto">
+                    <DropdownMenuItem onSelect={() => setExecutionModel(null)}>
+                      <span className="min-w-0 flex-1 truncate">{planExecutionFollowLabel}</span>
+                      {executionModel === null ? <CheckIcon className="size-3.5 shrink-0" /> : null}
+                    </DropdownMenuItem>
+                    <DropdownMenuSeparator />
+                    {(planExecutionModelGroups ?? []).map((group) => (
+                      <div key={group.providerId}>
+                        <DropdownMenuLabel className="text-ui-xs text-foreground-subtlest">
+                          {group.providerName?.trim() || group.providerId}
+                        </DropdownMenuLabel>
+                        {group.models.map((model) => {
+                          const selected =
+                            executionModel?.providerId === group.providerId &&
+                            executionModel.modelId === model.modelId;
+                          return (
+                            <DropdownMenuItem
+                              key={model.modelId}
+                              onSelect={() =>
+                                selectPlanExecutionModel({
+                                  providerId: group.providerId,
+                                  modelId: model.modelId,
+                                })
+                              }
+                            >
+                              <span className="min-w-0 flex-1 truncate">{model.modelId}</span>
+                              {selected ? <CheckIcon className="size-3.5 shrink-0" /> : null}
+                            </DropdownMenuItem>
+                          );
+                        })}
+                      </div>
+                    ))}
+                  </DropdownMenuContent>
+                </DropdownMenu>
+                {executionModel ? (
+                  <>
+                    <span className="shrink-0 text-ui-sm text-foreground-subtle">
+                      {planExecutionThoughtLabel}
+                    </span>
+                    <DropdownMenu>
+                      <DropdownMenuTrigger asChild>
+                        <Button
+                          type="button"
+                          size="xs"
+                          variant="outline"
+                          data-testid="v4-plan-approval-execution-thought"
+                          className="max-w-44"
+                        >
+                          <span className="min-w-0 truncate">
+                            {executionModel.reasoningLevel ?? planExecutionThoughtDefaultLabel}
+                          </span>
+                          <ChevronDown className="size-3 shrink-0 text-foreground-subtle" />
+                        </Button>
+                      </DropdownMenuTrigger>
+                      <DropdownMenuContent align="start" className="max-h-72 w-52 overflow-y-auto">
+                        {(executionModelOption?.reasoningLevels ?? []).map((level) => {
+                          const selected = executionModel.reasoningLevel === level;
+                          return (
+                            <DropdownMenuItem
+                              key={level}
+                              onSelect={() =>
+                                setExecutionModel((current) =>
+                                  current ? { ...current, reasoningLevel: level } : current,
+                                )
+                              }
+                            >
+                              <span className="min-w-0 flex-1 truncate">{level}</span>
+                              {selected ? <CheckIcon className="size-3.5 shrink-0" /> : null}
+                            </DropdownMenuItem>
+                          );
+                        })}
+                      </DropdownMenuContent>
+                    </DropdownMenu>
+                  </>
+                ) : null}
+              </div>
+            ) : null}
           </div>
 
           {!isDialogExpanded ? (

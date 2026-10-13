@@ -97,6 +97,10 @@ export async function deployServer(
   env: RemoteEnvironment,
   options?: DeployOptions,
 ): Promise<boolean> {
+  // 「远端服务器下载」模式必须有一个 CDN 来源；用户没配时落回 ZCode 官方 CDN。
+  // 该模式拉取的是官方产物，不含本仓库的远端改动（resident 入口等），
+  // 因此 connect 层会拒绝 resident + remote-download 组合（fail-fast，见 connect.ts）。
+  options = withRemoteDownloadOfficialCdn(options);
   const platformArch = `${env.platform}-${env.arch}`;
   assertSupportedRemoteEnvironment(env);
   const selectedResourcePackageIds = normalizeRemoteResourcePackageSelection();
@@ -206,6 +210,8 @@ export async function deployServer(
     signal: options?.signal,
     resolveReleaseDir: getReleaseDir,
     resolveComponentSha256: getComponentSha256,
+    // 本地随包资源模式下 installer 需要据此判断“没有 CDN 来源、只能本地上传”。
+    mockCdnDir: options?.mockCdnDir,
     remoteCdnBaseUrl: options?.remoteCdnBaseUrl,
     remoteCdnBaseUrls: options?.remoteCdnBaseUrls,
     remoteCacheDir: options?.remoteCacheDir,
@@ -549,17 +555,62 @@ async function checkServerDeployDecision(
   }
 }
 
+export interface RemoteAssetInstallerModeInput {
+  assetInstallMode?: RemoteAssetInstallMode;
+  mockCdnDir?: string;
+  remoteCdnBaseUrl?: string;
+  remoteCdnBaseUrls?: string[];
+}
+
+/**
+ * 「远端服务器下载」模式的 CDN 基址来源：用户/构建配置优先，缺省落回 ZCode 官方 CDN。
+ * 注意官方产物不含本仓库的远端改动（resident 入口等），connect 层据此拒绝 resident 组合。
+ */
+export const OFFICIAL_REMOTE_ASSET_CDN_BASE_URL = "https://cdn-zcode.z.ai";
+
+/**
+ * remote-download 模式补齐缺省 CDN 基址；其余模式原样返回。
+ * 返回的基址与桌面端 remoteCdn.ts 同形（含 /zcode/electron/releases/<version>），
+ * buildReleaseBaseCandidates 会识别已带版本尾缀的基址，不会产生双版本 404 噪音。
+ */
+export function withRemoteDownloadOfficialCdn<T extends RemoteAssetInstallerModeInput>(
+  options: T | undefined,
+): T {
+  if (!options || options.assetInstallMode !== "remote-download") {
+    return options as T;
+  }
+  const hasConfiguredBase =
+    Boolean(options.remoteCdnBaseUrl?.trim()) ||
+    Boolean(options.remoteCdnBaseUrls?.some((baseUrl) => baseUrl.trim().length > 0));
+  if (hasConfiguredBase) {
+    return options;
+  }
+  return {
+    ...options,
+    remoteCdnBaseUrl: `${OFFICIAL_REMOTE_ASSET_CDN_BASE_URL}/zcode/electron/releases/${ZCODE_VERSION}`,
+  };
+}
+
+/**
+ * 是否必须走本地上传 installer：只有未显式选择 remote-download 时。
+ * remote-download 现在总有 CDN 来源（缺省官方），不再回退本地上传。
+ */
+export function shouldUseLocalUploadInstaller(options: RemoteAssetInstallerModeInput): boolean {
+  return options.assetInstallMode !== "remote-download";
+}
+
 function createRemoteAssetInstaller(
   backend: IRemoteBackend,
   options: RemoteAssetDeployOptions & {
     version: string;
     platformArch: string;
     assetInstallMode?: RemoteAssetInstallMode;
+    mockCdnDir?: string;
   },
   loggers: DeployLoggers,
   getPinnedRemoteManifest: (() => Promise<RemoteManifestRef>) | null = null,
 ): RemoteAssetInstaller {
-  if (options.assetInstallMode !== "remote-download") {
+  if (shouldUseLocalUploadInstaller(options)) {
     return new LocalUploadAssetInstaller(backend, options, loggers);
   }
 

@@ -17,6 +17,7 @@ interface RemoteConnectionFormSnapshot {
   username: string;
   sshAuthMethod: SSHAuthMethod;
   assetInstallMode?: RemoteAssetInstallMode;
+  resident: boolean;
   selectedSshConfigAlias?: string | null;
   password: string;
   privateKeyPath: string;
@@ -104,6 +105,7 @@ export function buildRemoteTarget(
           username: snapshot.username,
           ...(sshConfigAlias ? { sshConfigAlias } : {}),
           assetInstallMode: snapshot.assetInstallMode,
+          ...(snapshot.resident ? { resident: true } : {}),
           ...(snapshot.sshAuthMethod === "password" && snapshot.password
             ? { password: snapshot.password }
             : {}),

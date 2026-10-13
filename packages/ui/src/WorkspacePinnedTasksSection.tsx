@@ -50,6 +50,7 @@ export function WorkspacePinnedTasksSection({
   activeTaskId,
   taskSortBy,
   mobileActiveTaskKey,
+  displayEnabled = true,
   onSelectTask,
   onOpenFileTree,
 }: {
@@ -59,6 +60,8 @@ export function WorkspacePinnedTasksSection({
   activeTaskId: string | null;
   taskSortBy: "created" | "updated";
   mobileActiveTaskKey?: string | null;
+  /** 展示区可见资格（默认 true）：隐藏时暂停列表查询，保留最后可信列表。 */
+  displayEnabled?: boolean;
   onSelectTask: (
     targetWorkspacePath: string,
     taskId: string,
@@ -119,6 +122,7 @@ export function WorkspacePinnedTasksSection({
     searchQuery: "",
     expanded: true,
     collapsedLimit,
+    enabled: displayEnabled,
   });
   const remotePinnedItemsByWorkspaceKey = useRemotePinnedTaskStore(
     (state) => state.itemsByWorkspaceKey,

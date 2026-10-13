@@ -10,6 +10,7 @@ export const APP_PROTOCOL_VISIBLE_BUILTIN_SLASH_COMMAND_NAMES = [
   "workflow",
   "compact",
   "init",
+  "zcode-update",
 ] as const;
 
 /** 仅供 App Composer 使用的命令，不扩展 CLI TUI/help surface。 */

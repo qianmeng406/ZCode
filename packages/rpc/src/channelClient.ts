@@ -207,9 +207,18 @@ export class ChannelClient implements IChannelClient, IDisposable {
   }
 
   private onBuffer(message: VSBuffer): void {
-    const reader = new BufferReader(message);
-    const header = deserialize(reader);
-    const body = deserialize(reader);
+    // 与服务端 onRawMessage 对称：损坏帧丢弃（fail-closed dispose 由传输层决定），
+    // 不让异常穿到 socket message 回调（serve 进程会变 uncaughtException）。
+    let header: any[];
+    let body: any;
+    try {
+      const reader = new BufferReader(message);
+      header = deserialize(reader);
+      body = deserialize(reader);
+    } catch {
+      console.error("[rpc] dropped malformed frame from server");
+      return;
+    }
     const type = header[0] as ResponseType;
 
     switch (type) {

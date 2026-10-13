@@ -41,6 +41,8 @@ export const SelectionSideChatPane = memo(function SelectionSideChatPane({
         selectionSideChat
         focused={focused}
         telemetryVisible={focused}
+        // 侧栏 transcript 的 focused 即“面板可见 && tab 激活”：隐藏时暂停纯展示工作。
+        presentationVisible={focused}
         workspacePath={tab.workspacePath}
         workspaceIdentity={tab.workspaceIdentity}
         remoteSessionId={tab.remoteSessionId}

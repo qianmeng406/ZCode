@@ -46,6 +46,13 @@ export interface SessionsIndexTransport {
 export interface AgentSessionsIndexTransportTarget {
   workspacePath: string;
   workspaceIdentity?: string;
+  /**
+   * 首订阅的 runtime 策略，默认 `existing-only`（web/desktop 被动观察语义：不为侧栏
+   * 观察者拉起 CLI 进程）。手机端打开工作区＝用户主动进入该工作区，需要传
+   * `start-if-needed` 让常驻端为该工作区拉起 agent，否则列表首屏会以
+   * “ZCode Agent runtime is not running”失败。
+   */
+  runtimePolicy?: "start-if-needed" | "existing-only";
 }
 
 type SessionsIndexV4AgentService = Pick<
@@ -117,6 +124,9 @@ export function createAgentSessionsIndexTransport(
   let activeSubscriptionId: string | null = null;
   let runtimeGeneration = 0;
   const targetWorkspaceKey = target.workspaceIdentity?.trim() || target.workspacePath;
+  // 仅首订阅尊重调用方的 runtime 策略；resync/unsubscribe 面向已存在的订阅，
+  // 必须保持 existing-only——不能为退订拉起一个新进程。
+  const subscribeRuntimePolicy = target.runtimePolicy ?? "existing-only";
   return {
     async subscribe(params) {
       await ensureHandshake();
@@ -125,7 +135,7 @@ export function createAgentSessionsIndexTransport(
       try {
         const result = await agentService.subscribeSessionsIndexV4({
           ...workspace,
-          runtimePolicy: "existing-only",
+          runtimePolicy: subscribeRuntimePolicy,
           ...(params.base ? { base: params.base } : {}),
           ...(params.visibility ? { visibility: params.visibility } : {}),
         });

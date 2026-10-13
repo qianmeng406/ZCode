@@ -679,6 +679,9 @@ export interface SessionModeChangedPayload {
   previousPlanEnabled?: boolean;
   mode: CollaborationMode;
   previousMode: CollaborationMode;
+  /** 上下文档位；与权限一起提交但正交变化。旧事件无此字段。 */
+  contextProfile?: "standard" | "minimal";
+  previousContextProfile?: "standard" | "minimal";
   source: "tool" | "command" | "system";
   toolCallId?: ToolCallId;
 }

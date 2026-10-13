@@ -1,8 +1,5 @@
 import type { TuiSubmitPromptResult } from "@zcode/tui";
-import {
-  formatAvailableCommandCenterModes,
-  isSwitchableCommandCenterMode,
-} from "../modes.js";
+import { formatAvailableCommandCenterModes, resolveSwitchableCommandCenterMode } from "../modes.js";
 import type { CommandCenterDeps } from "../types.js";
 
 export async function handleModeCommand(
@@ -17,8 +14,8 @@ export async function handleModeCommand(
     };
   }
 
-  const requested = args.toLowerCase();
-  if (!isSwitchableCommandCenterMode(requested)) {
+  const requested = resolveSwitchableCommandCenterMode(args.toLowerCase());
+  if (requested === undefined) {
     return {
       mode: current,
       response: `Unsupported mode: ${args}. Available modes: ${formatAvailableCommandCenterModes()}.`,

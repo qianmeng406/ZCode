@@ -63,6 +63,8 @@ export const SETTINGS_USER_ACTION_FEATURES = {
     "toggle_code_line_numbers",
     "toggle_code_line_wrap",
     "change_code_font_size",
+    "toggle_conversation_turn_navigator",
+    "toggle_assistant_auto_file_preview",
   ],
   "settings.terminal": ["toggle_system_profile", "save_font_family", "change_shell"],
   "settings.search": ["toggle_native_search"],

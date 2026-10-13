@@ -235,6 +235,40 @@ function resolveAvailableDevelopmentMockCdnDir(): string | undefined {
   return existsSync(releaseDir) ? mockCdnDir : undefined;
 }
 
+function hasLocalRemoteAssetRelease(dir: string): boolean {
+  return existsSync(join(dir, "releases", ZCODE_VERSION));
+}
+
+function resolvePackagedLocalRemoteAssetDir(): string | undefined {
+  if (!isElectronAppPackaged()) {
+    return undefined;
+  }
+  // process.resourcesPath 只在 Electron 主进程存在；单测/工具脚本等上下文直接跳过。
+  const resourcesPath = process.resourcesPath;
+  return typeof resourcesPath === "string" && resourcesPath.length > 0
+    ? join(resourcesPath, "remote-assets")
+    : undefined;
+}
+
+// 本地远端资源目录：显式覆盖优先，其次安装包内随包资源（extraResources → resources/remote-assets）。
+// 命中即表示部署远端工作区时只读本地文件再 SFTP 上传，不访问任何 CDN。
+function resolveLocalRemoteAssetDir(localEnv: LocalRuntimeEnv = {}): string | undefined {
+  const overrideDir = resolveEnvValue("ZCODE_REMOTE_ASSET_LOCAL_DIR", localEnv);
+  if (overrideDir) {
+    const resolvedOverrideDir = resolve(overrideDir);
+    if (hasLocalRemoteAssetRelease(resolvedOverrideDir)) {
+      return resolvedOverrideDir;
+    }
+    // 覆盖目录写错时静默忽略会让用户以为"用上了本地资源"，这里显式提示后继续找随包资源。
+    console.warn(
+      `[remote-assets] ZCODE_REMOTE_ASSET_LOCAL_DIR 缺少 releases/${ZCODE_VERSION}，已忽略: ${resolvedOverrideDir}`,
+    );
+  }
+
+  const packagedDir = resolvePackagedLocalRemoteAssetDir();
+  return packagedDir && hasLocalRemoteAssetRelease(packagedDir) ? packagedDir : undefined;
+}
+
 function isTruthyEnvFlag(value: string | undefined): boolean {
   if (!value) {
     return false;
@@ -326,21 +360,36 @@ export function resolveRemoteAssetDirs(
   options: ResolveRemoteCdnOptions = {},
   localEnv: LocalRuntimeEnv = {},
 ): RemoteAssetDirs {
+  // 本地资源优先：给了 mockCdnDir 之后部署链路只读本地文件再上传远端，不请求 CDN。
+  // 这里刻意不返回 remoteCdn* —— DeployOptions 的
+  // hasRemoteAssetCdnFallback() 要求「缓存目录 + 基址」同时存在才允许回退 CDN，
+  // 因此不返回基址等于从构造上关掉整条 CDN 回退：本地资源缺失时部署会直接报缺失文件，
+  // 而不是悄悄去下载官方（未含本仓库改动的）远端产物。
+  // remoteCacheDir 保留：本地上传用不到它，但用户切到「远端服务器下载」时
+  // 需要 manifest/组件缓存目录（该模式的 CDN 缺省落官方，见 deploy.ts）。
+  //
+  // 顺序上必须先判本地再解析 CDN 基址：resolveRemoteCdnBaseUrls 会校验并规范化 URL，
+  // 若把 CDN 解析放在前面，一个格式写错的 ZCODE_CDN_BASE_URL 会让本来就该走本地资源的
+  // 部署路径直接抛错——本地模式不应受任何 CDN 配置影响。
+  // remoteCacheDir 必须先于本地资源分支声明：命中随包资源的返回也带它
+  // （用户切「远端服务器下载」时要用 manifest/组件缓存目录），晚声明会 TDZ。
+  const remoteCacheDir = resolveRemoteAssetCacheDir(localEnv);
+
+  const localAssetDir = resolveLocalRemoteAssetDir(localEnv);
+  if (localAssetDir) {
+    return { mockCdnDir: localAssetDir, remoteCacheDir };
+  }
+
   const remoteCdnBaseUrls = resolveRemoteCdnBaseUrls(options, localEnv);
   const remoteCdnBaseUrl = remoteCdnBaseUrls[0];
 
   // remote 资源之前和 desktop 本地 provider 资源共用安装包内路径，
   // 结果打包后会把整套 Linux 远程运行时一起塞进 .app，和“remote 资源走 CDN / mock-cdn”的职责边界冲突。
-  // 这里改成显式分流：开发态只读仓库里的 mock-cdn；生产态统一走 CDN + 本地缓存目录，
-  // 不再暴露任何安装包内 remote-assets 路径，避免 remote 资源再次被塞回安装包。
+  // 这里改成显式分流：开发态只读仓库里的 mock-cdn；生产态回退到 CDN + 本地缓存目录。
   // 功能开关：开发态默认继续走 mock-cdn，只有显式打开开关才切到公网 CDN。
   // 这样能兼容离线开发场景，同时允许在开发环境提前验证真实 CDN 下载链路。
   if (isElectronAppPackaged() || shouldUseRemoteCdnInDevelopment(localEnv)) {
-    return {
-      remoteCdnBaseUrl,
-      remoteCdnBaseUrls,
-      remoteCacheDir: resolveRemoteAssetCacheDir(localEnv),
-    };
+    return { remoteCdnBaseUrl, remoteCdnBaseUrls, remoteCacheDir };
   }
 
   const developmentMockCdnDir = resolveAvailableDevelopmentMockCdnDir();
@@ -348,7 +397,7 @@ export function resolveRemoteAssetDirs(
     ...(developmentMockCdnDir ? { mockCdnDir: developmentMockCdnDir } : {}),
     remoteCdnBaseUrl,
     remoteCdnBaseUrls,
-    remoteCacheDir: resolveRemoteAssetCacheDir(localEnv),
+    remoteCacheDir,
   };
 }
 

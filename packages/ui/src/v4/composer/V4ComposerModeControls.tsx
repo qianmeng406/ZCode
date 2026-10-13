@@ -37,7 +37,7 @@ import type { V4ComposerToolbarProps } from "@/v4/composer/V4ComposerToolbar.js"
 
 function noop(): void {}
 
-/** Plan 是独立勾选项，三种权限仍为单选；只编辑草稿，不向 Runtime 发切换命令。 */
+/** Plan 与「极简上下文」是独立勾选项，权限仍为单选；只编辑草稿，不向 Runtime 发切换命令。 */
 function V4ComposerModeSwitchImpl({
   provider,
   draftConfig,
@@ -45,6 +45,7 @@ function V4ComposerModeSwitchImpl({
   activeConfigPicker,
   onConfigPickerOpenChange,
   onSwitchMode,
+  onSwitchContextProfile,
 }: Pick<
   V4ComposerToolbarProps,
   | "workspacePath"
@@ -55,15 +56,21 @@ function V4ComposerModeSwitchImpl({
   | "activeConfigPicker"
   | "onConfigPickerOpenChange"
   | "onSwitchMode"
+  | "onSwitchContextProfile"
 >) {
   const { intl } = useZCodeIntl();
   const displayProvider = provider ?? ZCODE_AGENT_PROVIDER;
   const modeShortcutLabel = useShortcutCommandLabel("cycleSessionMode");
   const modes = getZCodeAgentAvailableModes();
   const permissions = modes.filter((mode) => mode.id !== "plan");
+  // 新 UI 不再产生旧 mode=minimal（组合语义）：极简上下文由独立开关表达。
+  // 仅当草稿仍处于旧极简时保留该选项以显示兼容状态；改选普通权限后不再出现。
+  const selectablePermissions = permissions.filter(
+    (mode) => mode.id !== "minimal" || draftConfig?.mode === "minimal",
+  );
   // 新菜单隐藏 Edit，但历史草稿仍可回显，不能因候选变化隐藏整个权限入口。
   const selected =
-    permissions.find((mode) => mode.id === draftConfig?.mode) ??
+    selectablePermissions.find((mode) => mode.id === draftConfig?.mode) ??
     (draftConfig?.mode === "edit" ? { id: "edit", name: "Edit" } : undefined);
   const label = (mode: (typeof modes)[number]) =>
     getModeOptionDisplayLabel(intl, displayProvider, { value: mode.id, name: mode.name });
@@ -78,9 +85,7 @@ function V4ComposerModeSwitchImpl({
       category: "mode",
       type: "select",
       currentValue: draftConfig?.mode ?? "build",
-      options: getZCodeAgentAvailableModes()
-        .filter((mode) => mode.id !== "plan")
-        .map((mode) => ({ value: mode.id, name: mode.name })),
+      options: selectablePermissions.map((mode) => ({ value: mode.id, name: mode.name })),
     }),
     [draftConfig?.mode],
   );
@@ -99,6 +104,7 @@ function V4ComposerModeSwitchImpl({
   });
   if (!selected) return null;
   const Icon = resolveModeOptionIcon(selected.id);
+  const MinimalContextIcon = resolveModeOptionIcon("minimal");
   return (
     <div className="flex min-w-0 items-center gap-1">
       <DropdownMenu
@@ -120,9 +126,15 @@ function V4ComposerModeSwitchImpl({
               aria-label={intl.formatMessage({ id: "chat.toolbar.mode.label" })}
               className={cn(
                 "group/mode h-7 gap-1 rounded-lg px-2 text-ui-base data-[composer-compact=true]:w-7 data-[composer-compact=true]:px-0",
-                selected.id === "yolo" && "text-warning hover:text-warning",
                 selected.id === "guarded" &&
                   "text-icon-blue hover:text-icon-blue aria-expanded:text-icon-blue",
+                // yolo / zcodeUpdate / minimal 同为自动执行权限，触发按钮同用警示色提示。
+                // 与 display.tsx 的 isHighPermissionModeValue 同值域；这里拿不到那个 helper
+                // （它在展示层文件内部），改它时两处要一起改。
+                (selected.id === "yolo" ||
+                  selected.id === "zcodeUpdate" ||
+                  selected.id === "minimal") &&
+                  "text-warning hover:text-warning",
               )}
             >
               <Icon className="size-4" />
@@ -161,9 +173,26 @@ function V4ComposerModeSwitchImpl({
               )}
             </span>
           </DropdownMenuCheckboxItem>
+          <DropdownMenuCheckboxItem
+            checked={(draftConfig?.contextProfile ?? "standard") === "minimal"}
+            onCheckedChange={(checked) =>
+              onSwitchContextProfile?.(checked ? "minimal" : "standard")
+            }
+            disabled={disabled || !onSwitchContextProfile}
+            data-testid={testId(TID_CHAT_MODE_SELECT_ITEM, "minimal-context")}
+            className="min-h-13 items-start gap-3 py-2"
+          >
+            <MinimalContextIcon className="mt-0.5 size-4.5 shrink-0" />
+            <span className="flex min-w-0 flex-col gap-0.5">
+              <span>{intl.formatMessage({ id: "chat.toolbar.mode.minimalContext.label" })}</span>
+              <span className="text-ui-sm text-foreground-subtle">
+                {intl.formatMessage({ id: "chat.toolbar.mode.minimalContext.description" })}
+              </span>
+            </span>
+          </DropdownMenuCheckboxItem>
           <DropdownMenuSeparator />
           <DropdownMenuRadioGroup value={selected.id} onValueChange={onSwitchMode}>
-            {permissions.map((mode) => {
+            {selectablePermissions.map((mode) => {
               const ModeIcon = resolveModeOptionIcon(mode.id);
               const descriptionId = getModeOptionDescriptionMessageId(displayProvider, {
                 value: mode.id,

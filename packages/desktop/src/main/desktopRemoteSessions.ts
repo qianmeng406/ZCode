@@ -1035,6 +1035,34 @@ export function createRemoteWorkspaceSessionManager(options: {
     confirmRendererAttachmentReady,
     reattachRemoteWorkspaceSessionsForWindow,
     hasRemoteWorkspaceSessionForTarget,
+    listAttachableRemoteSessions(): Array<{
+    windowId: number;
+    remoteSessionId: string;
+    workspacePath: string;
+    workspaceIdentity: string;
+  }> {
+    const windowIdByWebContentsId = new Map(
+      BrowserWindow.getAllWindows().map((win) => [win.webContents.id, win.id]),
+    );
+    const entries: Array<{
+      windowId: number;
+      remoteSessionId: string;
+      workspacePath: string;
+      workspaceIdentity: string;
+    }> = [];
+    for (const [remoteSessionId, route] of routesBySessionId) {
+      const windowId = windowIdByWebContentsId.get(route.webContentsId);
+      if (windowId === undefined) continue;
+      if (route.attachmentState !== "attachable" || !route.connectFinalized) continue;
+      entries.push({
+        windowId,
+        remoteSessionId,
+        workspacePath: route.descriptor.workspacePath,
+        workspaceIdentity: route.descriptor.workspaceIdentity,
+      });
+    }
+    return entries;
+  },
     createBotRemoteWorkspaceRuntimePort,
     getRemoteConnectionStats,
     disposeRemoteWorkspaceSession,

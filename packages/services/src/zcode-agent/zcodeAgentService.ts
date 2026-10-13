@@ -17,10 +17,13 @@ import {
   type LocalTtftFacts,
 } from "@zcode/shared";
 /* oxlint-disable eslint(max-lines) -- ZCode Protocol transport、通知 wiring 和 app-facing session 方法必须共享同一个 client/emitter 上下文。 */
-import { ensureIndependentPlanSupport } from "./independentPlanSupport.js";
 import { createHash, randomUUID } from "node:crypto";
 import { createTopicResourceBridge } from "./topicResourceBridge.js";
 import { uploadTopicResourceToClient } from "./topicResourceUpload.js";
+import {
+  ensureContextProfileSupport,
+  ensureIndependentPlanSupport,
+} from "./independentPlanSupport.js";
 import {
   zcodeTopicResourceCancelParamsSchema,
   type ZCodeTopicResourceReadParams,
@@ -129,6 +132,12 @@ import {
   zcodeStateUpdatedNotificationSchema,
   zcodeUserInputRequestParamsSchema,
   zcodeWorkspacePresentationSchema,
+  zcodeOracleReviewAcknowledgeRecordParamsSchema,
+  zcodeOracleReviewAcknowledgeRecordResultSchema,
+  zcodeOracleReviewListRecordsParamsSchema,
+  zcodeOracleReviewListRecordsResultSchema,
+  zcodeOracleReviewSaveRecordParamsSchema,
+  zcodeOracleReviewSaveRecordResultSchema,
   zcodeWorkspaceCancelGenerateTextResultSchema,
   zcodeWorkspaceGenerateTextResultSchema,
   zcodeWorkspaceHookTrustGrantResultSchema,
@@ -151,6 +160,8 @@ import {
   type ZCodeMcpResourceSample,
   type ZCodeToolExecResource,
   type ZCodePluginOperationProgressNotification,
+  zcodeWorkspaceGenerateTextProgressSchema,
+  type ZCodeWorkspaceGenerateTextProgress,
   type ZCodeTaskMode,
 } from "@zcode/shared";
 import { createServiceLogger } from "#src/logger/serviceLogger.js";
@@ -474,6 +485,19 @@ const SESSION_SUBSCRIBE_MAX_ATTEMPTS = 8;
 const MAX_TRACKED_SESSION_EVENT_IDS = 10_000;
 const SSH_REMOTE_WORKSPACE_IDENTITY_PREFIX = "remote:ssh:";
 const WSL_REMOTE_WORKSPACE_IDENTITY_PREFIX = "remote:wsl:";
+// 经 IPC 代理调用的 renderer 无法传真实 AbortSignal；宿主按调用方 requestTimeoutMs
+// 派生 signal 时，在客户端 deadline 之后追加这个缓冲再发取消通知，让 CLI 侧操作收尾。
+const WORKSPACE_GENERATE_TEXT_CANCEL_BUFFER_MS = 5_000;
+// 协议 client 的 timeoutMs 必须晚于派生 signal 的 abort 时刻（deadline + 缓冲 + 本松弛量）：
+// 若 RPC 先于 signal 超时，finally 会先摘掉 signal 的 cancel 监听器，取消永远发不出去，
+// CLI 侧循环成为孤儿（实测：审查烧满 deadline 后 CLI 侧多跑 3 分钟直到进程退出）。
+const WORKSPACE_GENERATE_TEXT_CANCEL_SLACK_MS = 30_000;
+// 在飞的 workspace generateText 操作登记（workspaceKey:remoteSessionId:querySource →
+// 取消函数）：UI 的审查卡片 ✕ 经 cancelWorkspaceGenerateText 主动取消在飞审查。
+const workspaceGenerateTextCancelTargets = new Map<string, () => Promise<boolean>>();
+// 显式 operationId → 取消函数：审查的上下文分析/正式审查阶段各持独立 operationId，
+// 同 workspace 多会话并发审查时按 operationId 精确取消，不再依赖 querySource 键。
+const workspaceGenerateTextCancelByOperationId = new Map<string, () => Promise<boolean>>();
 
 export function supportsLegacyRemoteTaskAllowlist(workspaceIdentity: string | undefined): boolean {
   return Boolean(
@@ -1250,6 +1274,7 @@ export function createZCodeAgentService(
   const toolExecResourceEmitter = new Emitter<ZCodeToolExecResource>();
   const mcpResourceSamplesEmitter = new Emitter<ZCodeMcpResourceSample[]>();
   const mcpTelemetryEmitter = new Emitter<ZCodeMcpTelemetryEvent>();
+  const workspaceGenerateTextProgressEmitter = new Emitter<ZCodeWorkspaceGenerateTextProgress>();
   const pluginOperationProgressEmitters = new Map<
     string,
     Emitter<ZCodePluginOperationProgressNotification>
@@ -2121,6 +2146,23 @@ export function createZCodeAgentService(
               issues: parsed.error.issues.map((issue) => ({
                 code: issue.code,
                 message: issue.message,
+                path: issue.path.join("."),
+              })),
+            });
+          }
+          return;
+        }
+
+        if (message.method === zcodeProtocolNotifications.workspaceGenerateTextProgress) {
+          // 全局事件 + 载荷过滤：进度不带订阅路由，订阅方按 workspacePath/querySource
+          // 认领自己发起的那次请求（审查是单横幅单飞，误配面可忽略）。
+          const parsed = zcodeWorkspaceGenerateTextProgressSchema.safeParse(message.params);
+          if (parsed.success) {
+            workspaceGenerateTextProgressEmitter.fire(parsed.data);
+          } else {
+            logger.debug(undefined, "丢弃无效 ZCode Protocol 流式生成进度", {
+              issues: parsed.error.issues.map((issue) => ({
+                code: issue.code,
                 path: issue.path.join("."),
               })),
             });
@@ -4736,6 +4778,10 @@ export function createZCodeAgentService(
       return getPluginOperationProgressEmitter(operationId).event;
     },
 
+    onDynamicWorkspaceGenerateTextProgress() {
+      return workspaceGenerateTextProgressEmitter.event;
+    },
+
     async collectLocalRuntimeChildProcesses(signal?: AbortSignal) {
       const managed = [processManager, pluginProcessManager, mcpStatusProcessManager]
         .flatMap((manager) => manager.listManagedProcesses())
@@ -5080,27 +5126,66 @@ export function createZCodeAgentService(
         reason: "workspace_generate_text",
         workspace: params,
       });
-      const operationId = params.signal ? randomUUID() : undefined;
-      const cancel = () => {
-        if (!operationId) return;
-        void client
-          .request(
+      // 经 IPC 代理调用的 renderer 无法传真实 AbortSignal（序列化后是丢失方法的普通
+      // 对象，会让 signal?.addEventListener 抛错）；声明了 requestTimeoutMs 的调用方
+      // 在宿主侧派生等价 signal：1) 生成 operationId，CLI 侧拿到 abortSignal 后跳过
+      // WORKSPACE_GENERATE_TEXT_TIMEOUT_MS 60s 默认超时（思考模型深审普遍超 60s，
+      // 否则会被误取消为 "Model request was cancelled"）；2) 客户端 deadline+缓冲后
+      // 仍发取消通知，服务端操作不悬挂。
+      const signal =
+        params.signal ??
+        (params.requestTimeoutMs
+          ? AbortSignal.timeout(params.requestTimeoutMs + WORKSPACE_GENERATE_TEXT_CANCEL_BUFFER_MS)
+          : undefined);
+      const operationId = params.operationId ?? (signal ? randomUUID() : undefined);
+      // in-flight 去重：横幅 ✕ 连点、dismiss 与 signal abort 同帧触发时只发一次
+      // cancel RPC（settle 后窗口关闭，再点仍可重发——重试语义保留）。
+      let cancelInFlight: Promise<boolean> | null = null;
+      const cancelOnce = (): Promise<boolean> => {
+        if (!operationId) return Promise.resolve(false);
+        cancelInFlight ??= (async () => {
+          const result = await client.request(
             zcodeProtocolMethods.workspaceCancelGenerateText,
             { operationId },
             zcodeWorkspaceCancelGenerateTextResultSchema,
             { timeoutMs: 5_000 },
-          )
-          .catch((error: unknown) => {
-            // 取消是 best-effort 控制面操作，失败不能覆盖调用方原本的 AbortError；
-            // 保留 debug 轨迹用于区分“本地停止等待”和“CLI 已收到取消”。
-            logger.debug(undefined, "workspace 模型请求取消通知失败", {
+          );
+          if (!result.cancelled) {
+            // cancelled:false = operationId 未配对（CLI 侧 controller 缺席）——
+            // 孤儿循环将继续烧 token，必须留痕归因。
+            logger.warn("workspace 模型请求取消未命中（operationId 未配对）", {
               operationId,
               workspaceKey: resolveWorkspaceKey(params),
-              error: error instanceof Error ? error.message : String(error),
             });
-          });
+          }
+          return result.cancelled;
+        })().finally(() => {
+          cancelInFlight = null;
+        });
+        return cancelInFlight;
       };
-      params.signal?.addEventListener("abort", cancel, { once: true });
+      const cancel = () => {
+        cancelOnce().catch((error: unknown) => {
+          // 取消是 best-effort 控制面操作，失败不能覆盖调用方原本的 AbortError；
+          // 保留 debug 轨迹用于区分“本地停止等待”和“CLI 已收到取消”。
+          logger.debug(undefined, "workspace 模型请求取消通知失败", {
+            operationId,
+            workspaceKey: resolveWorkspaceKey(params),
+            error: error instanceof Error ? error.message : String(error),
+          });
+        });
+      };
+      // 在飞操作登记：供 cancelWorkspaceGenerateText 从 UI（审查卡片 ✕）主动取消。
+      // 键含 remoteSessionId：同一 workspace 可同时开多个会话、各自审查同源
+      // （如两张标准审查横幅），不带会话维度会跨会话误杀。同会话内后到覆盖先到
+      // （审查是单横幅语义，被覆盖的先到请求其卡片已被新 pending 顶掉，✕ 只作用于
+      // 可见卡片）；先到的收尾用身份比对摘除登记，不会误删后到者的登记。
+      const cancelTargetKey = `${resolveWorkspaceKey(params)}:${params.remoteSessionId ?? ""}:${params.querySource}`;
+      if (operationId) {
+        workspaceGenerateTextCancelTargets.set(cancelTargetKey, cancelOnce);
+        workspaceGenerateTextCancelByOperationId.set(operationId, cancelOnce);
+      }
+      signal?.addEventListener("abort", cancel, { once: true });
       try {
         return await client.request(
           zcodeProtocolMethods.workspaceGenerateText,
@@ -5112,20 +5197,135 @@ export function createZCodeAgentService(
             ...(params.tools ? { tools: params.tools } : {}),
             querySource: params.querySource,
             ...(params.maxOutputTokens ? { maxOutputTokens: params.maxOutputTokens } : {}),
+            ...(params.stream ? { stream: true } : {}),
+            ...(params.agentic ? { agentic: true } : {}),
+            ...(params.deadlineAt ? { deadlineAt: params.deadlineAt } : {}),
             ...(operationId ? { operationId } : {}),
           },
           zcodeWorkspaceGenerateTextResultSchema,
           // 不传 timeoutMs 时协议 client 默认 3 分钟超时会对 thinking 模型的长请求
           // 先于调用方自身 deadline 触发，并被 onRequestTimeout 误判 stale 杀进程。
-          // 调用方显式传入 requestTimeoutMs（自身 deadline + 取消缓冲）时以其为准。
+          // 调用方显式传入 requestTimeoutMs 时以其为准，且必须**晚于**派生 signal 的
+          // abort 时刻（deadline + 缓冲 + 松弛量）：RPC 先超时会让 finally 摘掉 cancel
+          // 监听器、取消永远发不出去（孤儿循环实测烧满 deadline 后多跑数分钟）。
+          // signal abort 后 cancel RPC 通知 CLI 收口，CLI 以 AbortError 结束本请求，
+          // 这里的 await 随服务端错误响应自然拒绝——错误语义比本地超时更准确。
           {
-            signal: params.signal,
-            ...(params.requestTimeoutMs ? { timeoutMs: params.requestTimeoutMs } : {}),
+            signal,
+            ...(params.requestTimeoutMs
+              ? {
+                  timeoutMs:
+                    params.requestTimeoutMs +
+                    WORKSPACE_GENERATE_TEXT_CANCEL_BUFFER_MS +
+                    WORKSPACE_GENERATE_TEXT_CANCEL_SLACK_MS,
+                }
+              : {}),
           },
         );
       } finally {
-        params.signal?.removeEventListener("abort", cancel);
+        signal?.removeEventListener("abort", cancel);
+        if (operationId && workspaceGenerateTextCancelTargets.get(cancelTargetKey) === cancelOnce) {
+          workspaceGenerateTextCancelTargets.delete(cancelTargetKey);
+        }
+        if (
+          operationId &&
+          workspaceGenerateTextCancelByOperationId.get(operationId) === cancelOnce
+        ) {
+          workspaceGenerateTextCancelByOperationId.delete(operationId);
+        }
       }
+    },
+
+    async cancelWorkspaceGenerateText(params) {
+      // UI（审查卡片 ✕）主动取消。带 operationId 时**只**按该 operationId 精确命中
+      // ——未命中即返回 false，绝不回退到键匹配：调用方给的 operationId 属于它要取消
+      // 的那次请求，回退会在「旧 operationId 已收尾、同 workspace 另一会话正同键在飞」
+      // 时误杀别人的请求（串杀正是本改造要消除的场景）。
+      // 省略 operationId 时才走 workspace+remoteSessionId+querySource 键匹配（旧调用方）。
+      if (params.operationId) {
+        const byOperationId = workspaceGenerateTextCancelByOperationId.get(params.operationId);
+        if (!byOperationId) {
+          logger.debug(undefined, "workspace 模型请求取消未命中（operationId 未配对）", {
+            workspaceKey: resolveWorkspaceKey(params),
+            operationId: params.operationId,
+          });
+          return false;
+        }
+        try {
+          return await byOperationId();
+        } catch (error) {
+          logger.warn("workspace 模型请求主动取消失败", {
+            operationId: params.operationId,
+            error: error instanceof Error ? error.message : String(error),
+          });
+          return false;
+        }
+      }
+      const key = `${resolveWorkspaceKey(params)}:${params.remoteSessionId ?? ""}:${params.querySource}`;
+      const cancelOnce = workspaceGenerateTextCancelTargets.get(key);
+      if (!cancelOnce) {
+        logger.debug(undefined, "workspace 模型请求主动取消未命中（无在飞登记）", {
+          workspaceKey: resolveWorkspaceKey(params),
+          remoteSessionId: params.remoteSessionId ?? null,
+          querySource: params.querySource,
+        });
+        return false;
+      }
+      try {
+        return await cancelOnce();
+      } catch (error) {
+        logger.warn("workspace 模型请求主动取消失败", {
+          workspaceKey: resolveWorkspaceKey(params),
+          error: error instanceof Error ? error.message : String(error),
+        });
+        return false;
+      }
+    },
+
+    // Oracle 审查记录：会话附属持久化（CLI 侧 session entry），超时重发安全。
+    async saveOracleReviewRecord(params) {
+      const client = await getClient(params);
+      const wireParams = zcodeOracleReviewSaveRecordParamsSchema.parse({
+        workspace: buildWorkspaceRef(params),
+        sessionId: params.sessionId,
+        record: params.record,
+      });
+      return client.request(
+        zcodeProtocolMethods.oracleReviewSaveRecord,
+        wireParams,
+        zcodeOracleReviewSaveRecordResultSchema,
+        { timeoutMs: 10_000 },
+      );
+    },
+
+    async listOracleReviewRecords(params) {
+      const client = await getClient(params);
+      const wireParams = zcodeOracleReviewListRecordsParamsSchema.parse({
+        workspace: buildWorkspaceRef(params),
+        sessionId: params.sessionId,
+        ...(params.limit !== undefined ? { limit: params.limit } : {}),
+      });
+      return client.request(
+        zcodeProtocolMethods.oracleReviewListRecords,
+        wireParams,
+        zcodeOracleReviewListRecordsResultSchema,
+        { timeoutMs: 10_000 },
+      );
+    },
+
+    async acknowledgeOracleReviewRecord(params) {
+      const client = await getClient(params);
+      const wireParams = zcodeOracleReviewAcknowledgeRecordParamsSchema.parse({
+        workspace: buildWorkspaceRef(params),
+        sessionId: params.sessionId,
+        reviewId: params.reviewId,
+      });
+      return client.request(
+        zcodeProtocolMethods.oracleReviewAcknowledgeRecord,
+        wireParams,
+        zcodeOracleReviewAcknowledgeRecordResultSchema,
+        { timeoutMs: 10_000 },
+      );
     },
 
     async testModelConnectivity(params: ZCodeAgentTestModelConnectivityParams) {
@@ -5771,6 +5971,7 @@ export function createZCodeAgentService(
           compression: "none" as const,
           workspaceHookReview: true,
           independentPlanState: true,
+          contextProfileState: true,
           // 与 connection scope 的 hello 同一份能力集：直连 base service 的宿主内部消费者
           // 也能收到 `workflowRun.*` 增量（是否真收由它自己的 clientHello 决定）。
           workflowRunDeltas: true,
@@ -5903,8 +6104,9 @@ export function createZCodeAgentService(
       const client = await getClient(params);
       const planPayload = params.envelope.payload as {
         planEnabled?: boolean;
-        config?: { planEnabled?: boolean };
-        firstInput?: { planEnabled?: boolean };
+        contextProfile?: string;
+        config?: { planEnabled?: boolean; contextProfile?: string };
+        firstInput?: { planEnabled?: boolean; contextProfile?: string };
       };
       if (
         planPayload.planEnabled ||
@@ -5912,6 +6114,15 @@ export function createZCodeAgentService(
         planPayload.firstInput?.planEnabled
       ) {
         await ensureIndependentPlanSupport(client);
+      }
+      // 显式极简档位是 additive 字段：旧执行端会静默剥掉它、按标准上下文执行，
+      // 发送前必须确认支持；standard 是旧缺省，无需协商。
+      const requestedContextProfile =
+        planPayload.contextProfile ??
+        planPayload.config?.contextProfile ??
+        planPayload.firstInput?.contextProfile;
+      if (requestedContextProfile === "minimal") {
+        await ensureContextProfileSupport(client);
       }
       // RPC facade 会清掉调用方可伪造的顶层 clientMode，再用 trusted carrier 注入 host
       // 真值；host 内部 adapter 直调仍兼容显式 clientMode。

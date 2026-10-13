@@ -45,6 +45,7 @@ import {
   openCodeViewerSidePane,
   openCodeViewerSidePanes,
   activateGitSidePane,
+  openFileExplorerSidePane,
   getActiveSidePaneTab,
   getVisibleSidePaneTabs,
   sidePaneOwnerKey,
@@ -80,6 +81,7 @@ import type { OpenPluginUiSideTabRequest } from "@/plugin-ui/contract.js";
 import { logger } from "@/logger.js";
 import { getPathLeaf, joinFilePath, toFileUrl } from "@/lib/path.js";
 import { shouldOpenWorkflowArtifactInBrowser } from "@/lib/workflowArtifactOpen.js";
+import { registerEmbeddedBrowserOpener } from "@/lib/embeddedBrowserOpenBridge.js";
 import { useWhiteboardStore } from "@/store/whiteboardStore.js";
 import { useModelTrajectoryOpenBridge } from "@/hooks/useModelTrajectoryOpenBridge.js";
 import { useServices } from "@/hooks/useServices.js";
@@ -546,6 +548,17 @@ export function useAppPanels(options: {
     });
   }, [handleOpenBrowserUrl, isDesktop, platform, supportsEmbeddedBrowser, workspaceAbsPath]);
 
+  // 把「在内置浏览器打开 URL」的能力注册给设置页等兄弟分支（见 embeddedBrowserOpenBridge）。
+  // 只在壳层真的支持内嵌浏览器时注册，未注册时调用方会自行回退系统浏览器。
+  useEffect(() => {
+    if (!supportsEmbeddedBrowser) {
+      return;
+    }
+    return registerEmbeddedBrowserOpener((url) => {
+      handleOpenBrowserUrl(url);
+    });
+  }, [handleOpenBrowserUrl, supportsEmbeddedBrowser]);
+
   // Browser Use 事件携带创建时冻结的 workspace/session，迟到事件只后台挂载，不能抢当前对话焦点。
   const handleBrowserViewReady = useCallback(
     (
@@ -826,6 +839,17 @@ export function useAppPanels(options: {
     workspaceAbsPath,
     workspaceRemoteSessionId,
   ]);
+
+  const handleOpenFileExplorerTab = useCallback(() => {
+    revealSidePaneForCurrentOwner();
+    commitOpenedSidePaneState((current) => {
+      const next = openFileExplorerSidePane(current);
+      logger.info(
+        `[App] 打开右侧文件标签 workspace=${workspaceAbsPath} tabs=${next.tabs.length}`,
+      );
+      return next;
+    });
+  }, [commitOpenedSidePaneState, revealSidePaneForCurrentOwner, workspaceAbsPath]);
 
   const handleOpenModelTrajectory = useCallback(
     (params: { taskId: string; title?: string | null }) => {
@@ -1624,6 +1648,7 @@ export function useAppPanels(options: {
     handleOpenWhiteboard,
     handleOpenDeveloperTools,
     handleOpenTerminalTab,
+    handleOpenFileExplorerTab,
     handleOpenModelTrajectory,
     handleOpenSubagentSession,
     handleOpenBackgroundBash,

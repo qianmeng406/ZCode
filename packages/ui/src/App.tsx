@@ -242,6 +242,7 @@ export function App({
     handleOpenWhiteboard,
     handleOpenDeveloperTools,
     handleOpenTerminalTab,
+    handleOpenFileExplorerTab,
     handleOpenSubagentSession,
     handleOpenBackgroundBash,
     handleOpenSubagentDirectory,
@@ -399,8 +400,6 @@ export function App({
     workspaceHeaderProvider,
     activeTaskChangeSummary,
     activeTaskTitle,
-    taskNativeSessionLogFile,
-    taskSessionFile,
   } = useWorkspaceActiveTaskState({
     workspaceAbsPath,
     activeTaskId,
@@ -441,7 +440,10 @@ export function App({
   const gitState = useGitRepository({
     workspacePath: workspaceAbsPath,
     activeTaskId,
-    includeExtendedData: hasGitTab,
+    // 扩展数据（identity / branch comparison）只在 Git tab 真实可见时拉取：
+    // tab 存在但面板收起、切到别的 tab 或设置覆盖时不查，恢复可见自动补拉。
+    // 基础状态（分支/dirty/计数）继续服务 Header，不在此门控。
+    includeExtendedData: hasGitTab && isGitOpen && !isSidePaneCollapsed && isWorkspaceVisible,
     // 关键逻辑：真实 Git 只在 workspace 变化、Git pane 打开、或用户显式点刷新时重拉。
     // task 切换 / last-turn 摘要变化只更新本地衍生数据，不再顺带重跑 Git 命令。
     refreshToken: gitRefreshVersion,
@@ -1234,6 +1236,12 @@ export function App({
           }
           initialWebRemoteControlWorkspaceList={initialWebRemoteControlWorkspaceList}
           webRemoteControlTerminalTransportState={webRemoteControlTerminalTransportState}
+          webRemoteControlWorkspaceSwitcher={webRemoteControlWorkspaceSwitcher}
+          initialWebRemoteControlMobileNavigationIntent={
+            initialWebRemoteControlMobileNavigationIntent
+          }
+          initialWebRemoteControlWorkspaceList={initialWebRemoteControlWorkspaceList}
+          webRemoteControlTerminalTransportState={webRemoteControlTerminalTransportState}
           allowRemoteWorkspace={allowRemoteWorkspace}
           remoteWorkspaceSessions={remoteWorkspaceSessions}
           workspaceAbsPath={workspaceAbsPath}
@@ -1286,6 +1294,9 @@ export function App({
           gitWorktreeChangeSummary={gitWorktreeChangeSummary}
           activeGitSourceId={activeGitSourceId}
           gitState={gitState}
+          providerConfigFile={providerConfigFile}
+          taskNativeSessionLogFile={taskNativeSessionLogFile}
+          taskSessionFile={taskSessionFile}
           browserNavigationRequest={browserNavigationRequest}
           browserRestoreUrls={browserRestoreUrls}
           providerConfigFile={providerConfigFile}
@@ -1320,6 +1331,7 @@ export function App({
           handleToggleTerminal={handleToggleTerminalIfWritable}
           handleToggleBrowser={handleToggleBrowser}
           handleOpenBrowserTab={handleOpenBrowserTab}
+          handleOpenBrowserPermissionSettings={handleOpenBrowserPermissionSettings}
           handleOpenBrowserPermissionSettings={handleOpenBrowserPermissionSettings}
           handleOpenTreemapping={handleOpenTreemappingIfWritable}
           handleOpenWhiteboard={handleOpenWhiteboard}

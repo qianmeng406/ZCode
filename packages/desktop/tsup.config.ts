@@ -25,6 +25,9 @@ function resolveZCodeEnv(value: string | undefined): "test" | "production" {
   return value?.trim().toLowerCase() === "production" ? "production" : "test";
 }
 
+/** 构建期只从 .env* 文件读取的键（见 loadEnvFiles 尾部例外说明）。 */
+const CDN_BASE_ENV_KEYS = ["ZCODE_CDN_BASE_URL"] as const;
+
 // 手动加载 .env 文件，tsup 不像 Vite 会自动读取 .env.*；这些文件只提供链接常量。
 function loadEnvFiles(): Record<string, string> {
   const vars: Record<string, string> = {};
@@ -63,7 +66,27 @@ function loadEnvFiles(): Record<string, string> {
   if (process.env.VITE_ZAI_OAUTH_ORIGIN) {
     vars.VITE_ZAI_OAUTH_ORIGIN = process.env.VITE_ZAI_OAUTH_ORIGIN;
   }
-  return vars;
+  const merged: Record<string, string> = {
+    ...vars,
+    ...Object.fromEntries(
+      Object.entries(process.env).filter(
+        (entry): entry is [string, string] => entry[1] !== undefined,
+      ),
+    ),
+  };
+  // 例外：构建期 CDN 基址只认 .env* 文件。
+  // 联调远端资源时习惯在 shell 里 export ZCODE_CDN_BASE_URL=本地地址，整体并入会让它静默
+  // 覆盖仓库提交的发布地址，构建出的包指向本地测试服务（实测踩到：产物烘进
+  // http://127.0.0.1:8899，部署时拿不到 fork 的服务端产物）。
+  // 运行期覆盖不受影响：host 运行时读 ZCODE_REMOTE_ASSET_CDN_BASE_URL。
+  for (const key of CDN_BASE_ENV_KEYS) {
+    if (key in vars) {
+      merged[key] = vars[key];
+    } else {
+      delete merged[key];
+    }
+  }
+  return merged;
 }
 
 const env = loadEnvFiles();

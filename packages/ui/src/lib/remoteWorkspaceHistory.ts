@@ -217,6 +217,15 @@ export function buildWorkspaceSessionKey(entry: {
   return entry.workspaceIdentity?.trim() || entry.workspacePath;
 }
 
+/**
+ * 常驻模式工作区（Linux SSH resident）：远端 server 以 daemon 运行，
+ * 桌面断开 ≠ 任务终止。断开语义（不标记任务失败、不落盘连接失败）
+ * 必须与连接选项共用同一判定，避免两处规则漂移。
+ */
+export function isResidentRemoteWorkspaceEntry(entry: { target: RemoteTargetSnapshot }): boolean {
+  return entry.target.kind === "ssh" && entry.target.resident === true;
+}
+
 function normalizeOptionalPath(path: string | undefined): string | undefined {
   const trimmed = path?.trim();
   return trimmed ? trimmed : undefined;
@@ -248,6 +257,8 @@ export function createRemoteTargetSnapshot(
         username: target.username,
         ...(target.sshConfigAlias?.trim() ? { sshConfigAlias: target.sshConfigAlias.trim() } : {}),
         assetInstallMode: target.assetInstallMode,
+        // 常驻是连接语义的一部分：重连必须保持同一模式，否则任务存活承诺会被打破。
+        ...(target.resident ? { resident: true } : {}),
         privateKeyPath: target.privateKeyPath,
         passwordCredentialKey:
           target.password && target.password.length > 0
@@ -309,6 +320,7 @@ export function createRemoteTargetFromSnapshot(
         username: snapshot.username,
         ...(snapshot.sshConfigAlias ? { sshConfigAlias: snapshot.sshConfigAlias } : {}),
         ...(snapshot.assetInstallMode ? { assetInstallMode: snapshot.assetInstallMode } : {}),
+        ...(snapshot.resident ? { resident: true } : {}),
         ...(snapshot.privateKeyPath ? { privateKeyPath: snapshot.privateKeyPath } : {}),
         ...(credentials.password ? { password: credentials.password } : {}),
         ...(credentials.privateKeyPassphrase

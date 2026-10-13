@@ -94,6 +94,7 @@ export function WorkspaceFileTree({
   temporaryExternalDirectory = false,
   canOpenLocalFileManager = false,
   activePreviewPath,
+  active = true,
   onClose,
   onOpenBrowserUrl,
   onOpenPreview,
@@ -123,6 +124,7 @@ export function WorkspaceFileTree({
     workspaceIdentity,
     workspaceRemoteSessionId,
     enableWorkspaceFeatures: !temporaryExternalDirectory,
+    active,
   });
   const { installedEditors } = useInstalledFileTreeEditors();
   const isRemoteWorkspaceFileTree = Boolean(
@@ -156,7 +158,8 @@ export function WorkspaceFileTree({
     workspacePath,
     workspaceIdentity,
     workspaceRemoteSessionId,
-    enabled: hasFileSearchQuery,
+    // 搜索索引只在树可见且有 query 时分块拉取；隐藏时中断在途分块，保留搜索输入。
+    enabled: active && hasFileSearchQuery,
   });
   const {
     entries: searchIndexEntries,
@@ -263,6 +266,9 @@ export function WorkspaceFileTree({
       }),
       copyRelativePath: intl.formatMessage({
         id: "fileActions.copyRelativePath",
+      }),
+      copyFile: intl.formatMessage({
+        id: "fileActions.copyFile",
       }),
       open: intl.formatMessage({ id: "common.open" }),
       openInBrowser: intl.formatMessage({
@@ -647,20 +653,22 @@ export function WorkspaceFileTree({
       className="flex h-full min-h-0 flex-col text-foreground"
       data-testid={TID_WORKSPACE_FILE_TREE_PANEL}
     >
-      <div className="px-2 pb-3 pt-3">
-        <Button
-          type="button"
-          variant="ghost"
-          size="lg"
-          className="w-full justify-start gap-2 rounded-xl px-2.5 text-foreground-subtle hover:bg-surface-hover hover:text-foreground"
-          onClick={onClose}
-        >
-          <ArrowLeft className="size-4 shrink-0" />
-          <span className="min-w-0 truncate">
-            {intl.formatMessage({ id: "workspaceFileTree.backToTasks" })}
-          </span>
-        </Button>
-      </div>
+      {onClose ? (
+        <div className="px-2 pb-3 pt-3">
+          <Button
+            type="button"
+            variant="ghost"
+            size="lg"
+            className="w-full justify-start gap-2 rounded-xl px-2.5 text-foreground-subtle hover:bg-surface-hover hover:text-foreground"
+            onClick={onClose}
+          >
+            <ArrowLeft className="size-4 shrink-0" />
+            <span className="min-w-0 truncate">
+              {intl.formatMessage({ id: "workspaceFileTree.backToTasks" })}
+            </span>
+          </Button>
+        </div>
+      ) : null}
       <div className="flex shrink-0 items-center px-2 pb-2">
         <div className="relative min-w-0 flex-1">
           <Search className="pointer-events-none absolute left-2 top-1/2 size-3.5 -translate-y-1/2 text-foreground-subtlest" />

@@ -1,7 +1,8 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import type { ZCodeElicitationRequest, ZCodePermissionOption, ZCodeProvider } from "@zcode/shared";
 import type { ConversationSnapshot } from "@zcode/shared/zcode-protocol-v4";
-import { ElicitationDialog } from "@/ElicitationDialog.js";
+import type { ModelSelectionView } from "@zcode/provider";
+import type { PlanExecutionModelChoice, PlanExecutionModelGroup } from "@/ElicitationDialog.js";
 import { PermissionDialog } from "@/PermissionDialog.js";
 import { workflowSessionModelOf } from "@/components/workflow-timeline/workflowRunSettings.js";
 import { useOptionalPlatform } from "@/hooks/usePlatform.js";
@@ -24,6 +25,7 @@ import {
   pendingUserInputToElicitationRequest,
   pendingUserInputToViewModel,
 } from "@/v4/pendingInteractionAdapter.js";
+import { V4PlanElicitationDialog } from "@/v4/V4PlanElicitationDialog.js";
 import { V4UserInputDialog } from "@/v4/V4UserInputDialog.js";
 import { useV4Conversation } from "@/v4/V4ConversationContext.js";
 
@@ -35,6 +37,8 @@ export interface V4InteractionDialogsProps {
   isWebRemoteControl?: boolean;
   provider?: ZCodeProvider;
   snapshot: ConversationSnapshot | null;
+  /** 计划批准卡片「执行模型」下拉候选目录；缺席时下拉不渲染（跟随会话模型）。 */
+  modelSelectionView?: ModelSelectionView | null;
   onCommandSettled?: (commandId: string) => void;
   onPlanInteractionAccepted?: (interactionId: string) => void;
 }
@@ -99,6 +103,7 @@ export function V4InteractionDialogs({
   isWebRemoteControl = false,
   provider,
   snapshot,
+  modelSelectionView,
   onCommandSettled,
   onPlanInteractionAccepted,
 }: V4InteractionDialogsProps) {
@@ -196,6 +201,22 @@ export function V4InteractionDialogs({
   } | null>(null);
   const permissionResponseFlight = useRef<string | null>(null);
 
+  // 计划批准卡片的执行模型候选：全量推理档都列出（执行取向交给用户，不预绑高低档）。
+  const planExecutionModelGroups = useMemo<PlanExecutionModelGroup[]>(
+    () =>
+      (modelSelectionView?.providers ?? [])
+        .filter((provider) => provider.models.length > 0)
+        .map((provider) => ({
+          providerId: provider.providerId,
+          providerName: provider.providerName ?? undefined,
+          models: provider.models.map((model) => ({
+            modelId: model.modelId,
+            reasoningLevels: model.config.optionSpecs.reasoningLevel?.values ?? [],
+          })),
+        })),
+    [modelSelectionView],
+  );
+
   const resolveInteraction = useCallback(
     async (
       interactionId: string,
@@ -204,6 +225,8 @@ export function V4InteractionDialogs({
         freeText?: string;
         action?: "accept" | "decline" | "cancel";
         content?: Record<string, unknown>;
+        // plan-approval 专用：批准时指定的执行模型（含推理档），与批准决定单命令原子到达。
+        modelSelection?: PlanExecutionModelChoice;
       },
     ) => {
       const envelope = createCommandEnvelope({
@@ -369,30 +392,31 @@ export function V4InteractionDialogs({
     );
   }
 
-  const projectedElicitationRequest = pendingUserInputToElicitationRequest(sessionId, {
-    ...pending,
-    payload: pending.payload,
-  });
-  const elicitationRequest = resolveV4ElicitationRequest(
-    projectedElicitationRequest,
-    botElicitationProgress,
-  );
-  if (elicitationRequest) {
+  const projectedElicitation =
+    pending.payload.kind === "userInput"
+      ? resolveV4ElicitationRequest(
+          pendingUserInputToElicitationRequest(sessionId, {
+            ...pending,
+            payload: pending.payload,
+          }),
+          botElicitationProgress,
+        )
+      : null;
+  if (projectedElicitation) {
     const isExitPlanMode = pending.payload.toolName?.trim().toLowerCase() === "exitplanmode";
     const isAskUserQuestion =
       pending.payload.toolName?.trim().toLowerCase() === "askuserquestion" ||
       pending.autoResolution !== undefined;
     return (
-      <ElicitationDialog
-        key={buildV4ElicitationProgressKey(elicitationRequest)}
-        request={elicitationRequest}
-        initialFormDraft={
-          botElicitationProgress?.requestId === elicitationRequest.requestId
-            ? undefined
-            : localElicitationDraft
-        }
-        onFormDraftChange={persistElicitationDraft}
+      <V4PlanElicitationDialog
+        key={buildV4ElicitationProgressKey(projectedElicitation)}
+        request={projectedElicitation}
         autoResolution={isAskUserQuestion ? pending.autoResolution : undefined}
+        botElicitationProgress={botElicitationProgress}
+        localElicitationDraft={localElicitationDraft}
+        persistElicitationDraft={persistElicitationDraft}
+        removeElicitationDraft={removeElicitationDraft}
+        planExecutionModelGroups={isExitPlanMode ? planExecutionModelGroups : undefined}
         onFirstInteraction={
           isAskUserQuestion
             ? (source) => {
@@ -408,20 +432,8 @@ export function V4InteractionDialogs({
               }
             : undefined
         }
-        onRespond={(_requestId, action, content) => {
-          void resolveInteraction(pending.interactionId, {
-            action,
-            ...(content ? { content } : {}),
-          }).then((accepted) => {
-            if (!accepted) return;
-            removeElicitationDraft(pending.interactionId);
-            if (isExitPlanMode) {
-              // Plan 回执 ACK 与 replayable pending 清场是两条异步路径。
-              // 这里只上报已接受的 Plan interaction，由手机 pane 在仍读到旧权威状态时触发恢复。
-              onPlanInteractionAccepted?.(pending.interactionId);
-            }
-          });
-        }}
+        resolveInteraction={resolveInteraction}
+        onPlanInteractionAccepted={isExitPlanMode ? onPlanInteractionAccepted : undefined}
       />
     );
   }

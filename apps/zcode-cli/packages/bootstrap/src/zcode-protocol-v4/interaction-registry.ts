@@ -25,6 +25,13 @@ export type V4InteractionAnswer = {
   // content 直传旧 userInput response 的 content 语义（多题答案/注解无损）。
   action?: "accept" | "decline" | "cancel";
   content?: Record<string, unknown>;
+  // plan-approval 专用：批准时指定的执行模型（含推理档）。形状 = shared
+  // modelSelectionSchema；仅 plan_approval 且 accept 时被 broker 消费，其余交互忽略。
+  modelSelection?: {
+    providerId: string;
+    modelId: string;
+    options?: { reasoningLevel?: string };
+  };
 };
 
 export const ASK_USER_QUESTION_HIDDEN_GRACE_MS = 60_000;

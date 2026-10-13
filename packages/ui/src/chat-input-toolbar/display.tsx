@@ -34,10 +34,13 @@ import { useZCodeIntl } from "@/i18n/IntlProvider.js";
 import { logger } from "@/logger.js";
 import {
   ChevronDownIcon,
+  Feather,
+  GitCompare,
   HandIcon,
   NotepadText,
   ShieldAlertIcon,
   ShieldCheckIcon,
+  Telescope,
   type LucideIcon,
 } from "lucide-react";
 import {
@@ -74,6 +77,10 @@ const HIGH_PERMISSION_MODE_VALUES = new Set([
   // 高权限视觉提示必须跟随协议 id，否则用户选中全权限后工具栏不再显示 warning 状态。
   "agent-full-access",
   "yolo",
+  // fork：zcodeUpdate（自动跟进官方发版）与 minimal（极简上下文）同为自动执行权限，
+  // 工具栏的持续 warning 文字与盾牌语义一并覆盖。
+  "zcodeUpdate",
+  "minimal",
 ]);
 
 function getConfigSelectTriggerTestId(
@@ -254,6 +261,14 @@ export function isHighPermissionModeValue(value: unknown): boolean {
 }
 
 export function resolveModeOptionIcon(value: unknown): LucideIcon {
+  // 特定判断先于 isHighPermissionModeValue 的通用盾牌：research（资料查询）为只读检索语义，
+  // 用望远镜与 plan 的记事本区分。
+  if (typeof value === "string" && value.toLocaleLowerCase() === "research") return Telescope;
+  // minimal（极简模式）：只留工具与最小上下文，用羽毛表示「轻」。
+  if (typeof value === "string" && value.toLocaleLowerCase() === "minimal") return Feather;
+  // zcodeUpdate（更新模式）：逐版本 diff 对比，用差异对比图标。
+  if (typeof value === "string" && value.toLocaleLowerCase() === "zcodeupdate") return GitCompare;
+
   if (isHighPermissionModeValue(value)) {
     return ShieldAlertIcon;
   }

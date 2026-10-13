@@ -22,8 +22,22 @@ import {
   TID_MODEL_PROVIDER_NAME_INPUT,
   testId,
 } from "@zcode/shared";
-import { InfoIcon, LockKeyholeIcon, Plus, Pencil, Trash2, MoreHorizontal } from "lucide-react";
+import {
+  ChevronRight,
+  InfoIcon,
+  LockKeyholeIcon,
+  Plus,
+  Pencil,
+  Trash2,
+  MoreHorizontal,
+} from "lucide-react";
 import { Button } from "@/components/ui/button.js";
+import {
+  Collapsible,
+  CollapsibleContent,
+  CollapsibleTrigger,
+} from "@/components/ui/collapsible.js";
+import { cn } from "@/components/lib/utils.js";
 import { Input } from "@/components/ui/input.js";
 import {
   DropdownMenu,
@@ -471,6 +485,63 @@ export function ProviderModelsSection({
       })
     : null;
 
+  // 内置模型由内置目录拥有，不能真正删除；关闭开关就是产品层唯一的"移除"语义。
+  // 移出的行收进折叠区，列表只留可用模型，恢复仍走同一开关。
+  const activeModels = models.filter((model) => model.config.enabled !== false);
+  const removedModels = models.filter((model) => model.config.enabled === false);
+  const [removedModelsOpen, setRemovedModelsOpen] = useState(false);
+
+  const renderModelRow = (model: ProviderSettingsFormModel, index: number) => {
+    const inputFormat = model.config.properties?.inputFormat;
+    const outputFormat = model.config.properties?.outputFormat;
+    const completeProperties =
+      model.config.properties?.contextWindow != null &&
+      inputFormat?.supportsText != null &&
+      inputFormat.supportsImage != null &&
+      inputFormat.supportsVideo != null &&
+      inputFormat.supportsAudio != null &&
+      inputFormat.supportsPdf != null &&
+      outputFormat?.supportsText != null;
+    return (
+      <>
+        <ModelRowInput
+          providerId={providerId}
+          providerName={providerName}
+          providerEnabled={providerEnabled}
+          providerAccess={providerAccess}
+          inputTestId={testId(TID_MODEL_PROVIDER_MODEL_INPUT, String(index))}
+          deleteTestId={testId(TID_MODEL_PROVIDER_MODEL_DELETE_BUTTON, String(index))}
+          model={model}
+          onCommit={(value, basedOnRevision) =>
+            onModelCommit(model.modelId, value, basedOnRevision)
+          }
+          onResolveDraft={(nextModelId, personalConfig) =>
+            providerSettingsService.resolveModelConfig({
+              providerId,
+              originalModelId: model.modelId,
+              modelId: nextModelId,
+              personalConfig: structuredClone(personalConfig),
+            })
+          }
+          settingsRevision={settingsRevision}
+          onDelete={!model.builtin ? () => onDeleteModel(model.modelId) : undefined}
+          onEnabledChange={(enabled) => {
+            void Promise.resolve(onModelEnabledChange?.(model.modelId, enabled)).catch(
+              () => undefined,
+            );
+          }}
+          onTest={onTestModel}
+        />
+        {!completeProperties && (
+          <div className="px-3 pb-2 text-ui-sm text-destructive">
+            {model.issues?.[0]?.message ??
+              intl.formatMessage({ id: "settings.modelProvider.modelConfigIncomplete" })}
+          </div>
+        )}
+      </>
+    );
+  };
+
   return (
     <div>
       <div className="mb-1 flex flex-wrap items-center justify-between gap-3">
@@ -490,64 +561,69 @@ export function ProviderModelsSection({
         </Button>
       </div>
       {models.length > 0 ? (
-        <div className="overflow-hidden rounded-lg border border-input-border bg-input">
-          <SortableProviderModelList
-            modelIds={models.map((model) => model.modelId)}
-            sortableModelIds={models.map((model) => model.modelId)}
-            onReorder={onReorderModelIds}
-            renderModel={(_modelId, index) => {
-              const model = models[index]!;
-              const inputFormat = model.config.properties?.inputFormat;
-              const outputFormat = model.config.properties?.outputFormat;
-              const completeProperties =
-                model.config.properties?.contextWindow != null &&
-                inputFormat?.supportsText != null &&
-                inputFormat.supportsImage != null &&
-                inputFormat.supportsVideo != null &&
-                inputFormat.supportsAudio != null &&
-                inputFormat.supportsPdf != null &&
-                outputFormat?.supportsText != null;
-              return (
-                <>
-                  <ModelRowInput
-                    key={`${providerId}/${model.modelId}`}
-                    providerId={providerId}
-                    providerName={providerName}
-                    providerEnabled={providerEnabled}
-                    providerAccess={providerAccess}
-                    inputTestId={testId(TID_MODEL_PROVIDER_MODEL_INPUT, String(index))}
-                    deleteTestId={testId(TID_MODEL_PROVIDER_MODEL_DELETE_BUTTON, String(index))}
-                    model={model}
-                    onCommit={(value, basedOnRevision) =>
-                      onModelCommit(model.modelId, value, basedOnRevision)
-                    }
-                    onResolveDraft={(nextModelId, personalConfig) =>
-                      providerSettingsService.resolveModelConfig({
-                        providerId,
-                        originalModelId: model.modelId,
-                        modelId: nextModelId,
-                        personalConfig: structuredClone(personalConfig),
-                      })
-                    }
-                    settingsRevision={settingsRevision}
-                    onDelete={!model.builtin ? () => onDeleteModel(model.modelId) : undefined}
-                    onEnabledChange={(enabled) => {
-                      void Promise.resolve(onModelEnabledChange?.(model.modelId, enabled)).catch(
-                        () => undefined,
-                      );
-                    }}
-                    onTest={onTestModel}
-                  />
-                  {!completeProperties && (
-                    <div className="px-3 pb-2 text-ui-sm text-destructive">
-                      {model.issues?.[0]?.message ??
-                        intl.formatMessage({ id: "settings.modelProvider.modelConfigIncomplete" })}
-                    </div>
+        <div className="space-y-2">
+          {activeModels.length > 0 ? (
+            <div className="overflow-hidden rounded-lg border border-input-border bg-input">
+              <SortableProviderModelList
+                modelIds={activeModels.map((model) => model.modelId)}
+                sortableModelIds={activeModels.map((model) => model.modelId)}
+                // 折叠区不参与拖拽排序；提交时把移出的成员按原相对位置接回尾部，
+                // 避免只提交可见子集导致被移出的模型顺序丢失。
+                onReorder={(modelIds) =>
+                  onReorderModelIds?.([...modelIds, ...removedModels.map((model) => model.modelId)])
+                }
+                renderModel={(_modelId, index) => renderModelRow(activeModels[index]!, index)}
+              />
+            </div>
+          ) : removedModels.length > 0 ? (
+            // 全部模型都被移除时不能沿用"没有配置模型"，否则与下方折叠区自相矛盾。
+            <div className="mt-1 flex h-12 items-center justify-start gap-2 rounded-lg border border-dashed border-border px-4 text-left text-ui-base text-foreground-subtle">
+              <InfoIcon className="size-4 shrink-0" aria-hidden="true" />
+              {intl.formatMessage({ id: "settings.modelProvider.modelsAllRemoved" })}
+            </div>
+          ) : (
+            <div className="mt-1 flex h-12 items-center justify-start gap-2 rounded-lg border border-dashed border-border px-4 text-left text-ui-base text-foreground-subtle">
+              <InfoIcon className="size-4 shrink-0" aria-hidden="true" />
+              {intl.formatMessage({ id: "settings.modelProvider.modelsEmpty" })}
+            </div>
+          )}
+          {removedModels.length > 0 ? (
+            <Collapsible open={removedModelsOpen} onOpenChange={setRemovedModelsOpen}>
+              <CollapsibleTrigger
+                type="button"
+                title={intl.formatMessage({ id: "settings.modelProvider.removedModelsHint" })}
+                className="flex w-full items-center gap-1.5 rounded-md py-1 text-left text-ui-base text-foreground-subtlest transition-colors hover:text-foreground-subtle"
+              >
+                <ChevronRight
+                  className={cn(
+                    "size-3.5 shrink-0 transition-transform",
+                    removedModelsOpen && "rotate-90",
                   )}
-                </>
-              );
-            }}
-          />
+                  aria-hidden="true"
+                />
+                {intl.formatMessage(
+                  { id: "settings.modelProvider.removedModels" },
+                  { count: removedModels.length },
+                )}
+              </CollapsibleTrigger>
+              <CollapsibleContent>
+                <div className="mt-1 overflow-hidden rounded-lg border border-input-border bg-input">
+                  {removedModels.map((model, index) => (
+                    <div
+                      key={model.modelId}
+                      className={
+                        index === removedModels.length - 1
+                          ? undefined
+                          : "border-b border-input-border"
+                      }
+                    >
+                      {renderModelRow(model, index)}
+                    </div>
+                  ))}
+                </div>
+              </CollapsibleContent>
+            </Collapsible>
+          ) : null}
         </div>
       ) : (
         <div className="mt-1 flex h-12 items-center justify-start gap-2 rounded-lg border border-dashed border-border px-4 text-left text-ui-base text-foreground-subtle">

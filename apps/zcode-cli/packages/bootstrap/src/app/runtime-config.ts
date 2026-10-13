@@ -14,6 +14,7 @@ import {
 import { omitMcpServers, resolveTrustedOfficialCuaServerNames } from "../mcp-config.js";
 import { resolveDefaultEmbeddedSearchBackend } from "./embedded-search-backend.js";
 import { getProjectMemoryRoot } from "./paths.js";
+import { isInheritableProjectPermissionMode } from "./session-store.js";
 import type { ZCodeAppOptions } from "./types.js";
 import {
   resolveRegistryOwnedModelSelection,
@@ -122,7 +123,14 @@ export function resolveAppRuntimeConfig(input: {
     bashTimeoutPolicy:
       options.runtimeConfig?.bashTimeoutPolicy ??
       resolveBashTimeoutPolicy(options.env ?? process.env),
-    mode: options.runtimeConfig?.mode ?? persistedMode ?? configResult.config.permission.mode,
+    // 配置文件 permission.mode 只作普通默认：zcodeUpdate/minimal 排除出隐式默认来源，
+    // 显式 invocation（options.runtimeConfig.mode）与项目偏好（读取侧已过滤）仍优先。
+    mode:
+      options.runtimeConfig?.mode ??
+      persistedMode ??
+      (isInheritableProjectPermissionMode(configResult.config.permission.mode)
+        ? configResult.config.permission.mode
+        : "build"),
     modelSelection: initialModelSelection,
     // 仅接受显式传入的会话级工具面（ZCode Protocol session/create 或 CLI
     // --allowed-tools/--disallowed-tools）。不要从 config.permission.allowedTools

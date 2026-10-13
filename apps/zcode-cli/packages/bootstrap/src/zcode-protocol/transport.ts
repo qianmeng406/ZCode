@@ -272,12 +272,17 @@ export class ZCodeProtocolNdjsonConnection {
   private shouldBypassProcessingQueue(message: ZCodeProtocolMessage): boolean {
     // 模型任务占住串行队列时，停止/取消请求必须仍能进入 server，
     // 才能把底层 AbortSignal 传给真实模型请求。控制面只旁路当前执行，普通请求仍保持串行。
+    // workspace/generateText 同样旁路：它是首个内联跑在串行链上的长模型任务
+    // （Oracle 式把关可达数分钟），内联会让期间所有普通请求排队饿死——第一个熬到
+    // 客户端默认 180s 超时的请求会触发 stale-client 淘汰，连带杀掉在飞的审查。
+    // 旁路后它与普通请求并发，靠自身 deadline + cancel 通道收口。
     return (
       "id" in message &&
       "method" in message &&
       (message.method === zcodeProtocolMethods.sessionStop ||
         message.method === zcodeProtocolMethods.workspaceCancelGenerateText ||
-        MCP_APP_CONCURRENT_METHODS.has(message.method))
+        MCP_APP_CONCURRENT_METHODS.has(message.method) ||
+        message.method === zcodeProtocolMethods.workspaceGenerateText)
     );
   }
 

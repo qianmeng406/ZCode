@@ -1,26 +1,59 @@
-# ZCode
+# Myzcode
+
+> **本仓库是基于官方 ZCode 开源项目二次开发的定制分支（fork），不是官方发行版。**
+>
+> 本项目与智谱 Z.ai / ZCode 官方团队**没有隶属、合作、授权或背书关系**，仓库中出现的 "ZCode" 名称与图标仅用于说明继承自上游的代码来源。使用前请务必阅读文末的[二次开发声明](#二次开发声明)与[免责声明](#免责声明)。
 
 <div align="center">
   <img src="public/logo/icons/1024x1024.png" alt="ZCode" width="128" height="128" />
 </div>
-<p align="center">
-  <a href="https://applink.feishu.cn/client/chat/chatter/add_by_link?link_token=47ag983c-8fcb-4d6d-814b-5395193a712c&amp;qr_code=true">飞书社群</a> ·
-  <a href="https://discord.gg/z9aBcQXZQ3">Discord</a>
-</p>
-<p align="center">
-  简体中文 | <a href="README.en.md">English</a>
-</p>
 
+Myzcode 在官方 ZCode 的基础上做面向个人使用的二次开发，扩展了模型审查与若干交互能力。
 
+| 项目         | 说明                                                                                         |
+| ------------ | -------------------------------------------------------------------------------------------- |
+| 上游项目     | [zai-org/ZCode](https://github.com/zai-org/ZCode)（Apache-2.0）                              |
+| 本仓库       | [qianmeng406/ZCode](https://github.com/qianmeng406/ZCode)                                    |
+| 定制主线分支 | `main`（默认分支，包含全部定制内容与修复）                                                    |
+| 桌面端       | 基于官方 ZCode 桌面版二次构建（Preview 构建身份，产物名 `ZCode Preview`）                    |
+| 许可证       | Apache-2.0（继承上游，见 [LICENSE](LICENSE)、[NOTICE.md](NOTICE.md)）                        |
 
-ZCode 是 AI 编程工作台，提供桌面应用、浏览器界面和终端 Agent。本仓库包含客户端、后端服务、共享 UI，以及 Agent CLI 与运行时源码。
+## 上游版本与同步状态
 
-## 更新
+- **官方最新源码**：截至 2026-10-11，官方 `main` 为 [v3.15.1 对应提交 `aac47556`](https://github.com/zai-org/ZCode/commit/aac4755666d09fdcd70272fcf063c077a639015f)，于 2026-10-10 更新。该次更新包含 UI Plugin、内联 Gen UI，以及桌面端、远程工作区与 Agent 能力和回归测试的扩展。
+- **本定制版的上游基线**：本仓库基于官方 [v3.15.1 对应提交 `aac47556`](https://github.com/zai-org/ZCode/commit/aac4755666d09fdcd70272fcf063c077a639015f)，根目录 `package.json` 版本为 `3.15.1`。定制功能以一个提交套用在官方基线之上；后续跟进官方新版本的流程见 [docs/upstream-sync.md](docs/upstream-sync.md)。
+- **查看官方文档**：[中文 README](https://github.com/zai-org/ZCode/blob/main/README.md)、[英文 README](https://github.com/zai-org/ZCode/blob/main/README.en.md)、[UI Plugin 开发说明](https://github.com/zai-org/ZCode/blob/aac4755666d09fdcd70272fcf063c077a639015f/UI_PLUGIN.md)。官方新版中的功能、目录和命令不一定存在于本定制版，请以当前检出的源码与 `package.json` 为准。
 
+- 2026-10-13：把旧 Myzcode 定制功能迁移到本仓库，基线官方 v3.15.1。
 - 2026-10-10：更新至 ZCode v3.15.1 版本。
 - 2026-9-23：更新至 ZCode v3.14.3 版本。
 
-## 初始化
+## 本定制版的新增与改动
+
+以下列出本仓库在官方 v3.15.1 基线之上的定制能力与修改，不表示这些能力全部为本项目独有。官方后续版本可能提供相似功能。
+
+### 一、新增功能
+
+- **双模型审查（Oracle）**：回合结束后自动复审本轮 diff，也支持手动重审；含深度审查（派发只读子代理多轮取证）、审查进度展示、一键修复与审查结果持久化。
+- **计划批准时选择执行模型与推理等级**：退出计划模式时可直接指定后续执行所用的模型与推理档位。
+- **会话回合导航**：按回合在长会话中快速跳转，配套设置开关与全量历史加载协调。
+- **权限/协作模式扩展**：新增 **资料查询（research）只读模式**（内置多个免密钥检索渠道）、`minimal`、`zcodeUpdate` 等模式。
+- **提示词优化器**：输入区新增提示词优化入口，可指定优化所用模型。
+- **远端资源随包分发 + SSH 常驻工作区**：远端工作区（SSH/WSL）所需的 server bundle、node 运行时、agent 运行时与搜索工具**随安装包分发**（安装目录 `resources/remote-assets`），部署时由桌面端直接读取本地文件再 SFTP 上传，**全程不访问任何 CDN**；「远端服务器下载」模式缺省走 ZCode 官方 CDN（拉官方产物，不含本定制版远端改动），自建 CDN 发布树保留为可选覆盖。同时支持 SSH 远程工作区**断开不终止任务、重连接回同一运行时**。
+
+### 二、与官方版的差异边界（明确不做的事）
+
+- **不复制官方压缩代码**，不声称与官方通信协议兼容、不声称获得官方认证。
+
+## 分支说明
+
+- `main`：**默认分支与定制主线**，包含全部定制内容、修复与文档，后续开发都在这里进行。
+
+## 上游 ZCode 使用说明
+
+以下说明以本定制仓库当前可用的初始化、开发与构建入口为准，沿用上游的基础流程，并包含本仓库对资源准备、远端资源随包分发等环节的调整。它不是官方最新 README 的完整镜像；本定制版的能力按上文各章节的说明使用。
+
+### 初始化
 
 准备 Git、Node.js **24.14.0** 和 pnpm **10.33.2**，版本以 [mise.toml](mise.toml) 为准。以下开发和打包命令均在仓库根目录执行。
 
@@ -44,9 +77,9 @@ Agent CLI 与运行时源码位于 [apps/zcode-cli/](apps/zcode-cli/)，作为�
 
 默认 `bootstrap` 跳过远程资源准备，适合本地桌面开发。使用远程工作区或验证远程发行资源时，再运行对应准备命令。
 
-## 开发与运行
+### 开发与运行
 
-### 桌面版
+#### 桌面版
 
 ```bash
 pnpm dev:desktop
@@ -63,11 +96,25 @@ pnpm dev:desktop:test
 ZCODE_DATA_BASE_DIR="$HOME/.zcode-dev-home" pnpm dev:desktop:test
 ```
 
-### 远程功能（SSH/WSL）
+#### 远程功能（SSH/WSL）
 
-先执行 `pnpm bootstrap:with-remote` 准备远程资源（mock-cdn），再 `pnpm dev:desktop`；连接远程项目时资源选择「本地下载后上传」。开发态资源取自本地 `packages/desktop/mock-cdn` 和本地构建产物，经 SFTP 上传到远程，不访问 CDN。
+**打包版默认不依赖 CDN。** 构建时 `prepare:runtime-assets` 会把 mock-cdn 里目标平台（默认 `linux-x64`，可用 `ZCODE_REMOTE_CDN_PLATFORMS` 改）的远端运行时资源裁剪出来，经 electron-builder 打进安装目录的 `resources/remote-assets`；连接远程项目时资源方式选默认的「本地上传（随包资源）」，桌面端直接读取随包文件并 SFTP 上传，不发起任何 CDN 请求。
 
-### Web 开发
+- 资源树体积：单平台约 165 MB（`node` 运行时占约 117 MB），会随安装包分发；用 `ZCODE_SKIP_LOCAL_REMOTE_ASSETS=1` 可跳过随包（此时本地上传无资源可用，需走「远端服务器下载」）。
+- 想改用外部资源目录而不重打包：设置 `ZCODE_REMOTE_ASSET_LOCAL_DIR=<含 releases/<版本>/ 的目录>` 即可覆盖随包资源；目录缺件时会明确报错，不会静默回退官方 CDN。
+- 手动重建资源树：`pnpm prepare:local-remote-assets --platforms linux-x64`（产出在 `packages/desktop/dist-remote-assets-local`）。
+- 仍需自建 CDN 发布树的场景只剩：安装包内没有随包资源（`ZCODE_SKIP_LOCAL_REMOTE_ASSETS=1` 打包），或想让「远端服务器下载」模式也用 fork 产物——该模式缺省拉 **ZCode 官方 CDN** 的产物（不含常驻运行等本定制版远端改动，连接时会明确拒绝「常驻运行 + 远端服务器下载」组合）。
+
+开发态：先执行 `pnpm bootstrap:with-remote` 准备远程资源（mock-cdn），再 `pnpm dev:desktop`；开发态资源取自本地 `packages/desktop/mock-cdn` 和本地构建产物，经 SFTP 上传到远程，同样不访问 CDN。
+
+构建后想复核「随包资源 → 真实远端 → 零 CDN」整条链路，可跑验收脚本（支持 WSL 与任意 SSH 目标）：
+
+```bash
+npx tsx packages/server/scripts/remote-local-assets-check.ts --wsl
+npx tsx packages/server/scripts/remote-local-assets-check.ts --ssh <host> --user <name> --password-file <file>
+```
+
+#### Web 开发
 
 修改 Web 或后端源码时，使用开发模式：
 
@@ -82,7 +129,7 @@ ZCODE_SERVER_WORKSPACE=/path/to/project pnpm dev:web
 
 Agent 源码修改后，执行 `pnpm --filter @zcode/cli... build` 并重启服务。需要验证完整发行包时，按下方“ZCode 命令行版”打包章节解压运行。
 
-### ZCode 命令行版
+#### ZCode 命令行版
 
 命令行发行包包含 TUI、Web 和 Agent，统一使用 `zcode` 启动：无参数进入 TUI；第一个参数为 `--web` 时启动 Web；其他参数交给现有 Agent CLI 处理。两种模式都在本机运行，无需 Electron。
 
@@ -107,7 +154,7 @@ Web 模式默认工作目录为当前目录，监听 `127.0.0.1`，默认不启�
 
 构建方式见下方打包章节。`pnpm build:zcode` 只生成发行包，不会替换 `PATH` 中已有的 `zcode`。如果命令仍指向旧安装或其他源码目录，macOS / Linux 可用 `command -v zcode` 检查，Windows 可用 `where.exe zcode` 检查。
 
-### CLI 源码开发
+#### CLI 源码开发
 
 直接开发 TUI 或 Agent 时，运行源码入口：
 
@@ -141,11 +188,16 @@ node apps/zcode-cli/packages/cli/dist/zcode.cjs --help
 
 运行时变量可在启动命令的环境中显式设置。随客户端发布的默认配置见 [config/README.md](config/README.md)。
 
-## 打包
+> 注意：请勿把任何令牌、密钥或个人凭据提交到仓库；需要凭据的环节请只放在本地未跟踪文件中。
+
+### 打包
+
+**发布打包（正式/Preview 双身份安装包、APK、随包远端资源、发布前核对清单与已知坑位）见
+[BUILD.md](BUILD.md)**，里面列了完整命令序列和踩过的坑，出包前照着核对一遍即可。
 
 第三方声明生成、发行校验流程及声明在发行物中的位置见 [third-party/README.md](third-party/README.md)。
 
-### 桌面版
+#### 桌面版
 
 ```bash
 pnpm bundle:desktop
@@ -164,7 +216,7 @@ pnpm bundle:desktop -- --help
 sudo xattr -rd com.apple.quarantine /Applications/ZCode.app
 ```
 
-### ZCode 命令行版
+#### ZCode 命令行版
 
 构建入口为 `pnpm build:zcode`。脚本会依次构建 CLI/TUI、后端和 Web，收集 TUI 的原生库、worker 与运行时依赖，再组装发行包；运行发行包仍需要 Node.js，版本以 `mise.toml` 为准。
 
@@ -212,19 +264,41 @@ node dist/zcode/debug/zcode/bin/zcode.mjs --web \
 
 ## 仓库结构
 
-| 目录                                                 | 职责                                       |
-| ---------------------------------------------------- | ------------------------------------------ |
-| `packages/desktop`                                   | Electron Main、Host、Renderer 与桌面打包   |
-| `packages/web`                                       | Web 客户端                                 |
-| `packages/server`                                    | HTTP / WebSocket 服务与远程连接            |
-| `packages/zcode-server-cli`                          | 独立 Server 启动与进程管理                 |
-| `packages/ui`                                        | 共享 React 组件、hooks 与 Zustand 状态     |
-| `packages/services`                                  | 业务服务与持久化                           |
-| `packages/shared`、`packages/rpc`、`packages/client` | 共享协议和类型、RPC 框架、Agent 客户端 SDK |
-| `packages/provider`、`packages/provider-node`        | Provider 公共能力与 Node 实现              |
-| `apps/zcode-cli`                                     | Agent CLI、TUI、运行时与工具               |
-| `scripts`、`config`、`third-party`                   | 构建维护脚本、内置配置与第三方声明材料     |
+以下为本定制仓库的主要目录；`本定制版新增` 表示相对上游 v3.14.3 基线新增，不是官方最新源码树的完整目录清单。
+
+| 目录                                                 | 职责                                                             |
+| ---------------------------------------------------- | ---------------------------------------------------------------- |
+| `packages/desktop`                                   | Electron Main、Host、Renderer 与桌面打包                         |
+| `packages/web`                                       | Web 客户端                                                       |
+| `packages/server`                                    | HTTP / WebSocket 服务与远程连接                                  |
+| `packages/zcode-server-cli`                          | 独立 Server 启动与进程管理                                       |
+| `packages/ui`                                        | 共享 React 组件、hooks 与 Zustand 状态                           |
+| `packages/services`                                  | 业务服务与持久化                                                 |
+| `packages/shared`、`packages/rpc`、`packages/client` | 共享协议和类型、RPC 框架、Agent 客户端 SDK                       |
+| `packages/provider`、`packages/provider-node`        | Provider 公共能力与 Node 实现                                    |
+| `apps/zcode-cli`                                     | Agent CLI、TUI、运行时与工具                                     |
+| `scripts`、`config`、`third-party`                   | 构建维护脚本、内置配置与第三方声明材料                           |
+
+## 二次开发声明
+
+1. **来源**：本项目是基于 [zai-org/ZCode](https://github.com/zai-org/ZCode) 开源代码的**二次开发（fork）**，遵循上游 Apache-2.0 许可证。上游原始代码、文档与资源的著作权归其原作者与 zai-org/ZCode 项目所有。
+2. **非官方**：本项目由个人维护，**不是**官方产品，与 Z.ai、智谱、ZCode 官方团队**无任何隶属、赞助、合作或背书关系**。本项目产出的安装包、APK、bundle 均非官方发行物。
+3. **改动范围**：本仓库在上游基础上新增了自定义模型渠道、双模型审查等功能，并修改了部分既有模块。改动清单见上文「本定制版的新增与改动」。
+4. **协议与兼容**：本项目**不复制**官方压缩/混淆代码，**不接入**官方私有中继（relay）或账号后端，也**不声称**与官方协议兼容或通过官方认证。请勿将本项目描述为官方发行版或官方合作产品。
+5. **名称与标识**：仓库中出现的 "ZCode" 名称、图标等仅用于说明代码来源与用途，不代表官方授权。
+
+## 免责声明
+
+1. **无担保**：本项目按「现状」（AS IS）提供，不附带任何明示或默示担保，包括但不限于适销性、特定用途适用性与不侵权担保。作者不对因使用或无法使用本项目而产生的任何直接或间接损失（含数据丢失、服务中断、设备损坏、收益损失）承担责任。
+2. **自担风险**：本定制版包含可对电脑上运行的 ZCode 发起有副作用操作的能力（创建任务、发送输入、停止执行、处理审批等）。使用前你应自行评估风险，务必只在**你自己的设备**与**你拥有合法授权**的环境上使用，并妥善保管相关凭据。因误用、配置不当或凭据泄露造成的后果由使用者自行承担。
+3. **不上传、不采集**：本项目不提供任何官方后端服务，作者不会收集你的数据。
+4. **合法使用**：使用者须自行确保其使用行为符合所在地区的法律法规、上游项目条款及第三方服务（模型供应商、云服务商等）的使用协议。**严禁**将本项目用于未经授权的入侵、监控、数据窃取或其他违法用途。
+5. **模型与费用**：本项目可能调用第三方模型服务，相关账号、额度、费用与内容合规由使用者自行负责；本仓库不预置任何官方密钥或额度。
+6. **与上游的关系**：本项目可能滞后于上游、包含上游尚未合并或已被移除的改动，也可能存在缺陷。请勿因本项目的问题向上游项目或官方团队追责。
+7. **无维护承诺**：作者不承诺持续维护、及时修复或长期兼容任何上游版本。
+
+> 若你不同意上述任一条款，请立即停止使用并删除本项目全部副本。
 
 ## 项目声明
 
-功能与优惠范围、维护规则、执行与数据风险，以及许可和第三方版权说明，详见 [NOTICE.md](NOTICE.md)。
+功能与优惠范围、维护规则、执行与数据风险，以及许可和第三方版权说明，详见 [NOTICE.md](NOTICE.md)（继承自上游）。

@@ -567,6 +567,9 @@ export function V4WorkspaceChatArea({
           // 会在隐藏状态提前消费 Plugin 试用的一次性预填。可见性并入 focus 后，
           // 请求只会由返回 workspace 后真正可交互的 Composer 消费。
           focused={foregroundEnabled && focusedPaneId === leaf.paneId}
+          // 当前布局渲染出的叶子都可见；仅设置覆盖（foregroundEnabled=false）整体不可见，
+          // 用于暂停 pane 的纯展示工作（运行中时钟等）。
+          presentationVisible={foregroundEnabled}
           showFocusIndicator={showFocusIndicator}
           canSplit={canSplit}
           shellWorkspaceKey={shellWorkspaceKey}

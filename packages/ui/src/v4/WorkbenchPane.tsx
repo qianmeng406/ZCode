@@ -308,6 +308,8 @@ export interface WorkbenchLeafPaneProps {
   paneId: string;
   rect: RectExpr;
   focused: boolean;
+  /** 展示可见性（缺省 true）：不可见时暂停 pane 的纯展示工作。分屏可见 pane 均为 true。 */
+  presentationVisible?: boolean;
   showFocusIndicator: boolean;
   canSplit: boolean;
   shellWorkspaceKey: string;
@@ -343,6 +345,7 @@ export function WorkbenchLeafPane({
   paneId,
   rect,
   focused,
+  presentationVisible = true,
   showFocusIndicator,
   canSplit,
   shellWorkspaceKey,
@@ -566,6 +569,7 @@ export function WorkbenchLeafPane({
           onSessionCreated={handleSessionCreated}
           onSessionDeleted={handleSessionDeleted}
           focused={focused}
+          presentationVisible={presentationVisible}
           onSplitRight={canSplit && onSplit ? handleSplitRight : undefined}
           onSplitDown={canSplit && onSplit ? handleSplitDown : undefined}
           onClosePane={isPrimary ? undefined : handleClosePane}

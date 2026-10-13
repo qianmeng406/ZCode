@@ -121,6 +121,8 @@ export const ZCODE_PROTOCOL_VERSION = 1 as const;
 export const ZCODE_PROTOCOL_V4_WIRE_VERSION = 3 as const;
 export const zcodeRuntimeCapabilitiesSchema = z.object({
   independentPlanState: z.boolean().optional(),
+  // 显式 contextProfile 协商位；旧执行端缺失等价于 false。
+  contextProfileState: z.boolean().optional(),
 });
 export const zcodeProtocolErrorCodes = {
   sessionUnavailable: -32004,
@@ -451,6 +453,7 @@ export const zcodeProtocolNotifications = {
   pluginOperationProgress: "plugins/operationProgress",
   processResourceSample: "process/resourceSample",
   processNetworkRequests: "process/networkRequests",
+  workspaceGenerateTextProgress: "workspace/generateTextProgress",
 } as const;
 
 /** 启动控制面独立于 task stream；数据库身份不可携带路径/凭据。 */
@@ -2449,6 +2452,15 @@ export const zcodeWorkspaceGenerateTextParamsSchema = z
     tools: z.array(zcodeWorkspaceModelToolSchema).optional(),
     querySource: nonEmptyString,
     maxOutputTokens: z.number().int().positive().optional(),
+    /** 流式传输（与主会话同一 streamText 管道）；深思考型调用传 true 避免上游掐断静默连接。 */
+    stream: z.boolean().optional(),
+    /**
+     * 深度审查（只读子代理多轮循环）：审查方获得 Read/Grep/Glob 与只读 Bash，
+     * 多轮取证后产出结论；忽略单轮 stream 语义，逐轮走 streamText。
+     */
+    agentic: z.boolean().optional(),
+    /** 深度审查的软 deadline（epoch ms）：调查轮提前收敛进收尾轮，hard-abort 之外的第一道保障。 */
+    deadlineAt: z.number().int().positive().optional(),
     operationId: nonEmptyString.optional(),
   })
   .strict()
@@ -2493,9 +2505,117 @@ export type ZCodeWorkspaceGenerateTextResult = z.infer<
 export const zcodeWorkspaceCancelGenerateTextParamsSchema = z
   .object({ operationId: nonEmptyString })
   .strict();
+
+/**
+ * workspace/generateTextProgress 通知负载：流式生成期间 CLI 主动推送的输出量进度。
+ * outputChars 是正文 + 思考增量的累计字符数——协议里没有中间 token 计数（token 用量
+ * 只在 finish 事件给出），它是「模型确实在产出」的真实证据，不是 token 估算值。
+ */
+export const zcodeWorkspaceGenerateTextProgressSchema = z
+  .object({
+    operationId: nonEmptyString.optional(),
+    workspacePath: nonEmptyString,
+    querySource: nonEmptyString,
+    outputChars: z.number().int().nonnegative(),
+    /** 深度审查（agentic）的当前轮次，从 1 起。 */
+    round: z.number().int().positive().optional(),
+    /** 深度审查正在执行的工具名（仅工具执行阶段携带）。 */
+    toolName: nonEmptyString.optional(),
+    /** 工具调用的展示目标（文件路径 / pattern / 命令）。 */
+    toolTarget: nonEmptyString.optional(),
+  })
+  .strict();
+export type ZCodeWorkspaceGenerateTextProgress = z.infer<
+  typeof zcodeWorkspaceGenerateTextProgressSchema
+>;
 export const zcodeWorkspaceCancelGenerateTextResultSchema = z
   .object({ operationId: nonEmptyString, cancelled: z.boolean() })
   .strict();
+
+// ── Oracle 审查记录（会话附属持久化；冷恢复后卡片与历史可复原）──
+// 存储面是 CLI 的 session entry（type=oracle/conversation_review，touchSession:false
+// ——审查写入不得伪装成用户刚操作过会话）。原始对话不另存副本：记录只保留稳定
+// 引用（target 的 rowId/entityId/productTurnId）与结论本体。
+export const zcodeOracleReviewRecordSchema = z
+  .object({
+    reviewId: nonEmptyString,
+    sessionId: nonEmptyString,
+    depth: z.enum(["standard", "deep"]),
+    mode: z.enum(["auto", "manual"]),
+    target: z
+      .object({
+        rowId: z.number().int().nonnegative(),
+        entityId: nonEmptyString,
+        productTurnId: nonEmptyString.optional(),
+      })
+      .strict(),
+    verdict: z.enum(["pass", "warn", "fail", "insufficient", "unknown"]),
+    summary: z.string(),
+    findings: z.string(),
+    /** deep：需求核验表（REQUIREMENTS 段原文，逐行）；缺席 = 该次审查没有产出。 */
+    requirements: z.string().optional(),
+    scope: z.string().optional(),
+    limits: z.string().optional(),
+    modelLabel: nonEmptyString,
+    createdAt: z.number().int().positive(),
+    completedAt: z.number().int().positive(),
+    /**
+     * 用户已确认这条审查（✕ 关闭 / 按建议处理）。会话加载时只恢复未确认的最新记录，
+     * 否则被关掉的卡片会在每次重启后重新弹出（restored 卡片）。
+     */
+    acknowledgedAt: z.number().int().positive().optional(),
+  })
+  .strict();
+export type ZCodeOracleReviewRecord = z.infer<typeof zcodeOracleReviewRecordSchema>;
+
+export const zcodeOracleReviewSaveRecordParamsSchema = z
+  .object({
+    workspace: zcodeWorkspaceRefSchema,
+    sessionId: nonEmptyString,
+    record: zcodeOracleReviewRecordSchema,
+  })
+  .strict();
+export const zcodeOracleReviewSaveRecordResultSchema = z
+  .object({ saved: z.boolean() })
+  .strict();
+
+export const zcodeOracleReviewListRecordsParamsSchema = z
+  .object({
+    workspace: zcodeWorkspaceRefSchema,
+    sessionId: nonEmptyString,
+    limit: z.number().int().min(1).max(50).optional(),
+  })
+  .strict();
+export const zcodeOracleReviewListRecordsResultSchema = z
+  .object({
+    /** completedAt 降序（最新优先；与 CLI 实现、services 接口、UI 投影同一口径）。 */
+    records: z.array(zcodeOracleReviewRecordSchema),
+    /** CLI/宿主缺 session entry 存储面（旧版本）时 true：UI 保持内存态行为。 */
+    unavailable: z.boolean().optional(),
+  })
+  .strict();
+export type ZCodeOracleReviewListRecordsResult = z.infer<
+  typeof zcodeOracleReviewListRecordsResultSchema
+>;
+
+export const zcodeOracleReviewAcknowledgeRecordParamsSchema = z
+  .object({
+    workspace: zcodeWorkspaceRefSchema,
+    sessionId: nonEmptyString,
+    reviewId: nonEmptyString,
+    /** 缺省由 CLI 取当前时间；显式传入仅用于测试与重放。 */
+    acknowledgedAt: z.number().int().positive().optional(),
+  })
+  .strict();
+export const zcodeOracleReviewAcknowledgeRecordResultSchema = z
+  .object({
+    /** 未命中该 reviewId 的存储记录（或存储面缺席）时为 false，不视为错误。 */
+    acknowledged: z.boolean(),
+  })
+  .strict();
+export type ZCodeOracleReviewAcknowledgeRecordResult = z.infer<
+  typeof zcodeOracleReviewAcknowledgeRecordResultSchema
+>;
 
 export const zcodeProviderTestModelConnectivityParamsSchema = z
   .object({
@@ -4124,6 +4244,10 @@ export const zcodeProtocolMethods = {
   // （commit message），待 v4 workspace 查询/命令面覆盖后移除。
   workspaceGenerateText: "workspace/generateText",
   workspaceCancelGenerateText: "workspace/cancelGenerateText",
+  // Oracle 审查记录持久化：会话附属（session entry），冷恢复后卡片/历史可复原。
+  oracleReviewSaveRecord: "oracleReview/saveRecord",
+  oracleReviewListRecords: "oracleReview/listRecords",
+  oracleReviewAcknowledgeRecord: "oracleReview/acknowledgeRecord",
   providerTestModelConnectivity: "provider/testModelConnectivity",
   mcpList: "mcp/list",
   mcpReadResource: "mcp/readResource",

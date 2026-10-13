@@ -1,9 +1,9 @@
 import { execFile } from "node:child_process";
-import { realpath } from "node:fs/promises";
+import { realpath, stat } from "node:fs/promises";
 import { normalize } from "node:path";
-import { fileURLToPath } from "node:url";
+import { fileURLToPath, pathToFileURL } from "node:url";
 import type { BrowserWindow } from "electron";
-import { shell } from "electron";
+import { clipboard, shell } from "electron";
 
 type DesktopIpcLogger = {
   info?: (...args: unknown[]) => void;
@@ -88,6 +88,54 @@ export async function openPathInFileManager(
     return { success: false, error };
   }
   return { success: true };
+}
+
+/**
+ * 把本地文件复制进系统剪贴板，使用户能在文件管理器里直接粘贴。
+ *
+ * Electron 没有原生的「复制文件」API，各平台走剪贴板的私有格式：
+ * - Windows：FileNameW（UTF-16 带 NUL 终止符的资源管理器文件引用）；
+ * - macOS：public.file-url（file:// URL）；
+ * - Linux：text/uri-list（文件管理器普遍接受的 URI 列表）。
+ * 单文件场景各平台均可工作；多文件（CF_HDROP）不在本入口的语义内。
+ */
+export async function copyFileToOsClipboard(
+  rawPath: string,
+  logger: DesktopIpcLogger,
+): Promise<{ success: boolean; error?: string }> {
+  const trimmed = typeof rawPath === "string" ? rawPath.trim() : "";
+  if (!trimmed) {
+    return { success: false, error: "empty path" };
+  }
+  const target = normalize(trimmed);
+  try {
+    const info = await stat(target);
+    if (!info.isFile()) {
+      return { success: false, error: "not a regular file" };
+    }
+  } catch {
+    return { success: false, error: "file not found" };
+  }
+
+  try {
+    if (process.platform === "win32") {
+      const pathWithTerminator = `${target}${String.fromCharCode(0)}`;
+      clipboard.writeBuffer("FileNameW", Buffer.from(pathWithTerminator, "ucs2"));
+    } else {
+      const fileUrl = pathToFileURL(target).href;
+      if (process.platform === "darwin") {
+        clipboard.writeBuffer("public.file-url", Buffer.from(fileUrl, "utf8"));
+      } else {
+        clipboard.writeBuffer("text/uri-list", Buffer.from(fileUrl, "utf8"));
+      }
+    }
+    logger.info?.("[copy-file] 文件已复制到剪贴板", { path: target });
+    return { success: true };
+  } catch (error) {
+    const message = error instanceof Error ? error.message : String(error);
+    logger.warn("[copy-file] 文件复制到剪贴板失败", { path: target, error: message });
+    return { success: false, error: message };
+  }
 }
 
 export async function captureWindowScreenshot(senderWindow: BrowserWindow | null) {

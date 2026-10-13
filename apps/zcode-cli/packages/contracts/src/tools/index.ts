@@ -29,6 +29,9 @@ export * from "./task-stop.js";
 export * from "./read-session-context.js";
 export * from "./submit-result.js";
 export * from "./websearch.js";
+// 资料查询模式（research mode）渠道工具面：schema/factory 被 core 的
+// tool/handlers/research-tools.ts 读走；漏掉这行注册表会静默缺工具。
+export * from "./research.js";
 export * from "./workflow.js";
 export * from "./create-workflow.js";
 // 修订入口：名字常量被 core 的

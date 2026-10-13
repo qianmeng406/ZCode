@@ -5,8 +5,13 @@ import {
   type SessionEvent,
   type SessionModeChangedPayload,
 } from "@zcode/contracts";
+import { resolveContextProfile, resolveExecutionState } from "@zcode/shared";
 import type { AgentRuntimeInternal } from "./internal.js";
-import { buildExecutionStateEntry, readRuntimeExecutionState } from "./execution-state.js";
+import {
+  buildExecutionStateEntry,
+  installRuntimeExecutionState,
+  readRuntimeExecutionState,
+} from "./execution-state.js";
 import {
   unpublishedPermissionGrants,
   recoverPendingPermissionGrant,
@@ -58,6 +63,7 @@ export async function grantPermissionFullAccess(
           ...next,
           previousMode: previous.mode,
           previousPlanEnabled: previous.planEnabled,
+          previousContextProfile: resolveContextProfile(previous),
           source: "command",
           permissionGrant: { interactionId, queueItemIds },
         },
@@ -89,8 +95,16 @@ export async function grantPermissionFullAccess(
     const applied = appliedGrants.get(this) ?? new Set<string>();
     if (!applied.has(interactionId)) {
       this.lastPermissionGrantId = interactionId;
-      this.config.mode = payload.mode;
-      this.config.planEnabled = payload.planEnabled;
+      // 统一走已提交状态安装：授权只改权限，但同样要失效工具缓存并推进派生版本，
+      // 否则 minimal→yolo 等切换会沿用旧档位的工具表与前缀。payload 经 receipt 校验
+      // 固定为 yolo + 明确 planEnabled；以会话当前状态为基线解析，保留上下文档位。
+      installRuntimeExecutionState(
+        this,
+        resolveExecutionState(
+          { mode: payload.mode, planEnabled: payload.planEnabled },
+          readRuntimeExecutionState(this),
+        ),
+      );
       for (const item of this.activeTurn?.pendingInputs ?? []) {
         if (ids.has(item.id) && item.intent) item.intent = { ...item.intent, mode: "yolo" };
       }

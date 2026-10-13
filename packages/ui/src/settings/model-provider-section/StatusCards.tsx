@@ -54,14 +54,15 @@ import {
 } from "./BigModelRegistrationHint.js";
 import { formatQuotaModelDisplayName } from "./quotaModelDisplayName.js";
 
-const CODING_PLAN_USAGE_SUMMARY_COLORS = [
+/** 额度条配色；网关额度卡片复用同一组 token，保证与 Coding Plan 卡片视觉一致。 */
+export const CODING_PLAN_USAGE_SUMMARY_COLORS = [
   "var(--color-usage-chart-1)",
   "var(--color-usage-chart-2)",
   "var(--color-usage-chart-3)",
   "var(--color-usage-chart-4)",
 ] as const;
 
-function PlanStatusCardSurface({
+export function PlanStatusCardSurface({
   planTitle,
   titleAccessory,
   statusMeta,
@@ -973,7 +974,7 @@ function resolveGenericUsageLimitLabel(
   });
 }
 
-function PlanUsageMetricCard({
+export function PlanUsageMetricCard({
   action,
   infoDescription,
   label,

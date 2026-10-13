@@ -101,6 +101,28 @@ const COMPACTION_PROJECTION_DIAG_LIMIT = 200;
 const compactionProjectionDiagSignatures = new Set<string>();
 const ZCODE_AGENT_MODE_OPTIONS = getSharedAgentAvailableModes();
 
+// fork：research/minimal/zcodeUpdate 三档在共享目录之外（shared 单源只含官方模式），
+// 这里在 UI 投影层本地补齐，保证模式选择器与 CLI 侧可切档一致。
+ZCODE_AGENT_MODE_OPTIONS.push(
+  {
+    id: "research",
+    name: "Research mode",
+    description: "Read-only web research across docs, code Q&A, and academic sources.",
+  },
+  {
+    id: "minimal",
+    name: "Minimal mode",
+    description:
+      "Send only the system tools with a bare identity line and working directory, and run commands and edits without confirmation; no skills, memory, project instructions, or MCP tools.",
+  },
+  {
+    id: "zcodeUpdate",
+    name: "ZCode update mode",
+    description:
+      "Track upstream ZCode releases: fetch each version's diff, judge relevance, re-implement locally, then verify.",
+  } as never,
+);
+
 export interface ZCodeSessionEventProjectionState extends ZCodeToolProjectionMemory {
   activePromptInputIdBySession?: Map<string, InputId>;
   rewindControlTurnKeys?: Set<string>;
@@ -178,6 +200,10 @@ export function toZCodeTaskMode(mode: ZCodeTaskMode | undefined): ZCodeSessionMo
     case "acceptEdits":
     case "autoEdit":
       return "build";
+    case "research":
+    case "minimal":
+    case "zcodeUpdate":
+      return mode;
     default:
       return undefined;
   }

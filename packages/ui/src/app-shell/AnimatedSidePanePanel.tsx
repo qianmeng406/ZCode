@@ -41,6 +41,7 @@ import {
 import { ResizableHandle, ResizablePanel } from "@/components/ui/resizable.js";
 import { Tabs, TabsContent, TabsList } from "@/components/ui/tabs.js";
 import { SidePaneTabOverview } from "@/app-shell/SidePaneTabOverview.js";
+import { FileExplorerSidePane } from "@/app-shell/FileExplorerSidePane.js";
 import { SubagentSessionSidePane } from "@/app-shell/SubagentSessionSidePane.js";
 import { SubagentDirectorySidePane } from "@/app-shell/SubagentDirectorySidePane.js";
 import { SelectionSideChatPane } from "@/app-shell/SelectionSideChatPane.js";
@@ -95,6 +96,7 @@ import { useZCodeIntl } from "@/i18n/IntlProvider.js";
 import {
   BugIcon,
   FileDiffIcon,
+  FolderIcon,
   GlobeIcon,
   MessageSquareTextIcon,
   PlusIcon,
@@ -322,6 +324,7 @@ export function AnimatedSidePanePanel({
   onOpenDeveloperTools,
   onOpenTerminalTab,
   onOpenReviewTab,
+  onOpenFileExplorerTab,
   onOpenSelectionSideConversation,
   onRevealGitFileInTree,
   onOpenBrowserUrl,
@@ -391,6 +394,7 @@ export function AnimatedSidePanePanel({
   onOpenDeveloperTools: () => void;
   onOpenTerminalTab: () => void;
   onOpenReviewTab: () => void;
+  onOpenFileExplorerTab: () => void;
   onOpenSelectionSideConversation: () => void;
   onRevealGitFileInTree?: (path: string) => void;
   onOpenBrowserUrl: (url: string) => void;
@@ -463,6 +467,7 @@ export function AnimatedSidePanePanel({
   const previousIsVisibleRef = useRef(isVisible);
   const panelLayout = resolveAnimatedSidePanePanelLayout({ mobileOverlay });
   const hasReviewTab = visibleTabs.some((tab) => tab.type === "git");
+  const hasFileExplorerTab = visibleTabs.some((tab) => tab.type === "file-explorer");
   const canOpenSelectionSideConversation = shouldOfferSelectionSideConversation({
     activeTaskId,
     isMobileTextInputViewport,
@@ -732,7 +737,18 @@ export function AnimatedSidePanePanel({
             <span>{intl.formatMessage({ id: "sidePane.review" })}</span>
           </DropdownMenuItem>
         ) : null}
-        {/* 暂时隐藏画板入口，后续可能重新开放 */}
+        {!hasFileExplorerTab ? (
+          <DropdownMenuItem
+            data-side-pane-add-item="file-explorer"
+            onSelect={() => {
+              onOpenFileExplorerTab();
+            }}
+          >
+            <FolderIcon className="size-4" />
+            <span>{intl.formatMessage({ id: "fileExplorer.title" })}</span>
+          </DropdownMenuItem>
+        ) : null}
+        {/* 画板入口未启用 */}
         {/* <DropdownMenuItem
           onSelect={() => {
             onOpenWhiteboard();
@@ -801,6 +817,12 @@ export function AnimatedSidePanePanel({
       icon: FileDiffIcon,
       onOpen: onOpenReviewTab,
     },
+    "file-explorer": {
+      id: "file-explorer",
+      label: intl.formatMessage({ id: "fileExplorer.title" }),
+      icon: FolderIcon,
+      onOpen: onOpenFileExplorerTab,
+    },
     terminal: {
       id: "terminal",
       label: intl.formatMessage({ id: "terminal.title" }),
@@ -824,6 +846,7 @@ export function AnimatedSidePanePanel({
     canOpenSelectionSideConversation,
     developerToolsEnabled,
     hasReviewTab,
+    hasFileExplorerTab,
     supportsEmbeddedBrowser,
   })
     .filter((itemId) => !isOfficeMode || (itemId !== "terminal" && itemId !== "review"))
@@ -915,6 +938,7 @@ export function AnimatedSidePanePanel({
         browserTitle: intl.formatMessage({ id: "browser.title" }),
         reviewTitle: intl.formatMessage({ id: "sidePane.review" }),
         codeViewerTitle: intl.formatMessage({ id: "codeViewer.title" }),
+        fileExplorerTitle: intl.formatMessage({ id: "fileExplorer.title" }),
         treemappingTitle: intl.formatMessage({ id: "treemapping.title" }),
         whiteboardTitle: intl.formatMessage({ id: "whiteboard.title" }),
         modelTrajectoryTitle: intl.formatMessage({
@@ -1239,6 +1263,16 @@ export function AnimatedSidePanePanel({
                               ? {}
                               : { onRevealFileInTree: onRevealGitFileInTree })}
                           />
+                        ) : tab.type === "file-explorer" ? (
+                          <FileExplorerSidePane
+                            workspacePath={workspaceAbsPath}
+                            workspaceIdentity={workspaceIdentity}
+                            workspaceRemoteSessionId={workspaceRemoteSessionId}
+                            canOpenLocalFileManager={isDesktop}
+                            active={isVisible && tab.id === visibleActiveTabId}
+                            onOpenBrowserUrl={isDesktop ? onOpenBrowserUrl : undefined}
+                            onOpenCodeViewer={onOpenCodeViewer}
+                          />
                         ) : tab.type === "code-viewer" ? (
                           <PreviewPane
                             markdownSelectionTarget={{ sessionId: activeTaskId, workspaceKey }}
@@ -1270,6 +1304,8 @@ export function AnimatedSidePanePanel({
                             workspaceRemoteSessionId={workspaceRemoteSessionId}
                             gitState={gitState}
                             isDesktop={isDesktop}
+                            // 非活动 tab / 面板隐藏时不拉 diff 与批量预取（保留已加载 diff）。
+                            active={isVisible && tab.id === visibleActiveTabId}
                             selectedSourceId={activeGitSourceId}
                             fileChangeFindActiveIndex={fileChangeFindActiveIndex}
                             fileChangeFindNavigationRequestId={fileChangeFindNavigationRequestId}

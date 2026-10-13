@@ -97,6 +97,8 @@ export interface DraftConfigControl {
   handleDraftSelectModel: (modelProvider: string, model: string) => void;
   handleDraftSelectThought: (thought: string) => void;
   handleDraftSwitchMode: (mode: string) => void;
+  /** 上下文档位与权限正交：单独切换，只改未来请求的前缀与工具投影。 */
+  handleDraftSwitchContextProfile: (profile: "standard" | "minimal") => void;
 }
 
 export function useDraftConfigControl(params: {
@@ -163,6 +165,8 @@ export function useDraftConfigControl(params: {
             ...draft,
             mode: mode.success && mode.data !== "plan" ? mode.data : "build",
             planEnabled: resolveExecutionState(sessionConfig ?? {}).planEnabled,
+            // 档位独立于权限恢复；旧 mode=minimal 由解析补出极简档位。
+            contextProfile: resolveExecutionState(sessionConfig ?? {}).contextProfile,
             modelSelection: sessionConfig?.modelSelection,
           };
   }
@@ -183,6 +187,8 @@ export function useDraftConfigControl(params: {
     () => ({
       mode: draft.mode,
       planEnabled: draft.planEnabled ?? false,
+      // 档位缺省按草稿 mode 兼容解析（旧 minimal → 极简），新草稿始终显式。
+      contextProfile: draft.contextProfile ?? resolveExecutionState({ mode: draft.mode }).contextProfile,
       modelSelection: effectiveSelection,
       provider: effectiveSelection?.providerId ?? "",
       model: effectiveSelection?.modelId ?? "",
@@ -219,6 +225,7 @@ export function useDraftConfigControl(params: {
       draftConfigRef.current = {
         mode: next.mode,
         planEnabled: next.planEnabled ?? false,
+        contextProfile: next.contextProfile ?? resolveExecutionState({ mode: next.mode }).contextProfile,
         modelSelection: selection,
         provider: selection?.providerId ?? "",
         model: selection?.modelId ?? "",
@@ -480,6 +487,18 @@ export function useDraftConfigControl(params: {
     [updateComposerDraft],
   );
 
+  const handleDraftSwitchContextProfile = useCallback(
+    (profile: "standard" | "minimal") => {
+      // 档位与权限正交：只改上下文投影，不动 mode/planEnabled/模型选择。
+      updateComposerDraft((current) => ({
+        ...current,
+        contextProfile: profile,
+        initializeFromNewTask: undefined,
+      }));
+    },
+    [updateComposerDraft],
+  );
+
   return {
     modelSelectionRead,
     draftConfig,
@@ -493,6 +512,7 @@ export function useDraftConfigControl(params: {
     handleDraftSelectModel,
     handleDraftSelectThought,
     handleDraftSwitchMode,
+    handleDraftSwitchContextProfile,
   };
 }
 

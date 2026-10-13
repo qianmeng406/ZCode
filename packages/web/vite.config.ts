@@ -39,6 +39,8 @@ export default defineConfig(({ mode }) => {
   const zaiOAuthClientId = resolveZaiOAuthClientId(endpointEnv);
 
   return {
+    // 相对 base：根路径部署（官方发行）与 Capacitor 壳子路径（/webui/）都成立。
+    base: "./",
     plugins: [pdfJsCMapsPlugin(), react(), tailwindcss(), thirdPartyNoticesVitePlugin()],
     resolve: {
       alias: {

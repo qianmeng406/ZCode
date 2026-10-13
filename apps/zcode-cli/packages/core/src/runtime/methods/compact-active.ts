@@ -632,7 +632,8 @@ async function compactActiveConversationImpl(
       );
       this.readFileState.clear();
       resetProjectMemoryRecall(this);
-
+      // 压缩可能丢掉模式提醒全文而留下简版；下一请求补当前身份全文。
+      this.runtimeModeReminderPendingFull = true;
       return {
         displayText: "Compacted",
         entries: postCompactEntries,

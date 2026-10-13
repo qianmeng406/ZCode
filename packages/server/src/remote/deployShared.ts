@@ -79,6 +79,20 @@ export function createRemoteAssetPlaceholderError(
   options: RemoteAssetDeployOptions,
   resourceLabel: string,
 ): Error {
+  const hasCdnSource =
+    Boolean(options.remoteCdnBaseUrl?.trim()) ||
+    Boolean(options.remoteCdnBaseUrls?.some((baseUrl) => baseUrl.trim().length > 0));
+  // 本地随包资源模式下没有配置任何 CDN 来源。此时提示“去配置 CDN”会把排查方向带偏，
+  // 直接指向本地资源树缺失（安装包资源不完整，或 ZCODE_REMOTE_ASSET_LOCAL_DIR 指错）才准确。
+  if (!hasCdnSource) {
+    return new Error(
+      `[deploy] ${resourceLabel} missing for ${platformArch}. ` +
+        `本地远端资源树缺少该组件：安装包内 resources/remote-assets 不完整，` +
+        `或 ZCODE_REMOTE_ASSET_LOCAL_DIR 指向的目录缺少该平台资源。` +
+        `可重新执行 pnpm prepare:local-remote-assets 重建资源树。`,
+    );
+  }
+
   // 远端部署资源在生产态需要走 CDN + 本地缓存。
   // 如果这里仍然只报“本地文件缺失”，排障时会误判成打包漏文件；
   // 统一把错误指向配置（CDN 基址/缓存目录）和缓存内容，避免定位方向跑偏。

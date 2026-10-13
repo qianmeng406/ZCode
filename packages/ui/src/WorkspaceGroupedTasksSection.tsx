@@ -576,6 +576,7 @@ export function WorkspaceGroupedTasksSection({
   activeWorkspaceIdentity,
   activeTaskId,
   mobileActiveTaskKey,
+  displayEnabled = true,
   onSelectTask,
   onCreateTask,
   onOpenFileTree,
@@ -592,6 +593,8 @@ export function WorkspaceGroupedTasksSection({
   activeWorkspaceIdentity?: string;
   activeTaskId: string | null;
   mobileActiveTaskKey?: string | null;
+  /** 展示区可见资格（默认 true）：隐藏时暂停列表查询，保留最后可信列表。 */
+  displayEnabled?: boolean;
   onSelectTask: (
     workspacePath: string,
     taskId: string,
@@ -684,6 +687,7 @@ export function WorkspaceGroupedTasksSection({
     applyOrder,
   } = useGroupedTaskView({
     workspaceTabs,
+    displayEnabled,
   });
   const [archivingTaskKeys, setArchivingTaskKeys] = useState<ReadonlySet<string>>(
     () => new Set(),

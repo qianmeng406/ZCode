@@ -1,6 +1,7 @@
 // 对齐文件搜索型子 agent 的工具面。direct branch 会暴露 Glob/Grep；
 // embedded search branch 则通过 Bash find/grep 接管搜索。注意：白名单刻意不含任何
 // 文件写工具（Write/Edit/ApplyPatch），因此 Bash 是唯一的副作用入口，只读语义靠 Explore prompt 约束。
+// research 检索渠道同为只读（sideEffectScope: network），一并放行，Explore 子代理可做资料检索。
 export const EXPLORE_AGENT_ALLOWED_TOOLS = [
   "Bash",
   "Glob",
@@ -9,6 +10,17 @@ export const EXPLORE_AGENT_ALLOWED_TOOLS = [
   "WebFetch",
   "WebSearch",
   "TodoWrite",
+  "SearchDocs",
+  "GetLibraryDocs",
+  "SearchStackOverflow",
+  "SearchGitHub",
+  "SearchHackerNews",
+  "SearchArxiv",
+  "SearchNpm",
+  "SearchPyPI",
+  "SearchMdn",
+  "SearchPapers",
+  "SearchPubmed",
 ] as const;
 
 export type ExploreAgentAllowedTool = (typeof EXPLORE_AGENT_ALLOWED_TOOLS)[number];
@@ -19,6 +31,17 @@ export const EXPLORE_AGENT_EMBEDDED_SEARCH_ALLOWED_TOOLS = [
   "WebFetch",
   "WebSearch",
   "TodoWrite",
+  "SearchDocs",
+  "GetLibraryDocs",
+  "SearchStackOverflow",
+  "SearchGitHub",
+  "SearchHackerNews",
+  "SearchArxiv",
+  "SearchNpm",
+  "SearchPyPI",
+  "SearchMdn",
+  "SearchPapers",
+  "SearchPubmed",
 ] as const;
 
 const EXPLORE_AGENT_DESCRIPTION_TOOL_PRIORITY = [
@@ -29,6 +52,17 @@ const EXPLORE_AGENT_DESCRIPTION_TOOL_PRIORITY = [
   "WebFetch",
   "WebSearch",
   "TodoWrite",
+  "SearchDocs",
+  "GetLibraryDocs",
+  "SearchStackOverflow",
+  "SearchGitHub",
+  "SearchHackerNews",
+  "SearchArxiv",
+  "SearchNpm",
+  "SearchPyPI",
+  "SearchMdn",
+  "SearchPapers",
+  "SearchPubmed",
 ] as const satisfies readonly ExploreAgentAllowedTool[];
 const EXPLORE_AGENT_DESCRIPTION_TOOL_PRIORITY_SET = new Set<ExploreAgentAllowedTool>(
   EXPLORE_AGENT_DESCRIPTION_TOOL_PRIORITY,

@@ -40,6 +40,8 @@ export function useGlobalTaskList(params: {
   searchQuery: string;
   expanded: boolean;
   collapsedLimit: number;
+  /** 展示消费者资格（默认 true）：侧栏隐藏/被文件树覆盖时暂停列表查询，保留最后可信列表。 */
+  enabled?: boolean;
 }) {
   const baseServices = useBaseWorkspaceServices();
   const controller = baseServices.windowControllerService;
@@ -191,6 +193,11 @@ export function useGlobalTaskList(params: {
   }, [controllerRevision, load, taskListVersionSignature, workspaceSourceGenerationSignature]);
 
   useEffect(() => {
+    if (params.enabled === false) {
+      // 展示区不可见：暂停查询与 activity join（见 specs/on-demand-panel-loading.md）。
+      // 事件/版本订阅继续推进缓存失效，恢复可见后本 effect 以最新版本重查一次。
+      return;
+    }
     // 远程 workspace 从断开占位恢复为在线 session 时 identity/path 不变，
     // taskListVersion 也可能尚未变化，旧缓存因此永久保留连接前的空结果。remoteSessionId
     // 只作为 source 代际触发重查，不改变 workspaceIdentity 与 Controller 查询契约。
@@ -199,7 +206,13 @@ export function useGlobalTaskList(params: {
       taskListVersionSignature,
       workspaceSourceGenerationSignature,
     });
-  }, [controllerRevision, load, taskListVersionSignature, workspaceSourceGenerationSignature]);
+  }, [
+    controllerRevision,
+    load,
+    params.enabled,
+    taskListVersionSignature,
+    workspaceSourceGenerationSignature,
+  ]);
 
   const hasRemoteScope = params.workspaceTabs.some((tab) => Boolean(tab.workspaceIdentity));
   return {

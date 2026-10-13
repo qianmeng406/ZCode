@@ -18,8 +18,18 @@ import { performHandshake } from "./handshake.js";
 import { deployServer } from "./deploy.js";
 import type { DeployOptions } from "./deploy.js";
 import { assertSupportedRemoteEnvironment } from "@zcode/server/remote/remotePlatformSupport.js";
-import { quotePosixShellArg } from "./posixShell.js";
 import { formatWslProxyForLog } from "./wslProxy.js";
+import { launchResidentBridge } from "./resident-connect.js";
+import {
+  buildRemoteRuntimeEnvPrefix,
+  buildRemoteServerCommand,
+  type RemoteRuntimeEnv,
+  type RemoteRuntimeEnvKey,
+  type RemoteRuntimeNetworkOptions,
+} from "./server-command.js";
+
+// 公开类型原从 connect.ts 导出（remote/index.ts 与桌面 host 依赖），拆分后原位再导出保持兼容。
+export type { RemoteRuntimeEnv, RemoteRuntimeEnvKey, RemoteRuntimeNetworkOptions };
 
 const BACKEND_DISCONNECT_EXIT_CODE = -1;
 
@@ -40,13 +50,12 @@ export interface ConnectOptions extends DeployOptions {
   remoteRuntimeNetwork?: RemoteRuntimeNetworkOptions;
   /** 远端 stdio 关闭后的回调（用于上层感知断连并触发回收） */
   onDidRemoteClose?: (event: { code: number }) => void;
-}
-
-export interface RemoteRuntimeNetworkOptions {
-  httpProxy?: string;
-  noProxy?: string;
-  /** 只允许 Host 设置权威值覆盖远端自身的旧设置。 */
-  authoritative?: boolean;
+  /**
+   * 常驻模式：远端 server 以独立 daemon 运行（规格见 ./specs/remote-resident-server.md）。
+   * 桌面断开只释放连接与订阅，远端任务继续执行；重连经 --resident-start 幂等接回。
+   * 缺省 false = 既有 stdio 会话模式，行为零变化。
+   */
+  resident?: boolean;
 }
 
 export interface RemoteConnection {
@@ -54,43 +63,10 @@ export interface RemoteConnection {
   client: ChannelClient;
   dispose(): void;
   disposeAndWait(options?: { timeoutMs?: number }): Promise<void>;
+  /** 常驻模式连接：断开 ≠ 远端任务终止，桌面侧据此区分离离线与失败。 */
+  resident: boolean;
 }
 
-const REMOTE_RUNTIME_ENV_KEYS = [
-  "ZCODE_ENV",
-  "ZCODE_BASE_URL",
-  "ZCODE_ENDPOINT_ORIGIN",
-  "ZCODE_TEST_BASE_URL",
-  "ZCODE_PRODUCTION_BASE_URL",
-  "ZAI_OAUTH_ORIGIN",
-  "ZAI_TEST_OAUTH_ORIGIN",
-  "ZAI_PRODUCTION_OAUTH_ORIGIN",
-  "ZAI_BUSINESS_BASE_URL",
-  "ZAI_TEST_BUSINESS_BASE_URL",
-  "ZAI_PRODUCTION_BUSINESS_BASE_URL",
-  "ZAI_OAUTH_CLIENT_ID",
-  "ZAI_TEST_OAUTH_CLIENT_ID",
-  "ZAI_PRODUCTION_OAUTH_CLIENT_ID",
-  // Desktop Main 已完成的单功能灰度结果；远端 server 只消费，不重新分桶。
-  ZCODE_DESKTOP_CONTEXT_PROMPT_ENABLED_ENV,
-  // 同上：本地覆盖由 Desktop Main 按构建档位写定（buildHostProcessEnv），
-  // 透传后 SSH/WSL/Docker 远端 Host 与本地 Host 得到同一档位。
-  ZCODE_DYNAMIC_WORKFLOW_MODE_ENV,
-] as const;
-
-export type RemoteRuntimeEnvKey = (typeof REMOTE_RUNTIME_ENV_KEYS)[number];
-export type RemoteRuntimeEnv = Partial<Record<RemoteRuntimeEnvKey, string>>;
-
-export function pickRemoteRuntimeEnv(env: Record<string, string | undefined>): RemoteRuntimeEnv {
-  const picked: RemoteRuntimeEnv = {};
-  for (const key of REMOTE_RUNTIME_ENV_KEYS) {
-    const value = env[key]?.trim();
-    if (value) {
-      picked[key] = value;
-    }
-  }
-  return picked;
-}
 
 function createRemoteConnectAbortError(signal: AbortSignal): Error {
   if (signal.reason instanceof Error) {
@@ -201,7 +177,19 @@ async function connectRemoteUnchecked(
 
   // 3. Launch server
   log("launching remote server...");
-  const stream = await backend.exec(buildRemoteServerCommand(options, remoteRuntimeNetwork));
+  const resident = options?.resident === true;
+  // 常驻依赖本仓库远端 server bundle 的 resident 入口；「远端服务器下载」拉取的是官方产物，
+  // 没有这些改动。这里 fail-fast 并给出明确改法，而不是让远端启动到一半才报未知错误。
+  if (resident && options?.assetInstallMode === "remote-download") {
+    throw new Error(
+      "[connect] 常驻运行不支持「远端服务器下载」资源方式：该模式拉取 ZCode 官方产物，" +
+        "不含本定制版的 resident 入口。请把资源方式改为「本地上传（随包资源）」后再使用常驻运行。",
+    );
+  }
+  const remoteRuntimeEnvPrefix = buildRemoteRuntimeEnvPrefix(options, remoteRuntimeNetwork);
+  const stream = resident
+    ? await launchResidentBridge(backend, remoteRuntimeEnvPrefix, log)
+    : await backend.exec(buildRemoteServerCommand(remoteRuntimeEnvPrefix));
   throwIfRemoteConnectAborted(options?.signal);
   log("remote server exec started");
 
@@ -304,6 +292,7 @@ async function connectRemoteUnchecked(
   return {
     services,
     client,
+    resident,
     dispose() {
       beginDisposal();
       disposeBackend();
@@ -371,39 +360,4 @@ async function resolveRemoteRuntimeNetwork(
     );
     return network;
   }
-}
-
-function buildRemoteServerCommand(
-  options: ConnectOptions | undefined,
-  remoteRuntimeNetwork: RemoteRuntimeNetworkOptions | undefined,
-): string {
-  const envParts = [
-    `${SERVICE_AUTHORITY_MODE_ENV}="desktop-attached-remote"`,
-    'ZCODE_SERVER_RUNTIME_ROOT="$HOME/.zcode/server"',
-  ];
-  for (const [key, value] of Object.entries(
-    pickRemoteRuntimeEnv(options?.remoteRuntimeEnv ?? {}),
-  )) {
-    envParts.push(`${key}=${quotePosixShellArg(value)}`);
-  }
-  const appVersion = options?.appVersion?.trim();
-  if (appVersion) {
-    // 远端 server 是通过 SSH/WSL/Docker 单独启动的，不会继承桌面 host env。
-    // 这里显式把 app 版本作为远端进程 env 注入，远端 agent 才能在模型请求 header 中带上版本。
-    envParts.push(`${ZCODE_APP_VERSION_ENV}=${quotePosixShellArg(appVersion)}`);
-  }
-  if (remoteRuntimeNetwork?.authoritative) {
-    envParts.push(`${ZCODE_REMOTE_RUNTIME_NETWORK_AUTHORITY_ENV_KEY}='1'`);
-    if (remoteRuntimeNetwork.httpProxy !== undefined) {
-      envParts.push(
-        `${ZCODE_REMOTE_HTTP_PROXY_ENV_KEY}=${quotePosixShellArg(remoteRuntimeNetwork.httpProxy)}`,
-      );
-    }
-    if (remoteRuntimeNetwork.noProxy !== undefined) {
-      envParts.push(
-        `${ZCODE_REMOTE_NO_PROXY_ENV_KEY}=${quotePosixShellArg(remoteRuntimeNetwork.noProxy)}`,
-      );
-    }
-  }
-  return `${envParts.join(" ")} ~/.zcode/server/node ~/.zcode/server/zcode-server.cjs`;
 }

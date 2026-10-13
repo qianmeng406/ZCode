@@ -1,5 +1,9 @@
 import type { ModelSelectionView } from "@zcode/services";
-import { readComposerRecent, resolveDraftInitialModelSelection } from "@/lib/composerRecent.js";
+import {
+  isInheritableSubmissionMode,
+  readComposerRecent,
+  resolveDraftInitialModelSelection,
+} from "@/lib/composerRecent.js";
 import {
   persistV4ComposerDraft,
   readV4ComposerDraft,
@@ -20,6 +24,8 @@ export function initializeNewTaskDraft(
     initializeFromNewTask: undefined,
     mode: recent?.mode === "plan" ? "build" : (recent?.mode ?? "build"),
     planEnabled: false,
+    // 档位不随 Recent 自动继承：每个普通新任务回到 standard，需要极简时由用户显式开启。
+    contextProfile: "standard",
     modelSelection:
       recent?.modelSelection ??
       resolveDraftInitialModelSelection(view, null).selection ??
@@ -43,11 +49,12 @@ export function seedImportedSessionDraft(result: {
     workspacePath,
     workspaceIdentity,
     sessionId,
-    root?.mode
+    root?.mode && isInheritableSubmissionMode(root.mode)
       ? {
           text: "",
           mode: root.mode,
           planEnabled: root.planEnabled ?? false,
+          contextProfile: root.contextProfile ?? "standard",
           modelSelection: root.modelSelection,
         }
       : { text: "", initializeFromNewTask: true },

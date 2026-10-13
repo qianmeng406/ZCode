@@ -815,6 +815,9 @@ export interface IPlatformService {
   /** 使用系统默认应用打开本地文件；普通 Web 平台返回 unsupported。 */
   openExternalFile?(path: string): Promise<{ success: boolean; error?: string }>;
 
+  /** 把本地文件复制进系统剪贴板（可在文件管理器里粘贴）；普通 Web 平台不支持。Desktop only。 */
+  copyFileToClipboard?(path: string): Promise<{ success: boolean; error?: string }>;
+
   /** 打开 ZCode Computer Use 的完整权限引导。Desktop only。 */
   openCuaPermissionOnboarding?(
     options?: OpenCuaPermissionOnboardingOptions,

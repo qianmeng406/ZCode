@@ -341,7 +341,8 @@ export class LocalUploadAssetInstaller implements RemoteAssetInstaller {
       );
     }
     throw new Error(
-      `[deploy] local remote asset not found: ${join(releaseDir, sourceRelativePath)} (component=${componentIds.join(",")})`,
+      `[deploy] local remote asset not found: ${join(releaseDir, sourceRelativePath)} (component=${componentIds.join(",")})` +
+        ` —— 本地资源树缺少该文件（安装包 resources/remote-assets 不完整，或 ZCODE_REMOTE_ASSET_LOCAL_DIR 指向的目录不完整）。`,
     );
   }
 

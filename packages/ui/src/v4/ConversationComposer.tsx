@@ -44,6 +44,7 @@ import {
   TID_V4_STOP,
   testId,
   type HighspeedCardSnapshot,
+  type ModelSelection,
   type PlanIdentitySnapshot,
   type ZCodeProvider,
 } from "@zcode/shared";
@@ -54,13 +55,29 @@ import type {
 } from "@zcode/shared/zcode-protocol-v4";
 import {
   ArrowUpIcon,
+  CheckIcon,
+  ChevronDownIcon,
   ClipboardPenLineIcon,
   InfoIcon,
   RotateCcwIcon,
+  ScanSearchIcon,
+  ShieldCheckIcon,
+  SparklesIcon,
   SquareIcon,
   XIcon,
 } from "lucide-react";
 import { ControlHintTooltip } from "@/ControlHintTooltip.js";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuLabel,
+  DropdownMenuSeparator,
+  DropdownMenuSub,
+  DropdownMenuSubContent,
+  DropdownMenuSubTrigger,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu.js";
 import {
   ChatErrorBanner,
   resolveChatErrorBannerDisplayMessage,
@@ -142,6 +159,17 @@ import {
 } from "@/v4/composer/followupModeSettings.js";
 import { isAppleKeyboardPlatform } from "@/lib/keyboardShortcuts.js";
 import { usePrimaryFollowupModifier } from "@/v4/composer/usePrimaryFollowupModifier.js";
+import {
+  readStoredOptimizerModelSelection,
+  usePromptOptimizer,
+  writeStoredOptimizerModelSelection,
+} from "@/v4/composer/usePromptOptimizer.js";
+import type {
+  PromptOptimizerContextRange,
+  PromptOptimizerMode,
+} from "@/v4/composer/promptOptimizerPrompt.js";
+import { OracleReviewBanner } from "@/v4/oracleReview/OracleReviewBanner.js";
+import type { OracleReviewController } from "@/v4/oracleReview/useOracleReview.js";
 import { consumeV4ComposerDraftWorkspaceTransferRequest } from "@/v4/composer/composerDraftWorkspaceTransfer.js";
 import { useComposerAttachments } from "@/v4/composer/useComposerAttachments.js";
 import type { ConversationDropTargetController } from "@/v4/composer/conversationDropTarget.js";
@@ -415,6 +443,8 @@ export interface ConversationComposerProps {
    * 竖切多 pane 时由宿主传入 SessionPane.focused，仅焦点 pane 聚焦、后台 pane 不抢焦点。
    */
   autoFocusEnabled?: boolean;
+  /** Oracle 把关控制面由 SessionPane 注入（轮尾「审查这一回合」与 composer 共用同一实例）。 */
+  oracleReview?: OracleReviewController;
   /** 当前 composer 是否运行在手机 Web 远控壳中。 */
   isWebRemoteControl?: boolean;
   workspacePath: string;
@@ -454,6 +484,8 @@ export interface ConversationComposerProps {
   /** 选中思考深度；同时带上用户操作时看到的模型，避免异步回流后把 thought 归到另一模型。 */
   onSelectThought: (thought: string, modelContext: { provider: string; model: string }) => void;
   onSwitchMode: (mode: string) => void;
+  /** 上下文档位切换（standard/minimal）；与权限 mode 正交。 */
+  onSwitchContextProfile?: (profile: "standard" | "minimal") => void;
   /** 打开当前 session 的 Status panel，并直达 Running 明细。 */
   onOpenRunningBackgroundWorks?: () => void;
   /**
@@ -527,6 +559,7 @@ function ConversationComposerImpl({
   onHighspeedActivationApplied,
   autoFocusEnabled = true,
   isWebRemoteControl = false,
+  oracleReview,
   workspacePath,
   workspaceIdentity,
   remoteSessionId,
@@ -547,6 +580,7 @@ function ConversationComposerImpl({
   onSelectModel,
   onSelectThought,
   onSwitchMode,
+  onSwitchContextProfile,
   onOpenRunningBackgroundWorks,
   backgroundWorkOpenTarget = "panel",
   runningSubagentCount = 0,
@@ -576,6 +610,15 @@ function ConversationComposerImpl({
   const draftScopeId = sessionId ?? V4_DRAFT_SCOPE_ROOT;
   const workspaceKey = workspaceIdentity?.trim() || workspacePath;
   const configPickerScopeKey = `${workspaceKey}\0${draftScopeId}`;
+  // 提示词优化：会话外的一次性快速请求，不进对话历史。
+  const promptOptimizer = usePromptOptimizer({
+    workspacePath,
+    workspaceIdentity,
+    remoteSessionId,
+    // 候选结果按草稿 scope 归属：切会话后旧候选只留在原会话，不落进新会话输入框。
+    scopeId: draftScopeId,
+    locale,
+  });
   const [text, setText] = useState("");
   const [pending, setPending] = useState(false);
   const [presentedHighspeedCardId, setPresentedHighspeedCardId] = useState<string | null>(null);
@@ -1182,6 +1225,141 @@ function ConversationComposerImpl({
   const canStop = Boolean(snapshot?.control.canStop);
   const modifiedEnterReversesDelivery = modifiedEnterSubmits && canStop;
   const hasText = text.trim().length > 0;
+  // 优化用模型：null = 跟随会话模型；用户显式选择后全局记住。
+  const [optimizerModel, setOptimizerModel] = useState<ModelSelection | null>(() =>
+    readStoredOptimizerModelSelection(),
+  );
+  const handleSelectOptimizerModel = useCallback((selection: ModelSelection | null) => {
+    setOptimizerModel(selection);
+    writeStoredOptimizerModelSelection(selection);
+  }, []);
+  // 优化方式/上下文范围：本版只在当前组件存活期内记忆，不做全局偏好。
+  const [optimizerMode, setOptimizerMode] = useState<PromptOptimizerMode>("polish");
+  const [optimizerContextRange, setOptimizerContextRange] =
+    useState<PromptOptimizerContextRange>("conversation");
+  const handleOptimizePrompt = useCallback(() => {
+    const draft = textRef.current.trim();
+    if (!draft || promptOptimizer.optimizing || pendingRef.current) {
+      return;
+    }
+    // 模型解析必须是同步的：await 之后再分配请求身份会留下重复请求与取消空窗，
+    // 所以这里用组件已有的 ModelSelectionView 直接算出推理档清单。
+    const pick = optimizerModel ?? modelSelectionView?.preferredSelection ?? null;
+    const pickedModel = pick
+      ? modelSelectionView?.providers
+          .find((provider) => provider.providerId === pick.providerId)
+          ?.models.find((candidate) => candidate.modelId === pick.modelId)
+      : undefined;
+    // mention 节点只能靠编辑器状态还原：快照里带 prompt-mention 就不能自动替换。
+    const mentionInDraft = Boolean(
+      snapshotDraftOfEditor().editorStateJson?.includes('"prompt-mention"'),
+    );
+    void promptOptimizer.optimize({
+      draft,
+      // 版本用内容修订号，不用文本本身：空白/缩进改动也必须算「草稿变了」。
+      version: String(contentRevisionRef.current),
+      mode: optimizerMode,
+      contextRange: optimizerContextRange,
+      rows: snapshot?.rows.window ?? [],
+      selection: pick,
+      // null = 该模型不在当前视图里（已下线/换提供方）：明确报错，不静默改模型。
+      // 视图未就绪时 providers 为空，此时靠 modelViewReady 区分「还没加载」而不是误报。
+      modelReasoningLevels: pickedModel
+        ? (pickedModel.config.optionSpecs.reasoningLevel?.values ?? [])
+        : null,
+      modelViewReady: modelSelectionState.status === "ready",
+      richContext:
+        hasAttachments ||
+        hasCodeCommentContexts ||
+        hasWebElementContexts ||
+        hasPptxElementReferences ||
+        hasConversationSelectionReferences ||
+        mentionInDraft,
+    });
+  }, [
+    hasAttachments,
+    hasCodeCommentContexts,
+    hasConversationSelectionReferences,
+    hasPptxElementReferences,
+    hasWebElementContexts,
+    modelSelectionView,
+    optimizerContextRange,
+    optimizerMode,
+    optimizerModel,
+    promptOptimizer,
+    snapshot,
+    snapshotDraftOfEditor,
+  ]);
+  const optimizerState = promptOptimizer.state;
+  // 精确比较（只裁首尾空白）：折叠空白会把「改了缩进/换行」当成没改。
+  const compareDraftExact = (value: string) => value.trim();
+  // 富文本引用/附件无法用纯文本重建：此时只提供预览，禁用自动替换，避免丢引用关系。
+  // 冻结态（发起时）+ 实时态取并集：中途新加的附件同样要拦住替换。
+  const optimizerHasRichContext =
+    optimizerState?.richContext === true ||
+    hasAttachments ||
+    hasCodeCommentContexts ||
+    hasWebElementContexts ||
+    hasPptxElementReferences ||
+    hasConversationSelectionReferences;
+  const optimizerCandidateStale =
+    optimizerState?.status === "ready" ||
+    optimizerState?.status === "error" ||
+    optimizerState?.status === "cancelled"
+      ? compareDraftExact(text) !== compareDraftExact(optimizerState.baseDraft)
+      : false;
+  const canApplyOptimizer =
+    optimizerState?.status === "ready" &&
+    Boolean(optimizerState.optimized) &&
+    !optimizerCandidateStale &&
+    !optimizerHasRichContext;
+  const handleApplyOptimizer = useCallback(
+    (candidate: string) => {
+      const current = promptOptimizer.state;
+      if (!current || current.status !== "ready" || !candidate.trim()) {
+        return;
+      }
+      // 撤销点必须在替换前抓取：mention/格式只有编辑器状态能还原。
+      const undo = snapshotDraftOfEditor();
+      inputApiRef.current?.setText(candidate);
+      updateText(candidate);
+      promptOptimizer.markApplied(candidate, { text: undo.text, ...(undo.editorStateJson ? { editorStateJson: undo.editorStateJson } : {}) });
+    },
+    [promptOptimizer, snapshotDraftOfEditor, updateText],
+  );
+  const optimizerUndoReady =
+    optimizerState?.appliedText !== undefined &&
+    compareDraftExact(text) === compareDraftExact(optimizerState.appliedText);
+  const handleUndoOptimizer = useCallback(() => {
+    const undo = promptOptimizer.consumeUndo();
+    if (undo === null) {
+      return;
+    }
+    // 有编辑器快照就按快照还原（mention/段落结构），没有才退纯文本。
+    if (undo.editorStateJson) {
+      inputApiRef.current?.setEditorStateJson(undo.editorStateJson);
+      updateText(undo.text);
+      return;
+    }
+    inputApiRef.current?.setText(undo.text);
+    updateText(undo.text);
+  }, [promptOptimizer, updateText]);
+  // 预览里允许直接改候选：键必须含 scope——requestId 在每个 scope 内独立递增，
+  // 只用 requestId 会让 A 会话的编辑串到 B 会话同名 ID 的预览里。
+  const [optimizerDraftEdit, setOptimizerDraftEdit] = useState<{
+    editKey: string;
+    text: string;
+  } | null>(null);
+  const optimizerEditKey =
+    optimizerState && optimizerState.status === "ready"
+      ? `${draftScopeId}\u0000${optimizerState.requestId}`
+      : null;
+  const optimizerPreviewText =
+    optimizerState?.status === "ready"
+      ? optimizerDraftEdit?.editKey === optimizerEditKey
+        ? optimizerDraftEdit.text
+        : (optimizerState.optimized ?? "")
+      : "";
   const hasDraftToSubmit =
     hasText ||
     hasAttachments ||
@@ -1522,6 +1700,9 @@ function ConversationComposerImpl({
         // 发送成功：清本次提交捕获的 scope 草稿；prompt history 已在真实发送前同步写盘，
         // 避免首发 promote 丢失或误清 promotion 后的新 scope。
         finalizeSubmittedDraft();
+        // 提交已接纳：这份草稿的优化结果与撤销点同时作废。否则在飞结果会在消息
+        // 发出后迟到发布，或用户重新输入同样文本时旧撤销点又把上一条草稿写回来。
+        promptOptimizer.dismiss();
         sendAction.complete({ resultSource: "authority_ack", admissionResult: "accepted" });
       } catch (error) {
         rollbackPromptHistory();
@@ -1728,6 +1909,26 @@ function ConversationComposerImpl({
   const resolvedSendTooltipShortcut = modifierTooltip?.shortcut ?? sendShortcut;
   const stopTooltipTitle = intl.formatMessage({ id: "chat.stop" });
   const visibleError = error && !shouldSuppressChatErrorBanner(error) ? error : null;
+  // Oracle 一键修复：把问题清单写入输入框后直接走主发送路径（含草稿抢占/队列语义）。
+  const handleOracleFixRequest = useCallback(
+    (fixPrompt: string) => {
+      if (!fixPrompt || pendingRef.current) {
+        return;
+      }
+      // 「按建议处理」= 用户已确认这条审查：与 ✕ 一样落盘，避免处理完重启又弹回来。
+      oracleReview?.acknowledge();
+      inputApiRef.current?.setText(fixPrompt);
+      updateText(fixPrompt);
+      // Lexical 的 onChange 在 replaceEditorText 之后异步回吐一次 updateText，会把
+      // contentRevision 推到 submit 冻结的 cleanupRevision 之后——发送成功后
+      // 「revision 未变才清空输入框」的检查因此永不成立，已发送的修复提示词会留在
+      // 输入栏。推迟一个宏任务让编辑器事件先 settle，使本路径与手打发送完全同构。
+      window.setTimeout(() => {
+        void submit();
+      }, 0);
+    },
+    [oracleReview, submit, updateText],
+  );
 
   useEffect(() => {
     if (!visibleError || !conversationTelemetry || !telemetryVisible) return;
@@ -2158,6 +2359,45 @@ function ConversationComposerImpl({
       }),
     [onSelectModel],
   );
+  const optimizePromptTitle = intl.formatMessage({ id: "chat.composer.optimizePrompt" });
+  // ✨ 旁的下拉：优化用模型清单（按 provider 分组）。没有可用模型时整个下拉不渲染。
+  // Oracle 复用同一份模型清单；推理档两者取向相反：优化取最低档走辅助快速通道，
+  // Oracle 由用户在档位子菜单里自选（默认跟随模型档位，见 resolveOracleRequestOptions）。
+  const optimizerModelGroups = useMemo(
+    () =>
+      (modelSelectionView?.providers ?? [])
+        .filter((provider) => provider.models.length > 0)
+        .map((provider) => ({
+          key: provider.providerId,
+          label: provider.providerName?.trim() || provider.providerId,
+          models: provider.models.map((model) => ({
+            modelId: model.modelId,
+            // 部分渠道（如 Command Code）在创建模型时强制要求推理档；
+            // 选中即带该模型的最低公开档，正好与辅助快速通道的绑定一致。
+            reasoningLevel: model.config.optionSpecs.reasoningLevel?.values[0],
+            // 全量档位：把关模型下拉的档位子菜单用（不再自动顶最高档后，
+            // 强度控制交还用户，见 resolveOracleRequestOptions）。
+            reasoningLevels: model.config.optionSpecs.reasoningLevel?.values ?? [],
+          })),
+        })),
+    [modelSelectionView],
+  );
+  const optimizeModelMenuTitle = intl.formatMessage({ id: "chat.composer.optimizeModel" });
+  const optimizeModelFollowLabel = intl.formatMessage({ id: "chat.composer.optimizeModelFollow" });
+  const optimizeOptionsLabel = intl.formatMessage({ id: "chat.composer.optimizeOptions" });
+  const optimizeModeLabel = intl.formatMessage({ id: "chat.composer.optimizeMode" });
+  const optimizeContextLabel = intl.formatMessage({ id: "chat.composer.optimizeContext" });
+  const oracleReviewButtonTitle = intl.formatMessage({ id: "chat.composer.oracleReview" });
+  const oracleModelMenuTitle = intl.formatMessage({ id: "chat.composer.oracleModel" });
+  const oracleModelFollowLabel = intl.formatMessage({ id: "chat.composer.oracleModelFollow" });
+  const oracleReasoningDefaultLabel = intl.formatMessage({
+    id: "chat.composer.oracleReasoningDefault",
+  });
+  const oracleDepthDeepLabel = intl.formatMessage({ id: "chat.oracleReview.reviewDepth.deep" });
+  const optimizePromptTooltip =
+    optimizerModel && promptOptimizer.optimizing === false
+      ? `${optimizePromptTitle}（${optimizerModel.modelId}）`
+      : optimizePromptTitle;
   const submitControlNode = useMemo(
     () => (
       <div className="flex min-w-0 items-center gap-1">
@@ -2188,10 +2428,298 @@ function ConversationComposerImpl({
             onSelectModel={handleSelectModelTrace}
             onSelectThought={onSelectThought}
             onSwitchMode={onSwitchMode}
+            onSwitchContextProfile={onSwitchContextProfile}
             onRecoverCustomModelSelection={onRecoverCustomModelSelection}
             onSendCompressionCommand={onSendCompressionCommand}
           />
         </span>
+        {!showStopControl && !pending ? (
+          <>
+            <ControlHintTooltip title={optimizePromptTooltip}>
+              <Button
+                type="button"
+                variant="ghost"
+                size="icon-md"
+                disabled={
+                  disabled ||
+                  modelSelectionState.status !== "ready" ||
+                  (!hasText && !promptOptimizer.optimizing)
+                }
+                onClick={promptOptimizer.optimizing ? promptOptimizer.cancel : handleOptimizePrompt}
+                data-testid="v4-composer-optimize-prompt"
+                aria-label={
+                  promptOptimizer.optimizing
+                    ? intl.formatMessage({ id: "chat.composer.optimizeCancel" })
+                    : optimizePromptTooltip
+                }
+              >
+                {promptOptimizer.optimizing ? (
+                  <Spinner className="size-4" />
+                ) : (
+                  <SparklesIcon className="size-4" />
+                )}
+                <span className="sr-only">{optimizePromptTooltip}</span>
+              </Button>
+            </ControlHintTooltip>
+            {optimizerModelGroups.length > 0 ? (
+              <DropdownMenu>
+                <DropdownMenuTrigger asChild>
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    size="icon-sm"
+                    disabled={disabled}
+                    data-testid="v4-composer-optimize-model"
+                    aria-label={optimizeModelMenuTitle}
+                  >
+                    <ChevronDownIcon className="size-3 text-foreground-subtle" />
+                  </Button>
+                </DropdownMenuTrigger>
+                <DropdownMenuContent align="end" className="max-h-72 w-56 overflow-y-auto">
+                  <DropdownMenuItem onSelect={() => handleSelectOptimizerModel(null)}>
+                    <span className="min-w-0 flex-1 truncate">{optimizeModelFollowLabel}</span>
+                    {optimizerModel === null ? <CheckIcon className="size-3.5 shrink-0" /> : null}
+                  </DropdownMenuItem>
+                  <DropdownMenuSeparator />
+                  {optimizerModelGroups.map((group) => (
+                    <div key={group.key}>
+                      <DropdownMenuLabel className="text-ui-xs text-foreground-subtlest">
+                        {group.label}
+                      </DropdownMenuLabel>
+                      {group.models.map((model) => {
+                        const selected =
+                          optimizerModel?.providerId === group.key &&
+                          optimizerModel.modelId === model.modelId;
+                        return (
+                          <DropdownMenuItem
+                            key={model.modelId}
+                            onSelect={() =>
+                              handleSelectOptimizerModel({
+                                providerId: group.key,
+                                modelId: model.modelId,
+                                ...(model.reasoningLevel
+                                  ? { options: { reasoningLevel: model.reasoningLevel } }
+                                  : {}),
+                              })
+                            }
+                          >
+                            <span className="min-w-0 flex-1 truncate">{model.modelId}</span>
+                            {selected ? <CheckIcon className="size-3.5 shrink-0" /> : null}
+                          </DropdownMenuItem>
+                        );
+                      })}
+                    </div>
+                  ))}
+                </DropdownMenuContent>
+              </DropdownMenu>
+            ) : null}
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild>
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="icon-sm"
+                  disabled={disabled || promptOptimizer.optimizing}
+                  data-testid="v4-composer-optimize-options"
+                  aria-label={optimizeOptionsLabel}
+                >
+                  <ChevronDownIcon className="size-3 text-foreground-subtle" />
+                </Button>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent align="end" className="w-56">
+                <DropdownMenuLabel className="text-ui-xs text-foreground-subtlest">
+                  {optimizeModeLabel}
+                </DropdownMenuLabel>
+                <DropdownMenuItem
+                  data-testid="v4-composer-optimize-mode-polish"
+                  onSelect={() => setOptimizerMode("polish")}
+                >
+                  <span className="min-w-0 flex-1 truncate">
+                    {intl.formatMessage({ id: "chat.composer.optimizeModePolish" })}
+                  </span>
+                  {optimizerMode === "polish" ? <CheckIcon className="size-3.5 shrink-0" /> : null}
+                </DropdownMenuItem>
+                <DropdownMenuItem
+                  data-testid="v4-composer-optimize-mode-structure"
+                  onSelect={() => setOptimizerMode("structure")}
+                >
+                  <span className="min-w-0 flex-1 truncate">
+                    {intl.formatMessage({ id: "chat.composer.optimizeModeStructure" })}
+                  </span>
+                  {optimizerMode === "structure" ? (
+                    <CheckIcon className="size-3.5 shrink-0" />
+                  ) : null}
+                </DropdownMenuItem>
+                <DropdownMenuSeparator />
+                <DropdownMenuLabel className="text-ui-xs text-foreground-subtlest">
+                  {optimizeContextLabel}
+                </DropdownMenuLabel>
+                <DropdownMenuItem
+                  data-testid="v4-composer-optimize-context-draft"
+                  onSelect={() => setOptimizerContextRange("draft")}
+                >
+                  <span className="min-w-0 flex-1 truncate">
+                    {intl.formatMessage({ id: "chat.composer.optimizeContextDraft" })}
+                  </span>
+                  {optimizerContextRange === "draft" ? (
+                    <CheckIcon className="size-3.5 shrink-0" />
+                  ) : null}
+                </DropdownMenuItem>
+                <DropdownMenuItem
+                  data-testid="v4-composer-optimize-context-conversation"
+                  onSelect={() => setOptimizerContextRange("conversation")}
+                >
+                  <span className="min-w-0 flex-1 truncate">
+                    {intl.formatMessage({ id: "chat.composer.optimizeContextConversation" })}
+                  </span>
+                  {optimizerContextRange === "conversation" ? (
+                    <CheckIcon className="size-3.5 shrink-0" />
+                  ) : null}
+                </DropdownMenuItem>
+              </DropdownMenuContent>
+            </DropdownMenu>
+            {/* 手动审查入口不随 oracleReviewEnabled 隐藏：总开关只控「回合成功后的
+                自动把关」；用它连带隐藏按钮，用户关掉自动后就连手动入口一起找不到了。 */}
+            {oracleReview ? (
+              <ControlHintTooltip title={oracleReviewButtonTitle}>
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="icon-md"
+                  disabled={disabled}
+                  onClick={oracleReview.manualReview}
+                  data-testid="v4-composer-oracle-review"
+                  aria-label={oracleReviewButtonTitle}
+                >
+                  <ShieldCheckIcon className="size-4" />
+                  <span className="sr-only">{oracleReviewButtonTitle}</span>
+                </Button>
+              </ControlHintTooltip>
+            ) : null}
+            {oracleReview ? (
+              // 深度审查：独立图标直接触发（ScanSearch=带扫描线的放大镜，与标准审查的盾牌区分）。
+              <ControlHintTooltip title={oracleDepthDeepLabel}>
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="icon-md"
+                  disabled={disabled}
+                  onClick={() => oracleReview.deepReview()}
+                  data-testid="v4-composer-oracle-depth"
+                  aria-label={oracleDepthDeepLabel}
+                >
+                  <ScanSearchIcon className="size-4" />
+                  <span className="sr-only">{oracleDepthDeepLabel}</span>
+                </Button>
+              </ControlHintTooltip>
+            ) : null}
+            {oracleReview && optimizerModelGroups.length > 0 ? (
+              <DropdownMenu>
+                <DropdownMenuTrigger asChild>
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    size="icon-sm"
+                    disabled={disabled}
+                    data-testid="v4-composer-oracle-model"
+                    aria-label={oracleModelMenuTitle}
+                  >
+                    <ChevronDownIcon className="size-3 text-foreground-subtle" />
+                  </Button>
+                </DropdownMenuTrigger>
+                <DropdownMenuContent align="end" className="max-h-72 w-56 overflow-y-auto">
+                  <DropdownMenuItem onSelect={() => oracleReview.onSelectModel(null)}>
+                    <span className="min-w-0 flex-1 truncate">{oracleModelFollowLabel}</span>
+                    {oracleReview.model === null ? (
+                      <CheckIcon className="size-3.5 shrink-0" />
+                    ) : null}
+                  </DropdownMenuItem>
+                  <DropdownMenuSeparator />
+                  {optimizerModelGroups.map((group) => (
+                    <div key={group.key}>
+                      <DropdownMenuLabel className="text-ui-xs text-foreground-subtlest">
+                        {group.label}
+                      </DropdownMenuLabel>
+                      {group.models.map((model) => {
+                        const selected =
+                          oracleReview.model?.providerId === group.key &&
+                          oracleReview.model.modelId === model.modelId;
+                        const hasLevels = model.reasoningLevels.length > 0;
+                        // 无公开推理档的模型（非推理模型/渠道未暴露 optionSpec）回退为
+                        // 普通条目直接选中——SubTrigger 没有子菜单内容时不可选，会回归。
+                        if (!hasLevels) {
+                          return (
+                            <DropdownMenuItem
+                              key={model.modelId}
+                              onSelect={() =>
+                                oracleReview.onSelectModel({
+                                  providerId: group.key,
+                                  modelId: model.modelId,
+                                })
+                              }
+                            >
+                              <span className="min-w-0 flex-1 truncate">{model.modelId}</span>
+                              {selected ? <CheckIcon className="size-3.5 shrink-0" /> : null}
+                            </DropdownMenuItem>
+                          );
+                        }
+                        return (
+                          <DropdownMenuSub key={model.modelId}>
+                            <DropdownMenuSubTrigger className="gap-2">
+                              <span className="min-w-0 flex-1 truncate">{model.modelId}</span>
+                              {selected ? <CheckIcon className="size-3.5 shrink-0" /> : null}
+                            </DropdownMenuSubTrigger>
+                            {hasLevels ? (
+                              <DropdownMenuSubContent className="max-h-64 overflow-y-auto">
+                                <DropdownMenuItem
+                                  onSelect={() =>
+                                    oracleReview.onSelectModel({
+                                      providerId: group.key,
+                                      modelId: model.modelId,
+                                    })
+                                  }
+                                >
+                                  <span className="min-w-0 flex-1 truncate">
+                                    {oracleReasoningDefaultLabel}
+                                  </span>
+                                  {selected && !oracleReview.model?.options?.reasoningLevel ? (
+                                    <CheckIcon className="size-3.5 shrink-0" />
+                                  ) : null}
+                                </DropdownMenuItem>
+                                {model.reasoningLevels.map((level) => {
+                                  const levelSelected =
+                                    selected &&
+                                    oracleReview.model?.options?.reasoningLevel === level;
+                                  return (
+                                    <DropdownMenuItem
+                                      key={level}
+                                      onSelect={() =>
+                                        oracleReview.onSelectModel({
+                                          providerId: group.key,
+                                          modelId: model.modelId,
+                                          options: { reasoningLevel: level },
+                                        })
+                                      }
+                                    >
+                                      <span className="min-w-0 flex-1 truncate">{level}</span>
+                                      {levelSelected ? (
+                                        <CheckIcon className="size-3.5 shrink-0" />
+                                      ) : null}
+                                    </DropdownMenuItem>
+                                  );
+                                })}
+                              </DropdownMenuSubContent>
+                            ) : null}
+                          </DropdownMenuSub>
+                        );
+                      })}
+                    </div>
+                  ))}
+                </DropdownMenuContent>
+              </DropdownMenu>
+            ) : null}
+          </>
+        ) : null}
         {showStopControl ? (
           <ControlHintTooltip title={stopTooltipTitle} shortcut="Esc">
             <Button
@@ -2235,6 +2763,23 @@ function ConversationComposerImpl({
       composerPhase,
       composerUsage,
       disabled,
+      handleOptimizePrompt,
+      handleSelectOptimizerModel,
+      hasText,
+      optimizerModel,
+      optimizerModelGroups,
+      optimizeModelFollowLabel,
+      optimizeModelMenuTitle,
+      optimizePromptTitle,
+      optimizePromptTooltip,
+      optimizeOptionsLabel,
+      optimizeModeLabel,
+      optimizeContextLabel,
+      optimizerMode,
+      optimizerContextRange,
+      promptOptimizer.optimizing,
+      promptOptimizer.cancel,
+      intl,
       draftConfig,
       draftMode,
       handleStopClick,
@@ -2254,6 +2799,7 @@ function ConversationComposerImpl({
       onRecoverCustomModelSelection,
       onSendCompressionCommand,
       onSwitchMode,
+      onSwitchContextProfile,
       pending,
       provider,
       modifierTooltip,
@@ -2284,6 +2830,7 @@ function ConversationComposerImpl({
           activeConfigPicker={activeConfigPicker}
           onConfigPickerOpenChange={handleConfigPickerOpenChange}
           onSwitchMode={onSwitchMode}
+          onSwitchContextProfile={onSwitchContextProfile}
         />
         {/* Bug 原因：附件画廊 rebase 曾整段覆盖 leadingActions，误删 staging 的 CUA 常驻入口。
             入口自身继续负责平台、远程与设置可见性，不在 composer 重复判定。 */}
@@ -2312,6 +2859,7 @@ function ConversationComposerImpl({
       backgroundWorkOpenTarget,
       onOpenRunningBackgroundWorks,
       onSwitchMode,
+      onSwitchContextProfile,
       provider,
       remoteSessionId,
       runningSubagentCount,
@@ -2364,6 +2912,16 @@ function ConversationComposerImpl({
           />
         </div>
       ) : null}
+      {oracleReview ? (
+        <OracleReviewBanner
+          state={oracleReview.state}
+          pendingElapsedSeconds={oracleReview.pendingElapsedSeconds}
+          pendingOutputChars={oracleReview.pendingOutputChars}
+          onRereview={oracleReview.retryReview}
+          onDismiss={oracleReview.dismiss}
+          onFix={handleOracleFixRequest}
+        />
+      ) : null}
       <div
         data-highspeed-composer={highspeedCard ? "true" : undefined}
         data-highspeed-entrance={highspeedCard ? highspeedEntrance : undefined}
@@ -2395,6 +2953,128 @@ function ConversationComposerImpl({
             {intl.formatMessage({
               id: `chat.selections.limit.${conversationSelectionLimitReason}`,
             })}
+          </div>
+        ) : null}
+        {/* 提示词优化预览：结果只到这里，替换/撤销由用户确认（不自动改写输入框）。 */}
+        {optimizerState &&
+        (optimizerState.status === "pending" ||
+          optimizerState.status === "ready" ||
+          optimizerState.status === "error") ? (
+          <div
+            data-testid="v4-composer-optimize-preview"
+            className="mb-2 w-full rounded-lg border border-border bg-surface px-3 py-2 text-ui-base text-foreground"
+          >
+            <div className="mb-1.5 flex min-w-0 items-center gap-2">
+              <span className="min-w-0 flex-1 truncate font-medium">
+                {intl.formatMessage({ id: "chat.composer.optimizePreviewTitle" })}
+              </span>
+              {optimizerState.status === "pending" ? (
+                <span className="text-foreground-subtle text-ui-sm">
+                  {intl.formatMessage({ id: "chat.composer.optimizeWorking" })}
+                </span>
+              ) : null}
+              {optimizerState.status === "pending" ? (
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="sm"
+                  data-testid="v4-composer-optimize-cancel"
+                  onClick={promptOptimizer.cancel}
+                >
+                  {intl.formatMessage({ id: "chat.composer.optimizeCancel" })}
+                </Button>
+              ) : null}
+            </div>
+            {optimizerState.status === "pending" ? (
+              <div className="flex items-center gap-2 text-foreground-subtle">
+                <Spinner className="size-3.5" />
+                <span className="min-w-0 flex-1 truncate">{optimizerState.baseDraft}</span>
+              </div>
+            ) : null}
+            {optimizerState.status === "error" ? (
+              <div role="alert" className="text-ui-sm">
+                {intl.formatMessage({ id: "chat.composer.optimizeFailed" })}
+                {optimizerState.errorReason ? ` · ${optimizerState.errorReason}` : ""}
+              </div>
+            ) : null}
+            {optimizerState.status === "ready" ? (
+              <>
+                <textarea
+                  data-testid="v4-composer-optimize-result"
+                  className="max-h-48 min-h-16 w-full resize-y rounded-md border border-border bg-transparent px-2 py-1.5 text-ui-base outline-none"
+                  value={optimizerPreviewText}
+                  onChange={(event) =>
+                    setOptimizerDraftEdit({
+                      editKey: optimizerEditKey ?? "",
+                      text: event.target.value,
+                    })
+                  }
+                />
+                {optimizerState.unresolved && optimizerState.unresolved.length > 0 ? (
+                  <ul className="mt-1.5 list-disc pl-4 text-ui-sm text-foreground-subtle">
+                    {optimizerState.unresolved.map((item) => (
+                      <li key={item}>{item}</li>
+                    ))}
+                  </ul>
+                ) : null}
+                {optimizerState.warnings?.includes("expanded") ? (
+                  <div className="mt-1.5 text-ui-sm text-warning">
+                    {intl.formatMessage({ id: "chat.composer.optimizeWarnExpanded" })}
+                  </div>
+                ) : null}
+                {optimizerState.warnings?.includes("literal-mismatch") ? (
+                  <div className="mt-1.5 text-ui-sm text-warning">
+                    {intl.formatMessage({ id: "chat.composer.optimizeWarnLiteral" })}
+                  </div>
+                ) : null}
+                {optimizerState.warnings?.includes("unchanged") ? (
+                  <div className="mt-1.5 text-ui-sm text-foreground-subtle">
+                    {intl.formatMessage({ id: "chat.composer.optimizeUnchanged" })}
+                  </div>
+                ) : null}
+                {optimizerCandidateStale ? (
+                  <div className="mt-1.5 text-ui-sm text-foreground-subtle">
+                    {intl.formatMessage({ id: "chat.composer.optimizeStale" })}
+                  </div>
+                ) : null}
+                {optimizerHasRichContext && !optimizerCandidateStale ? (
+                  <div className="mt-1.5 text-ui-sm text-foreground-subtle">
+                    {intl.formatMessage({ id: "chat.composer.optimizeRichDisabled" })}
+                  </div>
+                ) : null}
+                <div className="mt-2 flex items-center justify-end gap-2">
+                  {optimizerUndoReady ? (
+                    <Button
+                      type="button"
+                      variant="ghost"
+                      size="sm"
+                      data-testid="v4-composer-optimize-undo"
+                      onClick={handleUndoOptimizer}
+                    >
+                      {intl.formatMessage({ id: "chat.composer.optimizeUndo" })}
+                    </Button>
+                  ) : null}
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    size="sm"
+                    data-testid="v4-composer-optimize-dismiss"
+                    onClick={promptOptimizer.dismiss}
+                  >
+                    {intl.formatMessage({ id: "chat.composer.optimizeDismiss" })}
+                  </Button>
+                  <Button
+                    type="button"
+                    size="sm"
+                    data-testid="v4-composer-optimize-apply"
+                    disabled={!canApplyOptimizer || !optimizerPreviewText.trim()}
+                    onClick={() => handleApplyOptimizer(optimizerPreviewText)}
+                  >
+                    {intl.formatMessage({ id: "chat.composer.optimizeApply" })}
+                  </Button>
+                </div>
+              </>
+            ) : null}
           </div>
         ) : null}
         <ChatPromptEditor

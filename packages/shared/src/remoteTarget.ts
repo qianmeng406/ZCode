@@ -12,6 +12,12 @@ export interface SSHConnectOptions {
   privateKeyPassphrase?: string;
   assetInstallMode?: RemoteAssetInstallMode;
   resourcePackages?: RemoteResourcePackageSelection;
+  /**
+   * 常驻模式：远端 server 以独立 daemon 运行，桌面断开只释放连接与订阅，
+   * 远端任务继续执行（规格见 packages/server/specs/remote-resident-server.md）。
+   * 仅 Linux SSH 支持后续接线；缺省 false = 既有 stdio 会话模式。
+   */
+  resident?: boolean;
 }
 
 export interface WSLConnectOptions {

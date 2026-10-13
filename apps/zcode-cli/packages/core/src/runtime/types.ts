@@ -109,6 +109,7 @@ import type {
   OutputStylePromptConfig,
 } from "./deps.js";
 import type { AgentProfile } from "../subagent/profile.js";
+import type { ContextProfile } from "@zcode/shared";
 import type { RuntimeTaskRegistry } from "../runtime-task/registry.js";
 import type { BashTimeoutPolicy } from "../tool/bash-timeout-policy.js";
 import type { PresentationSurface } from "../context/types.js";
@@ -129,6 +130,8 @@ export interface AgentRuntimeConfig {
   genUiOutputRoot?: string;
   mode?: CollaborationMode;
   planEnabled?: boolean;
+  /** 上下文档位（standard/minimal），与权限正交；缺省按旧 mode=minimal 兼容解析。 */
+  contextProfile?: ContextProfile;
   modelStreaming?: "off" | "on";
   streamingToolExecution?: "off" | "readOnly";
   /** Session 创建时固定；缺省使用共享的模型上下文预算默认策略。 */

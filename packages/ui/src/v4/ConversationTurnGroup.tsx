@@ -65,6 +65,7 @@ import {
   subscribeHighspeedTurns,
   type HighspeedShareMetrics,
 } from "@/highspeed/highspeedTurnStore.js";
+import { isOracleReviewableTurnState } from "@/v4/oracleReview/oracleReviewMaterial.js";
 import type { AssistantPreviewCard } from "@/lib/assistantPreviewCards.js";
 import { useAssistantCodeCommentFeatureEnabled } from "@/AssistantCodeCommentFeatureProvider.js";
 import {
@@ -73,6 +74,8 @@ import {
   type AssistantCodeCommentCard,
 } from "@/lib/assistantCodeComment.js";
 import { useAssistantPreviewCardsForAssistantTextRow } from "@/v4/useAssistantPreviewCardsForRow.js";
+import type { AssistantPreviewLoadAction } from "@/lib/onDemandLoadingGuards.js";
+import { Button } from "@/components/ui/button.js";
 import { shouldShowTurnChatLoading } from "@/v4/chatLoadingVisibility.js";
 import {
   buildAssistantWorkRenderItems,
@@ -946,7 +949,12 @@ function ConversationTurnFlow({
     isRunning: unit.isRunning,
     rows: unit.assistantWorkRows,
   });
-  const assistantPreviewCards = useAssistantPreviewCardsForAssistantTextRow({
+  const {
+    cards: assistantPreviewCards,
+    loadAction: assistantPreviewLoadAction,
+    manualLoading: assistantPreviewLoadPending,
+    loadManually: loadAssistantPreviewManually,
+  } = useAssistantPreviewCardsForAssistantTextRow({
     row: unit.latestAssistantTextRow,
     assistantTextRows: unit.assistantTextRows,
     latestAssistantTextRow: unit.latestAssistantTextRow,
@@ -958,6 +966,8 @@ function ConversationTurnFlow({
       : null,
     fileChangesState: unit.header?.fileChanges?.state,
     fetchFileChanges: context.fetchFileChanges,
+    autoPreviewEnabled: context.assistantAutoFilePreviewEnabled,
+    presentationVisible: context.presentationVisible,
   });
 
   if (unit.timelineOnly) {
@@ -1046,7 +1056,47 @@ function ConversationTurnFlow({
           shareSelectionRowId={shareSelectionRowId}
         />
       ))}
+      <AssistantPreviewManualLoadAction
+        loadAction={assistantPreviewLoadAction}
+        loading={assistantPreviewLoadPending}
+        onLoad={loadAssistantPreviewManually}
+      />
       <TurnChatLoadingSlot apiRetry={apiRetry} eligible={showLoading} />
+    </div>
+  );
+}
+
+/**
+ * 自动预览关闭时的轻量手动入口：仅当本回合确实有 md/html 引用且未加载时出现；
+ * 点击走与自动加载完全相同的权威 fileChanges 读取与 builder（失败保留按钮作重试）。
+ */
+function AssistantPreviewManualLoadAction({
+  loadAction,
+  loading,
+  onLoad,
+}: {
+  loadAction: AssistantPreviewLoadAction;
+  loading: boolean;
+  onLoad: () => void;
+}) {
+  const { intl } = useZCodeIntl();
+  if (loadAction !== "manual") {
+    return null;
+  }
+  return (
+    <div>
+      <Button
+        type="button"
+        variant="ghost"
+        size="sm"
+        className="w-fit"
+        disabled={loading}
+        onClick={onLoad}
+      >
+        {intl.formatMessage({
+          id: loading ? "common.loading" : "chat.assistantPreview.loadPreview",
+        })}
+      </Button>
     </div>
   );
 }
@@ -1128,7 +1178,12 @@ function ConversationBackgroundResultWork({
     rows: unit.assistantWorkRows,
   });
   const latestAssistantTextRow = unit.latestAssistantTextRow;
-  const assistantPreviewCards = useAssistantPreviewCardsForAssistantTextRow({
+  const {
+    cards: assistantPreviewCards,
+    loadAction: assistantPreviewLoadAction,
+    manualLoading: assistantPreviewLoadPending,
+    loadManually: loadAssistantPreviewManually,
+  } = useAssistantPreviewCardsForAssistantTextRow({
     row: latestAssistantTextRow,
     assistantTextRows: unit.assistantTextRows,
     latestAssistantTextRow,
@@ -1140,6 +1195,8 @@ function ConversationBackgroundResultWork({
       : null,
     fileChangesState: unit.header?.fileChanges?.state,
     fetchFileChanges: context.fetchFileChanges,
+    autoPreviewEnabled: context.assistantAutoFilePreviewEnabled,
+    presentationVisible: context.presentationVisible,
   });
 
   // 后台结果已经由独立唤醒轮总结过；复用普通 assistant 的工时折叠
@@ -1247,6 +1304,11 @@ function ConversationBackgroundResultWork({
           assistantCodeCommentProjectionEnabled={assistantCodeCommentProjectionEnabled}
         />
       ) : null}
+      <AssistantPreviewManualLoadAction
+        loadAction={assistantPreviewLoadAction}
+        loading={assistantPreviewLoadPending}
+        onLoad={loadAssistantPreviewManually}
+      />
       {hasFollowing ? (
         <ConversationAssistantWorkItems
           rows={unit.assistantFollowingRows}
@@ -1431,6 +1493,14 @@ function ConversationTurnGroupImpl({
     () => (unit.isRunning ? [] : resolveOffPeakTurnCards(unit.assistantWorkRows)),
     [unit.assistantWorkRows, unit.isRunning],
   );
+  // 标准/深度两个审查按钮共用的唯一准入判定：显隐规则改动只改这一处。
+  // v2 对话审查：准入 = 对话终态（成功/被中断/失败）+ 有持久实体 + 非 controlOnly；
+  // 不再要求有文件改动或工具活动——纯对话回合同样可审，diff 只是辅助证据。
+  const canReviewThisTurn =
+    context.reviewTurn !== undefined &&
+    unit.header?.entityId !== undefined &&
+    unit.header.executionKind !== "controlOnly" &&
+    isOracleReviewableTurnState(unit.header.state);
   const canRenderAssistantActions =
     !unit.timelineOnly &&
     latestAssistantTextRow?.state === "complete" &&
@@ -1683,6 +1753,25 @@ function ConversationTurnGroupImpl({
               onFork={canForkLatestAssistant ? onFork : undefined}
               onRetry={canRetryLatestAssistant ? onRetry : undefined}
               onFeedbackChange={onFeedbackChange}
+              reviewPending={context.oracleReviewPending ?? false}
+              // 审查这一回合：成功结束且未撤销的回合都提供入口。除「有文件改动」外，
+              // 还包含「本轮有工具活动」的回合——改动可能由脚本/命令完成，checkpoint
+              // 不记录工具级改动（fileChanges 为空），漏掉它们会让脚本回合无法审查。
+              // 结果统一显示在 composer 上方的 Oracle 横幅，一次只保留最近一次审查。
+              onReviewTurn={
+                canReviewThisTurn
+                  ? () => {
+                      if (unit.header) context.reviewTurn?.(unit.header);
+                    }
+                  : undefined
+              }
+              onReviewTurnDeep={
+                canReviewThisTurn && context.reviewTurnDeep
+                  ? () => {
+                      if (unit.header) context.reviewTurnDeep?.(unit.header);
+                    }
+                  : undefined
+              }
               hookInvocations={unit.hookInvocations}
               turnId={unit.turnId}
               sourceCommandIds={deliverySourceCommandIds}

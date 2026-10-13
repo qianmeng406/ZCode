@@ -679,6 +679,9 @@ contextBridge.exposeInMainWorld("zcode", {
   openInFileManager: (path: string) => ipcRenderer.invoke(PlatformChannels.OpenInFileManager, path),
   /** 使用系统默认应用打开本地文件 */
   openExternalFile: (path: string) => ipcRenderer.invoke(PlatformChannels.OpenExternalFile, path),
+  /** 把本地文件复制进系统剪贴板（可在文件管理器粘贴） */
+  copyFileToClipboard: (path: string) =>
+    ipcRenderer.invoke(PlatformChannels.CopyFileToClipboard, path),
   /** 打开 ZCode Computer Use 完整权限引导 */
   openCuaPermissionOnboarding: (options?: OpenCuaPermissionOnboardingOptions) =>
     ipcRenderer.invoke(PlatformChannels.OpenCuaPermissionOnboarding, options),

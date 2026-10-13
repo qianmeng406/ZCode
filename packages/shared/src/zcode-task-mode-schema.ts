@@ -15,4 +15,7 @@ export const zcodeTaskModeSchema = z.enum([
   "bypassPermissions",
   "autoEdit",
   "build",
+  "research",
+  "minimal",
+  "zcodeUpdate",
 ]);

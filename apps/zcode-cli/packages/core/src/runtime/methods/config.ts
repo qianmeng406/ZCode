@@ -25,11 +25,12 @@ import {
 import type { AgentRuntimeConfig, ActiveTurnInfo } from "../types.js";
 import type { AgentRuntimeInternal } from "../internal.js";
 import { cloneModelSelection } from "../model-selection.js";
-import { applyRuntimeExecutionState } from "../execution-state.js";
+import { applyRuntimeExecutionState, installRuntimeExecutionState } from "../execution-state.js";
 
 import { mirrorSubagentInteractionEvent } from "../../subagent/tool-event-mirror.js";
 import { orderProviderVisibleToolContracts } from "../../tool/provider-visible-order.js";
 import { projectToolModelContract } from "../../tool/model-contract.js";
+import { isMcpToolName } from "../../mcp/name.js";
 import { rebuildContextPrefix } from "./context-refresh.js";
 import { filterEmbeddedSearchRuntimeVisibleTools } from "./embedded-search-branch.js";
 import {
@@ -40,7 +41,7 @@ import {
 
 export async function setExecutionState(
   this: AgentRuntimeInternal,
-  input: { mode?: string; planEnabled?: boolean },
+  input: { mode?: string; planEnabled?: boolean; contextProfile?: string },
   traceContext?: TraceContext,
 ): Promise<void> {
   await applyRuntimeExecutionState(this, input, { source: "command", traceContext });
@@ -48,14 +49,27 @@ export async function setExecutionState(
 
 export function updateConfig(
   this: AgentRuntimeInternal,
-  patch: Pick<AgentRuntimeConfig, "mode" | "planEnabled" | "language" | "outputStyle">,
+  patch: Pick<
+    AgentRuntimeConfig,
+    "mode" | "planEnabled" | "contextProfile" | "language" | "outputStyle"
+  >,
 ): void {
-  if (patch.mode !== undefined || patch.planEnabled !== undefined) {
+  if (
+    patch.mode !== undefined ||
+    patch.planEnabled !== undefined ||
+    patch.contextProfile !== undefined
+  ) {
     const previous = resolveExecutionState(this.config);
     const next = resolveExecutionState(patch, previous);
-    Object.assign(this.config, next);
-    if (previous.planEnabled !== next.planEnabled)
-      this.needsPlanModeExitReminder = !next.planEnabled;
+    // 统一走已提交状态安装：失效工具缓存并推进派生版本，请求准备边界据此重投影。
+    // 以前这里只在 idle 时 invalidate，active turn 内改 mode 会沿用旧档位工具表。
+    installRuntimeExecutionState(this, next, previous);
+    if (
+      (previous.mode !== next.mode || previous.contextProfile !== next.contextProfile) &&
+      !this.activeTurn
+    ) {
+      rebuildContextPrefix(this);
+    }
   }
   if (patch.language !== undefined) {
     this.config.language = patch.language;
@@ -274,9 +288,33 @@ function filterRuntimeVisibleTools(
   this: AgentRuntimeInternal,
   tools: ModelToolContract[],
 ): ModelToolContract[] {
-  const visibleTools = filterEmbeddedSearchRuntimeVisibleTools(this, tools);
+  const minimalFiltered = filterMinimalProfileRuntimeVisibleTools(this, tools);
+  const visibleTools = filterEmbeddedSearchRuntimeVisibleTools(this, minimalFiltered);
   // provider-visible 工具顺序属于最终输出边界；toolset 只决定可见工具集合。
   return orderProviderVisibleToolContracts(visibleTools);
+}
+
+/**
+ * Skill 工具的注册名（与 tool/handlers/skill.ts 的 metadata.name 同字面；contracts 没有常量）。
+ * 与 context/builder.ts 的同名常量重复：核心既有惯例就是各处按字面比较这个工具名。
+ */
+const SKILL_TOOL_NAME = "Skill";
+
+/**
+ * 极简模式（mode=minimal）：工具表只留内置工具，摘掉全部 MCP 工具与 Skill 工具。
+ *
+ * 在这里按名过滤而不是只靠注册期短路：MCP 注册与 Skill 工具都是「运行期只做一次」的，
+ * 中途从别的模式切进极简时它们已经在注册表里了，只靠 mcp.ts 的启动短路收不回来。
+ * 配合 updateConfig 在 mode 变化时 invalidateToolCache，切换即时生效。
+ */
+export function filterMinimalProfileRuntimeVisibleTools(
+  runtime: AgentRuntimeInternal,
+  tools: ModelToolContract[],
+): ModelToolContract[] {
+  // 档位读 contextProfile（旧 mode=minimal 在解析时补出极简档位），不再把「极简上下文」
+  // 绑在权限 mode 上——mode=build + 极简档位同样只留内置工具。
+  if (resolveContextProfile(runtime.config) !== "minimal") return tools;
+  return tools.filter((tool) => tool.name !== SKILL_TOOL_NAME && !isMcpToolName(tool.name));
 }
 
 function shouldExposeWebSearch(this: AgentRuntimeInternal, model?: Model): boolean {
@@ -285,4 +323,4 @@ function shouldExposeWebSearch(this: AgentRuntimeInternal, model?: Model): boole
   if (!model) return true;
   return model.properties.supportsNativeWebSearch;
 }
-import { resolveExecutionState } from "@zcode/shared";
+import { resolveContextProfile, resolveExecutionState } from "@zcode/shared";

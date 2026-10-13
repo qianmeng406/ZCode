@@ -22,6 +22,7 @@ import { buildCurrentDateSection } from "./sections/current-date.js";
 import { buildMemorySection } from "./sections/memory.js";
 import { ACTIVE_PROJECT_MEMORY_RETRIEVAL_BRANCH } from "../memory/project-memory-retrieval-branch.js";
 import { buildDesktopContextSection } from "./sections/desktop.js";
+import { buildMinimalGuardrailsSection } from "./sections/minimal-guardrails.js";
 import {
   buildContextManagementSection,
   buildDynamicBehaviorSection,
@@ -97,6 +98,19 @@ export class ContextBuilder {
       );
     }
     const isWorkflowActor = workflowActor !== undefined;
+    const isMinimalProfile = this.config.promptProfile === "minimal";
+    // 三条身份路径互斥：极简档位不该同时拿到自定义提示词或子代理身份，
+    // 同时在场只可能是接线错误，大声失败而不是默默让其中一条生效。
+    if (isMinimalProfile && hasCustomSystemPrompt) {
+      throw new Error(
+        "ContextBuilder: promptProfile=minimal and customSystemPrompt are mutually exclusive",
+      );
+    }
+    if (isMinimalProfile && isWorkflowActor) {
+      throw new Error(
+        "ContextBuilder: promptProfile=minimal and workflowActor are mutually exclusive",
+      );
+    }
 
     // 1. CLI / product prefix. Keep this as the short leading identity block.
     // 「You are ZCode, an interactive coding agent」对一个
@@ -118,7 +132,8 @@ export class ContextBuilder {
       );
     } else if (workflowActor !== undefined) {
       sections.push(buildWorkflowActorIdentitySection(workflowActor));
-    } else {
+    } else if (!isMinimalProfile) {
+      // 极简模式刻意不发身份行为段：身份只保留上面 CLI prefix 的一行。
       sections.push(buildIdentitySection(activeOutputStyle));
     }
 
@@ -128,7 +143,13 @@ export class ContextBuilder {
     // custom prompt 后仍会混入 Session Guidance / output style 等动态 system 段。
     // 工作流子代理跳过其中面向「与用户对话」的三段（desktop、Dynamic Behavior、session
     // guidance——契约里已把 Report outcomes faithfully 搬过去），保留 memory 与其后各段。
-    if (!hasCustomSystemPrompt) {
+    if (isMinimalProfile) {
+      // 极简模式只保留环境（工作目录 / 平台）：desktop context、Dynamic Behavior、
+      // session guidance、memory、output style、context management、git 段全部不发。
+      // 但该模式是自动执行权限，护栏段必须留在场——否则模型手里一条防线都没有。
+      sections.push(buildEnvInfoSection(this.config.envInfo, this.config.model));
+      sections.push(buildMinimalGuardrailsSection());
+    } else if (!hasCustomSystemPrompt) {
       if (!isWorkflowActor && this.config.presentationSurface === "zcode_desktop") {
         sections.push(buildDesktopContextSection(this.config.genUiOutputDirectory));
       }
@@ -180,7 +201,7 @@ export class ContextBuilder {
     // guidanceToolNames 是 runtime 当下的
     // 工具表；一个 Skill 工具未注册的工作流子代理被告知「以下技能可经 Skill 工具使用」，
     // 只会让它相信自己有一个没有的工具。表缺席（测试 / 旧调用方）时保持既有行为。
-    if (this.config.skills && this.skillToolAvailable()) {
+    if (!isMinimalProfile && this.config.skills && this.skillToolAvailable()) {
       const skillsSection = buildSkillsSection({
         outcome: this.config.skills,
         metadataBudget: this.config.skillMetadataBudget,
@@ -191,22 +212,28 @@ export class ContextBuilder {
     }
 
     // 5. Meta user context: workspace instructions/project memory first, date second.
-    const requestUserContextSection = buildRequestUserContextSection({
-      userInstructions: this.config.userInstructions,
-      memoryIndexContent: this.config.memoryIndexContent,
-      memoryRoot: this.config.memoryRoot,
-    });
-    if (requestUserContextSection) {
-      sections.push(requestUserContextSection);
-    }
+    // 极简模式连 meta_user 附件一起不发：workspace instructions / 项目记忆 / 当前日期
+    // 都不进请求，因此本段整体跳过。
+    if (!isMinimalProfile) {
+      const requestUserContextSection = buildRequestUserContextSection({
+        userInstructions: this.config.userInstructions,
+        memoryIndexContent: this.config.memoryIndexContent,
+        memoryRoot: this.config.memoryRoot,
+      });
+      if (requestUserContextSection) {
+        sections.push(requestUserContextSection);
+      }
 
-    const currentDateSection = buildCurrentDateSection(this.config.currentDate);
-    if (currentDateSection) {
-      sections.push(currentDateSection);
+      const currentDateSection = buildCurrentDateSection(this.config.currentDate);
+      if (currentDateSection) {
+        sections.push(currentDateSection);
+      }
     }
 
     // 6. Custom sections
-    sections.push(...this.customSections);
+    if (!isMinimalProfile) {
+      sections.push(...this.customSections);
+    }
 
     const orderedSections = orderSectionsForInjection(sections);
 

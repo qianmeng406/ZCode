@@ -87,6 +87,8 @@ type ConversationV4AgentService = Pick<
  * 一条 host 连接（= 一个 workspace）上的 v4 conversation 传输面。
  * connectionId 由 host 侧补齐；这里只负责 workspace 定位与帧监听生命周期。
  */
+export type { ConversationTransport } from "./transport.js";
+
 export function createAgentConversationTransport(
   agentService: ConversationV4AgentService,
   target: AgentConversationTransportTarget,

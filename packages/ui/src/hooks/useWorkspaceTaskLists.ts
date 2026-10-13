@@ -199,6 +199,8 @@ export function useWorkspaceTaskLists(params: {
   sortBy: "created" | "updated";
   visibleLimitByWorkspaceKey: Readonly<Record<string, number>>;
   defaultVisibleLimit: number;
+  /** 展示消费者资格（默认 true）：暂停查询重算与展示分组；事件/未读/membership 同步不受影响。 */
+  enabled?: boolean;
 }) {
   const baseServices = useBaseWorkspaceServices();
   const sessionsById = useRemoteWorkspaceSessionStore((state) => state.sessionsById);
@@ -226,6 +228,9 @@ export function useWorkspaceTaskLists(params: {
   const nextRequestIdRef = useRef(0);
   const rerunRequestedRef = useRef(false);
   const groupCacheRef = useRef<Map<string, WorkspaceTaskListGroup>>(new Map());
+  const groupDisplayRef = useRef<ReturnType<typeof buildWorkspaceTaskListDisplayGroups>["groups"]>(
+    [],
+  );
   const taskListVersionSignature = useZCodeSessionStore((state) =>
     buildWorkspaceTaskListVersionSignature(
       params.workspaceTabs.map((tab) => {
@@ -611,12 +616,17 @@ export function useWorkspaceTaskLists(params: {
     setQueryResults,
   ]);
   useEffect(() => {
+    if (params.enabled === false) {
+      // 展示区不可见：暂停查询重算（sessions-index/事件仍照常标脏缓存，
+      // 恢复可见后按最新版本补查）。见 specs/on-demand-panel-loading.md。
+      return;
+    }
     if (pendingConfigs.length === 0) {
       return;
     }
 
     void refresh();
-  }, [pendingConfigs.length, refresh, refreshTrigger, requestSignature]);
+  }, [params.enabled, pendingConfigs.length, refresh, refreshTrigger, requestSignature]);
 
   // sessions-index 列表变化 / pin-archive 归属版本变化 → 标脏本地 scope 缓存，
   // 触发上面的 refresh 用新数据重算。sessions-index 是 conflated 低频列表事件，非高频 snapshot。
@@ -723,6 +733,10 @@ export function useWorkspaceTaskLists(params: {
   }, [workspaceEventSubscriptionSignature]);
 
   const groups = useMemo(() => {
+    if (params.enabled === false) {
+      // 展示派生暂停：保留上次分组引用，隐藏期间不随事件换代重算；恢复后重算一次。
+      return groupDisplayRef.current;
+    }
     const result = buildWorkspaceTaskListDisplayGroups({
       queryConfigs,
       resultsByQueryKey,
@@ -733,9 +747,11 @@ export function useWorkspaceTaskLists(params: {
       sortBy: params.sortBy,
     });
     groupCacheRef.current = result.cache;
+    groupDisplayRef.current = result.groups;
     return result.groups;
   }, [
     optimisticTaskOverlayByWorkspaceKey,
+    params.enabled,
     params.sortBy,
     queryConfigs,
     resultsByQueryKey,

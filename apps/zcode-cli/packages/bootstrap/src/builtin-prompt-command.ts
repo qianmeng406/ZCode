@@ -6,6 +6,7 @@ import {
 
 const BUILTIN_PROMPT_COMMAND_PATTERN = /^\/([^\s]+)(?:\s+([\s\S]*))?$/;
 const INIT_COMMAND_NAME = "init";
+export const ZCODE_UPDATE_COMMAND_NAME = "zcode-update";
 
 export interface ResolveZCodeBuiltinPromptCommandOptions {
   /**
@@ -50,6 +51,13 @@ export function resolveZCodeBuiltinPromptCommandInvocation(
         workingDirectory,
       }),
     };
+  }
+
+  if (invocation.name === ZCODE_UPDATE_COMMAND_NAME) {
+    return buildZCodeUpdatePrompt({
+      args: invocation.args,
+      workingDirectory: options.workingDirectory ?? process.cwd(),
+    });
   }
 
   if (invocation.name === BUILTIN_WORKFLOW_COMMAND_NAME) {
@@ -122,5 +130,74 @@ function buildInitAgentsPrompt(params: {
     "- Any documentation files that agents should read before changing sensitive areas.",
     "",
     "After creating or editing AGENTS.md, summarize the main sections you wrote and mention the file path.",
+  ].join("\n");
+}
+
+/**
+ * `/zcode-update`：跟进官方 ZCode 发版的专用维护任务。
+ *
+ * 只展开为一次普通 agent turn，不改权限模式、不偷偷切 yolo/minimal：命令与文件修改的
+ * 确认策略仍由当前会话模式决定。硬边界（不 pull/merge/cherry-pick/push、破坏性 git 操作
+ * 单次确认）由权限层 AST 判定强制，这里只负责流程与证据要求。
+ */
+function buildZCodeUpdatePrompt(params: { args: string; workingDirectory: string }): string {
+  const additionalInstructions = params.args
+    ? ["", "Additional user instructions supplied with /zcode-update:", "```text", params.args, "```"].join(
+        "\n",
+      )
+    : "";
+
+  return [
+    "You are running ZCode's built-in /zcode-update command.",
+    "",
+    "Your task: track upstream ZCode releases and land the changes that matter to this local fork as local modifications, then verify them. This is a long-running maintenance task; keep the ledger as the single source of progress.",
+    "",
+    `Workspace: ${params.workingDirectory}`,
+    additionalInstructions,
+    "",
+    "## 0. Preflight (do this first; stop if it fails)",
+    "",
+    "1. Confirm this is a non-bare git worktree with a resolvable top-level and HEAD (support `.git` file worktrees).",
+    "2. Verify the effective `origin` fetch URL really points at the upstream ZCode repository; account for URL rewrite/transport config. If it does not match, STOP and ask the user which remote is authoritative — never change remotes yourself.",
+    "3. Record the current local HEAD. It is NOT the upstream baseline.",
+    "4. Detect uncommitted changes. Dirty worktree: analysis (S1/S2) is allowed, but do NOT edit code (S3) until the user resolves the existing changes. Never stash/reset/clean/commit them yourself.",
+    "5. For network problems, report the real cause (proxy/DNS/auth/TLS/timeout) — do not claim a generic proxy problem and never modify global git proxy config.",
+    "",
+    "## 1. Inventory (S1)",
+    "",
+    "- `git ls-remote --tags origin` to verify connectivity; on failure STOP and report the exact error.",
+    "- `git fetch origin --tags` (fetch only; it writes objects/refs and needs a confirmation when prompted).",
+    "- List the version range between the recorded upstream baseline and the target tags (resolve each tag to a full commit SHA) and write it into the ledger. If no baseline is recorded, propose candidates and ask the user to confirm one — never guess.",
+    "",
+    "## 2. Analyze (S2)",
+    "",
+    "For each version: `git diff <prev>..<next> --stat` first, then read what matters. Classify by layer and judge relevance:",
+    "- overlap with files we already modified locally (future rebase conflict sources — call these out);",
+    "- fixes for problems this fork also has;",
+    "- impact on locally delivered features (minimal context profile, minimal mode, the update mode itself).",
+    "",
+    "## 3. Land (S3)",
+    "",
+    "For relevant items, re-implement as local changes. Never cherry-pick or merge upstream commits; never pull/push (these are blocked). Record for each item: upstream change -> local implementation -> files touched. Record irrelevant items with a reason and touch nothing.",
+    "",
+    "## 4. Verify (S4)",
+    "",
+    "Run the gates that match what you changed and record the actual command and exit status in the ledger:",
+    "- root: `pnpm typecheck`, `pnpm exec oxlint`, `pnpm exec oxfmt --check`, `pnpm architecture:check -- --changed`;",
+    "- changes under apps/zcode-cli: `pnpm --dir apps/zcode-cli check`, `lint`, `format:check` (the root typecheck/lint do NOT cover the CLI workspace);",
+    "- relevant package tests (`npx tsx --test <pkg>/test/*.test.ts`, UI tests need `--tsconfig packages/ui/tsconfig.json`).",
+    "A gate that failed, timed out, or was skipped must be recorded as such. Never write \"passed\" without running it, and never present gate success as proof the feature works.",
+    "",
+    "## Ledger",
+    "",
+    "Maintain `zcode-update/更新台账.md` with a machine-readable marker line `<!-- zcode-update v1 stage:S1 -->` (stage = S1/S2/S3/S4) plus one section per version: version/tag SHA, commit range, analysis conclusion, landed items and files, gate results.",
+    "",
+    "## Hard boundaries (also enforced by the permission layer)",
+    "",
+    "- Never `git pull/merge/cherry-pick/push/rebase` — they are denied outright.",
+    "- Destructive git operations (`reset --hard`, `clean`, force checkout/restore, `rm`, `stash drop/clear`, `worktree remove`, `branch -D`, `tag -d`) require explicit user confirmation even when the session runs with automatic permissions.",
+    "- Only modify files relevant to the current item; do not refactor unrelated code.",
+    "- When upstream and local changes conflict and the right trade-off is unclear, stop and ask the user — that decision is theirs.",
+    "- Never fabricate analysis conclusions or gate results; if you cannot get a diff, say so.",
   ].join("\n");
 }

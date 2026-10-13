@@ -411,6 +411,7 @@ export const WorkspaceShellLayout = memo(
     handleToggleBrowser,
     handleOpenBrowserTab,
     handleOpenBrowserPermissionSettings,
+    handleOpenFileExplorerTab,
     handleOpenTreemapping,
     handleOpenWhiteboard,
     handleOpenDeveloperTools,
@@ -2448,6 +2449,7 @@ export const WorkspaceShellLayout = memo(
                     isMacDesktop={isMacDesktop}
                     isWindowsDesktop={isWindowsDesktop}
                     isSidebarVisible={isSidebarVisible}
+                    isWorkspaceVisible={isWorkspaceVisible}
                     onToggleSidebar={handleToggleSidebar}
                     toggleSidebarShortcutLabel={toggleSidebarShortcutLabel}
                     canGoBack={canPrimaryNavigationBack}
@@ -2595,14 +2597,6 @@ export const WorkspaceShellLayout = memo(
                           activeSessionId={activeSessionId}
                           activeTaskProvider={activeTaskProvider}
                           resolvedActiveTaskMeta={resolvedActiveTaskMeta}
-                          sessionLogPath={taskSessionFile.path}
-                          nativeSessionLogProvider={taskNativeSessionLogFile.provider}
-                          nativeSessionLogPath={taskNativeSessionLogFile.path}
-                          nativeSessionLogExists={taskNativeSessionLogFile.exists}
-                          nativeSessionLogLoading={taskNativeSessionLogFile.loading}
-                          providerWorkspaceConfigPath={providerConfigFile.path}
-                          providerWorkspaceConfigExists={providerConfigFile.exists}
-                          providerWorkspaceConfigLoading={providerConfigFile.loading}
                           workspaceHeaderState={workspaceShellZCodeState}
                           gitSummary={gitState.summary}
                           gitDirtyFileCount={gitDirtyFileCount}

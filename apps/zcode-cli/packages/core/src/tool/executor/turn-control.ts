@@ -98,6 +98,70 @@ function readPlanExitDeniedFeedback(result: ToolExecutionResult): string | undef
 }
 
 /**
+ * 计划批准时用户在确认窗指定了执行模型：本回合的模型在 admission 已冻结（turn.ts），
+ * 无法中途更换——停掉规划回合，把换模意图经 followUpUserInput（队列车道 + intent
+ * modelSelection）交给下一回合。下一回合经 applySubmissionExecutionState 应用该选择
+ * 并持久化为会话粘性选择，后续回合保持。未指定模型的批准不进此分支（同回合继续，原行为）。
+ *
+ * 计划状态来源必须是入参 planEnabled——它在 handler **之前**捕获（见 call-runner 的
+ * planEnabledBeforeHandler）。不能在这里重新读 sessionModePort：本 wrapper 在 handler
+ * 之后运行，exitPlanMode 已把 planEnabled 清成显式 false，重新读取会把真实批准路径
+ * 误判为非计划模式，导致换模被跳过、仍由规划模型继续执行。
+ */
+export function withPlanExitApprovedTurnStop(
+  result: ToolExecutionResult,
+  input: { mode: CollaborationMode; planEnabled?: boolean; toolName: string },
+): ToolExecutionResult {
+  const wasPlanMode = input.planEnabled === true || input.mode === "plan";
+  if (input.toolName !== EXIT_PLAN_MODE_TOOL_NAME || !result.success || !wasPlanMode) {
+    return result;
+  }
+  const output = isRecord(result.output) ? result.output : undefined;
+  const selection = output?.executionModelSelection;
+  if (
+    !selection ||
+    typeof selection !== "object" ||
+    typeof (selection as { providerId?: unknown }).providerId !== "string" ||
+    typeof (selection as { modelId?: unknown }).modelId !== "string"
+  ) {
+    return result;
+  }
+
+  const modelLabel = formatPlanExitModelLabel(selection);
+  return {
+    ...result,
+    followUpUserInput: {
+      input: `The plan was approved. The user selected ${modelLabel} for implementation; this new turn starts with it. Begin implementing the approved plan now.`,
+      reasonSource: "plan_approval_feedback",
+      modelSelection: selection as import("@zcode/contracts").ModelSelection,
+    },
+    // 本回合到此为止：tool_result 说明计划已批准但不在本回合继续实施，
+    // 模型内容不能承诺"现在开始写代码"——新回合由换模后的 follow-up 输入开启。
+    modelContent:
+      "User has approved your plan. Implementation will continue in a new turn with the model the user selected; this turn ends here.",
+    turnControl: {
+      reason: "plan_exit_approved_model_switch",
+      stopTurnAfterResult: true,
+    },
+  };
+}
+
+function formatPlanExitModelLabel(selection: unknown): string {
+  const record = isRecord(selection) ? selection : {};
+  const providerId = typeof record.providerId === "string" ? record.providerId : "";
+  const modelId = typeof record.modelId === "string" ? record.modelId : "";
+  const reasoningLevel = isRecord(record.options)
+    ? (record.options as { reasoningLevel?: unknown }).reasoningLevel
+    : undefined;
+  const base = [providerId, modelId].filter(Boolean).join("/");
+  return reasoningLevel ? `${base} (reasoning: ${String(reasoningLevel)})` : base;
+}
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === "object" && value !== null && !Array.isArray(value);
+}
+
+/**
  * workflow 运行确认窗的 Refine 应答。
  * 与 withPlanExitDeniedTurnStop 同构但更窄：只有反馈升级，没有停 turn 分支——
  * 普通 Deny 沿用既有语义（喂标准权限错误，turn 继续），反馈经 steer 成为真实

@@ -46,6 +46,14 @@ export interface RuntimeMessageMetadata {
   source: RuntimeMessageSource;
   agentListingDelta?: AgentListingDelta;
   inputPresentation?: RuntimeInputPresentation;
+  /**
+   * runtime_mode 提醒的结构化身份标记：identity 为提醒所属模式，kind 为全文/简版。
+   * 节流与「重新进入必须全文」按此判定，不解析正文；旧条目无标记按未知身份处理。
+   */
+  runtimeMode?: {
+    identity: "plan" | "research" | "zcodeUpdate";
+    kind: "full" | "sparse";
+  };
 }
 
 export interface RuntimeMessageMessageEntry {
@@ -328,11 +336,12 @@ export function todoReminderRuntimeMetadata(): RuntimeMessageMetadata {
 export function systemReminderAttachmentEntry(
   source: SystemReminderSource,
   content: string,
+  extraMetadata?: Partial<RuntimeMessageMetadata>,
 ): RuntimeAttachmentEntry {
   return {
     kind: "attachment",
     content,
-    metadata: systemReminderRuntimeMetadata(source),
+    metadata: { ...systemReminderRuntimeMetadata(source), ...extraMetadata },
   };
 }
 

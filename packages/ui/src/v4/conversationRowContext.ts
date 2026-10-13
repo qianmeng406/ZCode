@@ -61,6 +61,10 @@ export interface ConversationRowRenderContext {
   chatLoadingBlockedByInteraction?: boolean;
   /** 常规设置：是否在对话消息流中渲染 reasoning / thought 行。 */
   messageStreamShowReasoning?: boolean;
+  /** 常规设置：Markdown/HTML 文件预览是否自动加载权威 fileChanges（默认 true）。 */
+  assistantAutoFilePreviewEnabled?: boolean;
+  /** 展示可见性（默认 true）：隐藏视图不发起自动预览查询。 */
+  presentationVisible?: boolean;
   /** 当前 assistant 轮次的第一条 reasoning row；关闭完整思考时仍需展示。 */
   messageStreamFirstReasoningRowId?: number;
   /** 常规设置：是否在对话消息流中渲染 Todo 工具卡片。 */
@@ -195,6 +199,12 @@ export interface ConversationRowRenderContext {
     target: ConversationRowTarget,
     options: ConversationFileChangesRequestOptions,
   ) => Promise<V4ConversationFileChangesResult>;
+  /** 轮尾工具栏「审查这一回合」：SessionPane 绑定 Oracle hook；缺席即不渲染按钮。 */
+  reviewTurn?: (header: TurnHeaderRow) => void;
+  /** 轮尾工具栏「深度审查这一回合」：与 reviewTurn 同准入条件，走只读子代理多轮取证。 */
+  reviewTurnDeep?: (header: TurnHeaderRow) => void;
+  /** 有审查在进行中：轮尾审查按钮置灰，避免点击落入静默忽略分支被当成「没反应」。 */
+  oracleReviewPending?: boolean;
   previewFileRewind?: (
     target: ConversationRowTarget,
   ) => Promise<V4ConversationFileRewindPreviewResult>;

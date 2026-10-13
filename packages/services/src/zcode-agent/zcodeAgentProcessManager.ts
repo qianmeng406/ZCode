@@ -1292,9 +1292,15 @@ export class ZCodeAgentProcessManager {
       if (this.processesByWorkspaceKey.get(workspaceKey) !== managed) {
         return;
       }
-      if (event.method === "workspace/cancelGenerateText") {
+      if (
+        event.method === "workspace/cancelGenerateText" ||
+        event.method === "workspace/generateText"
+      ) {
+        // cancel 是 best-effort 控制面操作；generateText 则自带 deadline + 取消通道
+        // 且已旁路串行队列——它的超时只说明模型慢/调用方主动放弃，不代表协议管道
+        // 不可信。销毁客户端会连带杀掉同 workspace 在飞的会话请求，得不偿失。
         warnLog(
-          "ZCode agent cancel notification timed out; keeping client (best-effort control plane)",
+          "ZCode agent generate/cancel notification timed out; keeping client (long model op, own deadline)",
           {
             workspaceKey,
             method: event.method,

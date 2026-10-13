@@ -1,5 +1,6 @@
 // 工具条只展示 Composer 的下一次提交选择；Session 不是存活编辑器的补值来源。
 import type { ZCodeConfigOption } from "@zcode/shared";
+import { resolveContextProfile } from "@zcode/shared";
 import type { ModelSelectionView } from "@zcode/services";
 import type { SessionConfigState } from "@zcode/shared/zcode-protocol-v4";
 import { resolveModelThoughtOption } from "@/lib/modelThoughtOption.js";
@@ -17,6 +18,11 @@ export function resolveDraftDisplayedConfig(
     thoughtLevels: [],
     followupMode: composer.followupMode ?? "queue",
     mode: composer.mode ?? "build",
+    // 旧 mode=minimal 是组合语义：展示层补出极简档位；新草稿显式携带档位。
+    contextProfile: resolveContextProfile({
+      mode: composer.mode,
+      contextProfile: composer.contextProfile,
+    }),
   };
 }
 

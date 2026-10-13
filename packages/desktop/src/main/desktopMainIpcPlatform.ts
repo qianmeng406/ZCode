@@ -44,7 +44,11 @@ import { syncWindowControlsOverlayForZoomLevel } from "./desktopWindowButtonPosi
 import { resolveDesktopZoomLevelFromFactor } from "./desktopZoom.js";
 import { resolveDesktopWindowChromeState } from "./desktopWindowChromeState.js";
 import { handleWindowUnreadCountSync } from "./desktopWindowLifecycle.js";
-import { captureWindowScreenshot, openPathInFileManager } from "./desktopMainIpcHelpers.js";
+import {
+  captureWindowScreenshot,
+  copyFileToOsClipboard,
+  openPathInFileManager,
+} from "./desktopMainIpcHelpers.js";
 import { registerCuaPermissionIpcHandlers } from "./desktopCuaPermissionIpc.js";
 import {
   registerDesktopBrowserIpcHandlers,
@@ -389,6 +393,10 @@ export function registerPlatformIpcHandlers(options: {
 
   ipcMain.handle(PlatformChannels.OpenInFileManager, async (_event, rawPath: string) =>
     openPathInFileManager(rawPath, options.logger),
+  );
+
+  ipcMain.handle(PlatformChannels.CopyFileToClipboard, async (_event, rawPath: string) =>
+    copyFileToOsClipboard(rawPath, options.logger),
   );
 
   registerCuaPermissionIpcHandlers({

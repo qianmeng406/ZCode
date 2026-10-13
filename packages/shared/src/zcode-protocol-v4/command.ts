@@ -30,6 +30,7 @@ import {
 import { highspeedMessageMetaSchema } from "../highspeed.js";
 import { sharedContextRefSchema } from "./shared-context-ref.js";
 import { conversationInputSourceSchema } from "./input-intent.js";
+import { contextProfileSchema } from "../execution-state.js";
 export type { SharedContextRef } from "./shared-context-ref.js";
 export * from "./workflow-command-rejections.js";
 
@@ -61,6 +62,7 @@ export const commandPayloadSchemas = {
         modelSelection: modelSelectionSchema.optional(),
         mode: submissionModeSchema.optional(),
         planEnabled: z.boolean().optional(),
+        contextProfile: contextProfileSchema.optional(),
       })
       .optional(),
     config: createSessionRequestedConfigSchema.optional(),
@@ -111,6 +113,7 @@ export const commandPayloadSchemas = {
       modelSelection: modelSelectionSchema.optional(),
       mode: submissionModeSchema.optional(),
       planEnabled: z.boolean().optional(),
+      contextProfile: contextProfileSchema.optional(),
       // 本次执行仍使用上面的标准 Selection；这里只携带不持久化语义、动态鉴权和 child 策略。
       // 仅 idle startNow 接受，防止 Secret/Ticket 进入普通 CommandInbox。
       modelExecution: modelExecutionSchema.optional(),
@@ -152,6 +155,7 @@ export const commandPayloadSchemas = {
     modelSelection: modelSelectionSchema.optional(),
     mode: submissionModeSchema.optional(),
     planEnabled: z.boolean().optional(),
+    contextProfile: contextProfileSchema.optional(),
     heldQueueDisposition: z.enum(["clearQueueAndSend", "keepQueueAndSend"]).optional(),
     expectedHeldQueueItemIds: z.array(z.string().min(1)).optional(),
   }),
@@ -227,6 +231,10 @@ export const commandPayloadSchemas = {
       // optionId/freeText 兼容路径，旧客户端行为不变。
       action: z.enum(["accept", "decline", "cancel"]).optional(),
       content: z.record(z.string(), z.unknown()).optional(),
+      // plan-approval 专用：批准时指定的执行模型（含推理档）。仅 accept 且带值时
+      // CLI 才切换；缺省 = 跟随会话模型（现行行为）。字段放在 answer 内保证
+      // 「批准决定 + 模型选择」单命令原子到达，无跨命令时序依赖。
+      modelSelection: modelSelectionSchema.optional(),
     }),
   }),
   respondWorkspaceHookReview: workspaceHookReviewCommandTargetSchema.extend({
@@ -256,7 +264,16 @@ export const commandPayloadSchemas = {
   // additive（冻结面按黄金测试背书演进）：agent 协作模式切换。
   // 值域 = core CollaborationMode 的可切换子集（auto 非用户可切，不进 UI 命令面）。
   switchCollaborationMode: z.object({
-    mode: z.enum(["build", "edit", "plan", "yolo", "guarded"]),
+    mode: z.enum([
+      "build",
+      "edit",
+      "plan",
+      "yolo",
+      "guarded",
+      "research",
+      "minimal",
+      "zcodeUpdate",
+    ]),
   }),
   setFollowupMode: z.object({ mode: z.enum(["queue", "guide"]) }),
   pauseGoal: z.object({}),

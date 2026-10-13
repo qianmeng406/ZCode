@@ -21,6 +21,15 @@ import {
   type TopicFrameDeliveryKind,
 } from "@zcode/shared/zcode-protocol-v4";
 import { logger } from "@/logger.js";
+import {
+  decideFullHistoryCommit,
+  hasActiveFullHistoryOwner,
+  hasShareFullHistoryOwner,
+  type ConversationFullHistoryConsumer,
+  type ConversationFullHistoryJob,
+  type ConversationFullHistoryJobOutcome,
+  type ConversationFullHistoryOwner,
+} from "@/v4/conversationFullHistoryJob.js";
 import type { ConversationTurnNavigatorHydrationResult } from "@/v4/conversationTurnNavigatorHelpers.js";
 import type { ConversationTransport } from "@/v4/transport.js";
 import { ConversationRowPool } from "@/v4/conversationRowSharing.js";
@@ -333,6 +342,13 @@ export class ConversationProjectionStore {
         { status: "hydrated" | "not-enough-queries" }
       > & { directoryRevision: number })
     | null = null;
+  /**
+   * 在途全量补拉 job（导航目录与分享共用）。owner 模型：每次 loadAllOlder 调用
+   * 注册独立需求（consumer + signal）；全部 owner 退出后协作式停止——已发出的
+   * 一页允许返回，不再请求下一页，也不提交暂存页。同一时刻至多一个 job，
+   * 后到调用者 cursor/epoch 一致时加入在途 job，禁止重复分页。
+   */
+  private fullHistoryJob: ConversationFullHistoryJob | null = null;
   private closed = false;
 
   constructor(
@@ -1091,19 +1107,32 @@ export class ConversationProjectionStore {
    * 问题导航过去直接扫描 renderer 的 tail window，因此 1000 轮会话只显示
    * 已加载的几十轮。这里按协议上限分页读取，但等全部页成功后只换一次 snapshot，
    * 避免每 200 行重建一次 timeline render units 与两个 virtualizer。
+   *
+   * 需求模型：导航与分享各自持有独立 owner（AbortSignal 表达需求存续）。
+   * 导航关闭只撤销导航 owner；仍有 share owner 在途时分页继续并完整提交，
+   * 全部 owner 退出后协作式停止（在途页允许返回，不再发下一页）。
    */
-  async loadAllOlder(): Promise<ConversationTurnNavigatorHydrationResult> {
+  async loadAllOlder(
+    options: {
+      consumer?: ConversationFullHistoryConsumer;
+      signal?: AbortSignal;
+    } = {},
+  ): Promise<ConversationTurnNavigatorHydrationResult> {
+    const consumer = options.consumer ?? "navigator";
     const stale = (logEpoch = this.state.snapshot?.logEpoch ?? "unknown") => ({
       status: "stale" as const,
       logEpoch,
     });
-    if (this.closed || this.state.loadingOlder) return stale();
+    if (this.closed) return stale();
     const snapshot = this.state.snapshot;
     if (!snapshot) return stale();
     // 终态必须同时匹配 logEpoch 与 directoryRevision。logEpoch 表示日志代际，
     // 不表示内容静止——real-user query 增删会递增 revision 使终态失效，允许重新探测。
+    // 终态短路只作用于 navigator：share 需要完整数据，不能被
+    // 「不足两条 query」的导航终态拦截（该终态可能未提交任何探测页）。
     const directoryRevision = this.state.turnNavigatorDirectoryRevision;
     if (
+      consumer === "navigator" &&
       this.turnNavigatorHydrationTerminal?.logEpoch === snapshot.logEpoch &&
       this.turnNavigatorHydrationTerminal.directoryRevision === directoryRevision
     ) {
@@ -1115,26 +1144,115 @@ export class ConversationProjectionStore {
     if (!sessionId || initialBeforeRowId === undefined) return stale(snapshot.logEpoch);
 
     const initialLogEpoch = snapshot.logEpoch;
-    const preserveIncompleteLeadingTurn = shouldAutoLoadIncompleteLeadingTurn(snapshot, false);
+
+    const joined = this.fullHistoryJob;
+    if (
+      joined &&
+      joined.initialLogEpoch === initialLogEpoch &&
+      joined.initialBeforeRowId === initialBeforeRowId
+    ) {
+      return this.joinFullHistoryJob(joined, { consumer, signal: options.signal });
+    }
+    // 普通 loadOlder 在途：不并行发页，返回 stale 由宿主依赖变化后重试，
+    // 也不能让调用方（尤其分享）把这当成「已补齐」。
+    if (this.state.loadingOlder) return stale(initialLogEpoch);
+
+    let resolveJob!: (outcome: ConversationFullHistoryJobOutcome) => void;
+    const jobRecord: ConversationFullHistoryJob = {
+      initialLogEpoch,
+      initialBeforeRowId,
+      directoryRevision,
+      preserveIncompleteLeadingTurn: shouldAutoLoadIncompleteLeadingTurn(snapshot, false),
+      owners: new Map<string, ConversationFullHistoryOwner>(),
+      ownersSeq: 0,
+      promise: new Promise<ConversationFullHistoryJobOutcome>((resolve) => {
+        resolveJob = resolve;
+      }),
+    };
+    this.fullHistoryJob = jobRecord;
+    this.setState({ loadingOlder: true });
+    // 发起者 owner 必须在启动 runner 前注册：runner 的首个循环检查同步执行，
+    // 若 owners 仍为空会立即按「无需求方」abort。
+    jobRecord.owners.set(`owner-${++jobRecord.ownersSeq}`, {
+      consumer,
+      signal: options.signal ?? new AbortController().signal,
+    });
+    // runner 自吞异常（catch 兜底），void 不会产生 unhandled rejection；
+    // 结果统一经 resolveJob 交给等待方。
+    void this.runFullHistoryJob(jobRecord, sessionId, resolveJob);
+    return this.joinFullHistoryJob(jobRecord, { consumer, signal: options.signal });
+  }
+
+  /** 加入在途 job：注册 owner、等 job 收尾后按 owner 语义映射结果。 */
+  private async joinFullHistoryJob(
+    job: ConversationFullHistoryJob,
+    owner: { consumer: ConversationFullHistoryConsumer; signal?: AbortSignal },
+  ): Promise<ConversationTurnNavigatorHydrationResult> {
+    const ownerId = `owner-${++job.ownersSeq}`;
+    job.owners.set(ownerId, {
+      consumer: owner.consumer,
+      signal: owner.signal ?? new AbortController().signal,
+    });
+    const outcome = await job.promise;
+    if (outcome.ended === "aborted") {
+      // 只有全部 owner 的 signal 都 abort 才会 aborted；此时仍拿到结果的一方
+      // 信号也已失效，结果无人消费。返回 stale 让万一存活的调用方重试。
+      return { status: "stale", logEpoch: this.state.snapshot?.logEpoch ?? "unknown" };
+    }
+    if (outcome.status === "not-enough-queries" && owner.consumer === "share") {
+      // decideFullHistoryCommit 保证 share 在途时 outcome 必为 hydrated；
+      // 防御性兜底：让分享按可重试处理，下次 job 会带 share owner 重新提交。
+      return { status: "stale", logEpoch: outcome.logEpoch };
+    }
+    if (outcome.status === "retryable-failure") {
+      return { status: "retryable-failure", logEpoch: outcome.logEpoch };
+    }
+    // 结果类型不携带 directoryRevision（仅 store 内部终态缓存使用）；
+    // Timeline 只消费 status。
+    return { status: outcome.status, logEpoch: outcome.logEpoch };
+  }
+
+  /**
+   * 全量分页主循环：每页请求前后校验 store 生命周期、epoch、窗口首行游标与
+   * 剩余 owner 需求；全部 owner 退出即协作停止，不提交暂存页、不写终态缓存。
+   */
+  private async runFullHistoryJob(
+    job: ConversationFullHistoryJob,
+    sessionId: string,
+    resolveJob: (outcome: ConversationFullHistoryJobOutcome) => void,
+  ): Promise<void> {
+    const { initialLogEpoch, initialBeforeRowId, directoryRevision } = job;
     const pages: ConversationRow[][] = [];
     let beforeRowId = initialBeforeRowId;
     let committed = false;
-    this.setState({ loadingOlder: true });
+    // 每条退出路径都必须 resolve：加入方 await 的是这一个 promise。
+    const end = (outcome: ConversationFullHistoryJobOutcome): void => {
+      resolveJob(outcome);
+    };
     logger.debug("[v4-store] 完整问题目录开始补拉历史 rows", {
       beforeRowId,
-      loadedRows: snapshot.rows.window.length,
+      loadedRows: this.state.snapshot?.rows.window.length ?? 0,
       sessionId,
-      totalRows: snapshot.rows.totalCount,
+      totalRows: this.state.snapshot?.rows.totalCount ?? 0,
     });
 
     try {
       while (true) {
+        if (this.closed || !hasActiveFullHistoryOwner(job.owners.values())) {
+          end({ ended: "aborted" });
+          return;
+        }
         const result = await this.transport.rowsRange({
           sessionId,
           beforeRowId,
           limit: PROTOCOL_V4_LIMITS.rowsRangeMaxLimit,
         });
-        if (this.closed) return stale(initialLogEpoch);
+        if (this.closed || !hasActiveFullHistoryOwner(job.owners.values())) {
+          // owner 全部退出：已发出的一页允许返回（结果弃用），不再请求下一页，
+          // 也不提交暂存页/写终态缓存。
+          end({ ended: "aborted" });
+          return;
+        }
         const current = this.state.snapshot;
         if (
           !current ||
@@ -1148,7 +1266,13 @@ export class ConversationProjectionStore {
             resultLogEpoch: result.atLogEpoch,
             sessionId,
           });
-          return stale(initialLogEpoch);
+          end({
+            ended: "completed",
+            status: "retryable-failure",
+            logEpoch: initialLogEpoch,
+            directoryRevision,
+          });
+          return;
         }
 
         const older = result.rows.filter((row) => row.rowId < beforeRowId);
@@ -1159,7 +1283,13 @@ export class ConversationProjectionStore {
             hasMore: result.hasMore,
             sessionId,
           });
-          return { status: "retryable-failure", logEpoch: initialLogEpoch };
+          end({
+            ended: "completed",
+            status: "retryable-failure",
+            logEpoch: initialLogEpoch,
+            directoryRevision,
+          });
+          return;
         }
         pages.push(older);
         beforeRowId = nextBeforeRowId;
@@ -1172,71 +1302,84 @@ export class ConversationProjectionStore {
         current.logEpoch !== initialLogEpoch ||
         current.rows.window[0]?.rowId !== initialBeforeRowId
       ) {
-        return stale(initialLogEpoch);
+        end({
+          ended: "completed",
+          status: "retryable-failure",
+          logEpoch: initialLogEpoch,
+          directoryRevision,
+        });
+        return;
       }
       const olderRows = [...pages].reverse().flat();
       const realUserQueryCount = [...olderRows, ...current.rows.window].reduce(
         (count, row) => (row.kind === "userInput" && row.origin === "realUser" ? count + 1 : count),
         0,
       );
-      if (realUserQueryCount < 2) {
-        if (preserveIncompleteLeadingTurn) {
-          const window = mergeOlderRows(current.rows.window, this.shareRows(olderRows));
-          if (window === null) return stale(initialLogEpoch);
-          committed = true;
-          this.setState({
-            loadingOlder: false,
-            snapshot: { ...current, rows: { ...current.rows, window } },
+      const decision = decideFullHistoryCommit({
+        realUserQueryCount,
+        preserveIncompleteLeadingTurn: job.preserveIncompleteLeadingTurn,
+        hasShareOwner: hasShareFullHistoryOwner(job.owners.values()),
+      });
+      if (decision.commit) {
+        const window = mergeOlderRows(current.rows.window, this.shareRows(olderRows));
+        if (window === null) {
+          end({
+            ended: "completed",
+            status: "retryable-failure",
+            logEpoch: initialLogEpoch,
+            directoryRevision,
           });
-          // navigator 已经拿到补齐首轮所需的权威 rows，必须在隐藏 rail 前先提交它们。
-          logger.debug("[v4-store] 完整问题目录不足两条 query，保留首轮补齐 rows", {
-            loadedRows: window.length,
-            pages: pages.length,
-            sessionId,
-          });
+          return;
         }
+        committed = true;
+        this.setState({
+          loadingOlder: false,
+          snapshot: { ...current, rows: { ...current.rows, window } },
+        });
+        logger.debug("[v4-store] 完整问题目录历史 rows 补拉完成", {
+          loadedRows: window.length,
+          pages: pages.length,
+          outcome: decision.outcome,
+          sessionId,
+        });
+      } else {
         // wire snapshot 只保留最后 60 rows，tail 中的 0/1 条 query 不能证明
         // 完整分支也是单 query。宽屏必须探测到分支起点；确认不足两条后不合并探测页，
         // 避免为一个不会显示的 rail 把完整历史常驻 renderer projection。
         logger.debug("[v4-store] 完整问题目录探测后不足两条 query", {
           pages: pages.length,
-          preservedIncompleteLeadingTurn: preserveIncompleteLeadingTurn,
+          preservedIncompleteLeadingTurn: job.preserveIncompleteLeadingTurn,
           realUserQueryCount,
           sessionId,
         });
-        const result = {
-          status: "not-enough-queries" as const,
-          logEpoch: initialLogEpoch,
-          directoryRevision,
-        };
-        this.turnNavigatorHydrationTerminal = result;
-        return result;
       }
-      const window = mergeOlderRows(current.rows.window, this.shareRows(olderRows));
-      if (window === null) return stale(initialLogEpoch);
-      committed = true;
-      this.setState({
-        loadingOlder: false,
-        snapshot: { ...current, rows: { ...current.rows, window } },
-      });
-      logger.debug("[v4-store] 完整问题目录历史 rows 补拉完成", {
-        loadedRows: window.length,
-        pages: pages.length,
-        sessionId,
-      });
-      const result = {
-        status: "hydrated" as const,
+      // 终态缓存与导航 hydration key 的 revision 语义保持一致；
+      // hydrated/not-enough-queries 都是终态，retryable-failure 不经此路径。
+      this.turnNavigatorHydrationTerminal =
+        decision.outcome === "hydrated"
+          ? { status: "hydrated", logEpoch: initialLogEpoch, directoryRevision }
+          : { status: "not-enough-queries", logEpoch: initialLogEpoch, directoryRevision };
+      end({
+        ended: "completed",
+        status: decision.outcome,
         logEpoch: initialLogEpoch,
         directoryRevision,
-      };
-      this.turnNavigatorHydrationTerminal = result;
-      return result;
+      });
+        logEpoch: initialLogEpoch,
+        directoryRevision,
+      });
     } catch (error) {
       logger.warn(
         `[v4-store] 完整问题目录 rowsRange ${this.topic} 失败: ${error instanceof Error ? error.message : String(error)}`,
       );
-      return { status: "retryable-failure", logEpoch: initialLogEpoch };
+      end({
+        ended: "completed",
+        status: "retryable-failure",
+        logEpoch: initialLogEpoch,
+        directoryRevision,
+      });
     } finally {
+      this.fullHistoryJob = null;
       if (!this.closed && !committed) this.setState({ loadingOlder: false });
     }
   }

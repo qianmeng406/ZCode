@@ -144,6 +144,8 @@ export interface SSHRemoteTargetSnapshot {
    * 这里只保存 credentialService 的键名，恢复时再去安全存储读取真实口令。
    */
   privateKeyPassphraseCredentialKey?: string;
+  /** 常驻模式：重连时保持同一语义（断开不终止远端任务）。 */
+  resident?: boolean;
 }
 
 export interface WSLRemoteTargetSnapshot {
@@ -295,6 +297,11 @@ export interface AppSettings {
   closeToTrayOnWindows?: boolean;
   /** 存在执行中的闲时任务时阻止系统闲置休眠（手动开关，防不了合盖）。 */
   keepAwakeWhileRunning?: boolean;
+  /**
+   * Oracle 双模型把关：回合成功结束且改过文件时，自动用把关模型复审本回合 diff。
+   * 把关模型在输入框旁的 Oracle 菜单指定（localStorage），默认跟随会话模型。
+   */
+  oracleReviewEnabled?: boolean;
   /** Windows 关闭到托盘默认值是否已执行过一次性迁移；只用于设置迁移，不参与业务判断。 */
   closeToTrayOnWindowsMigrationInitialized?: boolean;
   /**

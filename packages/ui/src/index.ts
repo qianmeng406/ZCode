@@ -13,6 +13,9 @@ export {
   useAssistantCodeCommentFeatureEnabled,
 } from "./AssistantCodeCommentFeatureProvider.js";
 export { Root } from "./Root.js";
+// My zcode 手机端复用 v4 会话数据层的最小公开面（transport 工厂 + 类型）。
+export { createAgentConversationTransport } from "./v4/agentConversationTransport.js";
+export type { ConversationTransport } from "./v4/transport.js";
 export { UpdateStatusWindowRoot } from "./UpdateStatusWindowRoot.js";
 export type { WebRemoteControlTerminalTransportState } from "./root/types.js";
 export { setWebRemoteControlTerminalTransportState } from "./webRemoteControlTerminalTransportState.js";

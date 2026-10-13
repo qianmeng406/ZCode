@@ -77,6 +77,36 @@ export function useFileContextActions(options: FileContextActionOptions = {}) {
     [copyPathText],
   );
 
+  const copyFileFailedMessage = intl.formatMessage({ id: "fileActions.copyFileFailed" });
+  // 文件本身进系统剪贴板依赖 main 的私有剪贴板格式（Desktop only），
+  // 普通 Web 平台没有该能力，菜单项据此禁用；远程工作区文件不在本机文件系统上，同样禁用。
+  const canCopyFileToClipboard = useCallback(
+    (target: FileContextActionTarget) =>
+      typeof platform.copyFileToClipboard === "function" &&
+      !target.deleted &&
+      target.kind !== "directory" &&
+      !isRemoteWorkspace,
+    [isRemoteWorkspace, platform],
+  );
+  const copyFileToClipboard = useCallback(
+    async (target: FileContextActionTarget) => {
+      if (!platform.copyFileToClipboard) {
+        return;
+      }
+      const result = await platform.copyFileToClipboard(target.path);
+      if (result.success) {
+        logger.info("[FileContextActions] 文件已复制到系统剪贴板", { path: target.path });
+        return;
+      }
+      logger.warn("[FileContextActions] 复制文件到系统剪贴板失败", {
+        path: target.path,
+        error: result.error ?? "unknown-error",
+      });
+      toast(copyFileFailedMessage);
+    },
+    [copyFileFailedMessage, platform],
+  );
+
   const revealInFileManager = useCallback(
     async (target: FileContextActionTarget) => {
       if (!canRevealInFileManager(target)) {
@@ -109,8 +139,10 @@ export function useFileContextActions(options: FileContextActionOptions = {}) {
   );
 
   return {
+    canCopyFileToClipboard,
     canRevealInFileManager,
     copyAbsolutePath,
+    copyFileToClipboard,
     copyPath,
     copyRelativePath,
     revealInFileManager,

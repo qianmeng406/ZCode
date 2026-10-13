@@ -27,6 +27,7 @@ import {
   buildWorkspaceSessionKey,
   createRemoteTargetFromSnapshot,
   getRemoteWorkspaceSessionEntries,
+  isResidentRemoteWorkspaceEntry,
   removeRemoteWorkspaceSessionEntries,
 } from "@/lib/remoteWorkspaceHistory.js";
 import { getErrorMessage } from "@/lib/errorMessage.js";
@@ -90,6 +91,13 @@ export function shouldPersistRemoteWorkspaceFailure(params: {
   sessionEntry: RemoteWorkspaceSessionEntry;
   workspaceKey: string;
 }): boolean {
+  // 常驻模式（Linux SSH resident）：断开 ≠ 失败。远端 daemon 继续运行、任务未终止，
+  // 把断开写成 lastConnectionStatus: "failed" 会与「任务仍在运行」矛盾；
+  // 断开状态由 tab 的 remoteSessionId 运行时表达，这里不落盘，状态由下次重连结果决定。
+  if (isResidentRemoteWorkspaceEntry(params.sessionEntry)) {
+    return false;
+  }
+
   if (params.sessionEntry.target.kind !== "wsl") {
     return true;
   }
@@ -1142,6 +1150,17 @@ export function useRemoteWorkspaceHistory({
       const matchedWorkspaceKeys = [
         ...new Set(matchedTabs.map((tab) => buildWorkspaceSessionKey(tab))),
       ];
+      // 常驻模式（Linux SSH resident）：断开 ≠ 任务终止。远端 daemon 继续运行，
+      // 任务只降级为「离线不可见」，重连后以远端持久状态恢复；绝不能在这里把
+      // running 任务标记失败——那会把仍在执行的任务变成 UI 层的假失败。
+      const residentWorkspaceKeys = new Set(
+        matchedWorkspaceKeys.filter((workspaceKey) => {
+          const entry = remoteWorkspaceSessionsRef.current.find(
+            (candidate) => buildWorkspaceSessionKey(candidate) === workspaceKey,
+          );
+          return entry !== undefined && isResidentRemoteWorkspaceEntry(entry);
+        }),
+      );
       const reason = [
         "远程连接已断开",
         event.exitCode != null ? `exitCode=${event.exitCode}` : null,
@@ -1151,7 +1170,9 @@ export function useRemoteWorkspaceHistory({
         .join(" ");
       const zcodeSessionStore = useZCodeSessionStore.getState();
       const failedTaskCount = markRemoteWorkspaceRunningTasksFailed({
-        tabs: matchedTabs,
+        tabs: matchedTabs.filter(
+          (tab) => !residentWorkspaceKeys.has(buildWorkspaceSessionKey(tab)),
+        ),
         getWorkspaceState: zcodeSessionStore.getWorkspaceState,
         setTaskRuntimeState: zcodeSessionStore.setTaskRuntimeState,
         reason,
@@ -1163,6 +1184,7 @@ export function useRemoteWorkspaceHistory({
         exitCode: event.exitCode,
         signal: event.signal,
         matchedWorkspaceKeys,
+        residentWorkspaceKeys: [...residentWorkspaceKeys],
         failedTaskCount,
       });
 
@@ -1182,7 +1204,7 @@ export function useRemoteWorkspaceHistory({
             workspaceKey,
           })
         ) {
-          logger.info("[Root] WSL workspace session 关闭时跳过失败落盘，等待重连结果", {
+          logger.info("[Root] workspace session 关闭时跳过失败落盘（常驻断开≠失败 / WSL 等待重连结果）", {
             pendingReconnectRequestId,
             sessionId,
             workspaceIdentity: sessionEntry.workspaceIdentity ?? null,

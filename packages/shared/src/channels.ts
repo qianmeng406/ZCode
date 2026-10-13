@@ -342,6 +342,8 @@ export const PlatformChannels = {
   OpenInFileManager: "zcode:open-in-file-manager",
   /** Renderer → Main：使用系统默认应用打开本地文件 */
   OpenExternalFile: "zcode:open-external-file",
+  /** Renderer → Main：把本地文件复制进系统剪贴板（可在文件管理器粘贴） */
+  CopyFileToClipboard: "zcode:copy-file-to-clipboard",
   /** Renderer → Main：打开 ZCode Computer Use 权限引导 */
   OpenCuaPermissionOnboarding: "zcode:open-cua-permission-onboarding",
   /** Renderer → Main：取消当前 renderer 发起的一次权限引导 participant */
@@ -1015,6 +1017,10 @@ export interface PlatformChannelMap {
     response: { success: boolean; error?: string };
   };
   [PlatformChannels.OpenExternalFile]: {
+    request: string;
+    response: { success: boolean; error?: string };
+  };
+  [PlatformChannels.CopyFileToClipboard]: {
     request: string;
     response: { success: boolean; error?: string };
   };

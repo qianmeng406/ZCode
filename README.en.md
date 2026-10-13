@@ -1,22 +1,35 @@
-# ZCode
+# Myzcode
+
+> **This repository is a community fork / secondary development of the official ZCode open-source project. It is NOT an official release.**
+>
+> This project has **no affiliation, sponsorship, partnership, or endorsement** from Z.ai, Zhipu, or the official ZCode team. See [Fork notice](#fork-notice) and [Disclaimer](#disclaimer) below. For the full documentation, see the Chinese [README.md](README.md).
 
 <div align="center">
   <img src="public/logo/icons/1024x1024.png" alt="ZCode" width="128" height="128" />
 </div>
 <p align="center">
-  <a href="https://applink.feishu.cn/client/chat/chatter/add_by_link?link_token=47ag983c-8fcb-4d6d-814b-5395193a712c&amp;qr_code=true">Feishu community</a> ·
-  <a href="https://discord.gg/z9aBcQXZQ3">Discord</a>
-</p>
-<p align="center">
   <a href="README.md">简体中文</a> | English
 </p>
 
-ZCode is an AI coding workspace with desktop, browser, and terminal interfaces. This repository contains the clients, backend services, shared UI, and Agent CLI and runtime source code.
+Myzcode is a personal customization of ZCode, an AI coding workspace with desktop, browser, and terminal interfaces. This repository contains the clients, backend services, shared UI, and Agent CLI and runtime source code.
 
-## Updates
+## Upstream Version and Sync Status
 
+- 2026-10-13: Migrated the Myzcode customizations onto this repository, based on official v3.15.1.
 - 2026-10-10: Updated to ZCode v3.15.1.
 - 2026-9-23: Updated to ZCode v3.14.3.
+
+- **Latest official source**: As of 2026-10-13, official `main` points to [the v3.15.1 commit `aac47556`](https://github.com/zai-org/ZCode/commit/aac4755666d09fdcd70272fcf063c077a639015f), updated on 2026-10-10. That update adds UI plugins and inline Gen UI experiences, and expands desktop, remote workspace, Agent capabilities, and regression coverage.
+- **This fork's upstream baseline**: This repository is based on [the official v3.15.1 commit `aac47556`](https://github.com/zai-org/ZCode/commit/aac4755666d09fdcd70272fcf063c077a639015f); the root `package.json` version is `3.15.1`. The customizations are applied as a single commit on top of the official baseline; see [docs/upstream-sync.md](docs/upstream-sync.md) for the follow-up sync workflow.
+- **Official documentation**: [Chinese README](https://github.com/zai-org/ZCode/blob/main/README.md), [English README](https://github.com/zai-org/ZCode/blob/main/README.en.md), and [UI Plugin development guide](https://github.com/zai-org/ZCode/blob/aac4755666d09fdcd70272fcf063c077a639015f/UI_PLUGIN.en.md). Features, directories, and commands in newer official versions may not exist in this fork. Use the checked-out source and `package.json` as the source of truth.
+
+## Fork Customizations
+
+This fork adds dual-model review (Oracle), execution-model selection during plan approval, turn navigation, permission modes, prompt optimization, and bundled SSH/WSL runtime assets. See [README.md](README.md) for details.
+
+These customizations are described relative to the official v3.15.1 baseline, not as a claim of exclusive features. Later official versions may offer similar capabilities.
+
+The development and packaging instructions below describe this fork's current commands, including its runtime asset preparation changes; they are not a complete mirror of the latest official README.
 
 ## Setup
 
@@ -32,15 +45,18 @@ The Agent CLI and runtime source code lives in [apps/zcode-cli/](apps/zcode-cli/
 
 Additional setup and build commands:
 
-| Command                        | Purpose                                                                                                                             |
-| ------------------------------ | ----------------------------------------------------------------------------------------------------------------------------------- |
-| `pnpm install`                 | Install dependencies                                                                                                                |
-| `pnpm prepare:desktop-runtime` | Prepare desktop runtime assets, including remote assets by default                                                                  |
-| `pnpm prepare:remote-assets`   | Prepare remote runtime assets separately                                                                                            |
-| `pnpm bootstrap:with-remote`   | Set up dependencies and local and remote assets, then build the relevant packages sequentially; skip the desktop application bundle |
-| `pnpm build`                   | Recursively run each workspace package's build script, including its asset preparation steps                                        |
+| Command                            | Purpose                                                                                                                             |
+| ---------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------- |
+| `pnpm install`                     | Install dependencies                                                                                                                |
+| `pnpm prepare:desktop-runtime`     | Prepare desktop runtime assets, including remote assets by default                                                                  |
+| `pnpm prepare:remote-assets`       | Prepare remote runtime assets separately                                                                                            |
+| `pnpm prepare:local-remote-assets` | Trim `mock-cdn` into the platform assets that ship inside the installer (`resources/remote-assets`)                                 |
+| `pnpm bootstrap:with-remote`       | Set up dependencies and local and remote assets, then build the relevant packages sequentially; skip the desktop application bundle |
+| `pnpm build`                       | Recursively run each workspace package's build script, including its asset preparation steps                                        |
 
 The default `bootstrap` skips remote asset preparation and is suitable for local desktop development. Run the corresponding preparation command when working with remote workspaces or validating remote distribution assets.
+
+Packaged builds do not need a CDN: SSH/WSL remote runtime assets (server bundle, Node runtime, agent runtime, search tools) are trimmed to the target platforms and shipped inside the installer, then uploaded over SFTP at deploy time. `ZCODE_REMOTE_ASSET_LOCAL_DIR` overrides the bundled directory at runtime; `ZCODE_SKIP_LOCAL_REMOTE_ASSETS=1` skips bundling them. The opt-in "download on remote server" mode pulls official ZCode artifacts from `cdn-zcode.z.ai` by default (official artifacts do not include this fork's remote changes, so resident mode is unavailable and rejected in that mode). End-to-end verification: `npx tsx packages/server/scripts/remote-local-assets-check.ts --wsl`.
 
 ## Development and Usage
 
@@ -200,6 +216,8 @@ Open `http://127.0.0.1:3030` to validate the complete flow, with one backend ser
 
 ## Repository Structure
 
+The following lists this fork's main directories, not the complete latest upstream source tree. Fork additions are identified relative to the v3.14.3 baseline.
+
 | Directory                                            | Responsibility                                                                          |
 | ---------------------------------------------------- | --------------------------------------------------------------------------------------- |
 | `packages/desktop`                                   | Electron Main, Host, Renderer, and desktop packaging                                    |
@@ -213,6 +231,26 @@ Open `http://127.0.0.1:3030` to validate the complete flow, with one backend ser
 | `apps/zcode-cli`                                     | Agent CLI, TUI, runtime, and tools                                                      |
 | `scripts`, `config`, `third-party`                   | Build and maintenance scripts, built-in configuration, and third-party notice materials |
 
+## Fork notice
+
+1. **Origin**: This project is a secondary development (fork) of the open-source [zai-org/ZCode](https://github.com/zai-org/ZCode) repository, under the upstream Apache-2.0 license. Copyright in the original upstream code, documentation, and assets belongs to their respective authors and the zai-org/ZCode project.
+2. **Not official**: This project is maintained by an individual. It is **not** an official product and has **no affiliation, sponsorship, partnership, or endorsement** from Z.ai, Zhipu, or the official ZCode team. Any installer or bundle produced from this repository is not an official release.
+3. **Scope of changes**: On top of upstream, this fork adds a user-managed model channel and dual-model turn review, among other changes. Feature details are documented in the Chinese [README.md](README.md).
+4. **Protocols and compatibility**: This project does **not** copy official minified code, does **not** connect to the official private relay or account backend, and does **not** claim protocol compatibility or official certification. Do not describe this project as an official release or an official partner product.
+5. **Names and marks**: The "ZCode" name and logo appear here only to indicate the code's origin and purpose. They do not imply official authorization.
+
+## Disclaimer
+
+1. **No warranty**: This project is provided "AS IS", without warranty of any kind, express or implied, including but not limited to merchantability, fitness for a particular purpose, and non-infringement. The authors are not liable for any direct or indirect damages arising from the use of, or inability to use, this project (including data loss, service interruption, device damage, or lost profits).
+2. **Use at your own risk**: This fork includes **remote-control** capabilities that let a phone trigger side-effecting actions on ZCode running on a computer (creating tasks, sending input, stopping execution, resolving approvals, and so on). Enable it only on **your own devices** and in environments where you have **lawful authorization**, and keep pairing codes, tokens, and server credentials secure. You are responsible for the consequences of misuse, misconfiguration, or credential leakage.
+3. **No data collection**: This project provides no official backend service and the authors collect no data from you. You must **self-host** the server and network environment for the remote-control link; logs, data, and traffic in that environment are yours to manage and keep compliant.
+4. **Lawful use**: You are responsible for ensuring your use complies with applicable laws and regulations, the upstream project's terms, and the terms of any third-party services (model providers, cloud providers, etc.). Using this project for unauthorized intrusion, surveillance, data theft, or any other illegal purpose is **strictly prohibited**.
+5. **Models and costs**: This project may call third-party model services. Accounts, quotas, costs, and content compliance are your own responsibility; no official keys or quota are bundled with this repository.
+6. **Relationship with upstream**: This fork may lag behind upstream, may contain changes not merged upstream or already removed upstream, and may contain defects. Do not hold the upstream project or the official team responsible for problems in this fork.
+7. **No maintenance commitment**: The authors make no commitment to ongoing maintenance, timely fixes, or long-term compatibility with any upstream version.
+
+> If you do not agree with any of the terms above, stop using this project and delete all copies immediately.
+
 ## Project Notice
 
-See [NOTICE.md](NOTICE.md) for feature and promotion scope, maintenance policy, execution and data risks, licensing, and third-party copyright information.
+See [NOTICE.md](NOTICE.md) for feature and promotion scope, maintenance policy, execution and data risks, licensing, and third-party copyright information (inherited from upstream).

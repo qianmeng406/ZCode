@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import type {
   AssistantTextRow,
   ConversationRowTarget,
@@ -9,6 +9,10 @@ import {
   extractAssistantFileReferences,
   type AssistantPreviewCard,
 } from "@/lib/assistantPreviewCards.js";
+import {
+  resolveAssistantPreviewLoadAction,
+  type AssistantPreviewLoadAction,
+} from "@/lib/onDemandLoadingGuards.js";
 import { logger } from "@/logger.js";
 import type {
   ConversationFileChangesRequestOptions,
@@ -28,10 +32,22 @@ interface UseAssistantPreviewCardsForAssistantTextRowParams {
     target: ConversationRowTarget,
     options: ConversationFileChangesRequestOptions,
   ) => Promise<V4ConversationFileChangesResult>;
+  /** 自动加载偏好（缺省 true）；关闭后由「加载预览」手动触发（specs/assistant-auto-file-preview.md）。 */
+  autoPreviewEnabled?: boolean;
+  /** 展示可见性（缺省 true）：隐藏时不发起自动查询，恢复后重新裁决补齐。 */
+  presentationVisible?: boolean;
 }
 
-interface LoadedChangedPaths {
+export interface AssistantPreviewCardsResult {
+  cards: AssistantPreviewCard[];
+  loadAction: AssistantPreviewLoadAction;
+  manualLoading: boolean;
+  loadManually: () => void;
+}
+
+interface PreviewRequestState {
   key: string;
+  status: "loaded" | "failed";
   paths: readonly string[];
 }
 
@@ -54,7 +70,9 @@ export function useAssistantPreviewCardsForAssistantTextRow({
   fileChangesTarget,
   fileChangesState,
   fetchFileChanges,
-}: UseAssistantPreviewCardsForAssistantTextRowParams): AssistantPreviewCard[] {
+  autoPreviewEnabled = true,
+  presentationVisible = true,
+}: UseAssistantPreviewCardsForAssistantTextRowParams): AssistantPreviewCardsResult {
   const turnText = useMemo(() => joinAssistantTurnText(assistantTextRows), [assistantTextRows]);
   const canBuildCards =
     row !== undefined &&
@@ -87,14 +105,30 @@ export function useAssistantPreviewCardsForAssistantTextRow({
   const requestKey = target
     ? `${target.rowId}:${target.entityId}:${fileChangesState ?? "unknown"}`
     : "";
-  const [loadedChangedPaths, setLoadedChangedPaths] = useState<LoadedChangedPaths | null>(null);
+  const [requestState, setRequestState] = useState<PreviewRequestState | null>(null);
+  const [manualLoading, setManualLoading] = useState(false);
+  const loadSeqRef = useRef(0);
 
-  useEffect(() => {
-    if (!needsFileChanges || !fetchFileChanges || !target) return;
+  const loadAction = resolveAssistantPreviewLoadAction({
+    autoPreviewEnabled,
+    visible: presentationVisible,
+    hasMarkdownOrHtmlReference: needsFileChanges,
+    hasTarget: Boolean(target),
+    fileChangesState,
+    isLatestCompleteTurn: canBuildCards,
+    requestState:
+      requestState?.key === requestKey ? requestState.status : ("none" as const),
+  });
+
+  // 自动与手动共用同一条权威读取路径（同一缓存策略与 builder）；
+  // 回包校验请求代际与 key，隐藏/卸载/作用域变化后的迟到结果不提交。
+  const runLoad = useCallback(() => {
+    if (!fetchFileChanges || !target) return;
     // rewind 后 header 的 reverted 状态是权威投影；无需等待详情 RPC，立即抑制 md/html。
     if (fileChangesState === "reverted") return;
 
-    let disposed = false;
+    const loadSeq = ++loadSeqRef.current;
+    setManualLoading(true);
     // V4 fileChanges 只接受 turnHeader；assistantText 仅用于正文和卡片锚点。
     // 先用空门控同步投影 Office/PDF；只有确实出现 md/html 时才读取本轮明细。
     void fetchFileChanges(target, {
@@ -102,33 +136,47 @@ export function useAssistantPreviewCardsForAssistantTextRow({
       fileChangesState,
     }).then(
       (result) => {
-        if (disposed) return;
-        setLoadedChangedPaths({
+        if (loadSeqRef.current !== loadSeq) return;
+        setManualLoading(false);
+        setRequestState({
           key: requestKey,
+          status: "loaded",
           paths: result.state === "reverted" ? [] : result.items.map((item) => item.path),
         });
       },
       (error: unknown) => {
-        if (disposed) return;
+        if (loadSeqRef.current !== loadSeq) return;
+        setManualLoading(false);
         logger.warn("[AssistantPreviewCards] 读取本轮文件变更失败，已抑制 Markdown/HTML 卡片", {
           error: error instanceof Error ? error.message : String(error),
           rowId: target.rowId,
         });
-        setLoadedChangedPaths({ key: requestKey, paths: [] });
+        setRequestState({ key: requestKey, status: "failed", paths: [] });
       },
     );
+  }, [fetchFileChanges, fileChangesState, requestKey, target]);
 
-    return () => {
-      disposed = true;
-    };
-  }, [fetchFileChanges, fileChangesState, needsFileChanges, requestKey, target]);
+  const loadManually = useCallback(() => {
+    if (manualLoading) return;
+    runLoad();
+  }, [manualLoading, runLoad]);
+
+  useEffect(() => {
+    if (loadAction !== "auto") return;
+    runLoad();
+  }, [loadAction, runLoad]);
+
+  useEffect(() => () => {
+    // 卸载使迟到回包失效。
+    loadSeqRef.current += 1;
+  }, []);
 
   const changedFilePaths =
-    needsFileChanges && loadedChangedPaths?.key === requestKey
-      ? loadedChangedPaths.paths
+    needsFileChanges && requestState?.key === requestKey && requestState.status === "loaded"
+      ? requestState.paths
       : EMPTY_CHANGED_FILE_PATHS;
 
-  return useMemo(
+  const cards = useMemo(
     () =>
       canBuildCards
         ? buildAssistantPreviewCardsFromReferences(turnText, workspacePath, fileReferences, {
@@ -147,4 +195,6 @@ export function useAssistantPreviewCardsForAssistantTextRow({
       workspacePath,
     ],
   );
+
+  return { cards, loadAction, manualLoading, loadManually };
 }

@@ -36,9 +36,20 @@ import {
   persistTaskNotificationEnabled,
   persistTaskNotificationSoundEnabled,
 } from "@/lib/taskNotificationPreferences.js";
+import {
+  loadConversationTurnNavigatorEnabled, persistConversationTurnNavigatorEnabled,
+} from "@/lib/conversationTurnNavigatorPreference.js";
+import {
+  loadAssistantAutoFilePreviewEnabled, persistAssistantAutoFilePreviewEnabled,
+} from "@/lib/assistantAutoFilePreviewPreference.js";
+import {
+  loadCodePreviewSettings, persistCodePreviewSettings,
+} from "@/lib/codePreviewPersistence.js";
+import {
+  loadPerformanceMode, persistPerformanceMode,
+} from "@/lib/performanceModePreference.js";
 import type { Theme } from "../useTheme.js";
 import { applyTheme, normalizeThemePreference, resolveTheme } from "../useTheme.js";
-
 import {
   INTERFACE_MODE_STORAGE_KEY,
   normalizeInterfaceMode,
@@ -65,34 +76,6 @@ export interface LoginEntryAttempt {
   providerId?: OAuthProviderId;
   purpose?: LoginEntryPurpose;
   status: LoginEntryAttemptStatus;
-}
-
-const CODE_PREVIEW_SETTINGS_KEY = "zcode-code-preview-settings";
-const PERFORMANCE_MODE_STORAGE_KEY = "zcode-performance-mode";
-
-function loadCodePreviewSettings(): CodePreviewSettings {
-  try {
-    const raw = readSafeLocalStorage(CODE_PREVIEW_SETTINGS_KEY);
-    if (!raw) {
-      return DEFAULT_CODE_PREVIEW_SETTINGS;
-    }
-
-    const parsed = JSON.parse(raw) as Partial<CodePreviewSettings>;
-    return {
-      ...DEFAULT_CODE_PREVIEW_SETTINGS,
-      ...parsed,
-      fontSizePx:
-        typeof parsed.fontSizePx === "number"
-          ? Math.min(20, Math.max(12, Math.round(parsed.fontSizePx)))
-          : DEFAULT_CODE_PREVIEW_SETTINGS.fontSizePx,
-    };
-  } catch {
-    return DEFAULT_CODE_PREVIEW_SETTINGS;
-  }
-}
-
-function loadPerformanceMode(): boolean {
-  return readSafeLocalStorage(PERFORMANCE_MODE_STORAGE_KEY) === "true";
 }
 
 // ============================================================================
@@ -123,6 +106,14 @@ export interface ZCodeState {
   /** 是否启用性能模式 */
   performanceMode: boolean;
   setPerformanceMode: (enabled: boolean) => void;
+
+  /** 会话回合导航开关（rail + 完整历史补拉）；纯展示偏好，默认关闭。 */
+  conversationTurnNavigatorEnabled: boolean;
+  setConversationTurnNavigatorEnabled: (enabled: boolean) => void;
+
+  /** 消息 Markdown/HTML 文件预览自动加载；纯展示偏好，默认开启（仅显式 false 关闭）。 */
+  assistantAutoFilePreviewEnabled: boolean;
+  setAssistantAutoFilePreviewEnabled: (enabled: boolean) => void;
 
   /** 是否启用任务通知（桌面通知；提示音由子开关控制） */
   notificationEnabled: boolean;
@@ -211,9 +202,14 @@ export interface ZCodeState {
 // 需要广播的字段 —— 只有这些字段的变更会发送给其他窗口
 // ============================================================================
 
-const BROADCAST_FIELDS = new Set(["theme", "locale", "uiFontSizePx", "interfaceMode"]);
+const BROADCAST_FIELDS = new Set([
+  "theme", "locale", "uiFontSizePx", "interfaceMode", "conversationTurnNavigatorEnabled",
+  "assistantAutoFilePreviewEnabled",
+]);
 
-type BroadcastField = "theme" | "locale" | "uiFontSizePx" | "interfaceMode";
+type BroadcastField =
+  | "theme" | "locale" | "uiFontSizePx" | "interfaceMode" | "conversationTurnNavigatorEnabled"
+  | "assistantAutoFilePreviewEnabled";
 
 /** 广播频道名前缀 */
 const STATE_CHANNEL_PREFIX = "state:";
@@ -281,7 +277,7 @@ export function createZCodeStore(
               ? Math.min(20, Math.max(12, Math.round(patch.fontSizePx)))
               : state.codePreviewSettings.fontSizePx,
         };
-        writeSafeLocalStorage(CODE_PREVIEW_SETTINGS_KEY, JSON.stringify(next));
+        persistCodePreviewSettings(next);
         return { codePreviewSettings: next };
       }),
 
@@ -295,8 +291,20 @@ export function createZCodeStore(
 
     performanceMode: loadPerformanceMode(),
     setPerformanceMode: (enabled: boolean) => {
-      writeSafeLocalStorage(PERFORMANCE_MODE_STORAGE_KEY, enabled ? "true" : "false");
+      persistPerformanceMode(enabled);
       set({ performanceMode: enabled });
+    },
+
+    conversationTurnNavigatorEnabled: loadConversationTurnNavigatorEnabled(),
+    setConversationTurnNavigatorEnabled: (enabled: boolean) => {
+      persistConversationTurnNavigatorEnabled(enabled);
+      set({ conversationTurnNavigatorEnabled: enabled });
+    },
+
+    assistantAutoFilePreviewEnabled: loadAssistantAutoFilePreviewEnabled(),
+    setAssistantAutoFilePreviewEnabled: (enabled: boolean) => {
+      persistAssistantAutoFilePreviewEnabled(enabled);
+      set({ assistantAutoFilePreviewEnabled: enabled });
     },
 
     notificationEnabled: isTaskNotificationEnabled(),
@@ -482,6 +490,10 @@ export function createZCodeStore(
         state.setInterfaceMode(normalizeInterfaceMode(msg.payload));
       } else if (field === "uiFontSizePx" && typeof msg.payload === "number") {
         state.setUiFontSizePx(msg.payload);
+      } else if (field === "conversationTurnNavigatorEnabled" && typeof msg.payload === "boolean") {
+        state.setConversationTurnNavigatorEnabled(msg.payload);
+      } else if (field === "assistantAutoFilePreviewEnabled" && typeof msg.payload === "boolean") {
+        state.setAssistantAutoFilePreviewEnabled(msg.payload);
       }
     } finally {
       applyingBroadcast = false;

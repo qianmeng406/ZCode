@@ -245,12 +245,34 @@ async function enqueueFollowUpUserInputFromToolResult(
   const input = followUp.input.trim();
   if (!input) return;
 
+  // 计划批准换模：目标回合必须以用户指定的模型开启（本回合模型已冻结）。
+  // 走队列车道 + intent.modelSelection——本回合 stopTurnAfterResult 结束后，
+  // bootstrap 的队列提升以该 intent 启动新回合，applySubmissionExecutionState
+  // 应用选择并持久化为会话粘性选择（后续回合保持）。拒绝反馈等无模型选择
+  // 的 follow-up 仍走 guide 原路径（内联续跑，现行行为不变）。
+  const intent = followUp.modelSelection
+    ? {
+        kind: "sendText" as const,
+        sourceCommandId: `plan_exit_approved_${result.toolCallId}`,
+        queueItemId: `plan_exit_approved_${result.toolCallId}`,
+        clientId: `plan_exit_approved_${result.toolCallId}`,
+        modelSelection: followUp.modelSelection,
+        // admission 事实由本次 steer 固定：入队即 admitted（queue 车道），位置由
+        // steerTurn 的 intent 收敛步骤补写 queuePosition。
+        admissionSeq: 0,
+        admittedAt: Date.now(),
+        requestedDelivery: "queue" as const,
+        admittedDelivery: "queue" as const,
+      }
+    : undefined;
+
   const steerResult = await this.steerTurn({
-    delivery: "guide",
+    delivery: intent ? "queue" : "guide",
     expectedTurnId: state.activeTurn?.turnId,
     input,
     source: followUp.reasonSource,
     traceContext,
+    ...(intent ? { intent } : {}),
   });
 
   if (steerResult.kind === "queued") {
@@ -260,6 +282,11 @@ async function enqueueFollowUpUserInputFromToolResult(
       module: "core.runtime",
       pendingInputId: steerResult.pendingInputId,
       reasonSource: followUp.reasonSource,
+      ...(followUp.modelSelection
+        ? {
+            executionModel: `${followUp.modelSelection.providerId}/${followUp.modelSelection.modelId}`,
+          }
+        : {}),
       status: "waiting",
       toolCallId: result.toolCallId,
       toolName: result.toolName,

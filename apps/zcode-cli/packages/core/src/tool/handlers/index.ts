@@ -69,6 +69,9 @@ import { evalWorkflowSnippetToolEntry } from "./eval-workflow-snippet.js";
 import { listWorkflowRunsToolEntry } from "./list-workflow-runs.js";
 import { getWorkflowRunToolEntry } from "./get-workflow-run.js";
 import { resumeWorkflowRunToolEntry } from "./resume-workflow-run.js";
+// 资料查询模式（research mode）检索渠道：只读、免审批，注册后所有会话可见；
+// research 模式的提示词（runtime-reminders.ts）与这里的渠道一一对应。
+import { researchToolEntries } from "./research-tools.js";
 // import { workflowToolEntry } from "./workflow.js";
 import { createToolRuleNameSet } from "../tool-visibility.js";
 
@@ -85,6 +88,7 @@ export const builtInTools: ToolEntry[] = [
   grepToolEntry,
   webFetchToolEntry,
   webSearchToolEntry,
+  ...researchToolEntries,
   todoReadToolEntry,
   todoWriteToolEntry,
   cronCreateToolEntry,

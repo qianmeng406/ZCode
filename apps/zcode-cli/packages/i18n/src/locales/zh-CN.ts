@@ -41,7 +41,7 @@ export const zhCN: ZCodeCopy = {
     "Bash(git *)" 也会移除整个 Bash，不支持按命令内容匹配。
   --force-mcs      对 Anthropic provider 强制启用 mid-conversation system 投影
   --locale <locale>  UI 语言：en-US、zh-CN 或 auto
-  --mode <mode>    prompt 权限模式：build、edit、plan、yolo 或 guarded（--prompt 默认 yolo）
+  --mode <mode>    prompt 权限模式：build、edit、plan、guarded、research 或 yolo（--prompt 默认 yolo）
   --resume <sessionId>  按 sessionId 恢复持久化 session（sess_...）
   --target <text>  在 headless 模式运行或设置 session goal
   --target-replace 替换 --target 已存在的 goal
@@ -61,7 +61,7 @@ Slash Commands:
   /dwf [list|cancel|resume]  列出、取消或恢复 dynamic workflow run
   /fork [latest|checkpointId]  从 workspace checkpoint 派生新 session
   /mcp [list|status|connect|disconnect]  查看或管理 MCP servers
-  /mode [mode]          查看或切换权限模式：build、edit、plan、yolo 或 guarded
+  /mode [mode]          查看或切换权限模式：build、edit、plan、guarded、research 或 yolo
   /model [id]           查看或切换当前 session 模型
   /new                  在 TUI 中开始新 session
   /resume [sessionId]   按 sessionId 恢复 session；省略时恢复当前 cwd 最新 session

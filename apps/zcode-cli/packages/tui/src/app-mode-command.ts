@@ -10,6 +10,11 @@ const MODE_COMMAND_WITH_SPACE = `${MODE_COMMAND_NAME} `;
 const MODE_DESCRIPTIONS: Record<TuiSwitchableMode, string> = {
   build: "Ask before each file changes.",
   plan: "Inspect the code and present a plan before editing.",
+  research: "Read-only web research; file edits and commands are denied.",
+  minimal:
+    "Send only the system tools with a bare identity line and working directory, and run commands and edits without confirmation; no skills, memory, or MCP tools.",
+  zcodeUpdate:
+    "Track upstream ZCode releases: fetch each version's diff, judge relevance, re-implement locally, then verify.",
   yolo: "Edit and run commands with fewer confirmations.",
   guarded: "Full access with single-use confirmation for explicit dangerous commands.",
 };

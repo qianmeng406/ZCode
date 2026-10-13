@@ -5,6 +5,7 @@ export interface SidePaneTabPresentationLabels {
   browserTitle: string;
   reviewTitle: string;
   codeViewerTitle: string;
+  fileExplorerTitle: string;
   treemappingTitle: string;
   whiteboardTitle: string;
   modelTrajectoryTitle: string;
@@ -57,6 +58,7 @@ export function getSidePaneTabSearchHint(tab: WorkspaceSidePaneTab): string {
   }
   if (tab.type === "browser-permissions") return `${tab.origin} permissions settings`;
   if (tab.type === "browser") return tab.initialUrl ?? "";
+  if (tab.type === "file-explorer") return "files file explorer tree 文件 文件树";
   if (tab.type === "browser-use") {
     return `${tab.title ?? ""} ${tab.sessionId} browser use`;
   }
@@ -84,6 +86,7 @@ export function getLocalizedSidePaneTabTitle(
       "browser.permission.settings": labels.browserPermissionsTitle,
       "sidePane.review": labels.reviewTitle,
       "codeViewer.title": labels.codeViewerTitle,
+      "fileExplorer.title": labels.fileExplorerTitle,
       "treemapping.title": labels.treemappingTitle,
       "whiteboard.title": labels.whiteboardTitle,
       "modelTrajectory.title": labels.modelTrajectoryTitle,
@@ -121,6 +124,7 @@ export function getSidePaneTabTypeLabel(
   if (tab.type === "browser" || tab.type === "browser-use") return labels.browserTitle;
   if (tab.type === "browser-permissions") return labels.browserPermissionsTitle;
   if (tab.type === "git") return labels.reviewTitle;
+  if (tab.type === "file-explorer") return labels.fileExplorerTitle;
   if (tab.type === "treemapping") return labels.treemappingTitle;
   if (tab.type === "whiteboard") return labels.whiteboardTitle;
   if (tab.type === "model-trajectory") return labels.modelTrajectoryTitle;

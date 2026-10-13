@@ -602,7 +602,9 @@ export function createSessionFacade(deps: CreateSessionFacadeDeps): SessionFacad
         });
       }
       await deps.runtime.setExecutionState({ mode }, deps.traceContext);
-      if (deps.localSettingStore && session?.permission?.scope !== "session") {
+      // 项目偏好只承接可继承模式：zcodeUpdate/minimal 是任务/兼容身份，写进项目偏好
+      // 会让下个普通新任务静默继承；Session 自身执行状态已在上面照常持久化。
+      if (deps.localSettingStore && isInheritableProjectPermissionMode(mode)) {
         try {
           await deps.localSettingStore.saveProjectPermissionMode({
             mode: deps.runtime.getMode(),

@@ -103,10 +103,15 @@ import {
 import { useConversationTimelineFind } from "@/v4/useConversationTimelineFind.js";
 import { ConversationSelectionTooltip } from "@/v4/ConversationSelectionTooltip.js";
 import type { ConversationSelectionReference } from "@/lib/conversationSelectionReference.js";
+import { shouldRunPresentationClock } from "@/lib/onDemandLoadingGuards.js";
 
 // memo 组件参数中的 `pendingGuides = []` 会在每次调用时创建新引用，
 // 让未传该属性的渲染绕过稳定引用边界；共享只读空数组可保持默认值恒定。
 const EMPTY_PENDING_GUIDES: readonly QueueItem[] = [];
+// 导航停用时的稳定空集合：query 索引与虚拟位置映射直接短路，避免为不可见的
+// rail 扫描全量 render units；`.size >= 2` 的左内边距资格也随之失效。
+const EMPTY_TURN_NAVIGATOR_QUERY_ROW_IDS: ReadonlySet<number> = new Set();
+const EMPTY_TURN_NAVIGATOR_VIRTUAL_ITEMS: readonly ConversationTurnNavigatorVirtualItem[] = [];
 
 const ROW_OVERSCAN = 8;
 const RUNNING_WORK_DURATION_TICK_MS = 1000;
@@ -294,8 +299,13 @@ export interface ConversationTimelineProps {
   loadingOlder?: boolean;
   /** 拉取更早一窗历史（接近顶部时自动预取）。 */
   onLoadOlder?: () => Promise<void> | void;
-  /** 宽屏问题目录挂载后一次补齐当前有效分支的全部历史。 */
-  onLoadAllOlder?: () => Promise<ConversationTurnNavigatorHydrationResult>;
+  /**
+   * 宽屏问题目录挂载后一次补齐当前有效分支的全部历史。signal 表达本次导航
+   * attempt 的需求存续：资格撤销/卸载时 abort，store 据此协作停止后续分页。
+   */
+  onLoadAllOlder?: (
+    signal: AbortSignal,
+  ) => Promise<ConversationTurnNavigatorHydrationResult>;
   /**
    * 问题导航目录失效代际（store turnNavigatorDirectoryRevision）。
    * real-user query 增删后终态必须失效重探测；组件 hydration key
@@ -355,6 +365,17 @@ export interface ConversationTimelineProps {
   };
   /** 分享选择流程存在时，左侧 rail 由分享面板或 reopen 按钮独占。 */
   hideTurnNavigator?: boolean;
+  /**
+   * 功能开关（客户端偏好，默认 false）。false 时彻底停用导航：不挂载 rail、
+   * 不构建导航索引、不发起导航目录补拉、不做滚动追踪；分享数据构建与
+   * 普通向上分页不受影响。
+   */
+  turnNavigatorEnabled?: boolean;
+  /**
+   * 展示可见性（缺省 true）：false 时暂停纯展示工作（运行中每秒时钟等），
+   * 消息行/投影数据照常渲染（见 specs/hidden-presentation-pause.md）。
+   */
+  presentationVisible?: boolean;
 }
 
 /**
@@ -403,6 +424,8 @@ function ConversationTimelineImpl({
   selectionActions,
   shareSelection,
   hideTurnNavigator = false,
+  turnNavigatorEnabled = false,
+  presentationVisible = true,
 }: ConversationTimelineProps) {
   const { intl } = useZCodeIntl();
   const scrollRef = useRef<HTMLDivElement>(null);
@@ -472,15 +495,17 @@ function ConversationTimelineImpl({
     () => resolveNextHighspeedExpiryMs(rows, liveNowMs),
     [liveNowMs, rows],
   );
-  const turnNavigatorQueryRowIds = useMemo(
-    () =>
-      new Set(
-        renderUnits.flatMap((unit) =>
-          unit.visibleUserInputs.filter((row) => row.origin === "realUser").map((row) => row.rowId),
-        ),
+  // 导航资格 = 功能开启且未被分享流程独占 rail。停用时导航专属计算全部短路，
+  // 但正文渲染单元、消息 mask、普通向上分页与分享数据构建不受影响。
+  const turnNavigatorEligible = turnNavigatorEnabled && !hideTurnNavigator;
+  const turnNavigatorQueryRowIds = useMemo(() => {
+    if (!turnNavigatorEligible) return EMPTY_TURN_NAVIGATOR_QUERY_ROW_IDS;
+    return new Set(
+      renderUnits.flatMap((unit) =>
+        unit.visibleUserInputs.filter((row) => row.origin === "realUser").map((row) => row.rowId),
       ),
-    [renderUnits],
-  );
+    );
+  }, [renderUnits, turnNavigatorEligible]);
   const turnNavigatorQueryRowIdsRef = useRef(turnNavigatorQueryRowIds);
   turnNavigatorQueryRowIdsRef.current = turnNavigatorQueryRowIds;
   const centeredEmptyLayout = centerEmptyStateWithDock && renderUnits.length === 0;
@@ -557,7 +582,12 @@ function ConversationTimelineImpl({
     key: string | null;
     retryTimer: number | null;
     status: "idle" | "in-flight" | "waiting" | "terminal";
-  }>({ attemptCount: 0, key: null, retryTimer: null, status: "idle" });
+    /** 本次 attempt 的需求凭证；资格撤销/key 变化/卸载三处 abort。 */
+    controller: AbortController | null;
+  }>({ attemptCount: 0, key: null, retryTimer: null, status: "idle", controller: null });
+  // 滚动/定位回调经 ref 读取资格，保持 handleScroll 与 syncTurnNavigatorViewport 稳定引用。
+  const turnNavigatorEligibleRef = useRef(turnNavigatorEligible);
+  turnNavigatorEligibleRef.current = turnNavigatorEligible;
   const [turnNavigatorHydrationRetryRevision, setTurnNavigatorHydrationRetryRevision] = useState(0);
   const timelineRootRef = useRef<HTMLDivElement>(null);
   const composerDockRef = useRef<HTMLDivElement>(null);
@@ -616,7 +646,9 @@ function ConversationTimelineImpl({
   }, [backgroundScrollLocked, selectionPanelLayoutContainerRef, syncShareSelectionPanelLayout]);
 
   useEffect(() => {
-    if (!hasRunningUnit) {
+    // 展示不可见（设置覆盖/收起的侧边 transcript）时停掉每秒 tick：
+    // 只影响“工作中 N 秒”文案推进，数据/投影照常；恢复可见立即校准当前时间。
+    if (!shouldRunPresentationClock({ presentationVisible, hasRunningUnit })) {
       return;
     }
 
@@ -628,7 +660,7 @@ function ConversationTimelineImpl({
     }, RUNNING_WORK_DURATION_TICK_MS);
 
     return () => window.clearInterval(timer);
-  }, [hasRunningUnit]);
+  }, [hasRunningUnit, presentationVisible]);
 
   useEffect(() => {
     if (nextHighspeedExpiryMs === undefined) return;
@@ -644,7 +676,11 @@ function ConversationTimelineImpl({
 
   useLayoutEffect(() => {
     const element = timelineRootRef.current;
-    if (!element) return;
+    // 功能关闭时拆除宽度测量：导航资格整体失效，重开后按当时宽度重新裁决。
+    if (!element || !turnNavigatorEnabled) {
+      setTurnNavigatorContainerWidthPx((current) => (current === 0 ? current : 0));
+      return;
+    }
 
     // rail 改由 CSS container query 隐藏后，完整历史补拉失去了同一宽度
     // 资格边界，手机远控与窄分屏也会请求全部 rows。这里仅同步只读分页资格；
@@ -670,9 +706,44 @@ function ConversationTimelineImpl({
 
     window.addEventListener("resize", readWidth);
     return () => window.removeEventListener("resize", readWidth);
-  }, []);
+  }, [turnNavigatorEnabled]);
 
   useEffect(() => {
+    const attempt = turnNavigatorHydrationAttemptRef.current;
+    // 资格撤销（功能关闭 / 分享独占 rail）：取消重试 timer 并 abort 在途 attempt，
+    // 使其 then 回调失效——store 会因 owner 退出停止后续分页，这里保证组件层
+    // 不再安排新的补拉。已加载的行保留，不清空、不回滚滚动。
+    if (!turnNavigatorEligible) {
+      if (attempt.retryTimer !== null) {
+        window.clearTimeout(attempt.retryTimer);
+        attempt.retryTimer = null;
+      }
+      attempt.controller?.abort();
+      attempt.controller = null;
+      attempt.key = null;
+      attempt.attemptCount = 0;
+      attempt.status = "idle";
+      return;
+    }
+    // terminal key 必须与 store turnNavigatorDirectoryRevision 同步。
+    // 仅用 sessionKey + logEpoch 时，real-user query 增删不换 epoch，
+    // 组件层 terminal 永久拦截，store 即使失效缓存也无法重新探测。
+    // key 失效（会话/epoch/revision 变化）必须先于 shouldHydrate 检查 abort：
+    // 否则切换会话后恰逢 loadingOlder 时旧 attempt 的导航 owner 不释放，
+    // 旧会话的全量分页会在后台继续。
+    const hydrationKey = `${sessionKey}:${rowContext.logEpoch ?? "unknown"}:${turnNavigatorDirectoryRevision}`;
+    if (attempt.key !== hydrationKey) {
+      if (attempt.retryTimer !== null) window.clearTimeout(attempt.retryTimer);
+      attempt.controller?.abort();
+      attempt.controller = null;
+      Object.assign(attempt, {
+        attemptCount: 0,
+        key: hydrationKey,
+        retryTimer: null,
+        status: "idle" as const,
+        controller: null,
+      });
+    }
     if (
       !shouldHydrateConversationTurnNavigatorDirectory({
         canLoadOlder,
@@ -683,30 +754,21 @@ function ConversationTimelineImpl({
     ) {
       return;
     }
-    // terminal key 必须与 store turnNavigatorDirectoryRevision 同步。
-    // 仅用 sessionKey + logEpoch 时，real-user query 增删不换 epoch，
-    // 组件层 terminal 永久拦截，store 即使失效缓存也无法重新探测。
-    const hydrationKey = `${sessionKey}:${rowContext.logEpoch ?? "unknown"}:${turnNavigatorDirectoryRevision}`;
-    const attempt = turnNavigatorHydrationAttemptRef.current;
-    if (attempt.key !== hydrationKey) {
-      if (attempt.retryTimer !== null) window.clearTimeout(attempt.retryTimer);
-      Object.assign(attempt, {
-        attemptCount: 0,
-        key: hydrationKey,
-        retryTimer: null,
-        status: "idle" as const,
-      });
-    }
     if (attempt.status !== "idle" || !onLoadAllOlder) return;
     attempt.status = "in-flight";
+    // 同 key 关闭后立刻重开时，旧 then 仍能通过 key 校验，必须再用 controller
+    // 身份拦截，否则旧 attempt 可以安排新 attempt 的重试。
+    const controller = new AbortController();
+    attempt.controller = controller;
     logger.debug("[v4-turn-navigator] 目录请求补齐完整历史", {
       attempt: attempt.attemptCount + 1,
       loadedRows: rows.length,
       sessionKey,
       totalRows: totalCount,
     });
-    void onLoadAllOlder().then((result) => {
-      if (attempt.key !== hydrationKey) return;
+    void onLoadAllOlder(controller.signal).then((result) => {
+      if (attempt.key !== hydrationKey || attempt.controller !== controller) return;
+      attempt.controller = null;
       if (result.status === "hydrated" || result.status === "not-enough-queries") {
         attempt.status = "terminal";
         return;
@@ -741,13 +803,16 @@ function ConversationTimelineImpl({
     totalCount,
     turnNavigatorContainerWidthPx,
     turnNavigatorDirectoryRevision,
+    turnNavigatorEligible,
     turnNavigatorHydrationRetryRevision,
   ]);
 
   useEffect(
     () => () => {
-      const timer = turnNavigatorHydrationAttemptRef.current.retryTimer;
-      if (timer !== null) window.clearTimeout(timer);
+      const attempt = turnNavigatorHydrationAttemptRef.current;
+      if (attempt.retryTimer !== null) window.clearTimeout(attempt.retryTimer);
+      attempt.controller?.abort();
+      attempt.controller = null;
     },
     [],
   );
@@ -803,7 +868,8 @@ function ConversationTimelineImpl({
   };
   const virtualRows = virtualizer.getVirtualItems();
   const totalSize = virtualizer.getTotalSize();
-  const turnNavigatorVirtualItems: ConversationTurnNavigatorVirtualItem[] = useMemo(() => {
+  const turnNavigatorVirtualItems: readonly ConversationTurnNavigatorVirtualItem[] = useMemo(() => {
+    if (!turnNavigatorEligible) return EMPTY_TURN_NAVIGATOR_VIRTUAL_ITEMS;
     const historyItems = virtualRows.map((row) => ({
       index: row.index,
       size: row.size,
@@ -819,7 +885,7 @@ function ConversationTimelineImpl({
         size: Number.MAX_SAFE_INTEGER - totalSize,
       },
     ];
-  }, [liveUnitIndex, totalSize, virtualRows]);
+  }, [liveUnitIndex, totalSize, virtualRows, turnNavigatorEligible]);
   const mountedRowsKey = useMemo(
     () =>
       [
@@ -975,6 +1041,8 @@ function ConversationTimelineImpl({
   const syncTurnNavigatorViewport = useCallback(
     (element: HTMLDivElement) => {
       syncMessageLayerMask(element);
+      // 导航停用时只保留正文 mask；query 几何扫描与 active 计算是导航专属成本。
+      if (!turnNavigatorEligibleRef.current) return;
       const viewportRect = element.getBoundingClientRect();
       const queryPositions: ConversationTurnNavigatorQueryPosition[] = [];
       for (const rowElement of element.querySelectorAll<HTMLElement>("[data-row-id]")) {
@@ -1859,9 +1927,10 @@ function ConversationTimelineImpl({
         capture={captureScrollMemoryBeforeScopeMutation}
         commit={commitCapturedScrollMemory}
       />
-      {/* Bugfix：分享选择流程无论面板展开还是收起，左 rail 都由分享面板或 reopen 按钮独占，
+      {/* 功能开关关闭时彻底不挂载 rail（停索引/停追踪/停补拉），而不只是 CSS 隐藏；
+          分享选择流程无论面板展开还是收起，左 rail 都由分享面板或 reopen 按钮独占，
           必须隐藏对话轮导航，避免两个绝对定位控件互相覆盖。退出分享选择后自动恢复。 */}
-      {hideTurnNavigator ? null : (
+      {turnNavigatorEligible ? (
         <ConversationTurnNavigator
           renderUnits={renderUnits}
           isHydratingDirectory={loadingOlder}
@@ -1873,7 +1942,7 @@ function ConversationTimelineImpl({
           activeQueryRowId={turnNavigatorViewport.activeQueryRowId}
           onJumpToQuery={scrollToQuery}
         />
-      )}
+      ) : null}
       <div
         ref={scrollRef}
         data-testid={TID_V4_TIMELINE}

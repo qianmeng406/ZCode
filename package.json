@@ -62,6 +62,7 @@
     "count-lines": "bash scripts/count-lines.sh",
     "prepare:remote-assets": "pnpm --filter @zcode/desktop prepare:remote-assets",
     "ci:assert-node": "node scripts/assert-node-version.mjs",
+    "prepare:local-remote-assets": "node scripts/prepare-local-remote-assets.mjs",
     "doctor:macos-release": "bash scripts/doctor-macos-release-app.sh",
     "lint": "oxlint",
     "lint:fix": "oxlint --fix --fix-suggestions",
@@ -74,7 +75,8 @@
     "architecture:report": "node scripts/architecture/architecture-check.mjs report",
     "architecture:baseline:update": "node scripts/architecture/architecture-check.mjs baseline:update",
     "architecture:context": "node scripts/architecture/architecture-check.mjs context",
-    "test:architecture": "node --test scripts/test/architecture-governance.test.mjs"
+    "test:architecture": "node --test scripts/test/architecture-governance.test.mjs",
+    "pack:remote-cdn": "node scripts/pack-remote-assets-cdn.mjs"
   },
   "dependencies": {
     "border-beam": "^1.0.1",

@@ -59,6 +59,7 @@ export function WorkspaceTimelineTasksSection({
   taskSortBy,
   groupByDate = true,
   taskRowVariant = "timeline",
+  displayEnabled = true,
   emptyMessage,
   mobileActiveTaskKey,
   onSelectTask,
@@ -70,6 +71,8 @@ export function WorkspaceTimelineTasksSection({
   taskSortBy: "created" | "updated";
   groupByDate?: boolean;
   taskRowVariant?: "default" | "timeline";
+  /** 展示区可见资格（默认 true）：隐藏时暂停列表查询，保留最后可信列表。 */
+  displayEnabled?: boolean;
   emptyMessage?: string;
   mobileActiveTaskKey?: string | null;
   onSelectTask: (
@@ -182,6 +185,7 @@ export function WorkspaceTimelineTasksSection({
     searchQuery: "",
     expanded: false,
     collapsedLimit: visibleTaskLimit,
+    enabled: displayEnabled,
   });
   const remoteTimelineItemsByWorkspaceKey = useRemoteTimelineTaskStore(
     (state) => state.itemsByWorkspaceKey,

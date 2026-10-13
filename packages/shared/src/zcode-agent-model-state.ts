@@ -33,6 +33,23 @@ const ZCODE_AGENT_MODE_OPTIONS = [
     description: "Inspect the code and present a plan before editing.",
   },
   {
+    id: "research",
+    name: "Research mode",
+    description: "Read-only web research across docs, code Q&A, and academic sources.",
+  },
+  {
+    id: "minimal",
+    name: "Minimal mode",
+    description:
+      "Send only the system tools with a bare identity line and working directory, and run commands and edits without confirmation; no skills, memory, project instructions, or MCP tools.",
+  },
+  {
+    id: "zcodeUpdate",
+    name: "ZCode update mode",
+    description:
+      "Track upstream ZCode releases: fetch each version's diff, judge relevance, re-implement locally, then verify.",
+  },
+  {
     id: "yolo",
     name: "Full access",
     description: "Edit and run commands with fewer confirmations.",

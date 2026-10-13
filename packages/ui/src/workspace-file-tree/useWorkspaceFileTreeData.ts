@@ -10,6 +10,7 @@ import {
   WORKSPACE_FILE_TREE_REFRESH_GIT_TIMEOUT_MS,
 } from "@/workspace-file-tree/constants.js";
 import { replaceSetValue, toError } from "@/workspace-file-tree/helpers.js";
+import { resolveFileTreeWatchedDirectories } from "@/lib/onDemandLoadingGuards.js";
 import {
   buildWorkspaceFileIgnoredPathSet,
   getWorkspaceFileDirectoryChildDepth,
@@ -57,11 +58,14 @@ export function useWorkspaceFileTreeData({
   workspaceIdentity,
   workspaceRemoteSessionId,
   enableWorkspaceFeatures = true,
+  active = true,
 }: {
   workspacePath: string;
   workspaceIdentity?: string;
   workspaceRemoteSessionId?: string;
   enableWorkspaceFeatures?: boolean;
+  /** 文件树真实可见资格：隐藏时停止树专属查询/watcher，保留缓存（见 specs/on-demand-panel-loading.md）。 */
+  active?: boolean;
 }) {
   const { fileService, fileWatcherService, gitService } = useWorkspaceServices(
     workspacePath,
@@ -91,6 +95,10 @@ export function useWorkspaceFileTreeData({
   const [ignoredPathSet, setIgnoredPathSet] = useState<Set<string>>(new Set());
   const [refreshingLoadedDirectories, setRefreshingLoadedDirectories] = useState(false);
   const refreshingLoadedDirectoriesRef = useRef(false);
+  // active 同步在渲染期落 ref：异步回调/请求入口随时读取当前可见资格。
+  const activeRef = useRef(active);
+  activeRef.current = active;
+  const prevActiveRef = useRef(active);
 
   useEffect(() => {
     loadingDirectoryPathsRef.current = loadingDirectoryPaths;
@@ -192,6 +200,10 @@ export function useWorkspaceFileTreeData({
       if (workspaceGenerationRef.current !== expectedWorkspaceGeneration) {
         return "stale";
       }
+      if (!activeRef.current) {
+        // 树隐藏期间不发起新目录读取（含其后的 ignored 查询链）。
+        return "stale";
+      }
       if (
         !force &&
         (loadingDirectoryPathsRef.current.has(directoryPath) ||
@@ -206,6 +218,7 @@ export function useWorkspaceFileTreeData({
         (directoryRequestVersionRef.current.get(directoryPath) ?? 0) + 1;
       directoryRequestVersionRef.current.set(directoryPath, directoryRequestVersion);
       const isCurrentDirectoryRequest = () =>
+        activeRef.current &&
         workspaceGenerationRef.current === expectedWorkspaceGeneration &&
         requestVersionRef.current === requestVersion &&
         directoryRequestVersionRef.current.get(directoryPath) === directoryRequestVersion;
@@ -320,6 +333,9 @@ export function useWorkspaceFileTreeData({
       if (workspaceGenerationRef.current !== workspaceGeneration) {
         return;
       }
+      if (!activeRef.current) {
+        return;
+      }
       if (!enableWorkspaceFeatures) {
         setGitStatusByPath(new Map());
         setGitStatusAvailable(false);
@@ -333,6 +349,7 @@ export function useWorkspaceFileTreeData({
           workspacePath,
         });
         if (
+          !activeRef.current ||
           gitStatusRequestVersionRef.current !== requestVersion ||
           workspaceGenerationRef.current !== workspaceGeneration
         ) {
@@ -342,6 +359,7 @@ export function useWorkspaceFileTreeData({
         setGitStatusByPath(gitStatus.statusByPath);
       } catch (error) {
         if (
+          !activeRef.current ||
           gitStatusRequestVersionRef.current !== requestVersion ||
           workspaceGenerationRef.current !== workspaceGeneration
         ) {
@@ -562,6 +580,9 @@ export function useWorkspaceFileTreeData({
 
   const enqueueWatchRefresh = useCallback(
     (directoryPath: string) => {
+      if (!activeRef.current) {
+        return;
+      }
       if (!isWorkspaceFilePathInside(workspacePath, directoryPath)) {
         return;
       }
@@ -600,15 +621,45 @@ export function useWorkspaceFileTreeData({
       clearTimeout(watchRefreshTimerRef.current);
       watchRefreshTimerRef.current = null;
     }
-    void loadDirectory(workspacePath, 0, {
-      force: true,
-      workspaceGeneration,
-    });
-    void loadGitStatus({ workspaceGeneration });
+    // 隐藏时不发根目录/Git 初始加载；恢复可见由下方 active 转换 effect 补刷。
+    if (activeRef.current) {
+      void loadDirectory(workspacePath, 0, {
+        force: true,
+        workspaceGeneration,
+      });
+      void loadGitStatus({ workspaceGeneration });
+    }
     return () => {
       cancelRefreshBatch();
     };
   }, [cancelRefreshBatch, loadDirectory, loadGitStatus, workspaceIdentity, workspacePath]);
+
+  useEffect(() => {
+    if (prevActiveRef.current === active) {
+      return;
+    }
+    prevActiveRef.current = active;
+    if (active) {
+      // 恢复可见：保留缓存与展开/选择，补刷根、已加载/已展开目录与 Git 状态。
+      void refreshLoadedDirectories();
+      return;
+    }
+    // 隐藏：在途请求代际失效（结果弃用、不串联 ignored/下一轮），清刷新队列与暂态
+    // loading；children/expanded/loaded/Git/ignored 缓存保留不清树。
+    requestVersionRef.current += 1;
+    directoryRequestVersionRef.current = new Map();
+    gitStatusRequestVersionRef.current += 1;
+    cancelRefreshBatch();
+    pendingWatchRefreshPathsRef.current = new Set();
+    if (watchRefreshTimerRef.current) {
+      clearTimeout(watchRefreshTimerRef.current);
+      watchRefreshTimerRef.current = null;
+    }
+    loadingDirectoryPathsRef.current = new Set();
+    setLoadingDirectoryPaths(new Set());
+    refreshingLoadedDirectoriesRef.current = false;
+    setRefreshingLoadedDirectories(false);
+  }, [active, cancelRefreshBatch, refreshLoadedDirectories]);
 
   const rows = useWorkspaceFileTreeRows({
     workspacePath,
@@ -625,8 +676,12 @@ export function useWorkspaceFileTreeData({
     [expandedPaths, workspacePath],
   );
   const effectiveWatchedDirectoryPaths = useMemo(
-    () => (enableWorkspaceFeatures ? watchedDirectoryPaths : new Set<string>()),
-    [enableWorkspaceFeatures, watchedDirectoryPaths],
+    () =>
+      resolveFileTreeWatchedDirectories({
+        active: enableWorkspaceFeatures && active,
+        watchedDirectoryPaths,
+      }),
+    [active, enableWorkspaceFeatures, watchedDirectoryPaths],
   );
 
   useWorkspaceFileTreeWatchers({

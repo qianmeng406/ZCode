@@ -1,4 +1,5 @@
 import { join } from "node:path";
+import { resolveContextProfile } from "@zcode/shared";
 
 import {
   traceContextToLogContext,
@@ -149,6 +150,9 @@ export function createContextBuilderFromSnapshot(
     skillMetadataBudget: this.config.skillMetadataBudget,
     customSystemPrompt: this.config.systemPrompt,
     workflowActor: this.config.workflowActor,
+    // 极简上下文档位：system 段只留身份行与环境，见 ContextBuilder 的 promptProfile 分支。
+    // 档位与权限正交：mode=build + contextProfile=minimal 同样走极简前缀。
+    promptProfile: resolveContextProfile(this.config) === "minimal" ? "minimal" : undefined,
     language: this.config.language,
     outputStyle: this.config.outputStyle,
     compact: this.config.compact,
@@ -294,6 +298,8 @@ export function initializeMessageHistoryFromContext(
   const contextResult = contextBuilder.build();
   this.latestContextBuildResult = contextResult;
   this.messageHistory.init(buildContextHistoryEntries(contextResult));
+  // 首个 prefix 安装即认为它反映了当前派生版本，请求准备边界不再重复重建。
+  this.contextPrefixRevision = this.contextProjectionRevision;
 
   this.logger?.debug("Context built", {
     ...traceContextToLogContext(traceContext),

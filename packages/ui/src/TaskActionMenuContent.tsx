@@ -50,12 +50,20 @@ export function TaskActionMenuContent({
   };
   isPinned: boolean;
   fileManagerLabel: string;
-  taskSessionFile: { loading: boolean; path: string | null; exists: boolean };
+  taskSessionFile: {
+    loading: boolean;
+    path: string | null;
+    exists: boolean;
+    error?: string | null;
+    retry?: () => void;
+  };
   activeSessionId?: string | null;
   taskNativeSessionLogFile: {
     loading: boolean;
     path: string | null;
     exists: boolean;
+    error?: string | null;
+    retry?: () => void;
   };
   providerConfigFile: { loading: boolean; path: string | null; exists: boolean };
   disableTaskActions?: boolean;
@@ -165,25 +173,50 @@ export function TaskActionMenuContent({
         disabled={
           taskTargetActionsDisabled ||
           taskSessionFile.loading ||
-          !taskSessionFile.path
+          (!taskSessionFile.path && !taskSessionFile.error)
         }
-        title={taskTargetActionsDisabled ? disabledReason : undefined}
-        onSelect={onCopyTaskPath}
+        title={
+          taskTargetActionsDisabled
+            ? disabledReason
+            : (taskSessionFile.error ?? undefined)
+        }
+        onSelect={() => {
+          // 失败态把同一入口转为重试：同 scope 重新发起，不关闭菜单。
+          if (taskSessionFile.error) {
+            taskSessionFile.retry?.();
+            return;
+          }
+          onCopyTaskPath();
+        }}
       >
-        {intl.formatMessage({ id: "appHeader.copyTaskPath" })}
+        {taskSessionFile.error
+          ? intl.formatMessage({ id: "appHeader.retryLoadTaskPath" })
+          : intl.formatMessage({ id: "appHeader.copyTaskPath" })}
       </Item>
       <Item
         disabled={
           taskTargetActionsDisabled ||
           taskNativeSessionLogFile.loading ||
-          !taskNativeSessionLogFile.path
+          (!taskNativeSessionLogFile.path && !taskNativeSessionLogFile.error)
         }
-        title={taskTargetActionsDisabled ? disabledReason : undefined}
-        onSelect={onCopyTaskLogPath}
+        title={
+          taskTargetActionsDisabled
+            ? disabledReason
+            : (taskNativeSessionLogFile.error ?? undefined)
+        }
+        onSelect={() => {
+          if (taskNativeSessionLogFile.error) {
+            taskNativeSessionLogFile.retry?.();
+            return;
+          }
+          onCopyTaskLogPath();
+        }}
       >
         {/* Bugfix: ZCode Agent 的日志路径可能先按运行时约定得出，当前日期文件尚未落盘。
             复制动作只依赖路径字符串，不能把 exists=false 当成不可复制，否则菜单会表现成“不能点”。 */}
-        {intl.formatMessage({ id: "appHeader.copyLogPath" })}
+        {taskNativeSessionLogFile.error
+          ? intl.formatMessage({ id: "appHeader.retryLoadTaskLogPath" })
+          : intl.formatMessage({ id: "appHeader.copyLogPath" })}
       </Item>
       {onCopySessionId ? (
         <Item

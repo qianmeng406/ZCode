@@ -74,7 +74,11 @@ import {
   createTurnModel,
   resolveExecutionModelRetryBudget,
 } from "./turn-model.js";
-import { rebuildContextPrefix } from "./context-refresh.js";
+import {
+  prepareTurnRequestProjection,
+  rebuildContextPrefix,
+  refreshCanonicalContextProjection,
+} from "./context-refresh.js";
 
 const TARGET_RUN_HEARTBEAT_MS = 15_000;
 
@@ -261,6 +265,9 @@ export async function executeTurnCommand(
           options?.modelExecution,
           admittedModel,
         );
+        // 手动 compact 的摘要请求没有 turn-local 条目；Submission 可能刚改过档位，
+        // 先把 canonical prefix 重投影到当前状态，摘要请求才不会带上一档位前缀。
+        refreshCanonicalContextProjection(this, compactModel ?? admittedModel);
         return this.executeManualCompact(
           input,
           compactInstructions,
@@ -593,6 +600,24 @@ export async function executeTurnCommand(
         if (!loopModel) {
           throw new Error("Turn model was not created before execution");
         }
+        // Submission 的执行状态在上方应用后会推进派生版本；首轮 context 构建发生在
+        // Submission 应用之前，若 prefix 尚未反映新档位就在这里重投影一次，避免首请求
+        // 带上一档位的 system 段与工具表（请求循环内 prepareTurnRequestProjection 兜底后续切换）。
+        const loopModelKey = `${loopModel.providerId}/${loopModel.modelId}/${
+          loopModel.options.reasoningLevel ?? ""
+        }`;
+        const initialTurnRequestState = {
+          // Turn 只借一次 canonical 成员集合，之后由显式 commit 推进；entry 本身
+          // 遵循 MessageHistory 的不可变约定。
+          entries: [...this.messageHistory.borrowReadOnlyRuntimeEntries()],
+          outputTokenContinuationCount: 0,
+        };
+        const initialProjection = {
+          turnRequestState: initialTurnRequestState,
+          appliedProjectionRevision: this.contextPrefixRevision,
+          appliedProjectionModelKey: loopModelKey,
+        };
+        prepareTurnRequestProjection(this, initialProjection, loopModel);
         startProjectMemoryRecallPrefetch(
           this,
           {
@@ -642,12 +667,9 @@ export async function executeTurnCommand(
           streamRecoveryRetryCount: 0,
           tokenCount: 0,
           toolCallCount: 0,
-          turnRequestState: {
-            // Turn 只借一次 canonical 成员集合，之后由显式 commit 推进；entry 本身
-            // 遵循 MessageHistory 的不可变约定。
-            entries: [...this.messageHistory.borrowReadOnlyRuntimeEntries()],
-            outputTokenContinuationCount: 0,
-          },
+          turnRequestState: initialTurnRequestState,
+          appliedProjectionRevision: initialProjection.appliedProjectionRevision,
+          appliedProjectionModelKey: loopModelKey,
           toolDisallowlist: options?.toolDisallowlist,
           traceId,
           turnAbortSignal,

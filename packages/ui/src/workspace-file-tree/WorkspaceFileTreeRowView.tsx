@@ -157,6 +157,18 @@ export function WorkspaceFileTreeRowView({
   const handleCopyRelativePath = async () => {
     await fileActions.copyRelativePath({ path: row.path, relativePath });
   };
+  const canCopyFileToClipboard = fileActions.canCopyFileToClipboard({
+    path: row.path,
+    deleted: isDeletedFile,
+    kind: isDirectory ? "directory" : "file",
+  });
+  const handleCopyFileToClipboard = async () => {
+    await fileActions.copyFileToClipboard({
+      path: row.path,
+      deleted: isDeletedFile,
+      kind: isDirectory ? "directory" : "file",
+    });
+  };
   const handleOpenPrimary = () => {
     if (isDeletedFile) {
       return;
@@ -386,6 +398,12 @@ export function WorkspaceFileTreeRowView({
           </ContextMenuItem>
           <ContextMenuItem onSelect={() => void handleCopyRelativePath()}>
             {contextMenuLabels.copyRelativePath}
+          </ContextMenuItem>
+          <ContextMenuItem
+            disabled={!canCopyFileToClipboard}
+            onSelect={() => void handleCopyFileToClipboard()}
+          >
+            {contextMenuLabels.copyFile}
           </ContextMenuItem>
           <ContextMenuSeparator />
           <ContextMenuItem onSelect={() => dispatchWorkspaceFileAddToChat(workspaceFilePayload)}>

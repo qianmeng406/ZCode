@@ -271,6 +271,8 @@ export function useV4SessionQuotaBanner(params: {
     dismiss,
     markShown,
     takesOverError,
+    /** 命中的 GLM 额度类业务码（1308=5 小时窗口用完等）；非该族错误为 null。 */
+    providerLimitedCode: providerLimitedCode ?? null,
     upgradeProviderId:
       terminalPlan || !shouldOfferQuotaBannerUpgrade(state.kind) ? null : upgradeProviderId,
     upgradeActionLabelId: maxPlan ? "chat.quota.action.renew" : "chat.quota.action.upgrade",

@@ -38,13 +38,16 @@ import {
   BrowserWindow,
   dialog,
   ipcMain,
+  MessageChannelMain,
   nativeImage,
   net,
   protocol,
+  safeStorage,
   session,
   webContents,
 } from "electron";
 import type { UtilityProcess as ElectronUtilityProcess } from "electron";
+import { randomUUID } from "node:crypto";
 import { spawn } from "node:child_process";
 import { join, resolve } from "node:path";
 import { homedir, hostname } from "node:os";

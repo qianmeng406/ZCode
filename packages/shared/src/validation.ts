@@ -404,6 +404,7 @@ export const sshConnectOptionsSchema = z.object({
       selectedPackageIds: z.array(z.string().refine(isKnownRemoteResourcePackageId)).optional(),
     })
     .optional(),
+  resident: z.boolean().optional(),
 });
 
 export const wslConnectOptionsSchema = z.object({
@@ -445,6 +446,8 @@ export const helloAckMessageSchema = z.object({
   type: z.literal("zcode-hello-ack"),
   version: z.string(),
   clientId: nonEmptyStringSchema,
+  // resident 握手 ack 可选声明 v4 投递档；缺省 desktop-continuous（旧行为）。
+  clientMode: z.enum(["desktop-continuous", "web-remote-replayable"]).optional(),
 });
 
 export const rendererLogPayloadSchema = z.object({

@@ -1,5 +1,6 @@
 import { restorePermissionGrantMarker } from "../helpers/permission-grant-resume.js";
 import { executionStateSchema, resolveExecutionState } from "@zcode/shared";
+import { installRuntimeExecutionState } from "../execution-state.js";
 import { SESSION_ENTRY_EXECUTION_STATE } from "@zcode/contracts";
 import {
   CoreErrorType,
@@ -135,6 +136,33 @@ export async function resumeFromStore(
   this.contextBuilder = null;
   this.contextInitialized = false;
   this.lastEmittedLocalDate = undefined;
+  // 执行状态必须先于 context / MCP 初始化确定：极简档位会跳过 MCP 启动并过滤工具，
+  // 先按 invocation 默认 build 初始化再回填持久化档位，会让本次恢复的上下文与工具缓存
+  // 与最终模式不一致（MCP 启动也不可撤销）。恢复安装不持久化、不发布事件。
+  const restoredEvents = await this.eventStore.getEvents(this.sessionId);
+  const restoredModeEvents = restoredEvents.filter(
+    (event) =>
+      event.type === SessionEventType.SessionCreated ||
+      event.type === SessionEventType.SessionModeChanged,
+  );
+  const restoredMode =
+    restoredModeEvents.length > 0 ? this.eventReducer.reduce(restoredModeEvents).mode : undefined;
+  const resolvedMode = options?.modeOverride ?? restoredMode ?? session.permission?.mode;
+  if (resolvedMode !== undefined) {
+    // cold resume 会先把 checkpoint/rewind 等局部事件恢复到新的内存 eventStore。
+    // 这些事件不携带 mode，若仅按“存在任意事件”reduce，会用默认 build 覆盖 headless yolo。
+    // 只有权威 mode 事件能恢复历史值；本次 invocation 的显式/default mode 仍保持最高优先级。
+    installRuntimeExecutionState(this, resolveExecutionState({ mode: resolvedMode }));
+  }
+  // 会话自己的新记录优先于项目偏好；旧记录仅兼容读取，不批量回填。
+  const executionEntries = await this.sessionStore.sessionEntries?.({
+    sessionID: this.sessionId,
+    type: SESSION_ENTRY_EXECUTION_STATE,
+  });
+  const savedExecution = executionStateSchema.safeParse(executionEntries?.at(-1)?.data);
+  if (savedExecution.success && options?.modeOverride === undefined) {
+    installRuntimeExecutionState(this, savedExecution.data);
+  }
   // cold resume 的历史 hydration 会先清空 runtime-local read-state；必须在
   // Context 初始化前完成，确保随后单次加载的 MEMORY.md 状态与 provider 所见内容一致。
   const readFileStateHydration = await hydrateReadFileStateFromSession({

@@ -7,6 +7,17 @@ import { logger } from "@/logger.js";
 // 沿用旧 key，读取时兼容只保存 ModelSelection 的历史记录。
 const COMPOSER_RECENT_KEY_PREFIX = "zcode-model-selection-recent-v1";
 
+/**
+ * 可跨普通新任务继承的权限模式白名单。
+ * zcodeUpdate 是专用维护任务身份、minimal 是旧组合语义，都不随 Recent 外溢；
+ * 更新提交仍记录模型选择（换任务继续用），只是不继承模式本身。
+ */
+const INHERITABLE_SUBMISSION_MODES = new Set<SubmissionMode>(["build", "edit", "yolo", "research"]);
+
+export function isInheritableSubmissionMode(mode: string | undefined): mode is SubmissionMode {
+  return mode !== undefined && INHERITABLE_SUBMISSION_MODES.has(mode as SubmissionMode);
+}
+
 interface StorageLike {
   getItem(key: string): string | null;
   setItem(key: string, value: string): void;
@@ -51,7 +62,8 @@ export function readComposerRecent(
     if (!healedSelection && !mode.success) return null;
     return {
       ...(healedSelection ? { modelSelection: healedSelection } : {}),
-      ...(mode.success ? { mode: mode.data } : {}),
+      // 历史记录里的 zcodeUpdate/minimal 也不外溢：新任务回默认权限。
+      ...(mode.success && isInheritableSubmissionMode(mode.data) ? { mode: mode.data } : {}),
     };
   } catch {
     return null;
@@ -79,7 +91,10 @@ export function captureComposerRecentSubmission(
     });
     return () => {};
   }
-  if (!mode.success || !modelSelection) {
+  // 专用任务身份（zcodeUpdate）与旧组合语义（minimal）不进 Recent；模型照记。
+  const inheritableMode =
+    mode.success && isInheritableSubmissionMode(mode.data) ? mode.data : undefined;
+  if (!modelSelection) {
     // Recent 是发送后的附带偏好；输入异常时只放弃记录，不能阻断权威 command。
     logger.warn("[ComposerRecent] 最近提交配置格式无效，跳过偏好记录", {
       workspacePath,
@@ -90,7 +105,7 @@ export function captureComposerRecentSubmission(
   const sequence = ++submissionSequence;
   const recent = {
     modelSelection,
-    mode: mode.data,
+    ...(inheritableMode ? { mode: inheritableMode } : {}),
   };
   let accepted = acceptedSequences.get(storage);
   if (!accepted) {

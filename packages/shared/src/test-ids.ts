@@ -572,6 +572,10 @@ export const TID_V4_ATTACHMENT_UPLOAD_RETRY = "v4-attachment-upload-retry";
 export const TID_V4_STOP = "v4-stop";
 /** v4 assistant 行 fork 按钮（动态后缀为 rowId） */
 export const TID_V4_FORK = "v4-fork";
+/** v4 轮尾「审查这一回合」（Oracle，动态后缀为 rowId） */
+export const TID_V4_ORACLE_REVIEW = "v4-oracle-review-turn";
+/** v4 轮尾「深度审查这一回合」（Oracle 只读子代理，动态后缀为 rowId） */
+export const TID_V4_ORACLE_REVIEW_DEEP = "v4-oracle-review-turn-deep";
 /** v4 assistant 行 retry 按钮（动态后缀为 rowId） */
 export const TID_V4_RETRY = "v4-retry";
 /** v4 assistant 行点赞按钮（动态后缀为 rowId） */

@@ -1,10 +1,10 @@
-import { useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import type { ZCodeProvider } from "@zcode/shared";
 import { logger } from "@/logger.js";
 import { useZCodeTaskService } from "@/hooks/useZCodeTaskService.js";
 
 /**
- * useWorkspaceActiveTaskState 的导出返回类型间接引用此接口，声明生成要求它可导出。
+ * 返回类型被任务菜单路径状态引用，声明生成要求它可导出。
  * @lintignore
  */
 export interface TaskNativeSessionLogFileState {
@@ -49,6 +49,8 @@ export function supportsTaskNativeSessionLogFile(
  * 读取当前 task 对应的原生会话日志路径。
  *
  * 路径规则统一通过 zcodeTaskService 解析，避免 UI 层猜 provider 自己的目录结构。
+ * 查询按需执行：仅任务菜单打开时启用（enabled）。返回值带渲染期 scope 校验，
+ * task/provider/identity 切换瞬间不会把上一 task 的路径露出。
  */
 export function useTaskNativeSessionLogFile(
   workspacePath: string,
@@ -56,19 +58,35 @@ export function useTaskNativeSessionLogFile(
   providerHint?: ZCodeProvider | null,
   workspaceIdentity?: string,
   options: { enabled?: boolean } = {},
-) {
+): TaskNativeSessionLogFileState & { retry: () => void } {
   const zcodeTaskService = useZCodeTaskService(workspacePath, undefined, workspaceIdentity);
-  const [state, setState] = useState<TaskNativeSessionLogFileState>(INITIAL_STATE);
+  const [state, setState] = useState<TaskNativeSessionLogFileState & { scopeKey: string | null }>({
+    ...INITIAL_STATE,
+    scopeKey: null,
+  });
   const requestVersionRef = useRef(0);
+  const [reloadToken, setReloadToken] = useState(0);
   const enabled = options.enabled ?? true;
+  const scopeKey = `${workspaceIdentity?.trim() || workspacePath} ${workspacePath} ${taskId ?? ""} ${providerHint ?? ""}`;
+  const scopedState: TaskNativeSessionLogFileState =
+    state.scopeKey === scopeKey
+      ? state
+      : {
+          ...INITIAL_STATE,
+          provider: providerHint ?? null,
+          loading: enabled && Boolean(workspacePath && taskId),
+        };
+  const retry = useCallback(() => {
+    setReloadToken((token) => token + 1);
+  }, []);
 
   useEffect(() => {
     let disposed = false;
 
     if (!enabled || !workspacePath || !taskId) {
       requestVersionRef.current += 1;
-      // 原生日志路径只在菜单动作里使用；拖拽时不应让每个 row 都发路径 RPC。
-      setState(INITIAL_STATE);
+      // 原生日志路径只在菜单动作里使用；拖拽/列表重排不应让每个 row 都发路径 RPC。
+      setState({ ...INITIAL_STATE, scopeKey: null });
       return () => {
         disposed = true;
       };
@@ -82,6 +100,7 @@ export function useTaskNativeSessionLogFile(
         exists: false,
         loading: false,
         error: null,
+        scopeKey,
       });
       return () => {
         disposed = true;
@@ -97,6 +116,7 @@ export function useTaskNativeSessionLogFile(
       exists: false,
       loading: true,
       error: null,
+      scopeKey,
     });
 
     void zcodeTaskService
@@ -116,6 +136,7 @@ export function useTaskNativeSessionLogFile(
           exists: result.exists,
           loading: false,
           error: null,
+          scopeKey,
         });
       })
       .catch((error: unknown) => {
@@ -137,13 +158,23 @@ export function useTaskNativeSessionLogFile(
           exists: false,
           loading: false,
           error: message,
+          scopeKey,
         });
       });
 
     return () => {
       disposed = true;
     };
-  }, [enabled, zcodeTaskService, providerHint, taskId, workspaceIdentity, workspacePath]);
+  }, [
+    enabled,
+    reloadToken,
+    zcodeTaskService,
+    providerHint,
+    taskId,
+    workspaceIdentity,
+    workspacePath,
+    scopeKey,
+  ]);
 
-  return state;
+  return { ...scopedState, retry };
 }

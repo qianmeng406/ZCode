@@ -121,6 +121,10 @@ export interface RegularTurnLoopState {
   toolCallCount: number;
   /** 当前 Turn 的 provider-local history；Turn 结束后直接释放。 */
   turnRequestState: TurnRequestState;
+  /** turn-local 请求条目当前反映的派生投影版本（contextProjectionRevision）。 */
+  appliedProjectionRevision: number;
+  /** turn-local 请求条目当前投影的模型身份（provider/model/reasoning）。 */
+  appliedProjectionModelKey?: string;
   /** 当前 turn 不向 provider 暴露的工具名；registry 仍保留，供执行边界做纵深校验。 */
   toolDisallowlist?: readonly string[];
   traceId: TraceId;

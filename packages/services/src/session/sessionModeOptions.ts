@@ -12,6 +12,9 @@ const CANONICAL_SESSION_MODES = new Set<ZCodeTaskMode>([
   "bypassPermissions",
   "autoEdit",
   "build",
+  "research",
+  "minimal",
+  "zcodeUpdate",
 ]);
 
 function readTrimmedString(value: unknown): string | undefined {
@@ -63,6 +66,10 @@ function normalizePersistedSessionMode(
     case "full-access":
     case "full_access":
       return "bypassPermissions";
+    // 「项目开发模式」（workflow）已移除：旧会话/配置里遗留的值回退到 build，
+    // 即撤销其「自动执行命令/编辑」授权，回到改动前询问的保守默认。
+    case "workflow":
+      return "build";
     default:
       return undefined;
   }

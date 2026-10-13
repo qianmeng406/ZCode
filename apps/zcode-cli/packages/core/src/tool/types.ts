@@ -471,10 +471,19 @@ export interface ToolExecutionResult {
 export interface ToolExecutionFollowUpUserInput {
   input: string;
   reasonSource: PermissionBrokerReasonSource;
+  /**
+   * 计划批准换模专用：入队时写入 intent.modelSelection，新回合按它冻结模型并
+   * 持久化为会话粘性选择；缺省走 guide 原路径（拒计划反馈等）。
+   */
+  modelSelection?: import("@zcode/contracts").ModelSelection;
 }
 
 export interface ToolExecutionTurnControl {
-  reason: "automation_create_limit" | "plan_exit_denied" | "subagent_terminal";
+  reason:
+    | "automation_create_limit"
+    | "plan_exit_denied"
+    | "plan_exit_approved_model_switch"
+    | "subagent_terminal";
   stopTurnAfterResult: boolean;
 }
 

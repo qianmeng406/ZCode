@@ -93,6 +93,14 @@ export interface AgentRuntimeInternal
   /** 工作流工具面是否已注册（launch.md「On demand: activation」）；非 onDemand 会话出生即 true。 */
   dynamicWorkflowToolsActivated: boolean;
   dynamicWorkflowActivationSource?: DynamicWorkflowActivationSource;
+  /**
+   * 派生投影版本：mode/plan/上下文档位变化或工具注册变化时 +1。
+   * 请求准备边界用它判断是否需要重建 context prefix 与工具表投影，
+   * 避免每次工具往返都重建，也避免切换模式后沿用旧档位。
+   */
+  contextProjectionRevision: number;
+  /** 当前 messageHistory 中 context prefix 所反映的派生投影版本。 */
+  contextPrefixRevision: number;
   contextBuilder: ContextBuilder | null;
   contextInitialized: boolean;
   contextSourceSnapshot?: ContextSourceSnapshot;
@@ -108,6 +116,8 @@ export interface AgentRuntimeInternal
   skillPort?: SkillPort;
   mcpPort?: McpPort;
   mcpStartupPromise?: Promise<McpConnectionSnapshot>;
+  /** MCP 工具注册 single-flight：并发请求共用一次注册，不重复 register。 */
+  mcpRegistrationPromise?: Promise<void>;
   residencyBlockingWorkCount: number;
   mcpInitialized: boolean;
   mcpToolsRegistered: boolean;
@@ -138,6 +148,8 @@ export interface AgentRuntimeInternal
   sessionMailboxPort?: SessionMailboxPort;
   sessionPersisted: boolean;
   needsPlanModeExitReminder: boolean;
+  /** 模式 activation 切换（含重新进入）后，下一个 runtime_mode 提醒必须全文；提交后消费。 */
+  runtimeModeReminderPendingFull: boolean;
   latestConversationMessageId?: MessageId;
   latestAssistantMessageId?: MessageId;
   latestAssistantTurnId?: TurnId;

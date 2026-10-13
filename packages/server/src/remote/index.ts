@@ -6,14 +6,12 @@ export type {
   StdioStream,
 } from "./backend.js";
 export { createRemoteBackend } from "./create-backend.js";
+export { pickRemoteRuntimeEnv, type RemoteRuntimeEnv, type RemoteRuntimeEnvKey } from "./server-command.js";
 export {
   connectRemote,
-  pickRemoteRuntimeEnv,
   type ConnectOptions,
   type RemoteConnection,
   type RemoteRuntimeNetworkOptions,
-  type RemoteRuntimeEnv,
-  type RemoteRuntimeEnvKey,
 } from "./connect.js";
 export { deployServer, type DeployLockMode, type DeployOptions } from "./deploy.js";
 export type { RemoteAssetNetworkPort } from "./remoteAssetNetwork.js";

@@ -100,6 +100,11 @@ export const exitPlanModeHandler: ToolHandler = async (input, context) => {
     mode: transition.mode,
     plan: parsed.plan,
     previousMode: transition.previousMode,
+    // 批准确认窗上用户指定的执行模型（broker modify 决策合并进输入）；
+    // 缺省 = 跟随会话模型。turn-control 据此停当前回合并以新模型开启执行回合。
+    ...(parsed.executionModelSelection
+      ? { executionModelSelection: parsed.executionModelSelection }
+      : {}),
   } satisfies ExitPlanModeOutput;
 };
 

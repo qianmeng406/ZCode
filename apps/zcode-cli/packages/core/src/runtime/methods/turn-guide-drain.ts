@@ -1,7 +1,7 @@
 import type { AgentRuntimeInternal } from "../internal.js";
 import type { RegularTurnLoopState } from "./turn-loop-state.js";
-import { applySubmissionExecutionState, sameModelSelection } from "./turn-model.js";
-import { rebuildContextPrefix } from "./context-refresh.js";
+import { applySubmissionExecutionState } from "./turn-model.js";
+import { prepareTurnRequestProjection } from "./context-refresh.js";
 import { appendTurnRequestEntries } from "./turn-output-token-continuation.js";
 import { applyRuntimeExecutionState } from "../execution-state.js";
 
@@ -38,16 +38,12 @@ export async function drainInlineGuideForNextRequest(
       ? undefined
       : await applySubmissionExecutionState(runtime, drained?.intent, state.turnTraceContext);
   if (guideModel) {
-    // 配置重新解析不等于切模；比较 Loop 的执行选择，而不是可能已被外部更新的 Session。
-    const selectionChanged = !sameModelSelection(state.model, guideModel);
     state.model = guideModel;
-    if (selectionChanged) {
-      state.turnRequestState.entries = rebuildContextPrefix(runtime, {
-        model: guideModel,
-        turnRequestEntries: state.turnRequestState.entries,
-      });
-    }
   }
+  // 仅改 mode/profile 的 guide 也会推进派生版本：不能只在换模型时重投影，
+  // 否则本次请求仍带旧档位 prefix 与工具表。prepareTurnRequestProjection 按
+  // 派生版本 + 模型身份统一判断，并保留 turn-local 后缀。
+  prepareTurnRequestProjection(runtime, state, state.model);
   state.currentUserMessageId = drained?.latestMessageId ?? state.currentUserMessageId;
   const nextQueryId = drained?.queryIds?.[0];
   if (nextQueryId) {

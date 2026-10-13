@@ -7,6 +7,22 @@ import type { CollaborationMode } from "../interfaces/session.port.js";
 import type { TraceContext } from "../tracing/tracer.js";
 import { toToolJsonSchema } from "./json-schema.js";
 
+// 与 shared/model-selection 的 modelSelectionSchema 同形状。contracts 的 zod 与
+// cli shared 的 zod 是两个大版本实例，schema 不能跨实例组合，这里本地声明同构
+// 值（类型对 shared 的 ModelSelection 结构兼容）。
+const ExecutionModelSelectionSchema = z
+  .object({
+    providerId: z.string().min(1),
+    modelId: z.string().min(1),
+    options: z
+      .object({
+        reasoningLevel: z.string().min(1).optional(),
+      })
+      .strict()
+      .optional(),
+  })
+  .strict();
+
 export const ENTER_PLAN_MODE_TOOL_NAME = "EnterPlanMode";
 export const EXIT_PLAN_MODE_TOOL_NAME = "ExitPlanMode";
 
@@ -20,10 +36,30 @@ export const EnterPlanModeOutputSchema = z
   .object({
     message: z.string().min(1).describe("Confirmation that plan mode was entered."),
     previousMode: z
-      .enum(["plan", "build", "edit", "yolo", "guarded", "auto"])
+      .enum([
+        "plan",
+        "build",
+        "edit",
+        "yolo",
+        "guarded",
+        "auto",
+        "research",
+        "minimal",
+        "zcodeUpdate",
+      ])
       .describe("Session mode before EnterPlanMode ran."),
     mode: z
-      .enum(["plan", "build", "edit", "yolo", "guarded", "auto"])
+      .enum([
+        "plan",
+        "build",
+        "edit",
+        "yolo",
+        "guarded",
+        "auto",
+        "research",
+        "minimal",
+        "zcodeUpdate",
+      ])
       .describe("Current permission mode."),
     planEnabled: z.boolean().optional(),
     previousPlanEnabled: z.boolean().optional(),
@@ -61,24 +97,52 @@ export const ExitPlanModeInputSchema = z
       .describe(
         "Prompt-based permissions needed to implement the plan. These describe categories of actions rather than specific commands.",
       ),
+    // 非模型产出字段：批准确认窗上用户指定的执行模型经 broker 的 modify 决策合并进输入。
+    // 刻意不进 ExitPlanModeInputJsonSchema（模型面契约由下方 Model 基形生成）——模型
+    // 侧不可见即不会被幻觉填写；运行时校验/归一化按本 schema 放行该字段。
+    executionModelSelection: ExecutionModelSelectionSchema.optional(),
   })
   .catchall(z.unknown());
 export type ExitPlanModeInput = z.infer<typeof ExitPlanModeInputSchema>;
-export const ExitPlanModeInputJsonSchema = toToolJsonSchema(ExitPlanModeInputSchema);
+// 模型可见契约：不含 executionModelSelection（用户在批准确认窗上选择，模型不可见）。
+const ExitPlanModeModelInputSchema = z
+  .object({
+    plan: ExitPlanModePlanSchema,
+    allowedPrompts: z
+      .array(ExitPlanModeAllowedPromptSchema)
+      .optional()
+      .describe(
+        "Prompt-based permissions needed to implement the plan. These describe categories of actions rather than specific commands.",
+      ),
+  })
+  .catchall(z.unknown());
+export const ExitPlanModeInputJsonSchema = toToolJsonSchema(ExitPlanModeModelInputSchema);
 
 export const ExitPlanModeOutputSchema = z
   .object({
     plan: z.string().nullable().describe("The plan that was approved by the user."),
     approved: z.literal(true).describe("True when the user approved exiting plan mode."),
     previousMode: z
-      .enum(["plan", "build", "edit", "yolo", "guarded", "auto"])
+      .enum([
+        "plan",
+        "build",
+        "edit",
+        "yolo",
+        "guarded",
+        "auto",
+        "research",
+        "minimal",
+        "zcodeUpdate",
+      ])
       .describe("Previous permission mode."),
     planEnabled: z.boolean().optional(),
     previousPlanEnabled: z.boolean().optional(),
     mode: z
-      .enum(["build", "edit", "yolo", "guarded", "auto"])
+      .enum(["build", "edit", "yolo", "guarded", "auto", "research", "minimal", "zcodeUpdate"])
       .describe("Current session mode after exiting plan mode."),
     allowedPrompts: z.array(ExitPlanModeAllowedPromptSchema).optional(),
+    // 批准确认窗上用户指定的执行模型；缺省 = 跟随会话模型（同回合继续，现行行为）。
+    executionModelSelection: ExecutionModelSelectionSchema.optional(),
   })
   .strict();
 export type ExitPlanModeOutput = z.infer<typeof ExitPlanModeOutputSchema>;

@@ -1,0 +1,26 @@
+{
+  "$comment": "官方上游同步基线（机器可读）。合并/迁移提交自身的哈希不写在这里：它只有在提交后才存在；用 git log 查询。",
+  "schemaVersion": 1,
+  "fork": {
+    "repository": "https://github.com/qianmeng406/ZCode",
+    "note": "定制功能以单个提交套用在官方基线之上，源自旧仓库 qianmeng406/Myzcode 的定制 72ac0508（基线 v3.14.3）"
+  },
+  "upstream": {
+    "repository": "https://github.com/zai-org/ZCode",
+    "remote": "origin",
+    "pushPolicy": "fetch-only"
+  },
+  "currentBase": {
+    "tag": "v3.15.1",
+    "commit": "aac4755666d09fdcd70272fcf063c077a639015f"
+  },
+  "versions": {
+    "desktop": "3.15.1",
+    "cli": "0.16.9"
+  },
+  "retiredFeatures": [
+    "companion/mobile 自建移动端远控",
+    "项目开发模式（workflow）与阶段侧栏",
+    "Command Code 渠道与网关额度子系统"
+  ]
+}

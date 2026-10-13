@@ -20,7 +20,7 @@ interface WebSocketConnectionOptions {
   onOpenSocket?: (socket: WebSocket) => void;
 }
 
-function wrapBrowserWebSocket(ws: WebSocket): ISocket {
+export function wrapBrowserWebSocket(ws: WebSocket): ISocket {
   const onData = new Emitter<VSBuffer>();
   const onClose = new Emitter<void>();
   const onEnd = new Emitter<void>();

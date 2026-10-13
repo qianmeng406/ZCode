@@ -64,7 +64,16 @@ function readActualThought(
 }
 
 /** switchCollaborationMode 命令值域（command.ts z.enum 同源；auto 非用户可切不在内）。 */
-const SWITCHABLE_MODES: ReadonlySet<string> = new Set(["build", "edit", "plan", "yolo", "guarded"]);
+const SWITCHABLE_MODES: ReadonlySet<string> = new Set([
+  "build",
+  "edit",
+  "plan",
+  "yolo",
+  "guarded",
+  "research",
+  "minimal",
+  "zcodeUpdate",
+]);
 
 /**
  * switchModelConfig：切换会话模型选型。跨模型时 app.setModel 换 provider client + 模型，
@@ -246,12 +255,19 @@ export async function applyRequestedSessionConfig(
   });
 
   // mode：payload.config.mode 是宽 string（schema default 兼容），值域在此收口。
+  // contextProfile 与权限正交：允许只切档位或只切权限，缺省不覆盖。
   const mode = config.mode;
-  if ((mode && SWITCHABLE_MODES.has(mode)) || config.planEnabled !== undefined) {
+  const contextProfile = config.contextProfile;
+  if (
+    (mode && SWITCHABLE_MODES.has(mode)) ||
+    config.planEnabled !== undefined ||
+    contextProfile !== undefined
+  ) {
     await record.app.runtime.setExecutionState(
       {
         ...(mode && SWITCHABLE_MODES.has(mode) ? { mode } : {}),
         ...(config.planEnabled !== undefined ? { planEnabled: config.planEnabled } : {}),
+        ...(contextProfile !== undefined ? { contextProfile } : {}),
       },
       record.traceContext,
     );

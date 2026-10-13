@@ -157,7 +157,10 @@ export type ZCodeTaskMode =
   | "dontAsk"
   | "bypassPermissions"
   | "autoEdit"
-  | "build";
+  | "build"
+  | "research"
+  | "minimal"
+  | "zcodeUpdate";
 
 export type ZCodeOffPeakRunType = "init" | "resume";
 

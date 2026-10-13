@@ -46,6 +46,11 @@ import {
   ZCODE_SESSION_RUNTIME_PREFERENCES_REQUEST_TIMEOUT_MS,
   zcodeProtocolErrorCodes,
   zcodeProtocolMethods,
+  zcodeProtocolNotifications,
+  zcodeOracleReviewAcknowledgeRecordParamsSchema,
+  zcodeOracleReviewListRecordsParamsSchema,
+  zcodeOracleReviewRecordSchema,
+  zcodeOracleReviewSaveRecordParamsSchema,
   zcodeSessionCancelBackgroundTaskParamsSchema,
   zcodeSessionCompactParamsSchema,
   zcodeSessionCloseParamsSchema,
@@ -2770,6 +2775,95 @@ export function shouldCloseSessionForExpectedPersistence(
   return expectedPersistence === undefined || currentPersistence === expectedPersistence;
 }
 
+// 流式输出进度通知的最小发送间隔：首个增量立即发（确认链路存活），其后按窗口合并，
+// 避免长输出把 stdio 通知刷成噪声。
+const WORKSPACE_GENERATE_TEXT_PROGRESS_INTERVAL_MS = 500;
+
+/**
+ * 流式输出进度通知器：窗口内合并增量；flush 供请求收尾补发尾包——没有它，
+ * 最后一个窗口内的增量不会上报，UI 字符数会停在旧值直到结果卡片替换横幅。
+ * 工具事件（深度审查）走独立模式：连续工具调用不受 500ms 窗口与字符去重折叠，
+ * 否则 UI 的「已执行 N 次工具调用」会漏记中间那些调用。
+ * 导出仅为单测。
+ */
+export function createWorkspaceGenerateTextProgressNotifier(options: {
+  notify: ZCodeProtocolAgentServerContext["notify"];
+  logger?: ZCodeProtocolAgentServerContext["logger"];
+  operationId: string | undefined;
+  workspacePath: string;
+  querySource: string;
+}): {
+  onProgress: (progress: {
+    outputChars: number;
+    round?: number;
+    toolName?: string;
+    toolTarget?: string;
+  }) => void;
+  flush: () => void;
+} {
+  let lastEmitAt = 0;
+  let lastChars = 0;
+  let lastEmittedChars = 0;
+  let lastRound: number | undefined;
+  let lastToolName: string | undefined;
+  let lastToolTarget: string | undefined;
+  // throttled=字符流（窗口合并 + 值未变不发）；tool=工具事件（只要求有变化，不受窗口约束）；
+  // flush=收尾补发（不受窗口约束，但仅在有新字符时发）。
+  const emit = (mode: "throttled" | "tool" | "flush") => {
+    const now = Date.now();
+    if (mode === "throttled") {
+      if (
+        (lastEmitAt !== 0 && now - lastEmitAt < WORKSPACE_GENERATE_TEXT_PROGRESS_INTERVAL_MS) ||
+        lastChars === lastEmittedChars
+      ) {
+        return;
+      }
+    } else if (mode === "flush" && lastChars === lastEmittedChars) {
+      return;
+    }
+    lastEmitAt = now;
+    lastEmittedChars = lastChars;
+    try {
+      options.notify({
+        method: zcodeProtocolNotifications.workspaceGenerateTextProgress,
+        params: {
+          ...(options.operationId ? { operationId: options.operationId } : {}),
+          workspacePath: options.workspacePath,
+          querySource: options.querySource,
+          outputChars: lastChars,
+          ...(lastRound !== undefined ? { round: lastRound } : {}),
+          ...(lastToolName ? { toolName: lastToolName } : {}),
+          ...(lastToolTarget ? { toolTarget: lastToolTarget } : {}),
+        },
+      });
+    } catch (error) {
+      // 进度通知是旁路信号：client 断开等故障不得向外抛——既不能打断流中的
+      // 模型请求（onProgress 调用方），也不能在 finally 里覆盖原始返回值/异常。
+      // notify/messageSink 是同步 void 签名，同步 catch 全覆盖；留 debug 日志定位。
+      options.logger?.debug("ZCode Protocol 流式生成进度通知发送失败", {
+        error: error instanceof Error ? error.message : String(error),
+        querySource: options.querySource,
+      });
+    }
+  };
+  return {
+    onProgress: (progress) => {
+      const previousToolName = lastToolName;
+      const previousToolTarget = lastToolTarget;
+      lastChars = progress.outputChars;
+      lastRound = progress.round;
+      lastToolName = progress.toolName;
+      lastToolTarget = progress.toolTarget;
+      // 新工具调用（名称或目标变化）强制发送；同一工具的后续进度仍走节流。
+      const isNewToolEvent =
+        Boolean(progress.toolName) &&
+        (progress.toolName !== previousToolName || progress.toolTarget !== previousToolTarget);
+      emit(isNewToolEvent ? "tool" : "throttled");
+    },
+    flush: () => emit("flush"),
+  };
+}
+
 export async function generateWorkspaceText(
   context: ZCodeProtocolAgentServerContext,
   rawParams: unknown,
@@ -2779,6 +2873,17 @@ export async function generateWorkspaceText(
   const active = Array.from(context.sessions.values()).find(
     (record) => record.workspace.workspaceKey === params.workspace.workspaceKey,
   );
+  // 深度审查（agentic）也走进度通知：逐轮流式 + 轮次/工具名。
+  const progressNotifier =
+    params.stream || params.agentic
+      ? createWorkspaceGenerateTextProgressNotifier({
+          notify: (notification) => context.notify(notification),
+          logger: context.logger,
+          operationId: params.operationId,
+          workspacePath: params.workspace.workspacePath,
+          querySource: params.querySource,
+        })
+      : null;
   const input = {
     selection: params.selection,
     ...(params.prompt ? { prompt: params.prompt } : {}),
@@ -2794,6 +2899,10 @@ export async function generateWorkspaceText(
       : {}),
     querySource: params.querySource,
     ...(params.maxOutputTokens ? { maxOutputTokens: params.maxOutputTokens } : {}),
+    ...(params.stream ? { stream: true } : {}),
+    ...(params.agentic ? { agentic: true } : {}),
+    ...(params.deadlineAt ? { deadlineAt: params.deadlineAt } : {}),
+    ...(progressNotifier ? { onProgress: progressNotifier.onProgress } : {}),
   };
   const app =
     active?.app ??
@@ -2817,6 +2926,8 @@ export async function generateWorkspaceText(
       ...(result.toolCalls ? { toolCalls: result.toolCalls } : {}),
     };
   } finally {
+    // 尾包补发：流结束/出错时把最后一个窗口内未上报的增量发出去。
+    progressNotifier?.flush();
     if (!active) {
       await app.close?.();
     }
@@ -3529,13 +3640,19 @@ function derivePersistedSessionMode(
 function isZCodeSessionMode(
   value: unknown,
 ): value is NonNullable<ZCodeSessionCreateParams["mode"]> {
+  // 与 zcodeSessionModeSchema 同值域：漏一个模式，冷恢复时 derivePersistedSessionMode 会
+  // 越过新模式的 assistant 消息、把更早的旧模式 latch 成 modeOverride，压过权威的
+  // execution-state 持久条目（research 曾漏过；minimal / zcodeUpdate 同此）。
   return (
     value === "plan" ||
     value === "build" ||
     value === "edit" ||
     value === "yolo" ||
     value === "guarded" ||
-    value === "auto"
+    value === "auto" ||
+    value === "research" ||
+    value === "minimal" ||
+    value === "zcodeUpdate"
   );
 }
 
@@ -4129,4 +4246,114 @@ function emitStateUpdated(
     workspace: record.workspace,
   };
   context.notify({ method: "state.updated", params: notification });
+}
+
+// ── Oracle 审查记录持久化 ──
+// 存储面是 session entry（type=oracle/conversation_review，外键级联随会话删除）。
+// touchSession:false：后台审查写入不得伪装成用户刚操作过会话。旧宿主/旧 CLI 缺
+// session entry 端口时如实回 unavailable，UI 保持内存态行为。
+
+const ORACLE_REVIEW_ENTRY_TYPE = "oracle/conversation_review";
+const ORACLE_REVIEW_LIST_DEFAULT_LIMIT = 20;
+
+/** 记录 entry id 的唯一构造口径：save 与 acknowledge 必须一致，否则确认写不到同一条。 */
+function buildOracleReviewEntryId(sessionId: string, reviewId: string): string {
+  return `oracle-review:${sessionId}:${reviewId}`;
+}
+
+export async function saveOracleReviewRecord(
+  context: ZCodeProtocolAgentServerContext,
+  rawParams: unknown,
+): Promise<{ saved: boolean }> {
+  const params = parseParams(zcodeOracleReviewSaveRecordParamsSchema, rawParams);
+  const sessionStore = context.deps.sessionStore;
+  if (!sessionStore?.saveSessionEntry) {
+    return { saved: false };
+  }
+  const now = Date.now();
+  try {
+    await sessionStore.saveSessionEntry({
+      id: buildOracleReviewEntryId(params.sessionId, params.record.reviewId),
+      sessionID: params.sessionId as SessionId,
+      type: ORACLE_REVIEW_ENTRY_TYPE,
+      touchSession: false,
+      time: { created: now, updated: now },
+      data: params.record,
+    });
+    return { saved: true };
+  } catch (error) {
+    // 落盘失败不阻塞审查本身（结果已在 UI 内存态展示）；留痕便于归因。
+    context.logger?.warn?.("Oracle 审查记录保存失败", {
+      sessionId: params.sessionId,
+      reviewId: params.record.reviewId,
+      error: error instanceof Error ? error.message : String(error),
+    });
+    return { saved: false };
+  }
+}
+
+/**
+ * 标记某条审查已被用户确认（✕ 关闭 / 按建议处理）。写回同一条 session entry：
+ * entry id 由 sessionId+reviewId 决定，因此是覆盖更新，不会产生重复记录。
+ * 未命中已存记录时返回 false（不报错）：UI 的 ack 是 best-effort 的后台动作。
+ */
+export async function acknowledgeOracleReviewRecord(
+  context: ZCodeProtocolAgentServerContext,
+  rawParams: unknown,
+): Promise<{ acknowledged: boolean }> {
+  const params = parseParams(zcodeOracleReviewAcknowledgeRecordParamsSchema, rawParams);
+  const sessionStore = context.deps.sessionStore;
+  if (!sessionStore?.saveSessionEntry || !sessionStore.sessionEntries) {
+    return { acknowledged: false };
+  }
+  const entryId = buildOracleReviewEntryId(params.sessionId, params.reviewId);
+  const entries = await sessionStore.sessionEntries({
+    sessionID: params.sessionId as SessionId,
+    type: ORACLE_REVIEW_ENTRY_TYPE,
+  });
+  const entry = entries.find((candidate) => candidate.id === entryId);
+  if (!entry) {
+    return { acknowledged: false };
+  }
+  const parsed = zcodeOracleReviewRecordSchema.safeParse(entry.data);
+  if (!parsed.success) {
+    return { acknowledged: false };
+  }
+  const now = Date.now();
+  await sessionStore.saveSessionEntry({
+    id: entryId,
+    sessionID: params.sessionId as SessionId,
+    type: ORACLE_REVIEW_ENTRY_TYPE,
+    touchSession: false,
+    time: { created: now, updated: now },
+    data: { ...parsed.data, acknowledgedAt: params.acknowledgedAt ?? now },
+  });
+  return { acknowledged: true };
+}
+
+export async function listOracleReviewRecords(
+  context: ZCodeProtocolAgentServerContext,
+  rawParams: unknown,
+): Promise<{ records: unknown[]; unavailable?: boolean }> {
+  const params = parseParams(zcodeOracleReviewListRecordsParamsSchema, rawParams);
+  const sessionStore = context.deps.sessionStore;
+  if (!sessionStore?.sessionEntries) {
+    return { records: [], unavailable: true };
+  }
+  const entries = await sessionStore.sessionEntries({
+    sessionID: params.sessionId as SessionId,
+    type: ORACLE_REVIEW_ENTRY_TYPE,
+  });
+  const records: unknown[] = [];
+  for (const entry of entries) {
+    // 逐条 safeParse：单条旧版本/损坏记录不拖垮整个历史恢复。
+    const parsed = zcodeOracleReviewRecordSchema.safeParse(entry.data);
+    if (parsed.success) {
+      records.push(parsed.data);
+    }
+  }
+  records.sort(
+    (a, b) => (b as { completedAt: number }).completedAt - (a as { completedAt: number }).completedAt,
+  );
+  return { records: records.slice(0, params.limit ?? ORACLE_REVIEW_LIST_DEFAULT_LIMIT) };
 }

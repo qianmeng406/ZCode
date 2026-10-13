@@ -44,6 +44,7 @@ export function GitPane({
   workspacePath,
   gitState,
   isDesktop,
+  active = true,
   selectedSourceId,
   fileChangeFindActiveIndex,
   fileChangeFindNavigationRequestId,
@@ -61,6 +62,8 @@ export function GitPane({
   workspaceRemoteSessionId?: string;
   gitState: GitPaneRepositoryState;
   isDesktop?: boolean;
+  /** Git 面板真实可见资格（默认 true）：隐藏时不拉 diff/批量预取，保留已加载 diff。 */
+  active?: boolean;
   selectedSourceId: GitChangeSourceId;
   fileChangeFindActiveIndex: number;
   fileChangeFindNavigationRequestId: number;
@@ -94,6 +97,16 @@ export function GitPane({
   const diffGenerationRef = useRef(0);
   const pendingDiffKeysRef = useRef(new Set<string>());
   const changeListScrollRef = useRef<HTMLDivElement | null>(null);
+
+  useEffect(() => {
+    if (active) {
+      return;
+    }
+    // 隐藏：在途 diff 请求代际失效（结果弃用），只清 pending 登记；已加载 diff 保留，
+    // 恢复可见由展开/查找 effect 重新触发补齐（见 specs/on-demand-panel-loading.md）。
+    diffGenerationRef.current += 1;
+    pendingDiffKeysRef.current.clear();
+  }, [active]);
 
   const defaultSourceOption = gitState.sourceOptions[0]!;
   const currentSourceOption =
@@ -181,6 +194,10 @@ export function GitPane({
 
   const loadDiffForChange = useCallback(
     (change: GitPaneFileChange, sourceId: GitChangeSourceId) => {
+      if (!active) {
+        // 面板隐藏时不拉 diff（含查找批量预取）；恢复可见由调用 effect 重新触发。
+        return;
+      }
       if (sourceId === "last-turn" || change.diff) {
         return;
       }
@@ -260,10 +277,13 @@ export function GitPane({
           }));
         })
         .finally(() => {
-          pendingDiffKeysRef.current.delete(cacheKey);
+          // 只释放同代 pending：隐藏/刷新已换代时不得删掉恢复后新请求的登记。
+          if (diffGenerationRef.current === generation) {
+            pendingDiffKeysRef.current.delete(cacheKey);
+          }
         });
     },
-    [diffStateByKey, gitService, workspacePath],
+    [active, diffStateByKey, gitService, workspacePath],
   );
 
   useEffect(() => {
