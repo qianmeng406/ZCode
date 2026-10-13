@@ -1295,9 +1295,6 @@ export function App({
           taskSessionFile={taskSessionFile}
           browserNavigationRequest={browserNavigationRequest}
           browserRestoreUrls={browserRestoreUrls}
-          providerConfigFile={providerConfigFile}
-          taskNativeSessionLogFile={taskNativeSessionLogFile}
-          taskSessionFile={taskSessionFile}
           testMessages={testMessages}
           conversationFindActiveIndex={conversationFindState.activeIndex}
           conversationFindNavigationRequestId={conversationFindState.navigationRequestId}
