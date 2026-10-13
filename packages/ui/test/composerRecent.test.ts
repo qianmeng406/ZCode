@@ -33,7 +33,9 @@ describe("composerRecent", () => {
   it.each([
     [JSON.stringify({ modelSelection: selection, mode: "invalid" }), { modelSelection: selection }],
     [JSON.stringify({ modelSelection: { bad: true }, mode: "yolo" }), { mode: "yolo" }],
-    [JSON.stringify({ mode: "plan" }), { mode: "plan" }],
+    // fork 的 Recent 只继承 build/edit/yolo/research；plan 已折叠为独立 planEnabled、minimal/zcodeUpdate
+    // 为专用身份，均不外溢。这里用可继承的 research 校验「只带 mode 的存量记录可独立校验」。
+    [JSON.stringify({ mode: "research" }), { mode: "research" }],
     [
       JSON.stringify({
         providerId: "provider",
@@ -83,13 +85,13 @@ describe("composerRecent", () => {
     );
     const newer = captureComposerRecentSubmission(
       "/repo",
-      { modelSelection: selection, mode: "plan" },
+      { modelSelection: selection, mode: "research" },
       undefined,
       target,
     );
     newer();
     older();
-    expect(readComposerRecent("/repo", undefined, target)?.mode).toBe("plan");
+    expect(readComposerRecent("/repo", undefined, target)?.mode).toBe("research");
     const accepted = captureComposerRecentSubmission(
       "/repo",
       { modelSelection: selection, mode: "edit" },
@@ -164,7 +166,7 @@ describe("composerRecent", () => {
     );
     const remoteB = captureComposerRecentSubmission(
       "/repo",
-      { modelSelection: selection, mode: "plan" },
+      { modelSelection: selection, mode: "research" },
       "ssh://b/repo",
       target,
     );
@@ -173,7 +175,7 @@ describe("composerRecent", () => {
     local();
     expect(readComposerRecent("/repo", undefined, target)?.mode).toBe("build");
     expect(readComposerRecent("/repo", "ssh://a/repo", target)?.mode).toBe("yolo");
-    expect(readComposerRecent("/repo", "ssh://b/repo", target)?.mode).toBe("plan");
+    expect(readComposerRecent("/repo", "ssh://b/repo", target)?.mode).toBe("research");
     expect(readComposerRecent("/elsewhere", undefined, target)).toBeNull();
   });
 

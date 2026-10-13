@@ -34,7 +34,12 @@ vi.mock("@/components/ui/dropdown-menu.js", () => {
       return children(props);
     },
     DropdownMenuCheckboxItem: (props: Record<string, unknown>) => {
-      captured.planProps = props;
+      // fork 在 Plan 复选框之外新增 minimal 上下文档位复选框；两者同为 CheckboxItem，
+      // 这里按 testid 只捕获独立 Plan 项，避免被后渲染的 minimal 项覆盖。
+      const testIdValue = String(props["data-testid"] ?? "");
+      if (testIdValue.endsWith("plan")) {
+        captured.planProps = props;
+      }
       return children(props);
     },
   };

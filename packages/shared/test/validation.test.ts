@@ -671,7 +671,8 @@ describe("hostResponseMessageSchema", () => {
     expect(patch.providerFamilyDomainUpdatedAt).toBe(456);
   });
 
-  it("normalizes legacy enabled agent CLI providers to ZCode Agent", () => {
+  // fork 退役边界：第三方 agent CLI provider 开关已移除，解析后不得保留任何三方身份。
+  it("drops retired enabled agent CLI providers from settings", () => {
     const parsed = appSettingsSchema.parse({
       enabledBuiltinAgentCliProviders: ["claude", "codex", "gemini", "opencode"],
     });
@@ -679,8 +680,8 @@ describe("hostResponseMessageSchema", () => {
       enabledBuiltinAgentCliProviders: ["claude", "codex"],
     });
 
-    expect(parsed.enabledBuiltinAgentCliProviders).toEqual(["glm"]);
-    expect(patch.enabledBuiltinAgentCliProviders).toEqual(["glm"]);
+    expect("enabledBuiltinAgentCliProviders" in parsed).toBe(false);
+    expect("enabledBuiltinAgentCliProviders" in patch).toBe(false);
   });
 
   it("preserves SSH remote asset install mode and drops historical resource packages", () => {

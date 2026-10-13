@@ -10,7 +10,9 @@ describe("user action trace catalog", () => {
     expect(Object.keys(CORE_USER_ACTION_FEATURES)).toHaveLength(24);
     expect(Object.keys(SETTINGS_USER_ACTION_FEATURES)).toHaveLength(15);
     expect(USER_ACTION_CATALOG.filter((entry) => entry.group === "core")).toHaveLength(94);
-    expect(USER_ACTION_CATALOG.filter((entry) => entry.group === "settings")).toHaveLength(44);
+    // fork 新增「会话轮导航」「助手文件自动预览」两个设置动作，settings 组条目由官方 44 增至 46；
+    // feature 叶子仍为 15，组合唯一性断言继续约束。
+    expect(USER_ACTION_CATALOG.filter((entry) => entry.group === "settings")).toHaveLength(46);
   });
 
   it("feature/action 组合唯一且不使用动态标识", () => {

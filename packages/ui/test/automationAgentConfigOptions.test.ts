@@ -244,12 +244,24 @@ describe("automation model/thought linkage", () => {
     expect(option?.currentValue).toBe("");
   });
 
-  it.each(["edit", "guarded", "yolo"])("编辑态权限 %s 原样回显，菜单用 guarded 替代 edit", (mode) => {
-    const option = buildAutomationModeOption(mode);
+  it.each(["edit", "guarded", "yolo"])(
+    "编辑态权限 %s 原样回显，菜单用 guarded 替代 edit",
+    (mode) => {
+      const option = buildAutomationModeOption(mode);
 
-    expect(option.currentValue).toBe(mode);
-    expect(option.options?.map((item) => item.value)).toEqual(["build", "guarded", "plan", "yolo"]);
-  });
+      expect(option.currentValue).toBe(mode);
+      // fork 在官方 build/guarded/plan/yolo 之外新增 research/minimal/zcodeUpdate，按完整菜单断言。
+      expect(option.options?.map((item) => item.value)).toEqual([
+        "build",
+        "guarded",
+        "plan",
+        "research",
+        "minimal",
+        "zcodeUpdate",
+        "yolo",
+      ]);
+    },
+  );
 
   it("ModelSelection 只保存模型身份与 reasoning，不继承旧输出预算", () => {
     const previous = {

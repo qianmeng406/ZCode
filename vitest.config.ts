@@ -42,6 +42,34 @@ const forkIsolatedTests = [
   // docs/windows-test-compatibility.md。
   "packages/ui/test/pdfJsCMapSupport.test.ts",
 ];
+// fork 侧的测试用 Node 内置 test runner（`import test from "node:test"`），不是 vitest 用例。
+// 上游新增的根 vitest.config 用 `packages/*/test/**/*.test.ts` 会把它们全量收集，导致
+// “No test suite found in file …” 整片失败；这些文件必须排除。覆盖不遗漏由双 runner 入口保证：
+// `scripts/run-unit-tests.mjs`（test:unit）与 `scripts/fork-node-test-runner.mjs`
+// 会在 vitest 之外补跑这些文件（`node --import tsx --test`，在各自 package 目录内解析 tsconfig paths）。
+const forkNodeTestRunnerFiles = [
+  "packages/desktop/test/desktopRuntimeEnvLocalAssets.test.ts",
+  "packages/provider/test/builtin-catalog.test.ts",
+  "packages/server/test/connect-resident.test.ts",
+  "packages/server/test/remoteAssetLocalDelivery.test.ts",
+  "packages/server/test/resident-bridge.test.ts",
+  "packages/server/test/resident-daemon.test.ts",
+  "packages/services/test/importedClaudeRecovery.test.ts",
+  "packages/services/test/nonCliAcpRetirement.test.ts",
+  "packages/services/test/providerConfigMigration.test.ts",
+  "packages/services/test/sessionModeOptions.test.ts",
+  "packages/shared/test/execution-state.test.ts",
+  "packages/ui/test/codingPlanQuotaResetPrompt.test.ts",
+  "packages/ui/test/composerContextProfile.test.ts",
+  "packages/ui/test/conversationTurnNavigatorSetting.test.ts",
+  "packages/ui/test/fileExplorerSidePaneState.test.ts",
+  "packages/ui/test/nonCliAcpRetirement.test.ts",
+  "packages/ui/test/onDemandLoadingGuards.test.ts",
+  "packages/ui/test/oracleReview.test.ts",
+  "packages/ui/test/planExecutionModel.test.ts",
+  "packages/ui/test/promptOptimizer.test.ts",
+  "packages/ui/test/remoteWorkspaceResident.test.ts",
+];
 
 export default defineConfig({
   // 测试固定注入事件上报端点，使遥测上报链路在单测中可验证；真实构建由 scripts/build-time-config.mjs 决定。
@@ -99,7 +127,7 @@ export default defineConfig({
             "scripts/assert-safe-cua-helper-zip.test.mjs",
             "scripts/ci/ci-telemetry-keyword-guard.test.mjs",
           ],
-          exclude: ["packages/desktop/test/e2e/**", ...forkIsolatedTests],
+          exclude: ["packages/desktop/test/e2e/**", ...forkIsolatedTests, ...forkNodeTestRunnerFiles],
           // Node 24/macOS 的 threads 全量运行可触发 V8 SIGSEGV；诊断时切换进程隔离，测试范围不变。
           pool: process.env.ZCODE_TEST_POOL === "forks" ? "forks" : "threads",
           maxWorkers: process.env.ZCODE_TEST_POOL === "forks" ? 2 : 4,

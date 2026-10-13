@@ -26,8 +26,10 @@ describe("ConversationTimeline scrollbar gutter", () => {
     const navigatorIndex = source.indexOf("<ConversationTurnNavigator\n");
 
     expect(navigatorIndex).toBeGreaterThan(-1);
+    // fork 把「开启且未被分享选择隐藏」折叠为 turnNavigatorEligible（= turnNavigatorEnabled && !hideTurnNavigator），
+    // 渲染门由 hideTurnNavigator 三元改为该变量；隐藏语义不变，断言对齐实际门控表达式。
     expect(source.slice(navigatorIndex - 120, navigatorIndex)).toContain(
-      "hideTurnNavigator ? null : (",
+      "turnNavigatorEligible ? (",
     );
   });
 });

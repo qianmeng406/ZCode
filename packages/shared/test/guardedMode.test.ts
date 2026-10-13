@@ -22,10 +22,15 @@ describe("guarded wire and mode catalog", () => {
   });
   it("preserves guarded across independent Plan transitions and serialization", () => {
     const current = resolveExecutionState({ mode: "guarded", planEnabled: true });
-    expect(executionStateSchema.parse(current)).toEqual({ mode: "guarded", planEnabled: true });
+    expect(executionStateSchema.parse(current)).toEqual({
+      mode: "guarded",
+      planEnabled: true,
+      contextProfile: "standard",
+    });
     expect(resolveExecutionState({ planEnabled: false }, current)).toEqual({
       mode: "guarded",
       planEnabled: false,
+      contextProfile: "standard",
     });
   });
   it("round trips the opt-in value without changing the default", () => {
@@ -35,7 +40,16 @@ describe("guarded wire and mode catalog", () => {
     const ids = getZCodeAgentAvailableModes().map((mode) => mode.id);
     expect(ids[0]).toBe("build");
     expect(ids).toContain("guarded");
-    expect(ids).toEqual(["build", "guarded", "plan", "yolo"]);
+    // fork 在权限目面上额外扩展 research/minimal/zcodeUpdate（顺序即真实选择器顺序）。
+    expect(ids).toEqual([
+      "build",
+      "guarded",
+      "plan",
+      "research",
+      "minimal",
+      "zcodeUpdate",
+      "yolo",
+    ]);
     expect(getZCodeAgentModeSelectOptions().map((option) => option.value)).toEqual(ids);
     expect(submissionModeSchema.safeParse("unknown").success).toBe(false);
   });

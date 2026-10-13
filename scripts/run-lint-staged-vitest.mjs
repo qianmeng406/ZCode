@@ -3,6 +3,7 @@
 import { spawnSync } from "node:child_process";
 import { existsSync, readFileSync, rmSync } from "node:fs";
 import { delimiter, join } from "node:path";
+import { runForkNodeTests } from "./fork-node-test-runner.mjs";
 
 const ROOT_UNIT_E2E_GLOB = "packages/desktop/test/e2e/**/*.test.ts";
 
@@ -144,4 +145,8 @@ if (result.error) {
   );
 }
 
-process.exitCode = result.status ?? 1;
+// fork 侧 node:test 文件不被 vitest 收集；这里对同一批变更文件补跑 Node runner，
+// 两个 runner 都执行后再聚合退出码（vitest 失败也不跳过 node:test）。
+const nodeResult = runForkNodeTests(process.cwd(), files);
+
+process.exitCode = (result.status ?? 1) !== 0 || nodeResult.status !== 0 ? 1 : 0;

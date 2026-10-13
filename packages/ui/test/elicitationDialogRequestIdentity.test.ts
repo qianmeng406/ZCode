@@ -364,11 +364,16 @@ describe("ElicitationDialog request identity", () => {
     });
     act(() => clickPrimaryAction(container));
 
-    expect(onRespond).toHaveBeenLastCalledWith("plan-primary-submit", "accept", {
-      answers: { "Review this implementation plan.": "approve" },
-      answer_0: "approve",
-      answer: "approve",
-    });
+    expect(onRespond).toHaveBeenLastCalledWith(
+      "plan-primary-submit",
+      "accept",
+      {
+        answers: { "Review this implementation plan.": "approve" },
+        answer_0: "approve",
+        answer: "approve",
+      },
+      undefined,
+    );
 
     act(() => {
       mountedRoot?.render(
@@ -382,9 +387,14 @@ describe("ElicitationDialog request identity", () => {
 
     // 修复原因：不预选任何选项（activeOptionIndex 初始 -1），用户未按键导航时
     // 点 Submit 提交空答案，表示明确跳过该问题。
-    expect(onRespond).toHaveBeenLastCalledWith("ask-primary-submit", "accept", {
-      answers: {},
-    });
+    expect(onRespond).toHaveBeenLastCalledWith(
+      "ask-primary-submit",
+      "accept",
+      {
+        answers: {},
+      },
+      undefined,
+    );
   });
 
   it("计划审批主提交保留自定义反馈而不改写成批准", () => {
@@ -403,11 +413,16 @@ describe("ElicitationDialog request identity", () => {
     act(() => changeCustomAnswer(container, "先补测试再实施"));
     act(() => clickPrimaryAction(container));
 
-    expect(onRespond).toHaveBeenCalledWith("plan-feedback-submit", "accept", {
-      answers: { "Review this implementation plan.": "先补测试再实施" },
-      answer_0: "先补测试再实施",
-      answer: "先补测试再实施",
-    });
+    expect(onRespond).toHaveBeenCalledWith(
+      "plan-feedback-submit",
+      "accept",
+      {
+        answers: { "Review this implementation plan.": "先补测试再实施" },
+        answer_0: "先补测试再实施",
+        answer: "先补测试再实施",
+      },
+      undefined,
+    );
   });
 
   it("does not snooze on mount or auto focus, but snoozes once when the panel is hovered", () => {
@@ -582,14 +597,19 @@ describe("ElicitationDialog request identity", () => {
     });
     act(() => clickFirstOption(container));
 
-    expect(onRespond).toHaveBeenCalledWith("request-1", "accept", {
-      answers: {
-        请选择保障项: "tests",
-        请选择方案: "fast",
+    expect(onRespond).toHaveBeenCalledWith(
+      "request-1",
+      "accept",
+      {
+        answers: {
+          请选择保障项: "tests",
+          请选择方案: "fast",
+        },
+        answer_0: "fast",
+        answer_1: "tests",
       },
-      answer_0: "fast",
-      answer_1: "tests",
-    });
+      undefined,
+    );
   });
 
   it("creates a fresh local form when requestId changes", () => {
@@ -639,13 +659,18 @@ describe("ElicitationDialog request identity", () => {
     });
     act(() => clickFirstOption(container));
 
-    expect(onRespond).toHaveBeenCalledWith("request-restored", "accept", {
-      answers: {
-        请选择保障项: "tests",
-        请选择方案: "fast",
+    expect(onRespond).toHaveBeenCalledWith(
+      "request-restored",
+      "accept",
+      {
+        answers: {
+          请选择保障项: "tests",
+          请选择方案: "fast",
+        },
+        answer_0: "fast",
+        answer_1: "tests",
       },
-      answer_0: "fast",
-      answer_1: "tests",
-    });
+      undefined,
+    );
   });
 });

@@ -65,7 +65,7 @@ describe("useAssistantPreviewCardsForAssistantTextRow", () => {
     );
 
     await waitFor(() => {
-      expect(result.current.map((card) => card.title)).toEqual([
+      expect(result.current.cards.map((card) => card.title)).toEqual([
         "index.html",
         "report.pdf",
         "README.md",
@@ -103,7 +103,7 @@ describe("useAssistantPreviewCardsForAssistantTextRow", () => {
     );
 
     await waitFor(() => {
-      expect(result.current.map((card) => card.title)).toEqual([
+      expect(result.current.cards.map((card) => card.title)).toEqual([
         "index.html",
         "report.pdf",
         "README.md",
@@ -112,7 +112,7 @@ describe("useAssistantPreviewCardsForAssistantTextRow", () => {
 
     rerender({ fileChangesState: "reverted" });
 
-    expect(result.current.map((card) => card.title)).toEqual(["report.pdf"]);
+    expect(result.current.cards.map((card) => card.title)).toEqual(["report.pdf"]);
     expect(fetchFileChanges).toHaveBeenCalledTimes(1);
   });
 
@@ -132,7 +132,7 @@ describe("useAssistantPreviewCardsForAssistantTextRow", () => {
     );
 
     await waitFor(() => {
-      expect(result.current.map((card) => card.title)).toEqual(["report.pdf"]);
+      expect(result.current.cards.map((card) => card.title)).toEqual(["report.pdf"]);
     });
     expect(fetchFileChanges).not.toHaveBeenCalled();
   });
@@ -151,7 +151,7 @@ describe("useAssistantPreviewCardsForAssistantTextRow", () => {
     );
 
     await waitFor(() => {
-      expect(result.current.map((card) => card.title)).toEqual(["paper.pdf", "report.docx"]);
+      expect(result.current.cards.map((card) => card.title)).toEqual(["paper.pdf", "report.docx"]);
     });
   });
 
@@ -180,7 +180,7 @@ describe("useAssistantPreviewCardsForAssistantTextRow", () => {
     );
 
     await waitFor(() => {
-      expect(result.current.map((card) => card.title)).toEqual([
+      expect(result.current.cards.map((card) => card.title)).toEqual([
         "paper.pdf",
         "report.docx",
         "README.md",
@@ -205,7 +205,7 @@ describe("useAssistantPreviewCardsForAssistantTextRow", () => {
       }),
     );
 
-    expect(result.current.map((card) => card.title)).toEqual(["report.pdf"]);
+    expect(result.current.cards.map((card) => card.title)).toEqual(["report.pdf"]);
     expect(fetchFileChanges).not.toHaveBeenCalled();
   });
 
@@ -224,7 +224,7 @@ describe("useAssistantPreviewCardsForAssistantTextRow", () => {
       }),
     );
 
-    expect(result.current).toEqual([]);
+    expect(result.current.cards).toEqual([]);
     expect(fetchFileChanges).not.toHaveBeenCalled();
   });
 
@@ -243,10 +243,10 @@ describe("useAssistantPreviewCardsForAssistantTextRow", () => {
       { initialProps: { currentRow: initialRow } },
     );
 
-    expect(result.current.map((card) => card.title)).toEqual(["report.pdf"]);
+    expect(result.current.cards.map((card) => card.title)).toEqual(["report.pdf"]);
     rerender({ currentRow: { ...initialRow } });
 
-    expect(result.current.map((card) => card.title)).toEqual(["report.pdf"]);
+    expect(result.current.cards.map((card) => card.title)).toEqual(["report.pdf"]);
     expect(extractAssistantFileReferencesSpy).toHaveBeenCalledTimes(1);
   });
 });

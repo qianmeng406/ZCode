@@ -1903,6 +1903,8 @@ describe("SessionPane model switch recovery", () => {
         },
         mode: "build",
         planEnabled: false,
+        // fork 的 Submission 额外冻结独立上下文档位（contextProfile 双轴），缺省 standard。
+        contextProfile: "standard",
       },
       undefined,
     );
@@ -1989,6 +1991,8 @@ describe("SessionPane model switch recovery", () => {
         },
         mode: "build",
         planEnabled: false,
+        // fork 的 Submission 额外冻结独立上下文档位（contextProfile 双轴），缺省 standard。
+        contextProfile: "standard",
       },
       undefined,
     );

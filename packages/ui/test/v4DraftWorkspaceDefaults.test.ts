@@ -28,6 +28,8 @@ describe("resolveDraftDisplayedConfig", () => {
       thoughtLevels: [],
       followupMode: "queue",
       mode: "build",
+      // fork 的 Composer 显示配置额外携带独立上下文档位（contextProfile 双轴），缺省 standard。
+      contextProfile: "standard",
     });
   });
 

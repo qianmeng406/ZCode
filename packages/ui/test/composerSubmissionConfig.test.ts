@@ -46,6 +46,8 @@ describe("createComposerSubmissionConfig", () => {
     expect(submission).toEqual({
       mode: "yolo",
       planEnabled: true,
+      // fork 在模式/权限之外冻结独立上下文档位（contextProfile 双轴），缺省为 standard。
+      contextProfile: "standard",
       modelSelection: {
         providerId: "provider-a",
         modelId: "model-a",
