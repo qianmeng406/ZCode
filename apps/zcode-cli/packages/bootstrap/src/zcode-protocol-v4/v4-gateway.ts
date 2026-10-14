@@ -2640,6 +2640,7 @@ export class ConversationV4Gateway {
     dispatchState: QueueItem["dispatch"]["state"];
     kind: QueueItem["kind"];
     queueItemId: string;
+    sourceCommandId?: string;
     text: string;
   } | null {
     const snapshot = this.publishers.get(sessionId)?.getSnapshot();
@@ -2650,6 +2651,7 @@ export class ConversationV4Gateway {
       dispatchState: item.dispatch.state,
       kind: item.kind,
       queueItemId: item.queueItemId,
+      sourceCommandId: item.sourceCommandId,
       text: item.text,
     };
   }

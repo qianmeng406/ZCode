@@ -50,6 +50,7 @@ import type {
 import { PersistentCommandIndex } from "../zcode-protocol-v4/persistent-command-index.js";
 import { queueItemIdForCommand } from "../zcode-protocol-v4/command-inbox.js";
 import { resolveStableForkTargetFromTranscript } from "../zcode-protocol-v4/stable-fork-target.js";
+import { isPlanExitApprovedFollowUpSourceCommandId } from "@zcode/contracts";
 import { shouldAutoDrainV4QueueHead } from "../zcode-protocol-v4/queue-auto-drain.js";
 import { persistAssistantFeedback } from "../zcode-protocol-v4/assistant-feedback-persistence.js";
 import {
@@ -148,7 +149,6 @@ const STABLE_FORK_MODES = new Set<CollaborationMode>([
   "auto",
   "research",
   "minimal",
-  "zcodeUpdate",
 ]);
 
 function stableForkMode(value: string, fallback: CollaborationMode): CollaborationMode {
@@ -685,17 +685,25 @@ export function createConversationV4Gateway(
   });
   let nativeExecutor: V4CommandExecutor;
   const autoDrainRetryTimers = new Map<string, ReturnType<typeof setTimeout>>();
+  const autoDrainRetryCounts = new Map<string, number>();
   // Highspeed 执行材料含临时凭据：只按 session/sourceCommandId 驻留内存，绝不进入
   // TurnSteerQueued、snapshot 或 transcript。CLI 重启后缺失时队列提升自动走原模型。
   const queuedTurnExecutions = new Map<string, Map<string, V4QueuedTurnExecution>>();
   const autoDrainV4QueueIfReady = async (record: ZCodeProtocolSessionRecord): Promise<void> => {
     const head = context.v4Gateway?.getQueueHead(record.app.sessionId);
     if (!head) {
+      autoDrainRetryCounts.delete(record.app.sessionId);
       // 外层恢复 FIFO 已消费到空；guide 仍只由 core tool-batch 边界行内消费。
       record.app.completeExternalQueueDrain();
       return;
     }
     const coreForegroundBusy = record.app.runtime.getActiveForegroundExecutionId() !== undefined;
+    // 仅消费 queued 态；reserved/promoting 说明已有提升在途，重复 execute 会被
+    // reservation 拒绝并产生噪音日志。
+    const systemHandoffHead =
+      head.dispatchState === "queued" &&
+      head.sourceCommandId !== undefined &&
+      isPlanExitApprovedFollowUpSourceCommandId(head.sourceCommandId);
     if (
       head.autoDrain &&
       head.dispatchState === "queued" &&
@@ -704,6 +712,43 @@ export function createConversationV4Gateway(
       // Bootstrap controller 不覆盖 model-only notification；旧 auto-drain
       // 只看外层锁，因而把“空闲后消费”错误执行成抢占。busy 时不碰 reservation。
       scheduleAutoDrainRetry(record);
+      return;
+    }
+    // 计划批准换模的 follow-up（plan_exit_approved_ 前缀，core
+    // enqueueFollowUpUserInputFromToolResult 生成）是系统交接指令而非用户手排消息：
+    // 之前回合报错/手动停止留下的暂停队列（autoDrain=false）和未收口的 goal 都不能
+    // 把它永久扣下——否则用户批准换模后就地卡死，只能手动点“立即发送”解锁。
+    // 豁免仅跳过 held/targetStatus 授权闸门；Core 空闲仍由 idle-only promotion
+    // lease 原子保证（busy 时走上方 scheduleAutoDrainRetry）。
+    if (systemHandoffHead) {
+      try {
+        await nativeExecutor.execute(
+          {
+            baseRevision: 0,
+            clientId: "v4-auto-drain",
+            commandId: `auto-${head.kind}-${Date.now()}-${head.queueItemId}`,
+            issuedAt: Date.now(),
+            payload: { queueItemId: head.queueItemId },
+            sessionId: record.app.sessionId,
+            type: "sendQueuedNow",
+          },
+          undefined,
+          { autoDrainPromotion: true },
+        );
+        autoDrainRetryCounts.delete(record.app.sessionId);
+      } catch (error) {
+        if (error instanceof V4QueuePromotionLeaseUnavailableError) {
+          scheduleAutoDrainRetry(record);
+          return;
+        }
+        // 提升失败（如恢复告警、admission 拒绝）不重试也不翻暂停位：系统交接项
+        // 必须继续对下一次空闲重评可见，且保留原项交用户手动“立即发送”兜底。
+        context.logger?.warn("v4 plan-approval handoff promotion failed; item kept queued", {
+          error: error instanceof Error ? error.message : String(error),
+          queueItemId: head.queueItemId,
+          sessionId: record.app.sessionId,
+        });
+      }
       return;
     }
     let targetStatus: GoalStatus | null = null;
@@ -747,6 +792,7 @@ export function createConversationV4Gateway(
         undefined,
         { autoDrainPromotion: true },
       );
+      autoDrainRetryCounts.delete(record.app.sessionId);
     } catch (error) {
       if (error instanceof V4QueuePromotionLeaseUnavailableError) {
         // precheck 与 handler 之间可能新入队 notification；idle-only 是最终原子判据。
@@ -764,10 +810,29 @@ export function createConversationV4Gateway(
   };
   const scheduleAutoDrainRetry = (record: ZCodeProtocolSessionRecord): void => {
     const sessionId = record.app.sessionId;
+    // 防重入：busy 分支每次 reevaluation 都会调用，已有挂起 timer 时不再叠加。
     if (autoDrainRetryTimers.has(sessionId)) return;
+    const retryCount = (autoDrainRetryCounts.get(sessionId) ?? 0) + 1;
+    autoDrainRetryCounts.set(sessionId, retryCount);
+    // 静默 100ms 轮询是换模/排队卡死最难排查的形态：计数到阈值后必须升级为可见日志。
+    if (retryCount === 50) {
+      context.logger?.warn("v4 auto-drain retry loop exceeded 50 attempts; queue head stuck", {
+        queueItemId: context.v4Gateway?.getQueueHead(sessionId)?.queueItemId,
+        sessionId,
+      });
+    }
+    if (timerLoggingEnabledFor(sessionId, retryCount)) {
+      context.logger?.info("v4 auto-drain rescheduled while busy", {
+        attempt: retryCount,
+        sessionId,
+      });
+    }
     const timer = setTimeout(() => {
       autoDrainRetryTimers.delete(sessionId);
-      if (context.sessions.get(sessionId) !== record) return;
+      if (context.sessions.get(sessionId) !== record) {
+        autoDrainRetryCounts.delete(sessionId);
+        return;
+      }
       void autoDrainV4QueueIfReady(record).catch((error: unknown) => {
         context.logger?.warn("v4 auto-drain idle reevaluation failed", {
           error: error instanceof Error ? error.message : String(error),
@@ -778,6 +843,10 @@ export function createConversationV4Gateway(
     timer.unref?.();
     autoDrainRetryTimers.set(sessionId, timer);
   };
+  // 重试前 5 次每次都留 info（短抢占正常噪音要压住），之后每 50 次采样一次，
+  // 50 次整额外升 warn——三个候选根因（busy 僵尸/暂停队列/goal 未收口）都有迹可循。
+  const timerLoggingEnabledFor = (sessionId: string, retryCount: number): boolean =>
+    retryCount <= 5 || (retryCount > 50 && (retryCount - 50) % 50 === 0);
   const coreHost: V4CommandCoreHost = {
     // 同一注册表对象引用：view 是旧 record 的结构化窄视图，字段变更双向可见。
     getRecord: (sessionId) => context.sessions.get(sessionId),

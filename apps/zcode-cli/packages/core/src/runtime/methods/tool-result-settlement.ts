@@ -1,4 +1,5 @@
 import { traceContextToLogContext, TurnMachineImpl } from "../deps.js";
+import { PLAN_EXIT_APPROVED_FOLLOW_UP_SOURCE_COMMAND_ID_PREFIX } from "@zcode/contracts";
 import type {
   MessageId,
   PartId,
@@ -250,12 +251,16 @@ async function enqueueFollowUpUserInputFromToolResult(
   // bootstrap 的队列提升以该 intent 启动新回合，applySubmissionExecutionState
   // 应用选择并持久化为会话粘性选择（后续回合保持）。拒绝反馈等无模型选择
   // 的 follow-up 仍走 guide 原路径（内联续跑，现行行为不变）。
+  //
+  // sourceCommandId 必须保持 PLAN_EXIT_APPROVED_FOLLOW_UP_SOURCE_COMMAND_ID_PREFIX
+  // 前缀：bootstrap 的自动队列消费按它识别系统交接输入并豁免 held/targetStatus
+  // 闸门。前缀丢失 = 队列一旦处于暂停态（此前回合报错/手动停止过）换模就永久滞留。
   const intent = followUp.modelSelection
     ? {
         kind: "sendText" as const,
-        sourceCommandId: `plan_exit_approved_${result.toolCallId}`,
-        queueItemId: `plan_exit_approved_${result.toolCallId}`,
-        clientId: `plan_exit_approved_${result.toolCallId}`,
+        sourceCommandId: `${PLAN_EXIT_APPROVED_FOLLOW_UP_SOURCE_COMMAND_ID_PREFIX}${result.toolCallId}`,
+        queueItemId: `${PLAN_EXIT_APPROVED_FOLLOW_UP_SOURCE_COMMAND_ID_PREFIX}${result.toolCallId}`,
+        clientId: `${PLAN_EXIT_APPROVED_FOLLOW_UP_SOURCE_COMMAND_ID_PREFIX}${result.toolCallId}`,
         modelSelection: followUp.modelSelection,
         // admission 事实由本次 steer 固定：入队即 admitted（queue 车道），位置由
         // steerTurn 的 intent 收敛步骤补写 queuePosition。

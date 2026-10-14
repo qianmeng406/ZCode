@@ -26,6 +26,18 @@ const ExecutionModelSelectionSchema = z
 export const ENTER_PLAN_MODE_TOOL_NAME = "EnterPlanMode";
 export const EXIT_PLAN_MODE_TOOL_NAME = "ExitPlanMode";
 
+/**
+ * 计划批准换模 follow-up（ExitPlanMode 批准时指定执行模型产生）的稳定标记。
+ * 生产方 core 把它写进 follow-up 的 sourceCommandId 前缀；消费方 bootstrap 的
+ * 自动队列消费据此豁免 held/targetStatus 闸门——该输入是系统交接指令而非用户
+ * 手排消息，不能因队列暂停或 goal 未收口而永久滞留（否则换模在批准后就地卡死）。
+ */
+export const PLAN_EXIT_APPROVED_FOLLOW_UP_SOURCE_COMMAND_ID_PREFIX = "plan_exit_approved_";
+
+export function isPlanExitApprovedFollowUpSourceCommandId(sourceCommandId: string): boolean {
+  return sourceCommandId.startsWith(PLAN_EXIT_APPROVED_FOLLOW_UP_SOURCE_COMMAND_ID_PREFIX);
+}
+
 export const PLAN_MODE_MAX_PLAN_CHARS = 20_000;
 
 export const EnterPlanModeInputSchema = z.object({}).strict();
