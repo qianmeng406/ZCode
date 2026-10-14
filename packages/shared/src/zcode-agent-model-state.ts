@@ -44,12 +44,6 @@ const ZCODE_AGENT_MODE_OPTIONS = [
       "Send only the system tools with a bare identity line and working directory, and run commands and edits without confirmation; no skills, memory, project instructions, or MCP tools.",
   },
   {
-    id: "zcodeUpdate",
-    name: "ZCode update mode",
-    description:
-      "Track upstream ZCode releases: fetch each version's diff, judge relevance, re-implement locally, then verify.",
-  },
-  {
     id: "yolo",
     name: "Full access",
     description: "Edit and run commands with fewer confirmations.",

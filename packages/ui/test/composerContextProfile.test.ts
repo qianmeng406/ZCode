@@ -1,16 +1,13 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 import { createComposerSubmissionConfig } from "../src/v4/composer/composerSubmissionConfig.js";
-import {
-  captureComposerRecentSubmission,
-  readComposerRecent,
-} from "../src/lib/composerRecent.js";
+import { captureComposerRecentSubmission, readComposerRecent } from "../src/lib/composerRecent.js";
 import { initializeNewTaskDraft } from "../src/v4/composer/newTaskDraft.js";
 import type { V4ComposerDraft } from "../src/v4/composer/composerDraftStore.js";
 
 /**
  * 上下文档位与权限正交的 UI 契约：提交冻结档位、新任务不继承专用任务/旧组合模式、
- * Recent 不外溢 zcodeUpdate/minimal。存储在测试里是内存 fake，不触碰真实 localStorage。
+ * Recent 不外溢已移除的 zcodeUpdate 与旧 minimal。存储在测试里是内存 fake，不触碰真实 localStorage。
  */
 
 const view = {
@@ -35,7 +32,11 @@ function fakeStorage() {
   };
 }
 
-const selection = { providerId: "fake", modelId: "m1", options: { reasoningLevel: "low" } } as never;
+const selection = {
+  providerId: "fake",
+  modelId: "m1",
+  options: { reasoningLevel: "low" },
+} as never;
 
 test("submission freeze keeps the context profile independent of permission", () => {
   const frozen = createComposerSubmissionConfig(
@@ -55,7 +56,7 @@ test("legacy minimal drafts resolve to the minimal profile", () => {
   assert.equal(frozen!.contextProfile, "minimal", "旧 minimal 补出极简档位");
 });
 
-test("recent does not propagate zcodeUpdate or legacy minimal into new tasks", () => {
+test("recent does not propagate removed zcodeUpdate or legacy minimal into new tasks", () => {
   const storage = fakeStorage();
   captureComposerRecentSubmission(
     "C:/tmp/ws",

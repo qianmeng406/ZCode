@@ -10,8 +10,9 @@ const modelStreamSchema = z.object({
   idleTimeoutMs: positiveNumberSchema.optional(),
 });
 
-// 与 CliPermissionMode 同值域（CLI 接受 --mode research/minimal/zcodeUpdate，
+// 与 CliPermissionMode 同值域（CLI 接受 --mode research/minimal，
 // 配置文件必须同样能存；guarded 为上游新增模式）。
+// zcodeUpdate（ZCode 更新模式）已移除：fork 改走 docs/upstream-sync.md 的常规上游合并更新。
 const PERMISSION_MODES = [
   "plan",
   "build",
@@ -21,7 +22,6 @@ const PERMISSION_MODES = [
   "auto",
   "research",
   "minimal",
-  "zcodeUpdate",
 ] as const;
 
 function isPermissionMode(value: string): value is (typeof PERMISSION_MODES)[number] {
@@ -185,10 +185,7 @@ const pluginsSchema = z.object({
   dirs: z.array(z.string().min(1)).optional(),
   enabledPlugins: z.record(z.string(), z.boolean()).optional(),
   extraKnownMarketplaces: z
-    .record(
-      z.string().min(1),
-      z.object({ source: pluginMarketplaceSourceSchema }).strict(),
-    )
+    .record(z.string().min(1), z.object({ source: pluginMarketplaceSourceSchema }).strict())
     .optional(),
   options: z.record(z.string(), z.record(z.string(), pluginOptionValueSchema)).optional(),
   suppressedBuiltins: z.array(z.string().min(1)).optional(),
@@ -460,12 +457,8 @@ function normalizePluginConfig(
   }
   const suppressedBuiltins = plugins.suppressedBuiltins
     ? plugins.suppressedBuiltins.reduce<string[]>((ids, id) => {
-        const canonicalId =
-          id === LEGACY_CUA_PLUGIN_ID ? CANONICAL_CUA_PLUGIN_ID : id;
-        if (
-          canonicalId === CANONICAL_CUA_PLUGIN_ID &&
-          ids.includes(CANONICAL_CUA_PLUGIN_ID)
-        ) {
+        const canonicalId = id === LEGACY_CUA_PLUGIN_ID ? CANONICAL_CUA_PLUGIN_ID : id;
+        if (canonicalId === CANONICAL_CUA_PLUGIN_ID && ids.includes(CANONICAL_CUA_PLUGIN_ID)) {
           return ids;
         }
         ids.push(canonicalId);

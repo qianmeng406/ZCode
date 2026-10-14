@@ -39,16 +39,11 @@ export function asLocalSettingStore(store: SessionStorePort): LocalSettingStoreP
 
 /**
  * 可作为项目默认权限继承给普通新任务的模式。
- * zcodeUpdate（专用维护任务身份）与 minimal（旧「极简上下文 + 自动权限」组合语义）
- * 不外溢：项目偏好、配置默认与新任务初始化都只认这几种。显式 invocation / Session
- * 请求仍可使用其余模式，Session 自身的执行状态也照常持久化。
+ * minimal（旧「极简上下文 + 自动权限」组合语义）不外溢：项目偏好、配置默认与
+ * 新任务初始化都只认这几种。显式 invocation / Session 请求仍可使用其余模式，
+ * Session 自身的执行状态也照常持久化。zcodeUpdate（ZCode 更新模式）已移除。
  */
-const PROJECT_INHERITABLE_MODES = new Set<CollaborationMode>([
-  "build",
-  "edit",
-  "yolo",
-  "research",
-]);
+const PROJECT_INHERITABLE_MODES = new Set<CollaborationMode>(["build", "edit", "yolo", "research"]);
 
 export function isInheritableProjectPermissionMode(
   mode: string | undefined,
@@ -63,7 +58,7 @@ export function readProjectPermissionMode(
   if (!store) return undefined;
   const mode = store.getProjectPermissionMode(projectID);
   const value = isPromiseLike(mode) ? undefined : (mode ?? undefined);
-  // 旧数据可能存过 zcodeUpdate/minimal：读取时剔除，避免普通新任务继承专用任务身份。
+  // 旧数据可能存过 minimal 或已移除的 zcodeUpdate：读取时剔除，避免普通新任务继承任务身份。
   return isInheritableProjectPermissionMode(value) ? value : undefined;
 }
 

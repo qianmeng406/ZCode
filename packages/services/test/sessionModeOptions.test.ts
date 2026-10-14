@@ -16,10 +16,18 @@ const modeConfigOptions = [
       { value: "yolo", name: "Full access" },
       { value: "research", name: "Research" },
       { value: "minimal", name: "Minimal" },
-      { value: "zcodeUpdate", name: "ZCode update" },
     ],
   },
 ] as unknown as readonly ZCodeConfigOption[];
+
+test("legacy persisted zcodeUpdate mode resolves to build", () => {
+  // ZCode 更新模式已移除：旧会话/配置里遗留的值必须回退到 build（撤销自动执行授权）。
+  const resolved = resolveProviderModeIdFromConfigOptions({
+    configOptions: modeConfigOptions,
+    modeId: "zcodeUpdate",
+  });
+  assert.equal(resolved, "build");
+});
 
 test("legacy persisted workflow mode resolves to build", () => {
   // 项目开发模式已移除：旧会话/配置里遗留的 workflow 值必须回退到 build（撤销自动执行授权），

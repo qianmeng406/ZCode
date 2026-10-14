@@ -9,8 +9,8 @@ const COMPOSER_RECENT_KEY_PREFIX = "zcode-model-selection-recent-v1";
 
 /**
  * 可跨普通新任务继承的权限模式白名单。
- * zcodeUpdate 是专用维护任务身份、minimal 是旧组合语义，都不随 Recent 外溢；
- * 更新提交仍记录模型选择（换任务继续用），只是不继承模式本身。
+ * minimal 是旧组合语义，不随 Recent 外溢；更新提交仍记录模型选择（换任务继续用），
+ * 只是不继承模式本身。zcodeUpdate 模式已移除，残留历史值解析失败同样不外溢。
  */
 const INHERITABLE_SUBMISSION_MODES = new Set<SubmissionMode>(["build", "edit", "yolo", "research"]);
 
@@ -62,7 +62,7 @@ export function readComposerRecent(
     if (!healedSelection && !mode.success) return null;
     return {
       ...(healedSelection ? { modelSelection: healedSelection } : {}),
-      // 历史记录里的 zcodeUpdate/minimal 也不外溢：新任务回默认权限。
+      // 历史记录里的 minimal 等非白名单模式不外溢：新任务回默认权限。
       ...(mode.success && isInheritableSubmissionMode(mode.data) ? { mode: mode.data } : {}),
     };
   } catch {
@@ -81,7 +81,7 @@ export function captureComposerRecentSubmission(
   const key = resolveComposerRecentKey(workspacePath, workspaceIdentity);
   const mode = submissionModeSchema.safeParse(submission.mode);
   const modelSelection = normalizeSparseModelSelection(submission.modelSelection);
-  // 专用任务身份（zcodeUpdate）与旧组合语义（minimal）不进 Recent；模型照记。
+  // 旧组合语义（minimal）等非白名单模式不进 Recent；模型照记。
   const inheritableMode =
     mode.success && isInheritableSubmissionMode(mode.data) ? mode.data : undefined;
   if (modelSelection && isHighspeedProviderId(modelSelection.providerId)) {

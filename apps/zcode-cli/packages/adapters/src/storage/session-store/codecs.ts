@@ -34,8 +34,8 @@ export function isCollaborationMode(value: unknown): value is CollaborationMode 
     value === "guarded" ||
     value === "auto" ||
     value === "research" ||
-    value === "minimal" ||
-    value === "zcodeUpdate"
+    // zcodeUpdate（ZCode 更新模式）已移除：旧持久化值解析失败回落默认，不回灌执行态。
+    value === "minimal"
   );
 }
 

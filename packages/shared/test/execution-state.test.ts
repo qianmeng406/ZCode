@@ -7,10 +7,7 @@ import {
 } from "../src/execution-state.js";
 
 test("resolveExecutionState accepts a canonical mode and resets planEnabled", () => {
-  const state = resolveExecutionState(
-    { mode: "minimal" },
-    { mode: "research", planEnabled: true },
-  );
+  const state = resolveExecutionState({ mode: "minimal" }, { mode: "research", planEnabled: true });
   assert.deepEqual(state, { mode: "minimal", planEnabled: false, contextProfile: "minimal" });
 });
 
@@ -28,9 +25,10 @@ test("resolveExecutionState still maps legacy plan to planEnabled", () => {
   assert.equal(state.planEnabled, true);
 });
 
-test("executionPermissionModeSchema accepts minimal and zcodeUpdate", () => {
+test("executionPermissionModeSchema accepts minimal and rejects the removed zcodeUpdate", () => {
+  // zcodeUpdate（ZCode 更新模式）已移除：遗留值不再合法，由读取边界回退保守默认。
   assert.equal(executionPermissionModeSchema.safeParse("minimal").success, true);
-  assert.equal(executionPermissionModeSchema.safeParse("zcodeUpdate").success, true);
+  assert.equal(executionPermissionModeSchema.safeParse("zcodeUpdate").success, false);
 });
 
 test("executionPermissionModeSchema rejects the removed workflow mode", () => {
@@ -47,15 +45,18 @@ test("resolveExecutionState falls back to the current mode for the removed workf
   });
 });
 
-test("resolveExecutionState keeps the two custom modes", () => {
+test("resolveExecutionState keeps the custom minimal mode", () => {
   const minimal = resolveExecutionState({ mode: "minimal" }, { mode: "build", planEnabled: false });
   assert.deepEqual(minimal, { mode: "minimal", planEnabled: false, contextProfile: "minimal" });
+});
 
-  const update = resolveExecutionState(
-    { mode: "zcodeUpdate" },
-    { mode: "build", planEnabled: false },
-  );
-  assert.deepEqual(update, { mode: "zcodeUpdate", planEnabled: false, contextProfile: "standard" });
+test("resolveExecutionState falls back to the current mode for the removed zcodeUpdate value", () => {
+  // ZCode 更新模式已移除：遗留值不得让状态解析抛错或停在 zcodeUpdate。
+  assert.deepEqual(resolveExecutionState({ mode: "zcodeUpdate" }), {
+    mode: "build",
+    planEnabled: false,
+    contextProfile: "standard",
+  });
 });
 
 test("legacy mode=minimal resolves a minimal context profile", () => {

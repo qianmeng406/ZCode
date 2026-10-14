@@ -3713,8 +3713,6 @@ function toZCodeMode(mode: ZCodeTaskMode | undefined): ZCodeSessionMode | undefi
       return "research";
     case "minimal":
       return "minimal";
-    case "zcodeUpdate":
-      return "zcodeUpdate";
     case "build":
     case "default":
     case "acceptEdits":

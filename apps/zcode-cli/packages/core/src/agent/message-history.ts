@@ -51,7 +51,7 @@ export interface RuntimeMessageMetadata {
    * 节流与「重新进入必须全文」按此判定，不解析正文；旧条目无标记按未知身份处理。
    */
   runtimeMode?: {
-    identity: "plan" | "research" | "zcodeUpdate";
+    identity: "plan" | "research";
     kind: "full" | "sparse";
   };
 }

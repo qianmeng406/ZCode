@@ -31,7 +31,6 @@ export const permissionFullAccessReceiptSchema = z
               "plan",
               "research",
               "minimal",
-              "zcodeUpdate",
             ]),
             previousPlanEnabled: z.boolean(),
             source: z.literal("command"),

@@ -28,7 +28,7 @@
    git merge --no-commit --no-ff <上游 commit 或 tag>
    ```
 4. **解决冲突（保留定制语义）**：
-   - 冲突面集中在定制功能涉及的文件（Oracle 审查、research/minimal/zcodeUpdate 模式、提示词优化器、
+   - 冲突面集中在定制功能涉及的文件（Oracle 审查、research/minimal 模式、提示词优化器、
      会话回合导航、远控资源随包分发 + SSH 常驻等）；
    - **不恢复已退役功能**：自建移动端远控（companion/mobile）、项目开发模式（workflow）、
      Command Code 渠道与网关额度；

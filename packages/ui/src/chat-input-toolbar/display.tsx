@@ -35,7 +35,6 @@ import { logger } from "@/logger.js";
 import {
   ChevronDownIcon,
   Feather,
-  GitCompare,
   HandIcon,
   NotepadText,
   ShieldAlertIcon,
@@ -43,10 +42,7 @@ import {
   Telescope,
   type LucideIcon,
 } from "lucide-react";
-import {
-  ZCODE_MODE_OPTION_DESCRIPTION_IDS,
-  ZCODE_MODE_OPTION_LABEL_IDS,
-} from "./display-help.js";
+import { ZCODE_MODE_OPTION_DESCRIPTION_IDS, ZCODE_MODE_OPTION_LABEL_IDS } from "./display-help.js";
 import { RollingToolbarLabel } from "@/chat-input-toolbar/RollingToolbarLabel.js";
 
 export {
@@ -56,17 +52,12 @@ export {
 } from "@/chat-input-toolbar/contextUsage.js";
 
 type ConfigSelectTriggerSize = ComponentProps<typeof SelectTrigger>["size"];
-type ConfigSelectTriggerVariant = ComponentProps<
-  typeof SelectTrigger
->["variant"];
+type ConfigSelectTriggerVariant = ComponentProps<typeof SelectTrigger>["variant"];
 
 /** Radix Select 在受控值与子项注册竞争时可能发出空值等未渲染值；直接上抛会把
  * 系统事件误当成用户选择（如 Automations 编辑页仅打开详情就被标记未保存修改）。
  * 用户只能点到已渲染的 option，值域外的选择回调一律丢弃。 */
-export function isConfigSelectValueInOptions(
-  option: ZCodeConfigOption,
-  value: string,
-): boolean {
+export function isConfigSelectValueInOptions(option: ZCodeConfigOption, value: string): boolean {
   return option.options?.some((entry) => String(entry.value) === value) ?? false;
 }
 
@@ -77,15 +68,11 @@ const HIGH_PERMISSION_MODE_VALUES = new Set([
   // 高权限视觉提示必须跟随协议 id，否则用户选中全权限后工具栏不再显示 warning 状态。
   "agent-full-access",
   "yolo",
-  // fork：zcodeUpdate（自动跟进官方发版）与 minimal（极简上下文）同为自动执行权限，
-  // 工具栏的持续 warning 文字与盾牌语义一并覆盖。
-  "zcodeUpdate",
+  // fork：minimal（极简上下文）同为自动执行权限，工具栏的持续 warning 文字与盾牌语义一并覆盖。
   "minimal",
 ]);
 
-function getConfigSelectTriggerTestId(
-  option: ZCodeConfigOption,
-): string | undefined {
+function getConfigSelectTriggerTestId(option: ZCodeConfigOption): string | undefined {
   if (option.category === "thought_level") {
     return TID_CHAT_THOUGHT_LEVEL_SELECT_TRIGGER;
   }
@@ -111,11 +98,7 @@ function getConfigSelectItemTestId(
   return undefined;
 }
 
-export function buildModelSearchText({
-  itemName,
-}: {
-  itemName: string;
-}): string {
+export function buildModelSearchText({ itemName }: { itemName: string }): string {
   // Bugfix: 需求要求模型搜索仅匹配“展示名”，不能再命中分组名/模型值。
   // 这里统一只返回展示名，保证搜索范围收敛且稳定。
   return itemName.trim();
@@ -131,10 +114,7 @@ export function matchesModelDisplayNameSearch(
   }
 
   // Bugfix: 统一用大小写不敏感匹配，避免用户输入大小写与展示名不一致时搜不到。
-  return modelDisplayName
-    .trim()
-    .toLocaleLowerCase()
-    .includes(normalizedSearchText);
+  return modelDisplayName.trim().toLocaleLowerCase().includes(normalizedSearchText);
 }
 
 export function ChatApiRetryStatus({
@@ -169,9 +149,7 @@ export function ChatApiRetryStatus({
   }
 
   const retryTitle =
-    apiRetry.errorStatus == null
-      ? retryLabel
-      : `${retryLabel} · HTTP ${apiRetry.errorStatus}`;
+    apiRetry.errorStatus == null ? retryLabel : `${retryLabel} · HTTP ${apiRetry.errorStatus}`;
 
   return (
     <span
@@ -245,10 +223,7 @@ export function getConfigOptionEntryDescription(
     return entry.description;
   }
 
-  const descriptionMessageId = getModeOptionDescriptionMessageId(
-    provider,
-    entry,
-  );
+  const descriptionMessageId = getModeOptionDescriptionMessageId(provider, entry);
   if (descriptionMessageId) {
     return intl.formatMessage({ id: descriptionMessageId });
   }
@@ -266,18 +241,13 @@ export function resolveModeOptionIcon(value: unknown): LucideIcon {
   if (typeof value === "string" && value.toLocaleLowerCase() === "research") return Telescope;
   // minimal（极简模式）：只留工具与最小上下文，用羽毛表示「轻」。
   if (typeof value === "string" && value.toLocaleLowerCase() === "minimal") return Feather;
-  // zcodeUpdate（更新模式）：逐版本 diff 对比，用差异对比图标。
-  if (typeof value === "string" && value.toLocaleLowerCase() === "zcodeupdate") return GitCompare;
-
   if (isHighPermissionModeValue(value)) {
     return ShieldAlertIcon;
   }
 
   // Bugfix: build 会被本地化成“默认模式”，和 default 一样应使用常规确认图标。
-  if (typeof value === "string" && /^(default|build)$/i.test(value))
-    return HandIcon;
-  if (typeof value === "string" && value.toLocaleLowerCase() === "plan")
-    return NotepadText;
+  if (typeof value === "string" && /^(default|build)$/i.test(value)) return HandIcon;
+  if (typeof value === "string" && value.toLocaleLowerCase() === "plan") return NotepadText;
 
   if (
     typeof value === "string" &&
@@ -332,32 +302,27 @@ export function ConfigSelect({
   // 本组件这次渲染执行的 hook 数量和上次不一致，React 会抛
   // "Rendered fewer hooks than expected" 导致工具栏区域崩溃。
   // 修复方式：early return 下移到所有 hook 之后，保证 hook 调用顺序稳定。
-  const handleContentKeyDown = useCallback(
-    (event: ReactKeyboardEvent<HTMLDivElement>) => {
-      if (event.key !== "Tab") {
-        return;
-      }
+  const handleContentKeyDown = useCallback((event: ReactKeyboardEvent<HTMLDivElement>) => {
+    if (event.key !== "Tab") {
+      return;
+    }
 
-      const highlightedItem =
-        event.currentTarget.querySelector<HTMLElement>(
-          '[data-slot="select-item"][data-highlighted]',
-        ) ??
-        event.currentTarget.querySelector<HTMLElement>(
-          '[data-slot="select-item"][data-state="checked"]',
-        ) ??
-        event.currentTarget.querySelector<HTMLElement>(
-          '[data-slot="select-item"]',
-        );
+    const highlightedItem =
+      event.currentTarget.querySelector<HTMLElement>(
+        '[data-slot="select-item"][data-highlighted]',
+      ) ??
+      event.currentTarget.querySelector<HTMLElement>(
+        '[data-slot="select-item"][data-state="checked"]',
+      ) ??
+      event.currentTarget.querySelector<HTMLElement>('[data-slot="select-item"]');
 
     if (!highlightedItem) {
       return;
     }
 
-      event.preventDefault();
-      highlightedItem.click();
-    },
-    [],
-  );
+    event.preventDefault();
+    highlightedItem.click();
+  }, []);
 
   // early return 必须在所有 hook 之后（见上方注释说明的崩溃原因）
   if (option.type !== "select" || !option.options?.length) {
@@ -367,12 +332,9 @@ export function ConfigSelect({
   const shouldUseToolbarFloatingSelect =
     option.category === "mode" || option.category === "thought_level";
   const shouldShowHighPermissionModeIcon =
-    option.category === "mode" &&
-    isHighPermissionModeValue(option.currentValue);
+    option.category === "mode" && isHighPermissionModeValue(option.currentValue);
   const ResolvedLeadingIcon =
-    option.category === "mode"
-      ? resolveModeOptionIcon(option.currentValue)
-      : LeadingIcon;
+    option.category === "mode" ? resolveModeOptionIcon(option.currentValue) : LeadingIcon;
   const resolvedTriggerClassName = cn(
     triggerClassName,
     shouldShowHighPermissionModeIcon &&
@@ -403,18 +365,16 @@ export function ConfigSelect({
       }
     : undefined;
   const triggerTestId = getConfigSelectTriggerTestId(option);
-  const currentEntry = option.options.find(
-    (entry) => entry.value === option.currentValue,
-  );
+  const currentEntry = option.options.find((entry) => entry.value === option.currentValue);
   const currentValueLabel = currentEntry
     ? getConfigOptionEntryLabel(intl, provider, option, currentEntry)
     : option.category === "mode"
-      // 隐藏旧模式候选不应丢失其回显文案；只翻译当前值，不把它补回可选列表。
-      ? getModeOptionDisplayLabel(intl, provider, {
+      ? // 隐藏旧模式候选不应丢失其回显文案；只翻译当前值，不把它补回可选列表。
+        getModeOptionDisplayLabel(intl, provider, {
           value: String(option.currentValue ?? ""),
           name: String(option.currentValue ?? ""),
         })
-    : String(option.currentValue ?? "");
+      : String(option.currentValue ?? "");
   const thoughtLevelTextClassName =
     option.category === "thought_level" ? "first-letter:uppercase" : undefined;
 
@@ -436,11 +396,7 @@ export function ConfigSelect({
       }}
       disabled={disabled}
     >
-      <ControlHintTooltip
-        title={tooltipTitle}
-        shortcut={shortcutLabel}
-        triggerRef={triggerRef}
-      >
+      <ControlHintTooltip title={tooltipTitle} shortcut={shortcutLabel} triggerRef={triggerRef}>
         <SelectTrigger
           variant={triggerVariant}
           size={triggerSize}
@@ -466,9 +422,7 @@ export function ConfigSelect({
               <RollingToolbarLabel label={currentValueLabel} />
             ) : (
               <SelectValue>
-                <span className={thoughtLevelTextClassName}>
-                  {currentValueLabel}
-                </span>
+                <span className={thoughtLevelTextClassName}>{currentValueLabel}</span>
               </SelectValue>
             )}
           </span>
@@ -493,8 +447,7 @@ export function ConfigSelect({
             return;
           }
           // Bugfix: ConfigSelect 被 Bot 弹窗复用时，关闭菜单不能强制抢焦点到聊天输入框。
-          const input =
-            document.querySelector<HTMLElement>(restoreFocusSelector);
+          const input = document.querySelector<HTMLElement>(restoreFocusSelector);
           logger.debug("[ConfigSelect] picker focus handoff", {
             category: option.category,
             restoreFocusSelector,
@@ -506,12 +459,7 @@ export function ConfigSelect({
         {option.category === "mode"
           ? option.options.map((entry) => {
               const ModeIcon = resolveModeOptionIcon(entry.value);
-              const optionLabel = getConfigOptionEntryLabel(
-                intl,
-                provider,
-                option,
-                entry,
-              );
+              const optionLabel = getConfigOptionEntryLabel(intl, provider, option, entry);
               const optionDescription = getConfigOptionEntryDescription(
                 intl,
                 provider,

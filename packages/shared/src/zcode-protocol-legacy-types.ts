@@ -82,7 +82,6 @@ export const zcodeSessionModeSchema = z.enum([
   "auto",
   "research",
   "minimal",
-  "zcodeUpdate",
 ]);
 export const zcodeSessionStatusSchema = z.enum([
   "idle",

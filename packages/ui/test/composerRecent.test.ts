@@ -33,8 +33,9 @@ describe("composerRecent", () => {
   it.each([
     [JSON.stringify({ modelSelection: selection, mode: "invalid" }), { modelSelection: selection }],
     [JSON.stringify({ modelSelection: { bad: true }, mode: "yolo" }), { mode: "yolo" }],
-    // fork 的 Recent 只继承 build/edit/yolo/research；plan 已折叠为独立 planEnabled、minimal/zcodeUpdate
-    // 为专用身份，均不外溢。这里用可继承的 research 校验「只带 mode 的存量记录可独立校验」。
+    // fork 的 Recent 只继承 build/edit/yolo/research；plan 已折叠为独立 planEnabled、minimal
+    // 为旧组合语义（已移除的 zcodeUpdate 同理），均不外溢。这里用可继承的 research 校验
+    // 「只带 mode 的存量记录可独立校验」。
     [JSON.stringify({ mode: "research" }), { mode: "research" }],
     [
       JSON.stringify({

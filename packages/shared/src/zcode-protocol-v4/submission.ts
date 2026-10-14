@@ -9,6 +9,5 @@ export const submissionModeSchema = z.enum([
   "guarded",
   "research",
   "minimal",
-  "zcodeUpdate",
 ]);
 export type SubmissionMode = z.infer<typeof submissionModeSchema>;

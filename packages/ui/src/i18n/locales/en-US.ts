@@ -1161,7 +1161,8 @@ const enUS: Record<string, string> = {
   "browser.permission.deviceBluetooth": "Bluetooth devices",
   "browser.permission.unknownCapability": "an unknown capability",
   "browser.permission.screenShareTitle": "{origin} wants to share your screen",
-  "browser.permission.screenShareDescription": "Choose the screen or window to share. This choice applies only to this session.",
+  "browser.permission.screenShareDescription":
+    "Choose the screen or window to share. This choice applies only to this session.",
   "browser.permission.deviceTitle": "{origin} wants to connect a device",
   "browser.permission.connect": "Connect",
   "browser.permission.screenGroup.screen": "Entire Screen",
@@ -6552,7 +6553,6 @@ const enUS: Record<string, string> = {
   "mode.description.glm.default": "Use default confirmations.",
   "mode.label.glm.research": "Research",
   "mode.label.glm.minimal": "Legacy minimal (auto)",
-  "mode.label.glm.zcodeUpdate": "ZCode update mode",
   "chat.toolbar.mode.minimalContext.label": "Minimal context",
   "chat.toolbar.mode.minimalContext.description":
     "Keep only the identity line, environment and short guardrails; hides skills, memory, project instructions and MCP tools. It does not change permissions and only affects later requests.",
@@ -6563,8 +6563,6 @@ const enUS: Record<string, string> = {
   "mode.description.glm.research": "Read-only web research; edits and commands are denied.",
   "mode.description.glm.minimal":
     "Legacy combined mode (kept for old sessions): minimal context plus commands and edits without confirmation. New tasks should use the Minimal context toggle and choose permissions separately.",
-  "mode.description.glm.zcodeUpdate":
-    "Track upstream releases: fetch each version's diff, judge relevance, re-implement locally, then verify; commands and edits run without confirmation.",
   "todo.panel.title": "Todo",
   "todo.panel.currentTask": "Current task",
   "todo.panel.completed": "Todo completed",

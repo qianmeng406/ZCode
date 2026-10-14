@@ -2,8 +2,8 @@ import { z } from "zod";
 
 /** auto 保留为内部权限；plan 仅在旧格式读取边界接受；research 为只读资料查询模式；
  * minimal 是旧「极简模式」的兼容值：历史会话继续按旧组合语义执行（上下文极简 +
- * 命令与修改免逐项确认）。新任务用独立 contextProfile 表达极简上下文，不再产生 mode=minimal；
- * zcodeUpdate 为 ZCode 更新模式（跟进官方发版：取 diff → 分析 → 本地实现 → 验收，权限同 yolo 自动执行）。 */
+ * 命令与修改免逐项确认）。新任务用独立 contextProfile 表达极简上下文，不再产生 mode=minimal。
+ * zcodeUpdate（ZCode 更新模式）已移除：fork 版本改为按 docs/upstream-sync.md 的常规上游合并流程更新。 */
 export const executionPermissionModeSchema = z.enum([
   "build",
   "edit",
@@ -12,7 +12,6 @@ export const executionPermissionModeSchema = z.enum([
   "auto",
   "research",
   "minimal",
-  "zcodeUpdate",
 ]);
 
 /**

@@ -37,8 +37,7 @@ export type CollaborationMode =
   | "guarded"
   | "auto"
   | "research"
-  | "minimal"
-  | "zcodeUpdate";
+  | "minimal";
 
 /** 父 guarded 只收紧内部 YOLO 派生；显式的其它子模式保留各自策略。 */
 export function inheritPermissionMode<T extends CollaborationMode | undefined>(
@@ -380,7 +379,7 @@ export interface TurnInputIntentMetadata {
   /** Admission 时固定；Queue/Guide 后续不得重新读取 Composer 或 Session 最新选择。 */
   modelSelection?: ModelSelection;
   /** 与本次用户 Submission 一起固定的协作模式。 */
-  mode?: "build" | "edit" | "plan" | "yolo" | "guarded" | "research" | "minimal" | "zcodeUpdate";
+  mode?: "build" | "edit" | "plan" | "yolo" | "guarded" | "research" | "minimal";
   /** 与本次 Submission 一起固定的上下文档位；改权限/Plan 不改档位。旧请求缺省。 */
   contextProfile?: "standard" | "minimal";
   admissionSeq: number;

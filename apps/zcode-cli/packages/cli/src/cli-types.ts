@@ -126,8 +126,7 @@ export type CliPermissionMode =
   | "yolo"
   | "guarded"
   | "research"
-  | "minimal"
-  | "zcodeUpdate";
+  | "minimal";
 export type CliRuntimeMode = CliPermissionMode | "auto";
 
 export interface CliModeState {

@@ -3642,7 +3642,8 @@ function isZCodeSessionMode(
 ): value is NonNullable<ZCodeSessionCreateParams["mode"]> {
   // 与 zcodeSessionModeSchema 同值域：漏一个模式，冷恢复时 derivePersistedSessionMode 会
   // 越过新模式的 assistant 消息、把更早的旧模式 latch 成 modeOverride，压过权威的
-  // execution-state 持久条目（research 曾漏过；minimal / zcodeUpdate 同此）。
+  // execution-state 持久条目（research 曾漏过；minimal 同此）。
+  // zcodeUpdate（ZCode 更新模式）已移除：旧值不再合法，冷恢复按默认回落。
   return (
     value === "plan" ||
     value === "build" ||
@@ -3651,8 +3652,7 @@ function isZCodeSessionMode(
     value === "guarded" ||
     value === "auto" ||
     value === "research" ||
-    value === "minimal" ||
-    value === "zcodeUpdate"
+    value === "minimal"
   );
 }
 
@@ -4353,7 +4353,8 @@ export async function listOracleReviewRecords(
     }
   }
   records.sort(
-    (a, b) => (b as { completedAt: number }).completedAt - (a as { completedAt: number }).completedAt,
+    (a, b) =>
+      (b as { completedAt: number }).completedAt - (a as { completedAt: number }).completedAt,
   );
   return { records: records.slice(0, params.limit ?? ORACLE_REVIEW_LIST_DEFAULT_LIMIT) };
 }

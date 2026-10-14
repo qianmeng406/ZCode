@@ -602,7 +602,7 @@ export function createSessionFacade(deps: CreateSessionFacadeDeps): SessionFacad
         });
       }
       await deps.runtime.setExecutionState({ mode }, deps.traceContext);
-      // 项目偏好只承接可继承模式：zcodeUpdate/minimal 是任务/兼容身份，写进项目偏好
+      // 项目偏好只承接可继承模式：minimal 是任务/兼容身份，写进项目偏好
       // 会让下个普通新任务静默继承；Session 自身执行状态已在上面照常持久化。
       // 群模式（session scope）属于任务授权，同样不得写入工作区默认模式。
       if (

@@ -151,5 +151,4 @@ test("other modes keep MCP and Skill tools untouched", () => {
   // 收窄只属于极简模式：build 等档位的工具表必须与改动前完全一致。
   assert.deepEqual(filterTools("build", SAMPLE_TOOLS), [...SAMPLE_TOOLS]);
   assert.deepEqual(filterTools("workflow", SAMPLE_TOOLS), [...SAMPLE_TOOLS]);
-  assert.deepEqual(filterTools("zcodeUpdate", SAMPLE_TOOLS), [...SAMPLE_TOOLS]);
 });

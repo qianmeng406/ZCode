@@ -123,7 +123,7 @@ export function resolveAppRuntimeConfig(input: {
     bashTimeoutPolicy:
       options.runtimeConfig?.bashTimeoutPolicy ??
       resolveBashTimeoutPolicy(options.env ?? process.env),
-    // 配置文件 permission.mode 只作普通默认：zcodeUpdate/minimal 排除出隐式默认来源，
+    // 配置文件 permission.mode 只作普通默认：minimal 排除出隐式默认来源，
     // 显式 invocation（options.runtimeConfig.mode）与项目偏好（读取侧已过滤）仍优先。
     mode:
       options.runtimeConfig?.mode ??

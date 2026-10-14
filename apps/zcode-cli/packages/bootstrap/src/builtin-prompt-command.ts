@@ -93,13 +93,9 @@ function buildInitAgentsPrompt(params: {
   workingDirectory: string;
 }): string {
   const additionalInstructions = params.args
-    ? [
-        "",
-        "Additional user instructions supplied with /init:",
-        "```text",
-        params.args,
-        "```",
-      ].join("\n")
+    ? ["", "Additional user instructions supplied with /init:", "```text", params.args, "```"].join(
+        "\n",
+      )
     : "";
 
   return [
@@ -140,14 +136,19 @@ function buildInitAgentsPrompt(params: {
  * `/zcode-update`：跟进官方 ZCode 发版的专用维护任务。
  *
  * 只展开为一次普通 agent turn，不改权限模式、不偷偷切 yolo/minimal：命令与文件修改的
- * 确认策略仍由当前会话模式决定。硬边界（不 pull/merge/cherry-pick/push、破坏性 git 操作
- * 单次确认）由权限层 AST 判定强制，这里只负责流程与证据要求。
+ * 确认策略仍由当前会话模式决定。破坏性 git 操作的单次确认由权限层 AST 判定兜底
+ * （bash-update-task-policy）；「不 pull/merge/cherry-pick/push/rebase」原由 zcodeUpdate
+ * 模式的硬 deny 强制，该模式已移除，现仅作为本提示词的流程纪律要求。
  */
 function buildZCodeUpdatePrompt(params: { args: string; workingDirectory: string }): string {
   const additionalInstructions = params.args
-    ? ["", "Additional user instructions supplied with /zcode-update:", "```text", params.args, "```"].join(
-        "\n",
-      )
+    ? [
+        "",
+        "Additional user instructions supplied with /zcode-update:",
+        "```text",
+        params.args,
+        "```",
+      ].join("\n")
     : "";
 
   return [
@@ -177,7 +178,7 @@ function buildZCodeUpdatePrompt(params: { args: string; workingDirectory: string
     "For each version: `git diff <prev>..<next> --stat` first, then read what matters. Classify by layer and judge relevance:",
     "- overlap with files we already modified locally (future rebase conflict sources — call these out);",
     "- fixes for problems this fork also has;",
-    "- impact on locally delivered features (minimal context profile, minimal mode, the update mode itself).",
+    "- impact on locally delivered features (minimal context profile, minimal mode).",
     "",
     "## 3. Land (S3)",
     "",
@@ -189,15 +190,15 @@ function buildZCodeUpdatePrompt(params: { args: string; workingDirectory: string
     "- root: `pnpm typecheck`, `pnpm exec oxlint`, `pnpm exec oxfmt --check`, `pnpm architecture:check -- --changed`;",
     "- changes under apps/zcode-cli: `pnpm --dir apps/zcode-cli check`, `lint`, `format:check` (the root typecheck/lint do NOT cover the CLI workspace);",
     "- relevant package tests (`npx tsx --test <pkg>/test/*.test.ts`, UI tests need `--tsconfig packages/ui/tsconfig.json`).",
-    "A gate that failed, timed out, or was skipped must be recorded as such. Never write \"passed\" without running it, and never present gate success as proof the feature works.",
+    'A gate that failed, timed out, or was skipped must be recorded as such. Never write "passed" without running it, and never present gate success as proof the feature works.',
     "",
     "## Ledger",
     "",
     "Maintain `zcode-update/更新台账.md` with a machine-readable marker line `<!-- zcode-update v1 stage:S1 -->` (stage = S1/S2/S3/S4) plus one section per version: version/tag SHA, commit range, analysis conclusion, landed items and files, gate results.",
     "",
-    "## Hard boundaries (also enforced by the permission layer)",
+    "## Hard boundaries",
     "",
-    "- Never `git pull/merge/cherry-pick/push/rebase` — they are denied outright.",
+    "- Never `git pull/merge/cherry-pick/push/rebase` yourself — leave them to the user after review. The permission layer no longer denies them outright (the update mode that did is removed); treat this as strict task discipline.",
     "- Destructive git operations (`reset --hard`, `clean`, force checkout/restore, `rm`, `stash drop/clear`, `worktree remove`, `branch -D`, `tag -d`) require explicit user confirmation even when the session runs with automatic permissions.",
     "- Only modify files relevant to the current item; do not refactor unrelated code.",
     "- When upstream and local changes conflict and the right trade-off is unclear, stop and ask the user — that decision is theirs.",

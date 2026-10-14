@@ -14,7 +14,6 @@ const CANONICAL_SESSION_MODES = new Set<ZCodeTaskMode>([
   "build",
   "research",
   "minimal",
-  "zcodeUpdate",
 ]);
 
 function readTrimmedString(value: unknown): string | undefined {
@@ -69,6 +68,10 @@ function normalizePersistedSessionMode(
     // 「项目开发模式」（workflow）已移除：旧会话/配置里遗留的值回退到 build，
     // 即撤销其「自动执行命令/编辑」授权，回到改动前询问的保守默认。
     case "workflow":
+      return "build";
+    // 「ZCode 更新模式」（zcodeUpdate）已移除：fork 版本改走 docs/upstream-sync.md 的
+    // 常规上游合并更新。旧会话/配置里遗留的值回退到 build，撤销其自动执行授权。
+    case "zcodeUpdate":
       return "build";
     default:
       return undefined;

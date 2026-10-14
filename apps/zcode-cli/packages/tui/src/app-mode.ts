@@ -9,7 +9,6 @@ export const TUI_SWITCHABLE_MODES = [
   "guarded",
   "research",
   "minimal",
-  "zcodeUpdate",
   "yolo",
 ] as const;
 

@@ -16,6 +16,7 @@ export const zcodeTaskModeSchema = z.enum([
   "autoEdit",
   "build",
   "research",
+  // zcodeUpdate（ZCode 更新模式）已移除：fork 走常规上游合并更新。
+  // 旧持久化数据里的 zcodeUpdate 由各读取边界剔除或回退默认，不在此保留枚举值。
   "minimal",
-  "zcodeUpdate",
 ]);

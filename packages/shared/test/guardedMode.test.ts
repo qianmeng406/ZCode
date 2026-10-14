@@ -40,16 +40,8 @@ describe("guarded wire and mode catalog", () => {
     const ids = getZCodeAgentAvailableModes().map((mode) => mode.id);
     expect(ids[0]).toBe("build");
     expect(ids).toContain("guarded");
-    // fork 在权限目面上额外扩展 research/minimal/zcodeUpdate（顺序即真实选择器顺序）。
-    expect(ids).toEqual([
-      "build",
-      "guarded",
-      "plan",
-      "research",
-      "minimal",
-      "zcodeUpdate",
-      "yolo",
-    ]);
+    // fork 在权限目面上额外扩展 research/minimal（顺序即真实选择器顺序）。
+    expect(ids).toEqual(["build", "guarded", "plan", "research", "minimal", "yolo"]);
     expect(getZCodeAgentModeSelectOptions().map((option) => option.value)).toEqual(ids);
     expect(submissionModeSchema.safeParse("unknown").success).toBe(false);
   });

@@ -72,7 +72,6 @@ const SWITCHABLE_MODES: ReadonlySet<string> = new Set([
   "guarded",
   "research",
   "minimal",
-  "zcodeUpdate",
 ]);
 
 /**

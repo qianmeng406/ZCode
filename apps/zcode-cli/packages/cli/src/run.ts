@@ -149,11 +149,8 @@ const normalizePromptMode = (value: string | undefined): CliPermissionMode | und
   ) {
     return mode;
   }
-  // zcodeUpdate 是驼峰 id，上面统一按小写比较；这里映射回规范字面，
-  // 否则 `--mode zcodeUpdate` 会被小写化后判成不支持。
-  if (mode === "zcodeupdate") return "zcodeUpdate";
   throw new Error(
-    `Unsupported --mode value: ${value}. Supported modes: build, edit, plan, yolo, guarded, research, minimal, zcodeUpdate.`,
+    `Unsupported --mode value: ${value}. Supported modes: build, edit, plan, yolo, guarded, research, minimal.`,
   );
 };
 
