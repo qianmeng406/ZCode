@@ -149,6 +149,8 @@ const STABLE_FORK_MODES = new Set<CollaborationMode>([
   "auto",
   "research",
   "minimal",
+  // Beta 独立工作模式：additive；fork 保留来源会话模式，旧端读边界按缺省回退。
+  "beta",
 ]);
 
 function stableForkMode(value: string, fallback: CollaborationMode): CollaborationMode {

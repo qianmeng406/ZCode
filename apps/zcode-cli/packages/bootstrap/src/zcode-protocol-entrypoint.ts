@@ -44,6 +44,7 @@ import {
   resolveRuntimeZCodeEndpointOrigin,
 } from "@zcode/shared";
 import { ZCodeProtocolAgentServer } from "./zcode-protocol/server.js";
+import { createRegistryUpstreamEndpointResolver } from "./zcode-protocol/provider-upstream-models.js";
 import { ZCodeProtocolNdjsonConnection } from "./zcode-protocol/transport.js";
 import { cleanupProtocolRuntime } from "./zcode-protocol/runtime-cleanup.js";
 import { startProtocolResourceSampler } from "./zcode-protocol/resource-sampler.js";
@@ -319,6 +320,10 @@ export async function runZCodeProtocolAgent(
       refreshProviderRegistry: async (reason) => {
         await activeProviderRegistryRuntime.runtime.registryService.refresh(reason);
       },
+      // 上游模型拉取只读进程 Registry 的 Provider endpoint 事实；不在此处发起网络 IO。
+      resolveProviderUpstreamEndpoint: createRegistryUpstreamEndpointResolver(
+        activeProviderRegistryRuntime.runtime.registryService,
+      ),
       version: options.version,
     }));
     officialMcpAuthContext = server.officialMcpAuthRequestContext;

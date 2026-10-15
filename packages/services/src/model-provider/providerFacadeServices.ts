@@ -68,7 +68,43 @@ export interface IProviderSettingsService {
   testModelConnectivity(
     input: ProviderSettingsConnectivityRequest,
   ): Promise<ModelConnectivityResult>;
+  /**
+   * 用该 Provider 当前生效的 endpoint/key/headers 拉取上游模型 ID 列表。
+   * 网络 IO 由 Agent 侧（CLI/handler）完成；结果不写入配置，仅供添加模型草稿选择。
+   */
+  fetchUpstreamModels(
+    input: ProviderSettingsUpstreamModelsRequest,
+  ): Promise<ProviderUpstreamModelsResult>;
 }
+
+export interface ProviderSettingsUpstreamModelsRequest {
+  readonly workspacePath: string;
+  readonly workspaceIdentity?: string;
+  readonly providerId: ProviderId;
+}
+
+export type ProviderUpstreamModelsErrorCode =
+  | "unsupported"
+  | "provider-unavailable"
+  | "unauthorized"
+  | "timeout"
+  | "network"
+  | "malformed-response"
+  | "not-found"
+  | "unknown";
+
+export interface ProviderUpstreamModelsResult {
+  readonly models: readonly string[];
+  readonly error?: {
+    readonly code: ProviderUpstreamModelsErrorCode;
+    /** 面向用户的脱敏消息；不得包含 key、完整 headers 或原始上游错误体。 */
+    readonly message?: string;
+  };
+}
+
+export type ProviderUpstreamModelsFetcher = (
+  input: ProviderSettingsUpstreamModelsRequest,
+) => Promise<ProviderUpstreamModelsResult>;
 
 export const IProviderSettingsService = createServiceDescriptor<IProviderSettingsService>(
   ServiceChannels.ProviderSettings,
@@ -110,6 +146,7 @@ export function createProviderSettingsService(
   facade: ProviderSettingsFacade,
   ensureReady: () => Promise<void> = async () => {},
   testConnectivity?: ProviderSettingsConnectivityTester,
+  fetchUpstreamModels?: ProviderUpstreamModelsFetcher,
 ): IProviderSettingsService {
   return {
     onDidChange: toEvent((listener) => facade.onDidChange(listener)),
@@ -204,6 +241,21 @@ export function createProviderSettingsService(
         ...(input.workspaceIdentity ? { workspaceIdentity: input.workspaceIdentity } : {}),
         providerId: input.providerId,
         modelId: input.modelId,
+      });
+    },
+    fetchUpstreamModels: async (input) => {
+      await ensureReady();
+      if (!fetchUpstreamModels) {
+        // 未装配拉取能力时按显式不支持返回，UI 保持手输路径；不能抛断 RPC 面。
+        return {
+          models: [],
+          error: { code: "unsupported" as const },
+        };
+      }
+      return fetchUpstreamModels({
+        workspacePath: input.workspacePath,
+        ...(input.workspaceIdentity ? { workspaceIdentity: input.workspaceIdentity } : {}),
+        providerId: input.providerId,
       });
     },
   };

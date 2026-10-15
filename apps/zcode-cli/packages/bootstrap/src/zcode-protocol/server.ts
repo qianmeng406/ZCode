@@ -7,7 +7,7 @@ import {
   zcodeWorkspaceCancelGenerateTextParamsSchema,
   zcodeWorkspaceHookTrustGrantParamsSchema,
 } from "@zcode/shared";
-import type { BrowserControlPort } from "@zcode/contracts";
+import type { BrowserControlPort, HttpClientPort } from "@zcode/contracts";
 import type {
   McpElicitationRequest,
   McpElicitationResult,
@@ -63,6 +63,8 @@ import {
   readWorkspacePresentation,
   testProviderModelConnectivity,
 } from "./workspace-model-runtime.js";
+import { fetchProviderUpstreamModels, createRegistryUpstreamEndpointResolver } from "./provider-upstream-models.js";
+import { createNodeHttpClientAdapter } from "@zcode/adapters/http";
 import {
   addPluginMarketplace,
   configurePlugin,
@@ -239,6 +241,8 @@ export class ZCodeProtocolAgentServer {
       params: batch,
     });
   });
+  /** 上游模型列表拉取专用 HTTP 端口；与 endpoint routing 同一代理/CA 策略，独立实例避免共享超时状态。 */
+  private upstreamModelsHttpClient?: HttpClientPort;
   private readonly runtimeResources: ProtocolRuntimeResources;
   private shutdownPromise?: Promise<void>;
   readonly browserControlPort: BrowserControlPort;
@@ -705,6 +709,19 @@ export class ZCodeProtocolAgentServer {
         return this.cancelWorkspaceGenerateText(request.params);
       case zcodeProtocolMethods.providerTestModelConnectivity:
         return await testProviderModelConnectivity(this.context, request.params);
+      case zcodeProtocolMethods.providerFetchUpstreamModels:
+        return await fetchProviderUpstreamModels(
+          this.context,
+          {
+            resolveProviderEndpoint:
+              this.context.deps.resolveProviderUpstreamEndpoint ??
+              createRegistryUpstreamEndpointResolver(undefined),
+            httpClient: (this.upstreamModelsHttpClient ??= createNodeHttpClientAdapter({
+              env: this.context.deps.env ?? process.env,
+            })),
+          },
+          request.params,
+        );
       case zcodeProtocolMethods.mcpList:
         return await listMcpServers(this.context, request.params);
       case zcodeProtocolMethods.mcpReadResource:
@@ -782,10 +799,12 @@ export class ZCodeProtocolAgentServer {
       case zcodeProtocolMethods.runtimeCapabilities:
         // fusionContextProfile 只证明执行端支持 contextProfile=fusion；
         // contextProfileState 只证明 standard/minimal，两能力独立判定。
+        // betaMode 只证明执行端支持独立工作模式 mode=beta，与上述两位独立判定。
         return {
           independentPlanState: true,
           contextProfileState: true,
           fusionContextProfile: true,
+          betaMode: true,
         };
       case zcodeProtocolMethods.pluginsMarketplaceAdd:
         return await this.withPluginOperationSignal(request, (signal) =>
@@ -833,6 +852,10 @@ export class ZCodeProtocolAgentServer {
       throw new ProtocolRequestError(-32603, "v4 gateway is not initialized");
     }
     return this.context.v4Gateway;
+  }
+
+  private depsEnvForHttpClient(): Record<string, string | undefined> {
+    return this.context.deps.env ?? process.env;
   }
 
   private async withPluginOperationSignal<T>(

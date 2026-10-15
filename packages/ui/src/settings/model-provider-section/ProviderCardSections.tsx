@@ -12,6 +12,7 @@ import type {
   ProviderSettingsFormModel,
 } from "@/lib/providerSettingsFormTypes.js";
 import type { ModelConnectivityResult } from "@zcode/shared";
+import type { ProviderUpstreamModelsResult } from "@zcode/services";
 import type { ProviderApiType } from "@zcode/provider";
 import {
   TID_MODEL_PROVIDER_ADD_MODEL_BUTTON,
@@ -371,6 +372,7 @@ export function ProviderModelsSection({
   providerAccess,
   models,
   onTestModel,
+  onFetchUpstreamModels,
   onModelCommit,
   onModelEnabledChange,
   onDeleteModel,
@@ -384,6 +386,14 @@ export function ProviderModelsSection({
   providerAccess?: ProviderConfigObject["access"];
   models: ProviderSettingsFormModel[];
   onTestModel?: (model: string) => Promise<ModelConnectivityResult>;
+  /** 上游模型拉取（仅网络状态）：由调用方（含 workspace 门禁）决定是否可用；未提供时不渲染入口。 */
+  onFetchUpstreamModels?: (providerId: string) =>
+    | {
+        fetching: boolean;
+        result: ProviderUpstreamModelsResult | null;
+        onFetch: () => void;
+      }
+    | undefined;
   onModelCommit: (
     originalModelId: string,
     model: ProviderSettingsFormModel,
@@ -661,6 +671,15 @@ export function ProviderModelsSection({
           onDraftChange={updateAddDraft}
           onCommit={commitAddDraft}
           saving={addSaving}
+          upstreamModels={
+            onFetchUpstreamModels
+              ? {
+                  ...onFetchUpstreamModels(providerId),
+                  // 选择只写入添加模型草稿；保存仍由用户显式触发，失败不清空手输。
+                  onSelect: (modelId: string) => updateAddDraft({ idValue: modelId }),
+                }
+              : undefined
+          }
           modelConfigResolutionPending={editor.pending}
           modelDefaultsLoaded={editor.defaultsLoaded}
           onModelIdBlur={() => {

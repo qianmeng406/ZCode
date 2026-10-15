@@ -126,6 +126,9 @@ export const zcodeRuntimeCapabilitiesSchema = z.object({
   // 融合档位（contextProfile=fusion）协商位：additive，旧执行端缺失等价于 false。
   // contextProfileState=true 不代表支持 fusion，两条能力独立判定。
   fusionContextProfile: z.boolean().optional(),
+  // Beta 独立工作模式（mode=beta）协商位：additive，旧执行端缺失等价于 false。
+  // 历史 fusionContextProfile 只证明融合档位支持，不能用于放行 Beta。
+  betaMode: z.boolean().optional(),
 });
 export const zcodeProtocolErrorCodes = {
   sessionUnavailable: -32004,
@@ -2578,9 +2581,7 @@ export const zcodeOracleReviewSaveRecordParamsSchema = z
     record: zcodeOracleReviewRecordSchema,
   })
   .strict();
-export const zcodeOracleReviewSaveRecordResultSchema = z
-  .object({ saved: z.boolean() })
-  .strict();
+export const zcodeOracleReviewSaveRecordResultSchema = z.object({ saved: z.boolean() }).strict();
 
 export const zcodeOracleReviewListRecordsParamsSchema = z
   .object({
@@ -2634,6 +2635,44 @@ export type ZCodeProviderTestModelConnectivityParams = z.infer<
 >;
 export type ZCodeProviderTestModelConnectivityResult = z.infer<
   typeof zcodeProviderTestModelConnectivityResultSchema
+>;
+
+// 上游模型列表拉取：settings 添加模型弹窗的可选增强。凭据只出现在 CLI 进程内，
+// 协议面仅传输脱敏后的错误分类；endpoint/key/headers 由 CLI 从 Registry Provider 事实构造。
+export const zcodeProviderFetchUpstreamModelsParamsSchema = z
+  .object({
+    workspace: zcodeWorkspaceRefSchema,
+    providerId: nonEmptyString,
+  })
+  .strict();
+export const zcodeProviderFetchUpstreamModelsResultSchema = z
+  .object({
+    models: z.array(nonEmptyString).readonly(),
+    // 错误分类与凭据无关；空 models + error code 表示拉取未成功，UI 保持手输。
+    error: z
+      .object({
+        code: z.enum([
+          "unsupported",
+          "provider-unavailable",
+          "unauthorized",
+          "timeout",
+          "network",
+          "malformed-response",
+          "not-found",
+          "unknown",
+        ]),
+        // 面向用户的脱敏消息；不得包含 key、完整 headers 或原始上游错误体。
+        message: z.string().optional(),
+      })
+      .strict()
+      .optional(),
+  })
+  .strict();
+export type ZCodeProviderFetchUpstreamModelsParams = z.infer<
+  typeof zcodeProviderFetchUpstreamModelsParamsSchema
+>;
+export type ZCodeProviderFetchUpstreamModelsResult = z.infer<
+  typeof zcodeProviderFetchUpstreamModelsResultSchema
 >;
 
 export const zcodeProviderUpdateAccountConfigParamsSchema = z
@@ -4252,6 +4291,8 @@ export const zcodeProtocolMethods = {
   oracleReviewListRecords: "oracleReview/listRecords",
   oracleReviewAcknowledgeRecord: "oracleReview/acknowledgeRecord",
   providerTestModelConnectivity: "provider/testModelConnectivity",
+  // 上游模型列表拉取：可选增强；旧 CLI method-not-found 由 UI 降级为手输，不视为致命。
+  providerFetchUpstreamModels: "provider/fetchUpstreamModels",
   mcpList: "mcp/list",
   mcpReadResource: "mcp/readResource",
   mcpUiOpenInstance: "mcp/uiOpenInstance",

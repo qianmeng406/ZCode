@@ -174,6 +174,9 @@ const enUS: Record<string, string> = {
   "chat.composer.optimizeContextDraft": "Draft only",
   "chat.composer.optimizeContextConversation": "With this conversation",
   "chat.composer.optimizePreviewTitle": "Optimization preview",
+  "chat.composer.turnMetrics.ttft": "First token",
+  "chat.composer.turnMetrics.tokensPerSecond": "Speed",
+  "chat.composer.turnMetrics.outputTokens": "Output",
   "chat.composer.optimizeWorking": "Optimizing…",
   "chat.composer.optimizeCancel": "Cancel",
   "chat.composer.optimizeFailed": "Optimization failed",
@@ -4187,6 +4190,20 @@ const enUS: Record<string, string> = {
     "This provider is currently unavailable for connectivity testing.",
   "settings.modelProvider.testModel.modelUnavailable":
     "This model is currently unavailable for connectivity testing.",
+  "settings.modelProvider.upstream.fetch": "Fetch models",
+  "settings.modelProvider.upstream.searchPlaceholder": "Search model ID",
+  "settings.modelProvider.upstream.empty": "No models match",
+  "settings.modelProvider.upstream.error.unsupported":
+    "This provider does not support fetching upstream models.",
+  "settings.modelProvider.upstream.error.provider-unavailable":
+    "This provider is not configured with a usable endpoint.",
+  "settings.modelProvider.upstream.error.unauthorized": "Upstream rejected the credentials.",
+  "settings.modelProvider.upstream.error.timeout": "The upstream models request timed out.",
+  "settings.modelProvider.upstream.error.network": "Network error while fetching upstream models.",
+  "settings.modelProvider.upstream.error.malformed-response":
+    "The upstream response was not a valid model list.",
+  "settings.modelProvider.upstream.error.not-found": "The upstream models endpoint was not found.",
+  "settings.modelProvider.upstream.error.unknown": "Failed to fetch upstream models.",
   "settings.modelProvider.testModel.connectingWithIdentity": "Testing {provider} / {model}",
   "settings.modelProvider.testModel.successWithIdentity": "{provider} / {model} connected",
   "settings.modelProvider.testModel.failed": "Connection failed",
@@ -5196,6 +5213,8 @@ const enUS: Record<string, string> = {
   "chat.contextUsage.breakdown.mcpTools": "MCP tools",
   "chat.contextUsage.compress": "Compress",
   "chat.contextUsage.compressDescription": "Send {command} to compress the current context",
+  "chat.contextUsage.compact": "Compact context",
+  "chat.contextUsage.compactDescription": "Send {command} to compact the current context",
   "tokenDebug.open": "Open token debug",
   "tokenDebug.column.tps": "TPS (tokens/s)",
   "tokenDebug.tpsDescription":
@@ -6361,6 +6380,8 @@ const enUS: Record<string, string> = {
   "chat.error.feedback": "Report issue",
   "chat.error.feedbackOpened": "Feedback opened with the error context attached",
   "chat.error.noAvailableModel": "No model available. Upgrade or set a custom model.",
+  "chat.error.proto.betaModeUnsupported":
+    "The connected ZCode runtime does not support Beta mode (prompt-fusion mode test version). Update the runtime and try again; no other mode was substituted.",
   "chat.error.proto.fusionContextProfileUnsupported":
     "The connected ZCode runtime does not support Beta mode (prompt-fusion mode test version). Update the runtime and try again; the profile was not changed.",
   "chat.error.proto.contextProfileUnsupported":
@@ -6559,6 +6580,9 @@ const enUS: Record<string, string> = {
   "mode.description.glm.default": "Use default confirmations.",
   "mode.label.glm.research": "Research",
   "mode.label.glm.minimal": "Legacy minimal (auto)",
+  "mode.label.glm.beta": "Beta mode",
+  "mode.description.glm.beta":
+    "Prompt-fusion mode test version: collaborative, evidence-driven and delegation-aware behavior with the full context and toolset. Uses full-access permissions with fewer confirmations; plan stays read-only.",
   "chat.toolbar.mode.minimalContext.label": "Minimal context",
   "chat.toolbar.mode.minimalContext.description":
     "Keep only the identity line, environment and short guardrails; hides skills, memory, project instructions and MCP tools. It does not change permissions and only affects later requests.",
@@ -6567,14 +6591,14 @@ const enUS: Record<string, string> = {
     "Full context: identity, skills, memory and project instructions. Does not change permissions.",
   "chat.toolbar.mode.fusionContext.label": "Beta mode",
   "chat.toolbar.mode.fusionContext.description":
-    "Prompt-fusion mode test version: collaborative, evidence-driven and delegation-aware behavior with the full toolset; permissions and plan stay unchanged. Not an auto-permission mode.",
+    "Prompt-fusion mode test version with default confirmations. Kept for historical sessions rendered in the fusion profile; new tasks use the Beta mode entry in the mode list.",
   "mode.description.glm.build": "Ask before file changes.",
   "mode.description.glm.edit": "Edit files automatically.",
   "mode.description.glm.plan": "Plan before editing.",
   "mode.description.glm.yolo": "Run with fewer confirmations.",
   "mode.description.glm.research": "Read-only web research; edits and commands are denied.",
   "mode.description.glm.minimal":
-    "Legacy combined mode (kept for old sessions): minimal context plus commands and edits without confirmation. New tasks should use the Minimal context toggle and choose permissions separately.",
+    "Minimal context mode: only identity line, environment and short guardrails, with commands and edits without confirmation. No skills, memory, project instructions, or MCP tools.",
   "todo.panel.title": "Todo",
   "todo.panel.currentTask": "Current task",
   "todo.panel.completed": "Todo completed",

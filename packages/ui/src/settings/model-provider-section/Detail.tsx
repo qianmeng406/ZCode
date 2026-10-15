@@ -13,6 +13,7 @@ import {
   type ModelConnectivityResult,
   type OAuthProviderId,
 } from "@zcode/shared";
+import type { ProviderUpstreamModelsResult } from "@zcode/services";
 import {
   getProviderFormApiKeyManagementUrl,
   type ProviderSettingsFormProvider,
@@ -246,6 +247,7 @@ export function ModelProviderSectionDetail({
   onDelete,
   onReorderProviderModels,
   onTestModel,
+  onFetchUpstreamModels,
   onCodingPlanLogin,
   onRetryCodingPlan,
   onCodingPlanDisconnect,
@@ -285,6 +287,14 @@ export function ModelProviderSectionDetail({
   onDelete: (provider: ProviderSettingsFormProvider) => Promise<void>;
   onReorderProviderModels?: (providerId: string, modelIds: string[]) => Promise<void>;
   onTestModel: (providerId: string, modelId: string) => Promise<ModelConnectivityResult>;
+  /** 上游模型拉取（仅网络状态）；未提供或远程 fail-closed 时不渲染入口。 */
+  onFetchUpstreamModels?: (providerId: string) =>
+    | {
+        fetching: boolean;
+        result: ProviderUpstreamModelsResult | null;
+        onFetch: () => void;
+      }
+    | undefined;
   onRetryCodingPlan?: () => void | Promise<void>;
   onCodingPlanLogin: (
     presetId: BuiltinModelProviderId,
@@ -428,6 +438,7 @@ export function ModelProviderSectionDetail({
               : undefined
           }
           onTestModel={onTestModel}
+          onFetchUpstreamModels={onFetchUpstreamModels}
           readOnlyEndpoints
           // 预置供应商名称承载固定 API Key 入口语义，
           // 允许重命名会让侧边栏和模型选择器展示含义不一致，因此只允许自定义供应商改名。
@@ -708,6 +719,7 @@ export function ModelProviderSectionDetail({
                 : undefined
             }
             onTestModel={onTestModel}
+            onFetchUpstreamModels={onFetchUpstreamModels}
             nameEditable={false}
             statusSection={
               <div className="space-y-3">
@@ -856,6 +868,7 @@ export function ModelProviderSectionDetail({
           : undefined
       }
       onTestModel={onTestModel}
+      onFetchUpstreamModels={onFetchUpstreamModels}
       presetApiKeyUrl={customApiKeyUrl}
       readOnlyEndpoints={false}
       nameEditable

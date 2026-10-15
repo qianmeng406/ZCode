@@ -7,6 +7,7 @@ import {
   type ProviderSettingsFormModel,
 } from "@/lib/providerSettingsFormTypes.js";
 import type { ModelConnectivityResult } from "@zcode/shared";
+import type { ProviderUpstreamModelsResult } from "@zcode/services";
 import {
   isApiKeyAccess,
   type ProviderApiType,
@@ -146,6 +147,7 @@ export function InlineEditableProviderCard({
   onDeletePersonalModel,
   onDelete,
   onTestModel,
+  onFetchUpstreamModels,
   onReorderModelIds,
   readOnlyEndpoints,
   presetApiKeyUrl,
@@ -174,6 +176,14 @@ export function InlineEditableProviderCard({
   onDeletePersonalModel?: (providerId: string, modelId: string) => Promise<unknown>;
   onDelete?: () => void | Promise<void>;
   onTestModel?: (providerId: string, modelId: string) => Promise<ModelConnectivityResult>;
+  /** 上游模型拉取状态由父级持有（workspace 门禁 + 代次守卫）；未提供则不渲染入口。 */
+  onFetchUpstreamModels?: (providerId: string) =>
+    | {
+        fetching: boolean;
+        result: ProviderUpstreamModelsResult | null;
+        onFetch: () => void;
+      }
+    | undefined;
   onReorderModelIds?: (modelIds: string[]) => Promise<void>;
   readOnlyEndpoints?: boolean;
   presetApiKeyUrl?: string;
@@ -860,6 +870,7 @@ export function InlineEditableProviderCard({
           providerAccess={provider.config.access}
           models={models}
           onTestModel={onTestModel ? handleTestModel : undefined}
+          onFetchUpstreamModels={onFetchUpstreamModels}
           onModelCommit={handleModelCommit}
           onModelEnabledChange={handleModelEnabledChange}
           onDeleteModel={handleDeleteModel}

@@ -1481,7 +1481,7 @@ export function createLocalServices(options: {
     },
   );
   let providerConnectivityAgentService:
-    | Pick<IZCodeAgentService, "testModelConnectivity">
+    | Pick<IZCodeAgentService, "testModelConnectivity" | "fetchUpstreamModels">
     | undefined;
   const providerRuntime = createProviderRuntimeFromConfigRuntime({
     configRuntime: providerConfigRuntime,
@@ -1497,6 +1497,13 @@ export function createLocalServices(options: {
         return providerConnectivityAgentService.testModelConnectivity(input);
       },
     }),
+    // 上游模型拉取同样委托 Agent 侧（CLI），凭据不出 CLI 进程；未就绪时按不支持降级。
+    fetchUpstreamModels: async (input) => {
+      if (!providerConnectivityAgentService) {
+        return { models: [], error: { code: "unsupported" as const } };
+      }
+      return providerConnectivityAgentService.fetchUpstreamModels(input);
+    },
     disposeAccountSource: () => {
       disposeAccountProviderInvalidation();
       accountProviderRefreshErrorDispose();

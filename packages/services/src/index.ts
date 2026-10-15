@@ -8,6 +8,8 @@ export {
   type ModelSelectionViewInput,
   type ProviderSettingsProviderView,
   type ProviderSettingsView,
+  type ProviderUpstreamModelsResult,
+  type ProviderUpstreamModelsErrorCode,
 } from "./model-provider/providerFacadeServices.js";
 export {
   createAccountRequestAuthService,

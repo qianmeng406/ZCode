@@ -38,6 +38,8 @@ import {
 } from "@/settings/model-provider-section/ModelConfigHelp.js";
 
 import { ModelEditorAdvanced } from "@/settings/model-provider-section/ModelEditorAdvanced.js";
+import { ProviderUpstreamModelPicker } from "@/settings/model-provider-section/ProviderUpstreamModelPicker.js";
+import type { ProviderUpstreamModelsResult } from "@zcode/services";
 
 export function selectFocusedInputText(event: Pick<FocusEvent<HTMLInputElement>, "currentTarget">) {
   event.currentTarget.select();
@@ -61,6 +63,7 @@ export function ProviderModelMetadataDialog({
   saving = false,
   modelDefaultsLoaded = false,
   onModelIdBlur,
+  upstreamModels,
 }: {
   mode?: "add" | "edit";
   open: boolean;
@@ -79,6 +82,13 @@ export function ProviderModelMetadataDialog({
   saving?: boolean;
   modelDefaultsLoaded?: boolean;
   onModelIdBlur?: () => void;
+  /** 添加模式的可选上游模型拉取；编辑模式不提供。 */
+  upstreamModels?: {
+    fetching?: boolean;
+    result?: ProviderUpstreamModelsResult | null;
+    onFetch?: () => void;
+    onSelect: (modelId: string) => void;
+  };
 }) {
   const { intl } = useZCodeIntl();
   const [validationAttempt, setValidationAttempt] = useState(0);
@@ -197,6 +207,17 @@ export function ProviderModelMetadataDialog({
                   onCompositionEnd={handleCompositionEnd}
                   onKeyDown={handleTechnicalInputKeyDown}
                 />
+                {upstreamModels && !modelIdReadOnly ? (
+                  <div className="mt-1.5">
+                    <ProviderUpstreamModelPicker
+                      disabled={saving}
+                      fetching={upstreamModels.fetching ?? false}
+                      result={upstreamModels.result ?? null}
+                      onFetch={() => upstreamModels.onFetch?.()}
+                      onSelect={upstreamModels.onSelect}
+                    />
+                  </div>
+                ) : null}
               </div>
             </div>
           </ModelSettingsGroup>

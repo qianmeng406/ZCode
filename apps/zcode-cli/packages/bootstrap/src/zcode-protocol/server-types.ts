@@ -30,6 +30,7 @@ import {
   type ZCodeWorkspaceRef,
 } from "@zcode/shared";
 import type { ZCodeApp, ZCodeAppOptions } from "../app/types.js";
+import type { ProviderUpstreamEndpoint } from "./provider-upstream-models.js";
 import type { V4InteractionRegistry } from "../zcode-protocol-v4/interaction-registry.js";
 import type { ConversationV4Gateway } from "../zcode-protocol-v4/v4-gateway.js";
 import type { SessionResidentPool, SessionResidentPoolOptions } from "./session-resident-pool.js";
@@ -65,6 +66,8 @@ export interface ZCodeProtocolAgentDependencies {
   syncAccountProviderConfig?: (snapshot: AccountProviderConfigSnapshot) => Promise<boolean>;
   /** 连接测试前主动重读当前进程的 Config Source 并等待 Registry 发布。 */
   refreshProviderRegistry?: (reason: string) => Promise<void>;
+  /** 上游模型拉取只读进程 Registry 的 Provider endpoint 事实；未注入时按 unsupported 降级。 */
+  resolveProviderUpstreamEndpoint?: (providerId: string) => ProviderUpstreamEndpoint | undefined;
 }
 
 export type ZCodeProtocolAgentResolvedDependencies = ZCodeProtocolAgentDependencies & {

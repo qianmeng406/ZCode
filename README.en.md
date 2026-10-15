@@ -15,7 +15,8 @@ Myzcode is a personal customization of ZCode, an AI coding workspace with deskto
 
 ## Upstream Version and Sync Status
 
-- 2026-10-15: Added the **Beta mode** (prompt-fusion mode test version) context profile and produced a `ZCode Preview` installer.
+- 2026-10-16: Added three session-experience features: **upstream model fetching** (the add-model dialog pulls model IDs from the provider's `/models` endpoint into a searchable picker), a **compact-context button** in the context usage panel (one click triggers the existing `/compact` flow), and a **composer main-turn metrics capsule** (persistent TTFT, generation speed, and output tokens below the input box, counting main-turn requests only); produced a new `ZCode Preview` installer.
+- 2026-10-15: Added **Beta mode** (prompt-fusion mode test version), then revised it into an independent work mode (minimal-mode entry removed; Beta uses full-access permissions) and produced a new `ZCode Preview` installer (`dist-new/`; the running old instance is untouched).
 - 2026-10-13: Migrated the Myzcode customizations onto this repository, based on official v3.15.1.
 - 2026-10-10: Updated to ZCode v3.15.1.
 - 2026-9-23: Updated to ZCode v3.14.3.
@@ -28,7 +29,13 @@ Myzcode is a personal customization of ZCode, an AI coding workspace with deskto
 
 This fork adds dual-model review (Oracle), execution-model selection during plan approval, turn navigation, permission modes, prompt optimization, and bundled SSH/WSL runtime assets. See [README.md](README.md) for details.
 
-**Beta mode (prompt-fusion mode test version)** is an optional context profile in the composer mode menu (shown as "Beta mode"). It combines progress within authorization, minimal complete changes, purposeful delegation, and evidence-based verification while retaining skills, memory, and project instructions. It does not change execution permissions or Plan state; standard context remains the default. See the [Fusion profile specification](apps/zcode-cli/docs/design/v2/loop/fusion-context-profile.md).
+**Beta mode (prompt-fusion mode test version)** is an independent, mutually exclusive work mode (`mode=beta`) in the composer menu, alongside the confirmation, autonomous, research, and full-access modes. It combines progress within authorization, minimal complete changes, purposeful delegation, and evidence-based verification while retaining skills, memory, and project instructions. It uses full-access permissions with fewer confirmations. Plan remains an independent switch (read-only while on); selecting another work mode exits Beta. See the [Beta mode specification](apps/zcode-cli/docs/design/v2/loop/fusion-context-profile.md).
+
+**Upstream model fetching** lets the add-model dialog pull model IDs from the current provider's OpenAI-compatible `/models` endpoint into a searchable picker. Selecting an entry only fills the draft; saving still requires confirmation. Built-in official account providers are explicitly unsupported, and failures keep manual input intact. Credentials never cross the protocol boundary, and errors are reported as redacted categories.
+
+**Compact-context button** adds a one-click action inside the context usage panel that triggers the existing `/compact` flow. It is disabled while a compaction is already running or the session cannot accept input; no second compaction protocol is introduced.
+
+**Composer main-turn metrics capsule** persistently shows the latest main-turn (`main_turn`) request's time to first token, generation speed (tok/s), and output tokens below the input box. Subagents, compaction, and title generation never affect the metrics; missing facts render an `--` placeholder instead of an estimate. Specifications live in [docs/features/](docs/features/).
 
 These customizations are described relative to the official v3.15.1 baseline, not as a claim of exclusive features. Later official versions may offer similar capabilities.
 
