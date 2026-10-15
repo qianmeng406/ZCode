@@ -54,6 +54,15 @@ describe("Composer Draft 持久选择", () => {
     });
   });
 
+  it("Beta 独立模式草稿持久化并在恢复时保留", () => {
+    persistV4ComposerDraft(workspace, undefined, "session-a", {
+      text: "",
+      mode: "beta" as never,
+      planEnabled: false,
+    });
+    expect(read()).toMatchObject({ mode: "beta", planEnabled: false });
+  });
+
   it("旧草稿非法档位被丢弃，缺省按 standard 解析不误升 fusion", () => {
     storage.setItem(
       getV4ComposerDraftStorageKey(workspace),

@@ -38,21 +38,23 @@ const ZCODE_AGENT_MODE_OPTIONS = [
     description: "Read-only web research across docs, code Q&A, and academic sources.",
   },
   {
-    id: "minimal",
-    name: "Minimal mode",
-    description:
-      "Send only the system tools with a bare identity line and working directory, and run commands and edits without confirmation; no skills, memory, project instructions, or MCP tools.",
-  },
-  {
     id: "yolo",
     name: "Full access",
     description: "Edit and run commands with fewer confirmations.",
   },
+  {
+    id: "beta",
+    name: "Beta mode",
+    description:
+      "Prompt-fusion mode (test version): full context with the fused behavior prompt, and full-access permissions with fewer confirmations.",
+  },
 ] as const satisfies readonly ZCodeTaskModeInfo[];
-// 菜单隐藏 Edit 不等于删除历史值；恢复/投影不能因候选变化把旧 edit 降为 build。
+// 菜单隐藏 Edit/minimal 不等于删除历史值；恢复/投影不能因候选变化把旧 edit/minimal 降为 build。
+// minimal（极简模式）入口已按产品决策移除，仅保留历史会话的读取回显。
 const ZCODE_AGENT_MODE_ID_SET = new Set<string>([
   ...ZCODE_AGENT_MODE_OPTIONS.map((mode) => mode.id),
   "edit",
+  "minimal",
 ]);
 
 // OpenRouter 会把 `:free` 作为模型 ID 的一部分。UI/configOptions 的展示态

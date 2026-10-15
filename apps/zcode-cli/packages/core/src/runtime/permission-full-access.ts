@@ -98,15 +98,21 @@ export async function grantPermissionFullAccess(
       // 统一走已提交状态安装：授权只改权限，但同样要失效工具缓存并推进派生版本，
       // 否则 minimal→yolo 等切换会沿用旧档位的工具表与前缀。payload 经 receipt 校验
       // 固定为 yolo + 明确 planEnabled；以会话当前状态为基线解析，保留上下文档位。
+      // Beta 本身已是完全访问权限：从 Beta 授予全权时保留 Beta，不因冗余授权退出融合模式。
+      const previous = readRuntimeExecutionState(this);
+      const grantedMode =
+        previous.mode === "beta" && payload.mode === "yolo" ? "beta" : payload.mode;
       installRuntimeExecutionState(
         this,
         resolveExecutionState(
-          { mode: payload.mode, planEnabled: payload.planEnabled },
-          readRuntimeExecutionState(this),
+          { mode: grantedMode, planEnabled: payload.planEnabled },
+          previous,
         ),
       );
+      // intent 只接受提交模式值域：授权后排队输入固定为 yolo；保留 Beta 时回写 beta。
+      const intentMode: "beta" | "yolo" = grantedMode === "beta" ? "beta" : "yolo";
       for (const item of this.activeTurn?.pendingInputs ?? []) {
-        if (ids.has(item.id) && item.intent) item.intent = { ...item.intent, mode: "yolo" };
+        if (ids.has(item.id) && item.intent) item.intent = { ...item.intent, mode: intentMode };
       }
       applied.add(interactionId);
       appliedGrants.set(this, applied);

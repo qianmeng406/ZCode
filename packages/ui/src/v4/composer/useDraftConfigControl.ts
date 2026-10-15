@@ -6,7 +6,11 @@ import { applyComposerPermissionGrant } from "@/v4/composer/composerPermissionGr
 // Workspace presentation 水合只提供 mode 与 slash commands；模型候选、能力和首选值
 // 统一来自目标 Host ModelSelectionView。
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { ZCODE_AGENT_PROVIDER, resolveExecutionState } from "@zcode/shared";
+import {
+  ZCODE_AGENT_PROVIDER,
+  resolveExecutionState,
+  resolveRestoredExecutionState,
+} from "@zcode/shared";
 import { applyComposerPlanTransition } from "@/v4/composer/composerPlanTransition.js";
 import type {
   ZCodeConfigOption,
@@ -155,21 +159,27 @@ export function useDraftConfigControl(params: {
     modelSelectionRead.state.status === "ready" ? modelSelectionRead.state.view : null;
   const initializeAsNewTask = sessionId === null || draft.initializeFromNewTask === true;
   if (!draft.mode && (initializeAsNewTask ? modelSelectionView !== null : sessionConfig != null)) {
-    const mode = submissionModeSchema.safeParse(sessionConfig?.mode);
     // Recent 是初始化原意图，不先按旧 Provider 是否仍在候选中删掉；下一次输入读取
     // 由同一解析入口对应当前账号，或暂时留空。否则冷启动会绕过统一账号对应规则。
     // mode 是已初始化标记：历史恢复给出的空选择也是确定结果，后续 Snapshot 不得填满。
     draft =
       initializeAsNewTask && modelSelectionView
         ? initializeNewTaskDraft(draft, workspacePath, workspaceIdentity, modelSelectionView)
-        : {
-            ...draft,
-            mode: mode.success && mode.data !== "plan" ? mode.data : "build",
-            planEnabled: resolveExecutionState(sessionConfig ?? {}).planEnabled,
-            // 档位独立于权限恢复；旧 mode=minimal 由解析补出极简档位。
-            contextProfile: resolveExecutionState(sessionConfig ?? {}).contextProfile,
-            modelSelection: sessionConfig?.modelSelection,
-          };
+        : (() => {
+            // Session snapshot 属于恢复/读取边界：旧 build+fusion 完整状态在此无损升级为
+            // Beta；其余 fusion 组合原样保留（restore 归一是 shared 的单一所有者，
+            // 见 execution-state.ts resolveRestoredExecutionState），不能用显式切换语义
+            // 在此清掉历史档位。
+            const restored = resolveRestoredExecutionState(sessionConfig ?? {});
+            const mode = submissionModeSchema.safeParse(restored.mode);
+            return {
+              ...draft,
+              mode: mode.success && mode.data !== "plan" ? mode.data : "build",
+              planEnabled: restored.planEnabled,
+              contextProfile: restored.contextProfile,
+              modelSelection: sessionConfig?.modelSelection,
+            };
+          })();
   }
   if (sessionConfig) {
     draft = applyComposerPlanTransition(draft, sessionConfig.planTransition);
@@ -189,7 +199,8 @@ export function useDraftConfigControl(params: {
       mode: draft.mode,
       planEnabled: draft.planEnabled ?? false,
       // 档位缺省按草稿 mode 兼容解析（旧 minimal → 极简），新草稿始终显式。
-      contextProfile: draft.contextProfile ?? resolveExecutionState({ mode: draft.mode }).contextProfile,
+      contextProfile:
+        draft.contextProfile ?? resolveExecutionState({ mode: draft.mode }).contextProfile,
       modelSelection: effectiveSelection,
       provider: effectiveSelection?.providerId ?? "",
       model: effectiveSelection?.modelId ?? "",
@@ -226,7 +237,8 @@ export function useDraftConfigControl(params: {
       draftConfigRef.current = {
         mode: next.mode,
         planEnabled: next.planEnabled ?? false,
-        contextProfile: next.contextProfile ?? resolveExecutionState({ mode: next.mode }).contextProfile,
+        contextProfile:
+          next.contextProfile ?? resolveExecutionState({ mode: next.mode }).contextProfile,
         modelSelection: selection,
         provider: selection?.providerId ?? "",
         model: selection?.modelId ?? "",
@@ -476,14 +488,28 @@ export function useDraftConfigControl(params: {
         }));
         return;
       }
-      // 模式与模型同属当前 scope；不再写全局偏好，避免别的任务反向覆盖。
+      // Beta 是独立工作模式，shared submissionModeSchema 已含 beta；坏值仍不落草稿。
+      // 菜单选择是用户明确选模式，按新语义给出目标模式的规范档位（beta/minimal 之外回
+      // standard，清掉遗留 fusion，也修掉切出极简后 minimal 档位泄漏）；归一仍走 shared
+      // resolveExecutionState，不在 UI 维护平行迁移规则。
       const parsed = submissionModeSchema.safeParse(mode);
       if (parsed.success)
-        updateComposerDraft((current) => ({
-          ...current,
-          mode: parsed.data,
-          initializeFromNewTask: undefined,
-        }));
+        updateComposerDraft((current) => {
+          const transitioned = resolveExecutionState({
+            mode: parsed.data,
+            planEnabled: current.planEnabled ?? false,
+            contextProfile: parsed.data === "minimal" ? "minimal" : "standard",
+          });
+          // resolveExecutionState 的模式值域含内部 auto；草稿只存 submission 可选值，
+          // parsed.data 校验已排除 auto，这里直接回写用户选择的模式。
+          return {
+            ...current,
+            mode: parsed.data,
+            planEnabled: current.planEnabled ?? false,
+            contextProfile: transitioned.contextProfile,
+            initializeFromNewTask: undefined,
+          };
+        });
     },
     [updateComposerDraft],
   );

@@ -28,23 +28,24 @@ describe("zcodeConfigOptions", () => {
     const modeOption = options.find((option) => option.category === "mode");
 
     expect(modeOption?.currentValue).toBe("edit");
-    // 本定制版在官方 build/guarded/plan/yolo 之外新增 research/minimal 两个模式，
-    // 这里按 fork 事实源（shared ZCODE_AGENT_MODE_OPTIONS）断言完整菜单，而非官方四项子集。
+    // 本定制版在官方 build/guarded/plan/yolo 之外新增 research/beta 两个模式（minimal 入口
+    // 已移除，历史值仅保留读取回显），这里按 fork 事实源（shared ZCODE_AGENT_MODE_OPTIONS）
+    // 断言完整菜单，而非官方四项子集。
     expect(modeOption?.options?.map((option) => option.value)).toEqual([
       "build",
       "guarded",
       "plan",
       "research",
-      "minimal",
       "yolo",
+      "beta",
     ]);
     expect(getZCodeAgentAvailableModes().map((mode) => mode.id)).toEqual([
       "build",
       "guarded",
       "plan",
       "research",
-      "minimal",
       "yolo",
+      "beta",
     ]);
     expect(normalizeAvailableZCodeMode("edit")).toBe("edit");
   });

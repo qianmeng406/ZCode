@@ -21,6 +21,7 @@ import { createHash, randomUUID } from "node:crypto";
 import { createTopicResourceBridge } from "./topicResourceBridge.js";
 import { uploadTopicResourceToClient } from "./topicResourceUpload.js";
 import {
+  ensureBetaModeSupport,
   ensureContextProfileSupport,
   ensureFusionContextProfileSupport,
   ensureIndependentPlanSupport,
@@ -108,6 +109,7 @@ import {
   zcodeProviderRuntimeHeadersCancelledSchema,
   zcodeProviderRuntimeHeadersRequestParamsSchema,
   zcodeProviderTestModelConnectivityResultSchema,
+  zcodeProviderFetchUpstreamModelsResultSchema,
   zcodeOfficialMcpAuthHeadersRequestParamsSchema,
   summarizeOfficialMcpIdentityHeaders,
   zcodeProtocolEmptyResultSchema,
@@ -204,6 +206,7 @@ import type {
   ZCodeAgentInstallPluginParams,
   ZCodeAgentGenerateWorkspaceTextParams,
   ZCodeAgentTestModelConnectivityParams,
+  ZCodeAgentFetchUpstreamModelsParams,
   ZCodeAgentGoalParams,
   ZCodeAgentGrantWorkspaceHookTrustParams,
   ZCodeAgentInitializeResult,
@@ -3837,6 +3840,9 @@ export function createZCodeAgentService(
     async createSession(params: ZCodeAgentCreateSessionParams) {
       const startedAt = Date.now();
       const client = await getClient(params);
+      // Beta 独立工作模式是 additive 能力：旧执行端会按旧 schema 静默剥掉 mode=beta，
+      // 拒绝发生在创建会话副作用之前，不静默降级到其他模式（fusionContextProfile 不证明 Beta）。
+      if (params.mode === "beta") await ensureBetaModeSupport(client);
       await ensureAccountProviderConfigSynced({
         client,
         reason: "session_create",
@@ -5347,6 +5353,25 @@ export function createZCodeAgentService(
       );
     },
 
+    async fetchUpstreamModels(params: ZCodeAgentFetchUpstreamModelsParams) {
+      const client = await getClient(params);
+      await ensureAccountProviderConfigSynced({
+        client,
+        reason: "provider_fetch_upstream_models",
+        workspace: params,
+      });
+      // 拉取超时与连通性测试同级：用户会等待结果，不能吃 client 默认 3 分钟。
+      return client.request(
+        zcodeProtocolMethods.providerFetchUpstreamModels,
+        {
+          workspace: buildWorkspaceRef(params),
+          providerId: params.providerId,
+        },
+        zcodeProviderFetchUpstreamModelsResultSchema,
+        { signal: params.signal, timeoutMs: 30_000 },
+      );
+    },
+
     async sendPrompt(params: ZCodeAgentSendPromptParams) {
       const startedAt = Date.now();
       const client = await getClient(params);
@@ -5593,6 +5618,9 @@ export function createZCodeAgentService(
 
     async setMode(params: ZCodeAgentSetModeParams) {
       const client = await getClient(params);
+      // Beta 独立工作模式是 additive 能力：旧执行端缺 betaMode 能力位时显式拒绝，
+      // 不静默把 Beta 换成其他模式（fusionContextProfile 只证明历史档位支持）。
+      if (params.mode === "beta") await ensureBetaModeSupport(client);
       return client.request(
         zcodeProtocolMethods.sessionSetMode,
         {
@@ -5974,6 +6002,7 @@ export function createZCodeAgentService(
           independentPlanState: true,
           contextProfileState: true,
           fusionContextProfile: true,
+          betaMode: true,
           // 与 connection scope 的 hello 同一份能力集：直连 base service 的宿主内部消费者
           // 也能收到 `workflowRun.*` 增量（是否真收由它自己的 clientHello 决定）。
           workflowRunDeltas: true,
@@ -6107,8 +6136,9 @@ export function createZCodeAgentService(
       const planPayload = params.envelope.payload as {
         planEnabled?: boolean;
         contextProfile?: string;
-        config?: { planEnabled?: boolean; contextProfile?: string };
-        firstInput?: { planEnabled?: boolean; contextProfile?: string };
+        mode?: string;
+        config?: { planEnabled?: boolean; contextProfile?: string; mode?: string };
+        firstInput?: { planEnabled?: boolean; contextProfile?: string; mode?: string };
       };
       if (
         planPayload.planEnabled ||
@@ -6130,6 +6160,15 @@ export function createZCodeAgentService(
       }
       if (requestedContextProfile === "fusion") {
         await ensureFusionContextProfileSupport(client);
+      }
+      // Beta 独立工作模式需要独立的 betaMode 能力位（fusionContextProfile 不证明 Beta），
+      // 拒绝发生在创建会话/改状态副作用之前；显式 mode=beta 才检查，其余模式不做额外拒绝。
+      const requestedBetaMode =
+        planPayload.mode === "beta" ||
+        planPayload.config?.mode === "beta" ||
+        planPayload.firstInput?.mode === "beta";
+      if (requestedBetaMode) {
+        await ensureBetaModeSupport(client);
       }
       // RPC facade 会清掉调用方可伪造的顶层 clientMode，再用 trusted carrier 注入 host
       // 真值；host 内部 adapter 直调仍兼容显式 clientMode。

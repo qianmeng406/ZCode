@@ -151,7 +151,9 @@ export class PermissionService {
       return this.checkAlwaysAsk(context, capability, projectRules, rulePolicy);
     }
 
-    if ((context.mode === "yolo" || context.mode === "guarded") && !planEnabled) {
+    // Beta 权限明确复用完全访问（yolo）策略：非 Plan 时与 yolo 同支直通（含先于
+    // disallowedTools 放行的既有优先级）；Plan 开启时与 yolo 一致回落下方只读路径。
+    if ((context.mode === "yolo" || context.mode === "guarded" || context.mode === "beta") && !planEnabled) {
       return this.allow(context, capability, "mode.yolo", "Yolo mode bypasses permission prompts");
     }
 
@@ -288,6 +290,13 @@ export class PermissionService {
 
     if (context.mode === "edit") {
       return this.checkEditMode(context, capability);
+    }
+
+    // Beta 是独立工作模式：权限明确复用完全访问（yolo）策略（见 fusion-context-profile.md），
+    // 显式分发而不是依赖未知值兜底——后续新增模式分支时不经意改变 Beta 语义。
+    // 非 Plan 已在上方 yolo 分支直通；走到这里只剩 Plan 开启的回落（同 yolo）。
+    if (context.mode === "beta") {
+      return this.checkBuildMode(context, capability);
     }
 
     return this.checkBuildMode(context, capability);

@@ -28,6 +28,8 @@ const zcodeTaskModeRealtimeValues = [
   "build",
   "research",
   "minimal",
+  // Beta 独立工作模式（提示词融合模式测试版本）：additive 值，权限复用 build。
+  "beta",
 ] as const satisfies readonly ZCodeTaskMode[];
 const zcodeTaskMigrationSourceRealtimeValues = [
   "claudeCode",

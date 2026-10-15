@@ -145,7 +145,8 @@ const normalizePromptMode = (value: string | undefined): CliPermissionMode | und
     mode === "yolo" ||
     mode === "guarded" ||
     mode === "research" ||
-    mode === "minimal"
+    mode === "minimal" ||
+    mode === "beta"
   ) {
     return mode;
   }

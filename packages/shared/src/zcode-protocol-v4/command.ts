@@ -258,9 +258,10 @@ export const commandPayloadSchemas = {
     thought: z.string(),
   }),
   // additive（冻结面按黄金测试背书演进）：agent 协作模式切换。
-  // 值域 = core CollaborationMode 的可切换子集（auto 非用户可切，不进 UI 命令面）。
+  // 值域 = core CollaborationMode 的可切换子集（auto 非用户可切，不进 UI 命令面）；
+  // beta 是 additive 值，发送前须协商执行端 betaMode 能力位。
   switchCollaborationMode: z.object({
-    mode: z.enum(["build", "edit", "plan", "yolo", "guarded", "research", "minimal"]),
+    mode: z.enum(["build", "edit", "plan", "yolo", "guarded", "research", "minimal", "beta"]),
   }),
   setFollowupMode: z.object({ mode: z.enum(["queue", "guide"]) }),
   pauseGoal: z.object({}),

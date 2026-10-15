@@ -3,7 +3,10 @@ import {
   createAgentDefinitionsReader,
   type GetAgentDefinitions,
 } from "../subagent/definitions.js";
-import { DEFAULT_ZCODE_MODEL_CONTEXT_BUDGET_STRATEGY, resolveExecutionState } from "@zcode/shared";
+import {
+  DEFAULT_ZCODE_MODEL_CONTEXT_BUDGET_STRATEGY,
+  resolveRestoredExecutionState,
+} from "@zcode/shared";
 import type { BackgroundBashOutputResult } from "@zcode/shared";
 import {
   createDenyPermissionBroker,
@@ -265,7 +268,9 @@ export class AgentRuntime {
       ...config,
       modelContextBudgetStrategy: DEFAULT_ZCODE_MODEL_CONTEXT_BUDGET_STRATEGY,
     });
-    Object.assign(this.config, resolveExecutionState(config));
+    // 构造期安装的是持久化/调用方已有状态，是读取边界：build+fusion 读取升级为 Beta，
+    // 其余历史组合保留；不能用切换语义在构造时误清遗留融合档位。
+    Object.assign(this.config, resolveRestoredExecutionState(config));
     const definitions = createTurnAgentDefinitions(
       deps.getAgentDefinitions ??
         createAgentDefinitionsReader(this.config.subagents?.profiles ?? [], {
@@ -396,6 +401,8 @@ export interface AgentRuntime {
   getSessionShellSelection(): ExecutionShellSelection | undefined;
   getMode(): CollaborationMode;
   getPlanEnabled(): boolean;
+  /** 权威执行状态（mode/plan/contextProfile 已解析）；v4 admission 冻结语义消费。 */
+  getExecutionState(): import("@zcode/shared").ResolvedExecutionState;
   grantPermissionFullAccess(interactionId: string, signal?: AbortSignal): Promise<string>;
   setExecutionState(
     input: { mode?: string; planEnabled?: boolean },

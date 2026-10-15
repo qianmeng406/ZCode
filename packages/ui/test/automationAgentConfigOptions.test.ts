@@ -250,14 +250,15 @@ describe("automation model/thought linkage", () => {
       const option = buildAutomationModeOption(mode);
 
       expect(option.currentValue).toBe(mode);
-      // fork 在官方 build/guarded/plan/yolo 之外新增 research/minimal，按完整菜单断言。
+      // fork 在官方 build/guarded/plan/yolo 之外新增 research/beta，按完整菜单断言；
+      // minimal 入口已移除（历史值仅保留读取回显）。
       expect(option.options?.map((item) => item.value)).toEqual([
         "build",
         "guarded",
         "plan",
         "research",
-        "minimal",
         "yolo",
+        "beta",
       ]);
     },
   );

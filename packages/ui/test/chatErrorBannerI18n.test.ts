@@ -94,28 +94,50 @@ describe("ChatErrorBanner i18n", () => {
   it.each([
     [
       zhCN,
-      "当前连接的 ZCode 执行端不支持 Beta 模式（提示词融合模式测试版本）。请更新执行端后重试；档位未发生变更。",
+      "当前连接的 ZCode 执行端不支持 Beta 模式（提示词融合模式测试版本）。请更新执行端后重试；未替换为其他模式。",
     ],
     [
       enUS,
-      "The connected ZCode runtime does not support Beta mode (prompt-fusion mode test version). Update the runtime and try again; the profile was not changed.",
+      "The connected ZCode runtime does not support Beta mode (prompt-fusion mode test version). Update the runtime and try again; no other mode was substituted.",
     ],
-  ] as const)("localizes the fusion profile unsupported reason code", (messages, expected) => {
+  ] as const)("localizes the Beta mode unsupported reason code", (messages, expected) => {
     // 服务层把 reasonCode 裸在 message（Error("proto.xxx")）——走 message 命中。
     expect(
       resolveChatErrorBannerDisplayMessage(
-        { code: "UNKNOWN", message: "proto.fusionContextProfileUnsupported" },
+        { code: "UNKNOWN", message: "proto.betaModeUnsupported" },
         createIntl(messages),
       ),
     ).toBe(expected);
     // 结构化链路把它放进 code —— 同样命中。
     expect(
       resolveChatErrorBannerDisplayMessage(
-        { code: "proto.fusionContextProfileUnsupported", message: "wrapped" },
+        { code: "proto.betaModeUnsupported", message: "wrapped" },
         createIntl(messages),
       ),
     ).toBe(expected);
   });
+
+  it.each([
+    [
+      zhCN,
+      "当前连接的 ZCode 执行端不支持 Beta 模式（提示词融合模式测试版本）。请更新执行端后重试；档位未发生变更。",
+    ],
+    [
+      enUS,
+      "The connected ZCode runtime does not support Beta mode (prompt-fusion mode test version). Update the runtime and try again; the profile was not changed.",
+    ],
+  ] as const)(
+    "localizes the legacy fusion profile unsupported reason code",
+    (messages, expected) => {
+      // 历史 fusion 档位仍可能被旧执行端拒绝；词表保留兼容。
+      expect(
+        resolveChatErrorBannerDisplayMessage(
+          { code: "UNKNOWN", message: "proto.fusionContextProfileUnsupported" },
+          createIntl(messages),
+        ),
+      ).toBe(expected);
+    },
+  );
 
   it("non-reasonCode messages stay untouched by the proto mapping", () => {
     const message = "plain runtime failure";

@@ -158,6 +158,46 @@ describe("PermissionService mode policy", () => {
     });
   });
 
+  it("beta mode reuses full-access (yolo) permission policy", () => {
+    // Beta 权限明确复用完全访问（yolo）：非 Plan 直通放行，与 yolo 逐字段一致，不落入兜底。
+    const service = new PermissionService();
+    expect(
+      service.checkPermission({
+        input: { query: "latest zcode" },
+        mode: "beta",
+        riskLevel: "low",
+        toolName: "WebSearch",
+      }),
+    ).toMatchObject({ decision: "allow", ruleId: "mode.yolo" });
+    expect(
+      service.checkPermission({
+        input: { command: "echo hi" },
+        mode: "beta",
+        riskLevel: "high",
+        toolName: "Bash",
+      }),
+    ).toMatchObject({ decision: "allow", ruleId: "mode.yolo" });
+    // Plan 开启时与 yolo 一致回落只读路径：副作用拒绝，只读仍放行。
+    expect(
+      service.checkPermission({
+        input: { command: "echo hi" },
+        mode: "beta",
+        planEnabled: true,
+        riskLevel: "high",
+        toolName: "Bash",
+      }),
+    ).toMatchObject({ decision: "deny" });
+    expect(
+      service.checkPermission({
+        input: { query: "latest zcode" },
+        mode: "beta",
+        planEnabled: true,
+        riskLevel: "low",
+        toolName: "WebSearch",
+      }),
+    ).toMatchObject({ decision: "allow" });
+  });
+
   it("allows read-only tools in plan mode", () => {
     const service = new PermissionService();
 

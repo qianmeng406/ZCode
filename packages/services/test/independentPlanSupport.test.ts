@@ -1,5 +1,6 @@
 import { describe, expect, it, vi } from "vitest";
 import {
+  ensureBetaModeSupport,
   ensureFusionContextProfileSupport,
   ensureIndependentPlanSupport,
 } from "../src/zcode-agent/independentPlanSupport.js";
@@ -47,6 +48,41 @@ describe("融合档位执行端能力", () => {
     const client = { request: vi.fn().mockRejectedValue(new Error("Method not found")) };
     await expect(ensureFusionContextProfileSupport(client as never)).rejects.toThrow(
       "proto.fusionContextProfileUnsupported",
+    );
+  });
+});
+
+describe("Beta 独立工作模式执行端能力", () => {
+  it("显式 mode=beta 复用同一 CLI 的成功检查", async () => {
+    const client = {
+      request: vi.fn().mockResolvedValue({
+        independentPlanState: true,
+        contextProfileState: true,
+        fusionContextProfile: true,
+        betaMode: true,
+      }),
+    };
+    await ensureBetaModeSupport(client as never);
+    await ensureBetaModeSupport(client as never);
+    expect(client.request).toHaveBeenCalledTimes(1);
+  });
+  it("fusionContextProfile=true 不证明 Beta：缺失 betaMode 时拒绝，不静默降级", async () => {
+    // 历史能力位只证明融合档位支持；Beta 是独立 additive 能力，独立判定。
+    const client = {
+      request: vi.fn().mockResolvedValue({
+        independentPlanState: true,
+        contextProfileState: true,
+        fusionContextProfile: true,
+      }),
+    };
+    await expect(ensureBetaModeSupport(client as never)).rejects.toThrow(
+      "proto.betaModeUnsupported",
+    );
+  });
+  it("旧 CLI 不认识能力查询时拒绝", async () => {
+    const client = { request: vi.fn().mockRejectedValue(new Error("Method not found")) };
+    await expect(ensureBetaModeSupport(client as never)).rejects.toThrow(
+      "proto.betaModeUnsupported",
     );
   });
 });

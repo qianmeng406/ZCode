@@ -71,7 +71,9 @@ const SWITCHABLE_MODES: ReadonlySet<string> = new Set([
   "yolo",
   "guarded",
   "research",
-  "minimal",
+  // minimal（极简模式）入口已移除：不接受切换到 minimal，历史值仅保留读取回显。
+  // Beta 独立工作模式（提示词融合模式测试版本）：additive；协议层 betaMode 能力协商在 Host 完成。
+  "beta",
 ]);
 
 /**

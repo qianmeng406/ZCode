@@ -18,13 +18,15 @@ const ENV_INFO: EnvInfo = {
   nodeVersion: "24.11.0",
 };
 
-function makeRuntime(contextProfile?: string): AgentRuntimeInternal {
+function makeRuntime(contextProfile?: string, mode = "build"): AgentRuntimeInternal {
   return {
     config: {
-      mode: "build",
+      mode,
       planEnabled: false,
       ...(contextProfile === undefined ? {} : { contextProfile }),
     },
+    // Beta 档位映射按 mode=beta 判定；mock 与 runtime 方法面一致暴露 getMode。
+    getMode: () => mode,
     presentationSurface: "terminal",
     getTools: () => [],
     registry: { toContracts: () => [] },
@@ -50,6 +52,16 @@ describe("context profile mapping", () => {
     const sources = builder.build().sections.map((s) => s.source);
     expect(sources).toContain("dynamic_behavior");
     expect(sources).not.toContain("fusion_behavior");
+  });
+
+  it("maps mode=beta to the fusion promptProfile branch", () => {
+    // Beta 是独立工作模式：主代理默认身份路径复用融合行为提示词（fusion_behavior /
+    // fusion_context_management 段替换默认动态段），不新增第四套提示词段。
+    const builder = createContextBuilderFromSnapshot.call(makeRuntime("standard", "beta"), snapshot());
+    const sources = builder.build().sections.map((s) => s.source);
+    expect(sources).toContain("fusion_behavior");
+    expect(sources).toContain("fusion_context_management");
+    expect(sources).not.toContain("minimal_guardrails");
   });
 
   it("maps minimal config to the minimal promptProfile branch", () => {

@@ -19,17 +19,20 @@ to make repository work evidence-first without mirroring runtime tool schemas.
 
 ## Context Profiles
 
-The default contract below describes the standard context profile. The optional
-`fusion` profile uses the same ZCode identity, security notice, harness, capability
-context, permissions, memory, skills, and project instructions, but replaces the
-default dynamic behavior and context-management copy with the unified behavior
-specified in [Fusion Context Profile](fusion-context-profile.md). It does not
-append a competing autonomy or stopping rule to the standard behavior.
+The default contract below describes the standard context profile. Independent
+Beta mode (`mode=beta`) selects the fusion prompt behavior while retaining the
+same ZCode identity, security notice, harness, capability context, memory, skills,
+and project instructions. It explicitly uses full-access (yolo) permissions with fewer confirmations.
+Its dynamic behavior and context-management copy follow the unified behavior in
+[Beta Mode](fusion-context-profile.md), rather than appending competing autonomy
+or stopping rules. Legacy `contextProfile=fusion` remains a read-compatibility
+path, not a new user-facing context selector.
 
 Fusion guidance is main-agent behavior: custom system prompts and workflow actor
 identities retain their own contracts and do not receive fusion interaction copy.
 Agent-specific delegation guidance is conditional on the actual available tool
-set. Profile selection never grants permissions or exits Plan mode.
+set. Selecting Beta never grants automatic permissions or exits Plan mode;
+selecting another work mode exits Beta and clears legacy fusion behavior.
 
 ## Stable Sections
 

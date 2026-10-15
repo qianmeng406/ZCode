@@ -47,6 +47,8 @@ const HISTORICAL_MODEL_UNAVAILABLE_MESSAGES = [
  * 看到的是“这个 ZCode 连接不支持 Beta 模式（提示词融合模式测试版本）”，而不是裸 code。
  */
 const PROTO_REASON_MESSAGE_IDS: Readonly<Record<string, string>> = {
+  // Beta 模式（mode=beta）被旧执行端拒绝：不再写 contextProfile=fusion，档位未被变更。
+  "proto.betaModeUnsupported": "chat.error.proto.betaModeUnsupported",
   "proto.fusionContextProfileUnsupported": "chat.error.proto.fusionContextProfileUnsupported",
   "proto.contextProfileUnsupported": "chat.error.proto.contextProfileUnsupported",
   "proto.independentPlanUnsupported": "chat.error.proto.independentPlanUnsupported",

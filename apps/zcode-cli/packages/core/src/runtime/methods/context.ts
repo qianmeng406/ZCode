@@ -152,9 +152,11 @@ export function createContextBuilderFromSnapshot(
     workflowActor: this.config.workflowActor,
     // 上下文档位映射：minimal 只留身份行与环境；fusion 只替换默认动态段。
     // 档位与权限正交：mode=build + 各档位组合均生效，见 ContextBuilder 的 promptProfile 分支。
+    // Beta 是独立工作模式：主代理默认身份路径复用现有融合行为提示词（见
+    // fusion-context-profile.md），customSystemPrompt/workflowActor 仍走各自身份契约。
     promptProfile: resolveContextProfile(this.config) === "minimal"
       ? "minimal"
-      : resolveContextProfile(this.config) === "fusion"
+      : resolveContextProfile(this.config) === "fusion" || this.getMode() === "beta"
         ? "fusion"
         : undefined,
     language: this.config.language,

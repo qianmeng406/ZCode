@@ -1,4 +1,9 @@
-import { resolveContextProfile, resolveExecutionState, type ExecutionState } from "@zcode/shared";
+import {
+  resolveContextProfile,
+  resolveExecutionState,
+  resolveRestoredExecutionState,
+  type ExecutionState,
+} from "@zcode/shared";
 import { resolveRuntimeModeIdentity } from "./helpers/runtime-reminders.js";
 import {
   SESSION_ENTRY_EXECUTION_STATE,
@@ -14,7 +19,9 @@ import {
 } from "./permission-grant-recovery.js";
 
 export function readRuntimeExecutionState(runtime: AgentRuntimeInternal): ExecutionState {
-  return resolveExecutionState(runtime.config);
+  // 读取的是已提交状态（不是用户切换），走恢复语义：yolo+fusion 等历史组合原样保留，
+  // build+fusion 升级 Beta。用 resolveExecutionState 的切换语义重读会误清遗留融合档位。
+  return resolveRestoredExecutionState(runtime.config);
 }
 
 export async function persistExecutionState(
@@ -56,7 +63,8 @@ export function installRuntimeExecutionState(
   // 自包含解析：缺省档位按 next.mode 做旧 minimal 兼容映射。
   // 「改权限/Plan/授权保留档位」由 patch 语义的 resolveExecutionState(input, previous)
   // 在调用方完成；这里不做二次 patch 解析，否则恢复持久化状态会被 invocation 档位污染。
-  const resolved = resolveExecutionState(next);
+  // 恢复/安装走读取升级入口：build+fusion 历史状态无损映射为 Beta，其余历史组合保留。
+  const resolved = resolveRestoredExecutionState(next);
   runtime.config.mode = resolved.mode;
   runtime.config.planEnabled = resolved.planEnabled;
   runtime.config.contextProfile = resolved.contextProfile;
@@ -91,6 +99,9 @@ export async function applyRuntimeExecutionState(
     throw new Error("Permission update is busy; retry mode change");
   if (unpublishedPermissionGrants.has(runtime)) await recoverPendingPermissionGrant(runtime);
   const previous = readRuntimeExecutionState(runtime);
+  // 显式 mode 变更的清融合归一已在 resolveExecutionState 完成（modeChanged 分支）：
+  // 命令面 mode 字段从不携带档位意图，真正切换模式时遗留 fusion 统一清掉，防止退出 Beta 后
+  // 继续吃融合提示词；同模式重申或仅 planEnabled 变化不触发，历史组合与计划批准保留档位。
   const next = resolveExecutionState(input, previous);
   // 根因：早返回此前只比较 mode/planEnabled，contextProfile 单独变化时被误判为无变化而
   // 幂等短路——既不持久化也不发布事件，下一次请求仍按旧档位构建上下文。修复：三字段全部

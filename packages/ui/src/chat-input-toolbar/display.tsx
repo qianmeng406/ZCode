@@ -71,6 +71,8 @@ const HIGH_PERMISSION_MODE_VALUES = new Set([
   "yolo",
   // fork：minimal（极简上下文）同为自动执行权限，工具栏的持续 warning 文字与盾牌语义一并覆盖。
   "minimal",
+  // fork：Beta 模式权限为完全访问，与 yolo 同警示语义；图标仍走下方 beta 专属层叠分支。
+  "beta",
 ]);
 
 function getConfigSelectTriggerTestId(option: ZCodeConfigOption): string | undefined {
@@ -242,7 +244,10 @@ export function resolveModeOptionIcon(value: unknown): LucideIcon {
   if (typeof value === "string" && value.toLocaleLowerCase() === "research") return Telescope;
   // minimal（极简模式）：只留工具与最小上下文，用羽毛表示「轻」。
   if (typeof value === "string" && value.toLocaleLowerCase() === "minimal") return Feather;
-  // fusion（Beta 模式 / 提示词融合模式测试版）：上下文档位而非权限，用层叠图标表示协作语义，不落入高权限盾牌。
+  // beta（Beta 模式 / 提示词融合模式测试版本）：独立工作模式而非上下文档位，用层叠图标
+  // 表示融合协作语义；权限为完全访问，但保持层叠图标、不落入通用盾牌。
+  if (typeof value === "string" && value.toLocaleLowerCase() === "beta") return Layers;
+  // fusion（历史会话的融合档位）：仅用于历史值回显，与新 Beta 模式共用层叠图标。
   if (typeof value === "string" && value.toLocaleLowerCase() === "fusion") return Layers;
   if (isHighPermissionModeValue(value)) {
     return ShieldAlertIcon;

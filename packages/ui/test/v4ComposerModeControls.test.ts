@@ -6,11 +6,9 @@ import { TID_V4_COMPOSER_INPUT } from "@zcode/shared";
 const captured = vi.hoisted(() => ({
   contentProps: null as Record<string, unknown> | null,
   permissionProps: null as Record<string, unknown> | null,
+  permissionItems: [] as Array<Record<string, unknown>>,
   planProps: null as Record<string, unknown> | null,
   tooltipProps: null as Record<string, unknown> | null,
-  // 上下文档位三态（普通/极简/融合）改用独立 RadioGroup；按受控值与权限单选区分。
-  contextProfileProps: null as Record<string, unknown> | null,
-  contextProfileItems: [] as Array<Record<string, unknown>>,
 }));
 
 vi.mock("@/ControlHintTooltip.js", () => ({
@@ -20,7 +18,8 @@ vi.mock("@/ControlHintTooltip.js", () => ({
   },
 }));
 
-// 菜单已从旧单选组件拆成权限单选与独立 Plan；测试实际边界，不继续捕获旧组件。
+// 菜单是「独立 Plan 勾选 + 工作模式单选」：Beta 与其他模式同组单选，
+// 不再有普通/极简/融合上下文三态 RadioGroup。
 vi.mock("@/components/ui/dropdown-menu.js", () => {
   const children = (props: { children?: ReactNode }) => createElement("span", null, props.children);
   return {
@@ -32,22 +31,14 @@ vi.mock("@/components/ui/dropdown-menu.js", () => {
       return children(props);
     },
     DropdownMenuRadioGroup: (props: Record<string, unknown>) => {
-      // 权限单选与档位三态都是 RadioGroup：档位组受控值只能是 standard/minimal/fusion，
-      // 按受控值区分归属，避免两个组共用一个捕获槽互相覆盖。
-      if (["standard", "minimal", "fusion"].includes(String(props.value))) {
-        captured.contextProfileProps = props;
-      } else {
-        captured.permissionProps = props;
-      }
+      captured.permissionProps = props;
       return children(props);
     },
     DropdownMenuRadioItem: (props: Record<string, unknown>) => {
-      // 权限单选与档位三态同为 RadioItem；按 testid 归档，档位组另存一份有序列表。
-      captured.contextProfileItems.push(props);
+      captured.permissionItems.push(props);
       return children(props);
     },
     DropdownMenuCheckboxItem: (props: Record<string, unknown>) => {
-      // fork 在权限菜单里保留独立 Plan 复选项；档位三态已迁到 RadioGroup，不再捕获 Checkbox。
       const testIdValue = String(props["data-testid"] ?? "");
       if (testIdValue.endsWith("plan")) {
         captured.planProps = props;
@@ -90,39 +81,39 @@ describe("V4ComposerModeSwitch", () => {
   beforeEach(() => {
     captured.contentProps = null;
     captured.permissionProps = null;
+    captured.permissionItems = [];
     captured.planProps = null;
     captured.tooltipProps = null;
-    captured.contextProfileProps = null;
-    captured.contextProfileItems = [];
   });
-  it("Guarded 在新的 Plan/权限菜单保持蓝色和独立 Plan 标记", () => {
-    const html = renderToStaticMarkup(
+  afterEach(() => vi.unstubAllGlobals());
+
+  function renderModeSwitch(
+    draftConfig: Record<string, unknown>,
+    extra: Record<string, unknown> = {},
+  ) {
+    return renderToStaticMarkup(
       createElement(V4ComposerModeSwitch, {
         workspacePath: "/workspace",
         provider: "glm",
-        draftConfig: { mode: "guarded", planEnabled: true },
+        draftConfig,
         activeConfigPicker: null,
         onConfigPickerOpenChange: vi.fn(),
         onSwitchMode: vi.fn(),
+        ...extra,
       }),
     );
+  }
+
+  it("Guarded 在新的 Plan/权限菜单保持蓝色和独立 Plan 标记", () => {
+    const html = renderModeSwitch({ mode: "guarded", planEnabled: true });
     expect(captured.permissionProps?.value).toBe("guarded");
     expect(captured.planProps?.checked).toBe(true);
     expect(html).toContain("text-icon-blue");
     expect(html).not.toContain("text-warning");
   });
-  afterEach(() => vi.unstubAllGlobals());
+
   it("模式菜单关闭后把焦点恢复到 V4 输入框", () => {
-    renderToStaticMarkup(
-      createElement(V4ComposerModeSwitch, {
-        workspacePath: "/workspace",
-        provider: "glm",
-        draftConfig: { mode: "build" },
-        activeConfigPicker: null,
-        onConfigPickerOpenChange: vi.fn(),
-        onSwitchMode: vi.fn(),
-      }),
-    );
+    renderModeSwitch({ mode: "build" });
 
     const focus = vi.fn();
     const querySelector = vi.fn(() => ({ focus }));
@@ -138,16 +129,7 @@ describe("V4ComposerModeSwitch", () => {
   });
 
   it("草稿显示自己的模式，不被旧预热 snapshot mode 覆盖", () => {
-    renderToStaticMarkup(
-      createElement(V4ComposerModeSwitch, {
-        workspacePath: "/workspace",
-        provider: "glm",
-        draftConfig: { mode: "yolo" },
-        activeConfigPicker: null,
-        onConfigPickerOpenChange: vi.fn(),
-        onSwitchMode: vi.fn(),
-      }),
-    );
+    renderModeSwitch({ mode: "yolo" });
 
     expect(captured.permissionProps).toMatchObject({
       value: "yolo",
@@ -156,16 +138,7 @@ describe("V4ComposerModeSwitch", () => {
   });
 
   it("已有 session 修改模式后显示 Composer 值，不回读旧 snapshot", () => {
-    renderToStaticMarkup(
-      createElement(V4ComposerModeSwitch, {
-        workspacePath: "/workspace",
-        provider: "glm",
-        draftConfig: { mode: "edit" },
-        activeConfigPicker: null,
-        onConfigPickerOpenChange: vi.fn(),
-        onSwitchMode: vi.fn(),
-      }),
-    );
+    renderModeSwitch({ mode: "edit" });
 
     expect(captured.permissionProps).toMatchObject({
       value: "edit",
@@ -173,32 +146,18 @@ describe("V4ComposerModeSwitch", () => {
   });
 
   it("已有 session 没有 snapshot config 时仍显示 Composer 模式", () => {
-    renderToStaticMarkup(
-      createElement(V4ComposerModeSwitch, {
-        workspacePath: "/workspace",
-        provider: "glm",
-        draftConfig: { mode: "yolo" },
-        activeConfigPicker: null,
-        onConfigPickerOpenChange: vi.fn(),
-        onSwitchMode: vi.fn(),
-      }),
-    );
+    renderModeSwitch({ mode: "yolo" });
 
     expect(captured.permissionProps).toMatchObject({
       value: "yolo",
     });
   });
+
   it("Plan 勾选独立于权限，菜单通过已有草稿回调切换", () => {
     const onSwitchMode = vi.fn();
-    const html = renderToStaticMarkup(
-      createElement(V4ComposerModeSwitch, {
-        workspacePath: "/workspace",
-        provider: "glm",
-        draftConfig: { mode: "yolo", planEnabled: true },
-        activeConfigPicker: "mode",
-        onConfigPickerOpenChange: vi.fn(),
-        onSwitchMode,
-      }),
+    const html = renderModeSwitch(
+      { mode: "yolo", planEnabled: true },
+      { activeConfigPicker: "mode", onSwitchMode },
     );
     expect(captured.permissionProps?.value).toBe("yolo");
     expect(captured.planProps?.checked).toBe(true);
@@ -214,117 +173,83 @@ describe("V4ComposerModeSwitch", () => {
     expect(onSwitchMode).toHaveBeenCalledTimes(2);
   });
 
-  it("上下文档位是互斥三态单选：普通/极简/融合都在 RadioGroup 里", () => {
-    renderToStaticMarkup(
-      createElement(V4ComposerModeSwitch, {
-        workspacePath: "/workspace",
-        provider: "glm",
-        draftConfig: { mode: "build", contextProfile: "standard" },
-        activeConfigPicker: "mode",
-        onConfigPickerOpenChange: vi.fn(),
-        onSwitchMode: vi.fn(),
-        onSwitchContextProfile: vi.fn(),
-      }),
-    );
-    const suffixes = captured.contextProfileItems
-      .map((item) => String(item["data-testid"] ?? ""))
-      .filter((id) => id.endsWith("-context"))
-      .map((id) =>
-        id.endsWith("standard-context")
-          ? "standard-context"
-          : id.endsWith("minimal-context")
-            ? "minimal-context"
-            : "fusion-context",
-      );
-    expect(suffixes).toEqual(["standard-context", "minimal-context", "fusion-context"]);
-  });
-
-  it("选择融合档位只发档位回调，权限与 Plan 不动", () => {
-    const onSwitchContextProfile = vi.fn();
-    const onSwitchMode = vi.fn();
-    renderToStaticMarkup(
-      createElement(V4ComposerModeSwitch, {
-        workspacePath: "/workspace",
-        provider: "glm",
-        draftConfig: { mode: "guarded", planEnabled: true, contextProfile: "standard" },
-        activeConfigPicker: "mode",
-        onConfigPickerOpenChange: vi.fn(),
-        onSwitchMode,
-        onSwitchContextProfile,
-      }),
-    );
-    const fusionItem = captured.contextProfileItems.find((item) =>
-      String(item["data-testid"] ?? "").endsWith("fusion-context"),
-    )!;
-    // 档位 RadioGroup 的 onValueChange（受 schema 守卫包装）从专属捕获槽读取。
-    const fire = captured.contextProfileProps?.onValueChange as (value: string) => void;
-    expect(fusionItem.value).toBe("fusion");
-    expect(fire).toBeTypeOf("function");
-    fire("fusion");
-    expect(onSwitchContextProfile).toHaveBeenCalledWith("fusion");
-    expect(onSwitchMode).not.toHaveBeenCalled();
-  });
-
-  it("融合档位激活时触发按钮显示档位徽标，权限 label 仍可见且不用警示色", () => {
-    const html = renderToStaticMarkup(
-      createElement(V4ComposerModeSwitch, {
-        workspacePath: "/workspace",
-        provider: "glm",
-        draftConfig: { mode: "build", contextProfile: "fusion" },
-        activeConfigPicker: null,
-        onConfigPickerOpenChange: vi.fn(),
-        onSwitchMode: vi.fn(),
-        onSwitchContextProfile: vi.fn(),
-      }),
-    );
-    expect(html).toContain("chat.toolbar.mode.fusionContext.label");
-    expect(html).toContain("v4-composer-context-profile-marker");
-    expect(html).toContain("mode.label.glm.build");
-    expect(html).not.toContain("text-warning");
-    expect(html).toContain("data-[composer-compact=true]:w-11");
-    expect(html).toContain("group-data-[composer-compact=true]/mode:px-0");
-  });
-
-  it("档位显示名回归：真实 zh-CN 文案渲染为「Beta 模式」，描述含测试版本说明", () => {
-    // 本文件把 formatMessage 桩成回显 key，显示名回归只能在这里断言真实字符串：
-    // 若有人把 zh-CN 的 label 改回旧值（如「融合模式」），此用例直接失败。
-    const html = renderToStaticMarkup(
-      createElement(V4ComposerModeSwitch, {
-        workspacePath: "/workspace",
-        provider: "glm",
-        draftConfig: { mode: "build", contextProfile: "fusion" },
-        activeConfigPicker: null,
-        onConfigPickerOpenChange: vi.fn(),
-        onSwitchMode: vi.fn(),
-        onSwitchContextProfile: vi.fn(),
-      }),
-    );
-    expect(zhCN["chat.toolbar.mode.fusionContext.label"]).toBe("Beta 模式");
-    expect(zhCN["chat.toolbar.mode.fusionContext.description"]).toContain("提示词融合模式测试版本");
-    expect(enUS["chat.toolbar.mode.fusionContext.label"]).toBe("Beta mode");
-    expect(enUS["chat.toolbar.mode.fusionContext.description"]).toContain(
-      "Prompt-fusion mode test version",
-    );
-    // key 桩下的 HTML 仍含档位 key；真实显示值由上面两条 message 断言锁定。
-    expect(html).toContain("chat.toolbar.mode.fusionContext.label");
-  });
-
-  it("缺省草稿按 standard 档位显示且无徽标", () => {
-    const html = renderToStaticMarkup(
-      createElement(V4ComposerModeSwitch, {
-        workspacePath: "/workspace",
-        provider: "glm",
-        draftConfig: { mode: "build" },
-        activeConfigPicker: null,
-        onConfigPickerOpenChange: vi.fn(),
-        onSwitchMode: vi.fn(),
-        onSwitchContextProfile: vi.fn(),
-      }),
-    );
+  it("Beta 是独立模式单选入口：极简入口已移除，触发按钮直接显示 Beta 标签", () => {
+    const html = renderModeSwitch({ mode: "beta" });
+    const values = captured.permissionItems.map((item) => String(item.value));
+    expect(values).toContain("beta");
+    expect(values).not.toContain("minimal");
+    expect(captured.permissionProps?.value).toBe("beta");
+    // 不再渲染上下文档位徽标。
     expect(html).not.toContain("v4-composer-context-profile-marker");
-    const standardItem = captured.contextProfileItems.find((item) =>
-      String(item["data-testid"] ?? "").endsWith("standard-context"),
+    expect(html).toContain("mode.label.glm.beta");
+    // Beta 权限为完全访问，触发按钮与 yolo 同警示色。
+    expect(html).toContain("text-warning");
+  });
+
+  it("选择其他工作模式即退出 Beta：RadioGroup 回调直接发模式值", () => {
+    const onSwitchMode = vi.fn();
+    renderModeSwitch({ mode: "beta" }, { activeConfigPicker: "mode", onSwitchMode });
+    const buildItem = captured.permissionItems.find((item) => item.value === "build")!;
+    expect(buildItem).toBeDefined();
+    const fire = captured.permissionProps?.onValueChange as (value: string) => void;
+    fire("build");
+    expect(onSwitchMode).toHaveBeenCalledWith("build");
+  });
+
+  it("旧 build+fusion 历史草稿无损映射为 Beta 显示，不附加档位徽标", () => {
+    const html = renderModeSwitch({ mode: "build", contextProfile: "fusion" });
+    expect(captured.permissionProps?.value).toBe("beta");
+    expect(html).toContain("mode.label.glm.beta");
+    expect(html).not.toContain("v4-composer-context-profile-marker");
+  });
+
+  it("非 build 权限与 fusion 的历史组合保持原语义，不自动改写权限", () => {
+    const html = renderModeSwitch({ mode: "guarded", contextProfile: "fusion" });
+    expect(captured.permissionProps?.value).toBe("guarded");
+    expect(html).toContain("mode.label.glm.guarded");
+  });
+
+  it("极简入口已移除：历史 minimal 草稿仅回显，不再作为可选模式", () => {
+    const html = renderModeSwitch({ mode: "minimal" });
+    const values = captured.permissionItems.map((item) => String(item.value));
+    expect(values).not.toContain("minimal");
+    expect(captured.permissionProps?.value).toBe("minimal");
+    // 历史 minimal 回显仍带警示色（完全访问类权限）。
+    expect(html).toContain("text-warning");
+  });
+
+  it("档位显示名回归：真实 zh-CN 文案渲染为「Beta 模式」，描述标注测试版本与完全访问权限", () => {
+    // 本文件把 formatMessage 桩成回显 key，显示名回归只能在这里断言真实字符串：
+    // 若有人把 zh-CN 的 label 改回旧值，此用例直接失败。
+    const html = renderModeSwitch({ mode: "beta" });
+    expect(zhCN["mode.label.glm.beta"]).toBe("Beta 模式");
+    expect(zhCN["mode.description.glm.beta"]).toContain("提示词融合模式测试版本");
+    expect(zhCN["mode.description.glm.beta"]).toContain("完全访问");
+    expect(enUS["mode.label.glm.beta"]).toBe("Beta mode");
+    expect(enUS["mode.description.glm.beta"]).toContain("Prompt-fusion mode test version");
+    expect(enUS["mode.description.glm.beta"].toLowerCase()).toContain("full-access");
+    // key 桩下的 HTML 仍含模式 key；真实显示值由上面几条 message 断言锁定。
+    expect(html).toContain("mode.label.glm.beta");
+  });
+
+  it("不再渲染普通/极简/融合上下文三态与档位徽标", () => {
+    const html = renderModeSwitch(
+      { mode: "build", contextProfile: "standard" },
+      { onSwitchContextProfile: vi.fn() },
     );
-    expect(standardItem).toBeDefined();
+    expect(html).not.toContain("standard-context");
+    expect(html).not.toContain("minimal-context");
+    expect(html).not.toContain("fusion-context");
+    expect(html).not.toContain("chat.toolbar.mode.standardContext.label");
+    expect(html).not.toContain("v4-composer-context-profile-marker");
+    expect(
+      captured.permissionItems.every((item) => !String(item["data-testid"]).endsWith("-context")),
+    ).toBe(true);
+  });
+
+  it("缺省草稿按 build 显示且无档位徽标", () => {
+    const html = renderModeSwitch({ mode: "build" });
+    expect(captured.permissionProps?.value).toBe("build");
+    expect(html).not.toContain("v4-composer-context-profile-marker");
   });
 });

@@ -25,7 +25,9 @@ function makeRuntime(config: Record<string, unknown> = {}): FakeRuntime {
   let cacheInvalidations = 0;
   const runtime = {
     sessionId: "sess_state",
-    config: { mode: "build", planEnabled: false, ...config },
+    // Beta 读取升级把 build+fusion 映射为 beta；融合档位的历史行为测试用 yolo 基线
+    // （yolo+fusion 组合保留原语义）隔离验证 profile-only 链路本身。
+    config: { mode: "yolo", planEnabled: false, ...config },
     sessionPersisted: true,
     sessionStore: {
       saveSessionEntry: async (entry: unknown) => {
@@ -61,7 +63,7 @@ describe("runtime execution state profile-only change", () => {
       { contextProfile: "fusion" },
       { source: "command" },
     );
-    expect(next.mode).toBe("build");
+    expect(next.mode).toBe("yolo");
     expect(next.planEnabled).toBe(false);
     expect(next.contextProfile).toBe("fusion");
     expect(saved).toHaveLength(1);
@@ -104,7 +106,7 @@ describe("runtime execution state profile-only change", () => {
   it("installRuntimeExecutionState invalidates derived state on profile-only change", () => {
     const { runtime, cacheInvalidations } = makeRuntime();
     installRuntimeExecutionState(runtime, {
-      mode: "build",
+      mode: "yolo",
       planEnabled: false,
       contextProfile: "fusion",
     });
@@ -113,10 +115,49 @@ describe("runtime execution state profile-only change", () => {
     expect(runtime.contextProjectionRevision).toBe(1);
   });
 
+  it("beta input forces standard profile and persists the full transition", async () => {
+    const { runtime, saved, events } = makeRuntime({
+      mode: "minimal",
+      contextProfile: "minimal",
+    });
+    const next = await applyRuntimeExecutionState(runtime, { mode: "beta" }, { source: "command" });
+    // Beta 覆盖遗留 minimal：完整上下文 + 完整工具表，权限复用 build 逐项确认。
+    expect(next).toEqual({ mode: "beta", planEnabled: false, contextProfile: "standard" });
+    expect(runtime.config.mode).toBe("beta");
+    expect(runtime.config.contextProfile).toBe("standard");
+    expect(saved).toHaveLength(1);
+    expect(events).toHaveLength(1);
+    const payload = events[0]?.payload as Record<string, unknown>;
+    expect(payload.mode).toBe("beta");
+    expect(payload.contextProfile).toBe("standard");
+    expect(payload.previousMode).toBe("minimal");
+  });
+
+  it("build+fusion restore upgrades to beta; yolo+fusion restore is preserved", async () => {
+    // 恢复是读取不是切换：build+fusion 无损升级 Beta；yolo+fusion 保留原权限组合。
+    const upgraded = makeRuntime();
+    installRuntimeExecutionState(upgraded.runtime, {
+      mode: "build",
+      planEnabled: false,
+      contextProfile: "fusion",
+    });
+    expect(upgraded.runtime.config.mode).toBe("beta");
+    expect(upgraded.runtime.config.contextProfile).toBe("standard");
+
+    const preserved = makeRuntime();
+    installRuntimeExecutionState(preserved.runtime, {
+      mode: "yolo",
+      planEnabled: false,
+      contextProfile: "fusion",
+    });
+    expect(preserved.runtime.config.mode).toBe("yolo");
+    expect(preserved.runtime.config.contextProfile).toBe("fusion");
+  });
+
   it("keeps standard and fusion contexts distinct", () => {
     const { runtime, cacheInvalidations } = makeRuntime({ contextProfile: "fusion" });
     installRuntimeExecutionState(runtime, {
-      mode: "build",
+      mode: "yolo",
       planEnabled: false,
       contextProfile: "standard",
     });

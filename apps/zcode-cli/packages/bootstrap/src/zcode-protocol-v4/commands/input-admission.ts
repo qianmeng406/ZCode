@@ -4,7 +4,11 @@
 // 因此与 prompt-turn.ts、record-access.ts 并列放在 commands/ 下，
 // 而不是寄居在某一个 handler 文件里。
 import type { SubmissionMode } from "@zcode/shared/zcode-protocol-v4";
-import { resolveExecutionState, type ModelSelection } from "@zcode/shared";
+import {
+  resolveExecutionState,
+  type ContextProfile,
+  type ModelSelection,
+} from "@zcode/shared";
 import type { TurnAttachment } from "@zcode/core";
 import type { SteerTurnOptions } from "../../app/types.js";
 import { parseProviderQualifiedModelSelection } from "../../app/provider-registry-selection.js";
@@ -120,8 +124,14 @@ export function resolveSubmittedExecutionState(
     modelSelection?: ModelSelection;
     mode?: SubmissionMode;
     planEnabled?: boolean;
+    contextProfile?: ContextProfile;
   },
-): { modelSelection: ModelSelection; mode: SubmissionMode; planEnabled: boolean } {
+): {
+  modelSelection: ModelSelection;
+  mode: SubmissionMode;
+  planEnabled: boolean;
+  contextProfile?: ContextProfile;
+} {
   let modelSelection = payload.modelSelection;
   if (!modelSelection) {
     const runtimeSelection = record.app.runtime?.getSessionModelSelection?.();
@@ -146,15 +156,18 @@ export function resolveSubmittedExecutionState(
           ...(entrySelection!.options ? { options: { ...entrySelection!.options } } : {}),
         };
   }
-  const current = resolveExecutionState({
-    mode: record.app.getMode?.(),
-    planEnabled: record.app.runtime?.getPlanEnabled?.(),
-  });
+  // 运行时权威执行状态（含 build+fusion→Beta 读取升级）；admission 据此冻结旧发送端语义。
+  const current = record.app.runtime?.getExecutionState?.() ??
+    resolveExecutionState({
+      mode: record.app.getMode?.(),
+      planEnabled: record.app.runtime?.getPlanEnabled?.(),
+    });
   const state = resolveExecutionState(payload, current);
   return {
     modelSelection,
     mode: state.mode === "auto" ? "build" : state.mode,
     planEnabled: state.planEnabled,
+    ...(state.contextProfile !== undefined ? { contextProfile: state.contextProfile } : {}),
   };
 }
 

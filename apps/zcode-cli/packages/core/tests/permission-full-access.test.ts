@@ -21,6 +21,10 @@ function fixture() {
       pendingInputs: inputs.map((item) => ({ id: item.pendingInputId, intent: item.intent })),
     },
     rebuildProjection: vi.fn(async () => ({ pendingSteerInputs: inputs })),
+    // installRuntimeExecutionState 依赖 invalidateToolCache 推进派生版本；fixture 需与
+    // runtime 方法面一致，否则授权安装路径报 not a function 掩盖真实断言。
+    invalidateToolCache: vi.fn(() => {}),
+    contextProjectionRevision: 0,
     sessionStore: {
       sessionEntries: vi.fn(async () =>
         receipt ? [{ id: "session:permission-full-access:permission-1", data: receipt }] : [],
@@ -53,7 +57,12 @@ describe("审批框完全访问", () => {
   it("保留 Runtime 和每项 Plan，只更新本次目标队列权限", async () => {
     const { runtime, grant } = fixture();
     await grant();
-    expect(runtime.config).toEqual({ mode: "yolo", planEnabled: true });
+    // 安装路径把解析后的完整状态（含缺省补齐的 standard 档位）写入 config。
+    expect(runtime.config).toEqual({
+      mode: "yolo",
+      planEnabled: true,
+      contextProfile: "standard",
+    });
     expect(runtime.activeTurn.pendingInputs.map((item) => item.intent)).toEqual([
       { mode: "yolo", planEnabled: true, modelSelection: { modelId: "one" } },
       { mode: "yolo", planEnabled: false },
@@ -122,7 +131,11 @@ describe("审批框完全访问", () => {
     );
     expect(published.map((event: any) => event.payload.mode)).toEqual(["yolo", "build"]);
     await grant();
-    expect(runtime.config).toEqual({ mode: "build", planEnabled: false });
+    expect(runtime.config).toEqual({
+      mode: "build",
+      planEnabled: false,
+      contextProfile: "standard",
+    });
     expect(published).toHaveLength(2);
   });
 });

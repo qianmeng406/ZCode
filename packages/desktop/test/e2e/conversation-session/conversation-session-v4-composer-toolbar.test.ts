@@ -15,10 +15,12 @@ import {
 } from "../helpers/desktop-app.js";
 import { UPSTREAM_PROVIDER_ID, UPSTREAM_SECONDARY_MODEL } from "../helpers/upstream-provider.js";
 import {
+  TID_CHAT_MODE_SELECT_ITEM,
   TID_CHAT_MODE_SELECT_TRIGGER,
   TID_CHAT_MODEL_SELECT_TRIGGER,
   TID_CHAT_THOUGHT_LEVEL_SELECT_TRIGGER,
   TID_V4_COMPOSER_INPUT,
+  testId,
 } from "@zcode/shared";
 import {
   clickV4SlashOption,
@@ -33,7 +35,6 @@ import {
   sendV4Prompt,
   selectV4TaskById,
   startNewV4Draft,
-  switchV4ContextProfile,
   switchV4Mode,
   switchV4Model,
   waitForV4Pane,
@@ -63,24 +64,21 @@ async function waitForOnlyComposerPickerOpen(picker: ComposerPicker, transition:
   let latest: unknown = null;
   await browser.waitUntil(
     async () => {
-      latest = await browser.execute(
-        (triggerIds) => {
-          const expanded = Object.fromEntries(
-            Object.entries(triggerIds).map(([key, testId]) => [
-              key,
-              document
-                .querySelector<HTMLElement>(`[data-testid="${testId}"]`)
-                ?.getAttribute("aria-expanded") ?? null,
-            ]),
-          );
-          return {
-            expanded,
-            listboxes: document.querySelectorAll('[role="listbox"]').length,
-            menus: document.querySelectorAll('[role="menu"]').length,
-          };
-        },
-        COMPOSER_PICKER_TRIGGER_IDS,
-      );
+      latest = await browser.execute((triggerIds) => {
+        const expanded = Object.fromEntries(
+          Object.entries(triggerIds).map(([key, testId]) => [
+            key,
+            document
+              .querySelector<HTMLElement>(`[data-testid="${testId}"]`)
+              ?.getAttribute("aria-expanded") ?? null,
+          ]),
+        );
+        return {
+          expanded,
+          listboxes: document.querySelectorAll('[role="listbox"]').length,
+          menus: document.querySelectorAll('[role="menu"]').length,
+        };
+      }, COMPOSER_PICKER_TRIGGER_IDS);
       const state = latest as {
         expanded: Record<ComposerPicker, string | null>;
         listboxes: number;
@@ -363,40 +361,87 @@ describe("v4 M5 门禁：composer 工具条与 slash 候选面板", () => {
     await closeComposerPicker();
   });
 
-  it("上下文档位三态互斥：切 fusion 只改档位，权限与 Plan 保持", async () => {
+  it("Beta 模式独立单选：选 beta 不出现旧三态档位入口，计划保留，切其他权限退出", async () => {
     await ensureCompletedTask();
 
-    // 初始 standard，权限 build。
-    let profile = await getV4ContextProfile();
-    expect(profile).toBe("standard");
-
-    // standard → fusion：档位锚点更新，mode/plan 不被连带。
-    await switchV4ContextProfile("fusion");
-    await browser.waitUntil(
-      async () => (await getV4ContextProfile()) === "fusion",
-      { timeout: 30000, timeoutMsg: "切换融合后 data-context-profile 没有更新为 fusion" },
-    );
+    // 初始 build 权限，无档位徽标（Beta 不再以 contextProfile 表达）。
     let cfg = await getV4ModelConfig();
     expect(cfg.mode).toBe("build");
+    expect(await getV4ContextProfile()).toBe("standard");
+
+    // build → beta：模式菜单中不再有 standard/minimal/fusion context 三态档位入口，
+    // beta 作为独立单选项出现；选中后权限就是 beta，Plan 仍是独立开关且默认关闭。
+    await openComposerPicker("mode");
+    const menuProbe = async () =>
+      browser.execute(
+        (itemTestId) => ({
+          beta: document.querySelector(`[data-testid="${testId(itemTestId, "beta")}"]`) !== null,
+          standardContext:
+            document.querySelector(`[data-testid="${testId(itemTestId, "standard-context")}"]`) !==
+            null,
+          minimalContext:
+            document.querySelector(`[data-testid="${testId(itemTestId, "minimal-context")}"]`) !==
+            null,
+          fusionContext:
+            document.querySelector(`[data-testid="${testId(itemTestId, "fusion-context")}"]`) !==
+            null,
+          minimalMode:
+            document.querySelector(`[data-testid="${testId(itemTestId, "minimal")}"]`) !== null,
+        }),
+        TID_CHAT_MODE_SELECT_ITEM,
+      );
+    let menu = await menuProbe();
+    expect(menu.beta).toBe(true);
+    expect(menu.standardContext).toBe(false);
+    expect(menu.minimalContext).toBe(false);
+    expect(menu.fusionContext).toBe(false);
+    expect(menu.minimalMode).toBe(false);
+
+    const betaItem = $(`[data-testid="${testId(TID_CHAT_MODE_SELECT_ITEM, "beta")}"]`);
+    await betaItem.waitForClickable({ timeout: 15000 });
+    await betaItem.click();
+    await browser.waitUntil(async () => (await getV4ModelConfig()).mode === "beta", {
+      timeout: 30000,
+      timeoutMsg: "选中 Beta 后 data-mode 投影没有更新为 beta",
+    });
+    expect(await getV4ContextProfile()).toBe("standard");
     expect((await getV4ConfigProjection()).planEnabled).toBe(false);
+    await waitForNoComposerPickerOpen("选中 beta");
 
-    // fusion → minimal：三态互斥，直接换档仍保持权限。
-    await switchV4ContextProfile("minimal");
-    await browser.waitUntil(
-      async () => (await getV4ContextProfile()) === "minimal",
-      { timeout: 30000, timeoutMsg: "切换极简后 data-context-profile 没有更新为 minimal" },
-    );
+    // 开启 Plan 再关回：计划开关与 Beta 正交，退出后回到缺省 build。
+    await switchV4Mode("plan");
+    await browser.waitUntil(async () => (await getV4ConfigProjection()).planEnabled, {
+      timeout: 30000,
+      timeoutMsg: "Beta 下开启 Plan 后投影没有更新",
+    });
+    expect((await getV4ModelConfig()).mode).toBe("beta");
+
+    // 切 build/yolo 即退出 Beta：不残留档位徽标（profile 回到 standard）。
+    await switchV4Mode("build");
+    await browser.waitUntil(async () => (await getV4ModelConfig()).mode === "build", {
+      timeout: 30000,
+      timeoutMsg: "切回 build 后没有退出 Beta",
+    });
+    expect(await getV4ContextProfile()).toBe("standard");
     cfg = await getV4ModelConfig();
     expect(cfg.mode).toBe("build");
 
-    // minimal → standard：回到缺省档位。
-    await switchV4ContextProfile("standard");
-    await browser.waitUntil(
-      async () => (await getV4ContextProfile()) === "standard",
-      { timeout: 30000, timeoutMsg: "切回普通后 data-context-profile 没有更新为 standard" },
-    );
-    cfg = await getV4ModelConfig();
-    expect(cfg.mode).toBe("build");
+    // 再进 Beta 并切 yolo 退出：退出路径覆盖高权限模式。
+    await switchV4Mode("beta");
+    await browser.waitUntil(async () => (await getV4ModelConfig()).mode === "beta", {
+      timeout: 30000,
+      timeoutMsg: "第二次进入 Beta 失败",
+    });
+    await switchV4Mode("yolo");
+    await browser.waitUntil(async () => (await getV4ModelConfig()).mode === "yolo", {
+      timeout: 30000,
+      timeoutMsg: "切 yolo 后没有退出 Beta",
+    });
+    await switchV4Mode("build");
+    await browser.waitUntil(async () => (await getV4ModelConfig()).mode === "build", {
+      timeout: 30000,
+      timeoutMsg: "收尾没有回到 build",
+    });
   });
 
   it("completed task 的 picker 不跨 scope 自动弹到新 draft", async () => {

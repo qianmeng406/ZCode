@@ -35,6 +35,8 @@ export const permissionFullAccessReceiptSchema = z
               "plan",
               "research",
               "minimal",
+              // Beta 独立工作模式：additive；full-access 授权固定切到 yolo（退出 Beta）。
+              "beta",
             ]),
             previousPlanEnabled: z.boolean(),
             source: z.literal("command"),

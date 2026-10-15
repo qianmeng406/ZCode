@@ -8,11 +8,18 @@ import { logger } from "@/logger.js";
 const COMPOSER_RECENT_KEY_PREFIX = "zcode-model-selection-recent-v1";
 
 /**
- * 可跨普通新任务继承的权限模式白名单。
+ * 可跨普通新任务继承的工作模式白名单。
+ * Beta（提示词融合模式测试版本）是独立工作模式，与 build 等同组单选，随 Recent 继承。
  * minimal 是旧组合语义，不随 Recent 外溢；更新提交仍记录模型选择（换任务继续用），
  * 只是不继承模式本身。zcodeUpdate 模式已移除，残留历史值解析失败同样不外溢。
  */
-const INHERITABLE_SUBMISSION_MODES = new Set<SubmissionMode>(["build", "edit", "yolo", "research"]);
+const INHERITABLE_SUBMISSION_MODES = new Set<SubmissionMode>([
+  "build",
+  "edit",
+  "yolo",
+  "research",
+  "beta",
+]);
 
 export function isInheritableSubmissionMode(mode: string | undefined): mode is SubmissionMode {
   return mode !== undefined && INHERITABLE_SUBMISSION_MODES.has(mode as SubmissionMode);
@@ -25,6 +32,7 @@ interface StorageLike {
 
 interface ComposerRecent {
   readonly modelSelection?: ModelSelection;
+  // 过渡期：shared 枚举注册 beta 前放宽到 UI 联合；shared 落地后收敛回 SubmissionMode。
   readonly mode?: SubmissionMode;
 }
 
@@ -73,6 +81,7 @@ export function readComposerRecent(
 /** 发起真实 Submission 时捕获；返回函数只在 accepted ACK 后调用。 */
 export function captureComposerRecentSubmission(
   workspacePath: string,
+  // 过渡期：shared 枚举注册 beta 前放宽到 UI 联合；shared 落地后收敛回 SubmissionMode。
   submission: { readonly modelSelection: ModelSelection; readonly mode: SubmissionMode },
   workspaceIdentity?: string,
   storage: StorageLike | null = browserStorage(),

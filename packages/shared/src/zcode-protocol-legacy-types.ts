@@ -82,6 +82,9 @@ export const zcodeSessionModeSchema = z.enum([
   "auto",
   "research",
   "minimal",
+  // Beta 独立工作模式（提示词融合模式测试版本）：additive；旧端 schema 缺失会剥掉该值，
+  // 读取边界按 mode 缺省回退，不静默改语义。
+  "beta",
 ]);
 export const zcodeSessionStatusSchema = z.enum([
   "idle",

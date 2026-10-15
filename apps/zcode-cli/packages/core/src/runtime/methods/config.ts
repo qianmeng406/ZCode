@@ -26,6 +26,10 @@ import type { AgentRuntimeConfig, ActiveTurnInfo } from "../types.js";
 import type { AgentRuntimeInternal } from "../internal.js";
 import { cloneModelSelection } from "../model-selection.js";
 import { applyRuntimeExecutionState, installRuntimeExecutionState } from "../execution-state.js";
+import {
+  resolveRestoredExecutionState,
+  type ResolvedExecutionState,
+} from "@zcode/shared";
 
 import { mirrorSubagentInteractionEvent } from "../../subagent/tool-event-mirror.js";
 import { orderProviderVisibleToolContracts } from "../../tool/provider-visible-order.js";
@@ -59,7 +63,8 @@ export function updateConfig(
     patch.planEnabled !== undefined ||
     patch.contextProfile !== undefined
   ) {
-    const previous = resolveExecutionState(this.config);
+    // previous 用恢复语义读已提交状态：历史组合（含遗留 fusion）不被读取重解释清掉。
+    const previous = resolveRestoredExecutionState(this.config);
     const next = resolveExecutionState(patch, previous);
     // 统一走已提交状态安装：失效工具缓存并推进派生版本，请求准备边界据此重投影。
     // 以前这里只在 idle 时 invalidate，active turn 内改 mode 会沿用旧档位工具表。
@@ -102,8 +107,13 @@ export function getMode(this: AgentRuntimeInternal): CollaborationMode {
   return this.config.mode ?? "build";
 }
 
+/** 权威执行状态读取（恢复语义）：历史组合不静默改权限，build+fusion 升级 Beta。 */
+export function getExecutionState(this: AgentRuntimeInternal): ResolvedExecutionState {
+  return resolveRestoredExecutionState(this.config);
+}
+
 export function getPlanEnabled(this: AgentRuntimeInternal): boolean {
-  return resolveExecutionState(this.config).planEnabled;
+  return resolveRestoredExecutionState(this.config).planEnabled;
 }
 
 export function getSessionModelSelection(this: AgentRuntimeInternal): ModelSelection | undefined {

@@ -249,6 +249,10 @@ function normalizeCronAutomationMode(
     case "acceptEdits":
     case "autoEdit":
       return "build";
+    // Beta 权限复用完全访问（yolo）策略（见 fusion-context-profile.md），
+    // 无人值守自动化与会话内保持同一权限基线，映射到 yolo。
+    case "beta":
+      return "yolo";
     default: {
       const exhaustiveMode: never = mode;
       return exhaustiveMode;

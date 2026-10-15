@@ -2,13 +2,13 @@ import type { CollaborationMode } from "@zcode/contracts";
 import { useCallback, type Dispatch, type SetStateAction } from "react";
 import type { TuiSetMode } from "./types.js";
 
+// minimal（极简模式）入口已移除：不进入 TUI 切换环，历史值仅保留读取回显。
 export const TUI_SWITCHABLE_MODES = [
   "plan",
   "build",
   "edit",
   "guarded",
   "research",
-  "minimal",
   "yolo",
 ] as const;
 

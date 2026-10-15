@@ -569,6 +569,8 @@ describe("createProtocolAutomationPort", () => {
       ["edit", "edit"],
       ["plan", "plan"],
       ["yolo", "yolo"],
+      ["beta", "yolo"],
+      ["minimal", "build"],
     ] as const;
     const requestClient = vi.fn(async (method: string) => {
       if (method === zcodeProtocolMethods.automationList) {

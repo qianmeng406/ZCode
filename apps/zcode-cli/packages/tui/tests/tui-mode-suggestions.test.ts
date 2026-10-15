@@ -35,9 +35,11 @@ const modes: TuiModeOption[] = [
 ];
 
 test("mode command popup filters mode choices from the composer draft", () => {
-  assert.deepEqual(TUI_SWITCHABLE_MODES, ["plan", "build", "guarded", "yolo"]);
+  assert.deepEqual(TUI_SWITCHABLE_MODES, ["plan", "build", "edit", "guarded", "research", "yolo"]);
   assert.deepEqual(filterModeOptions("/mode").map((mode) => mode.id), TUI_SWITCHABLE_MODES);
-  assert.equal(filterModeOptions("/mode edit").some((mode) => mode.id === "edit"), false);
+  // fork 的 TUI 切换环包含 edit/research（对齐菜单可切档），minimal 入口已移除。
+  assert.equal(filterModeOptions("/mode edit").some((mode) => mode.id === "edit"), true);
+  assert.equal(filterModeOptions("/mode minimal").some((mode) => mode.id === "minimal"), false);
   assert.equal(modeCommandQuery("/mode"), "");
   assert.equal(modeCommandQuery("/mode yo"), "yo");
   assert.equal(modeCommandQuery("/modebuild"), "build");

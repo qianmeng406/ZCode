@@ -48,10 +48,10 @@ export const EnterPlanModeOutputSchema = z
   .object({
     message: z.string().min(1).describe("Confirmation that plan mode was entered."),
     previousMode: z
-      .enum(["plan", "build", "edit", "yolo", "guarded", "auto", "research", "minimal"])
+      .enum(["plan", "build", "edit", "yolo", "guarded", "auto", "research", "minimal", "beta"])
       .describe("Session mode before EnterPlanMode ran."),
     mode: z
-      .enum(["plan", "build", "edit", "yolo", "guarded", "auto", "research", "minimal"])
+      .enum(["plan", "build", "edit", "yolo", "guarded", "auto", "research", "minimal", "beta"])
       .describe("Current permission mode."),
     planEnabled: z.boolean().optional(),
     previousPlanEnabled: z.boolean().optional(),
@@ -115,12 +115,12 @@ export const ExitPlanModeOutputSchema = z
     plan: z.string().nullable().describe("The plan that was approved by the user."),
     approved: z.literal(true).describe("True when the user approved exiting plan mode."),
     previousMode: z
-      .enum(["plan", "build", "edit", "yolo", "guarded", "auto", "research", "minimal"])
+      .enum(["plan", "build", "edit", "yolo", "guarded", "auto", "research", "minimal", "beta"])
       .describe("Previous permission mode."),
     planEnabled: z.boolean().optional(),
     previousPlanEnabled: z.boolean().optional(),
     mode: z
-      .enum(["build", "edit", "yolo", "guarded", "auto", "research", "minimal"])
+      .enum(["build", "edit", "yolo", "guarded", "auto", "research", "minimal", "beta"])
       .describe("Current session mode after exiting plan mode."),
     allowedPrompts: z.array(ExitPlanModeAllowedPromptSchema).optional(),
     // 批准确认窗上用户指定的执行模型；缺省 = 跟随会话模型（同回合继续，现行行为）。

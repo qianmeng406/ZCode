@@ -1,5 +1,9 @@
 import { randomUUID } from "node:crypto";
-import { isHighspeedProviderId, resolveExecutionState, type ExecutionState } from "@zcode/shared";
+import {
+  isHighspeedProviderId,
+  resolveRestoredExecutionState,
+  type ExecutionState,
+} from "@zcode/shared";
 import { buildExecutionStateEntry, readRuntimeExecutionState } from "../execution-state.js";
 import {
   createModelId,
@@ -611,10 +615,11 @@ async function commitAtomicConversationFork(
     .reverse()
     .find((message) => message.info.role === "assistant")?.info;
   // 保留原 stable fork 的历史权限选择，不能让新增 entry 把它覆盖成父任务当前权限。
+  // 历史 info 是读取边界：build+fusion 升级 Beta、其余历史组合保留，缺省字段回退父任务当前状态。
   const executionState =
     kind === "selection_side_chat" || historicalInfo?.role !== "assistant"
       ? currentExecutionState
-      : resolveExecutionState(historicalInfo);
+      : resolveRestoredExecutionState(historicalInfo, currentExecutionState);
   // 辅助对话明确不复制 Goal target/verifier entries，不能仍将
   // 父消息的 goalBoundary 交给 strict fork clone，否则任意 Goal 状态都会要求不存在的
   // child-local identity。只移除用于 Goal 恢复的 boundary，保留父对话正文作为模型上下文。

@@ -126,7 +126,9 @@ export type CliPermissionMode =
   | "yolo"
   | "guarded"
   | "research"
-  | "minimal";
+  | "minimal"
+  // Beta 独立工作模式（提示词融合模式测试版本）：additive，权限复用 build。
+  | "beta";
 export type CliRuntimeMode = CliPermissionMode | "auto";
 
 export interface CliModeState {

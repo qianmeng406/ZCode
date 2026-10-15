@@ -33,6 +33,19 @@ const stubPlatform = {
   onSettingsChanged: () => () => {},
 } as unknown as IPlatformService;
 
+// 验收常用草稿场景：新任务默认态、Beta 激活、历史 build+fusion、旧极简组合、计划开启。
+const DRAFT_PRESETS: Record<
+  string,
+  Partial<{ mode: string; planEnabled: boolean; contextProfile: ContextProfile }>
+> = {
+  default: { mode: "build", planEnabled: false, contextProfile: "standard" },
+  beta: { mode: "beta", planEnabled: false, contextProfile: "standard" },
+  "beta-plan": { mode: "beta", planEnabled: true, contextProfile: "standard" },
+  "legacy-build-fusion": { mode: "build", planEnabled: false, contextProfile: "fusion" },
+  "legacy-minimal": { mode: "minimal", planEnabled: false, contextProfile: "minimal" },
+  "guarded-fusion": { mode: "guarded", planEnabled: false, contextProfile: "fusion" },
+};
+
 function Harness() {
   const { locale, setLocale } = useZCodeIntl();
   // 生产主题机制：useTheme 把 zai-dark/zai-light 应用到 documentElement tokens。
@@ -40,13 +53,7 @@ function Harness() {
   const [composerCompact, setComposerCompact] = useState(false);
   // 与生产同语义的局部排他 picker owner：null = 全收起，Escape/外点可关。
   const [activeConfigPicker, setActiveConfigPicker] = useState<"mode" | null>("mode");
-  const [draftConfig, setDraftConfig] = useState<
-    Partial<{
-      mode: string;
-      planEnabled: boolean;
-      contextProfile: ContextProfile;
-    }>
-  >({ mode: "build", planEnabled: false, contextProfile: "standard" });
+  const [draftConfig, setDraftConfig] = useState(DRAFT_PRESETS.default);
   const [submitLog, setSubmitLog] = useState<string[]>([]);
   // 约束：compact 标记必须落在生产收起控件（data-composer-collapse-priority="1"，
   // 即 mode 控件）上，与 useComposerToolbarFit 的布局投影一致；wrapper 上的标记
@@ -70,13 +77,11 @@ function Harness() {
     setDraftConfig((current) => {
       if (mode === "plan") return { ...current, planEnabled: true };
       if (mode === "plan-off") return { ...current, planEnabled: false };
-      return { ...current, mode };
+      // 与生产 useDraftConfigControl 同语义：显式选非 Beta 即清除遗留融合档位；
+      // 选 Beta 保持档位不变（新 UI 不再写 contextProfile=fusion）。
+      const contextProfile = mode === "beta" ? current.contextProfile : undefined;
+      return { ...current, mode, contextProfile };
     });
-  }, []);
-
-  const handleSwitchContextProfile = useCallback((profile: ContextProfile) => {
-    record(`onSwitchContextProfile:${profile}`);
-    setDraftConfig((current) => ({ ...current, contextProfile: profile }));
   }, []);
 
   return (
@@ -111,16 +116,17 @@ function Harness() {
           >
             compact: {String(composerCompact)}
           </Button>
-          <Button
-            variant="outline"
-            size="sm"
-            data-testid="harness-reset-draft"
-            onClick={() =>
-              setDraftConfig({ mode: "build", planEnabled: false, contextProfile: "standard" })
-            }
-          >
-            reset draft
-          </Button>
+          {Object.keys(DRAFT_PRESETS).map((preset) => (
+            <Button
+              key={preset}
+              variant="outline"
+              size="sm"
+              data-testid={`harness-preset-${preset}`}
+              onClick={() => setDraftConfig(DRAFT_PRESETS[preset])}
+            >
+              {preset}
+            </Button>
+          ))}
         </div>
         <div
           data-testid="harness-toolbar"
@@ -138,7 +144,6 @@ function Harness() {
             activeConfigPicker={activeConfigPicker}
             onConfigPickerOpenChange={(picker, open) => setActiveConfigPicker(open ? picker : null)}
             onSwitchMode={handleSwitchMode}
-            onSwitchContextProfile={handleSwitchContextProfile}
           />
         </div>
         <div className="mt-4">

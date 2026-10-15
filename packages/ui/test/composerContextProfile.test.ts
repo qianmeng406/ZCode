@@ -47,14 +47,35 @@ test("submission freeze keeps the context profile independent of permission", ()
   assert.equal(frozen!.contextProfile, "minimal", "切档位不改权限、冻结必须带档位");
 });
 
-test("fusion profile freezes through submission alongside permission", () => {
+test("legacy guarded+fusion drafts keep the historical profile through submission", () => {
+  // 提交正文/同模式重申不是显式选模式：旧 guarded+fusion 历史组合按历史语义执行，
+  // 不得借提交静默清掉融合提示词；用户在模式菜单明确选模式时才切入新语义。
   const frozen = createComposerSubmissionConfig(
     { mode: "guarded", planEnabled: false, contextProfile: "fusion", modelSelection: selection },
     view,
   );
-  assert.equal(frozen!.mode, "guarded", "融合档位不改权限");
+  assert.equal(frozen!.mode, "guarded", "重申提交不改写旧权限");
   assert.equal(frozen!.planEnabled, false);
-  assert.equal(frozen!.contextProfile, "fusion", "提交透传 fusion 档位");
+  assert.equal(frozen!.contextProfile, "fusion", "历史融合档位保留到用户明确选模式");
+});
+
+test("beta mode freezes through submission as an independent working mode", () => {
+  const frozen = createComposerSubmissionConfig(
+    { mode: "beta", planEnabled: false, contextProfile: "standard", modelSelection: selection },
+    view,
+  );
+  assert.equal(frozen!.mode, "beta", "Beta 独立模式随提交冻结");
+  assert.equal(frozen!.contextProfile, "standard", "Beta 使用完整上下文，不写 fusion 档位");
+});
+
+test("legacy build+fusion drafts freeze as beta with full context", () => {
+  // 历史兼容映射：build+fusion 无损映射为 Beta，冻结值携带独立模式而不是旧档位。
+  const frozen = createComposerSubmissionConfig(
+    { mode: "build", planEnabled: false, contextProfile: "fusion", modelSelection: selection },
+    view,
+  );
+  assert.equal(frozen!.mode, "beta", "build+fusion 读取升级为独立 Beta 模式");
+  assert.equal(frozen!.contextProfile, "standard");
 });
 
 test("legacy minimal drafts resolve to the minimal profile", () => {
@@ -84,7 +105,7 @@ test("recent does not propagate removed zcodeUpdate or legacy minimal into new t
   assert.equal(recent?.mode, undefined, "专用任务/旧组合模式不进 Recent");
   assert.ok(recent?.modelSelection, "模型选择照常记录");
 
-  // 白名单模式仍可继承。
+  // 白名单模式（含 Beta 独立模式）仍可继承。
   captureComposerRecentSubmission(
     "C:/tmp/ws",
     { mode: "edit" as never, modelSelection: selection },
@@ -92,6 +113,14 @@ test("recent does not propagate removed zcodeUpdate or legacy minimal into new t
     storage,
   )();
   assert.equal(readComposerRecent("C:/tmp/ws", undefined, storage)?.mode, "edit");
+
+  captureComposerRecentSubmission(
+    "C:/tmp/ws",
+    { mode: "beta" as never, modelSelection: selection },
+    undefined,
+    storage,
+  )();
+  assert.equal(readComposerRecent("C:/tmp/ws", undefined, storage)?.mode, "beta");
 });
 
 test("new tasks always start with the standard context profile", () => {
