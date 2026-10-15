@@ -3,7 +3,7 @@
   "schemaVersion": 1,
   "fork": {
     "repository": "https://github.com/qianmeng406/ZCode",
-    "note": "定制功能以单个提交套用在官方基线之上，源自旧仓库 qianmeng406/Myzcode 的定制 72ac0508（基线 v3.14.3）"
+    "note": "定制功能以提交序列套用在官方基线之上，源自旧仓库 qianmeng406/Myzcode 的定制 72ac0508（基线 v3.14.3）迁移，其后叠加后续功能提交"
   },
   "upstream": {
     "repository": "https://github.com/zai-org/ZCode",

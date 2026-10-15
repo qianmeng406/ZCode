@@ -21,9 +21,10 @@ Myzcode 在官方 ZCode 的基础上做面向个人使用的二次开发，扩�
 ## 上游版本与同步状态
 
 - **官方最新源码**：截至 2026-10-11，官方 `main` 为 [v3.15.1 对应提交 `aac47556`](https://github.com/zai-org/ZCode/commit/aac4755666d09fdcd70272fcf063c077a639015f)，于 2026-10-10 更新。该次更新包含 UI Plugin、内联 Gen UI，以及桌面端、远程工作区与 Agent 能力和回归测试的扩展。
-- **本定制版的上游基线**：本仓库基于官方 [v3.15.1 对应提交 `aac47556`](https://github.com/zai-org/ZCode/commit/aac4755666d09fdcd70272fcf063c077a639015f)，根目录 `package.json` 版本为 `3.15.1`。定制功能以一个提交套用在官方基线之上；后续跟进官方新版本的流程见 [docs/upstream-sync.md](docs/upstream-sync.md)。
+- **本定制版的上游基线**：本仓库基于官方 [v3.15.1 对应提交 `aac47556`](https://github.com/zai-org/ZCode/commit/aac4755666d09fdcd70272fcf063c077a639015f)，根目录 `package.json` 版本为 `3.15.1`。定制功能以提交序列套用在官方基线之上（迁移提交与后续功能提交）；后续跟进官方新版本的流程见 [docs/upstream-sync.md](docs/upstream-sync.md)。
 - **查看官方文档**：[中文 README](https://github.com/zai-org/ZCode/blob/main/README.md)、[英文 README](https://github.com/zai-org/ZCode/blob/main/README.en.md)、[UI Plugin 开发说明](https://github.com/zai-org/ZCode/blob/aac4755666d09fdcd70272fcf063c077a639015f/UI_PLUGIN.md)。官方新版中的功能、目录和命令不一定存在于本定制版，请以当前检出的源码与 `package.json` 为准。
 
+- 2026-10-15：新增 **Beta 模式**（提示词融合模式测试版本）上下文档位，并产出 `ZCode Preview` 安装包。
 - 2026-10-13：把旧 Myzcode 定制功能迁移到本仓库，基线官方 v3.15.1。
 - 2026-10-10：更新至 ZCode v3.15.1 版本。
 - 2026-9-23：更新至 ZCode v3.14.3 版本。
@@ -38,6 +39,7 @@ Myzcode 在官方 ZCode 的基础上做面向个人使用的二次开发，扩�
 - **计划批准时选择执行模型与推理等级**：退出计划模式时可直接指定后续执行所用的模型与推理档位。
 - **会话回合导航**：按回合在长会话中快速跳转，配套设置开关与全量历史加载协调。
 - **权限/协作模式扩展**：新增 **资料查询（research）只读模式**（内置多个免密钥检索渠道）、`minimal` 等模式。（曾有 `zcodeUpdate` 更新模式，现已移除：fork 版本改走常规上游合并更新，见 [docs/upstream-sync.md](docs/upstream-sync.md)。）
+- **Beta 模式（提示词融合模式测试版本）**：在输入区模式菜单中选择独立的融合上下文档位（菜单项显示为「Beta 模式」），结合授权内推进、最小完整修改、合理子代理委派和证据验证等行为原则；保留技能、记忆与项目规则，**不改变执行权限或计划状态**。默认仍使用普通上下文。设计与验收边界见 [融合模式说明](apps/zcode-cli/docs/design/v2/loop/fusion-context-profile.md)。
 - **提示词优化器**：输入区新增提示词优化入口，可指定优化所用模型。
 - **远端资源随包分发 + SSH 常驻工作区**：远端工作区（SSH/WSL）所需的 server bundle、node 运行时、agent 运行时与搜索工具**随安装包分发**（安装目录 `resources/remote-assets`），部署时由桌面端直接读取本地文件再 SFTP 上传，**全程不访问任何 CDN**；「远端服务器下载」模式缺省走 ZCode 官方 CDN（拉官方产物，不含本定制版远端改动），自建 CDN 发布树保留为可选覆盖。同时支持 SSH 远程工作区**断开不终止任务、重连接回同一运行时**。
 
@@ -264,7 +266,7 @@ node dist/zcode/debug/zcode/bin/zcode.mjs --web \
 
 ## 仓库结构
 
-以下为本定制仓库的主要目录；`本定制版新增` 表示相对上游 v3.14.3 基线新增，不是官方最新源码树的完整目录清单。
+以下为本定制仓库的主要目录；`本定制版新增` 表示相对上游 v3.15.1 基线新增，不是官方最新源码树的完整目录清单。
 
 | 目录                                                 | 职责                                                             |
 | ---------------------------------------------------- | ---------------------------------------------------------------- |

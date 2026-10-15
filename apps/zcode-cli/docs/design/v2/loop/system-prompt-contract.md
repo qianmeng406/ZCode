@@ -17,6 +17,20 @@ to make repository work evidence-first without mirroring runtime tool schemas.
   default system blocks; keep the static/global-cache body separate from the
   dynamic/org-cache body.
 
+## Context Profiles
+
+The default contract below describes the standard context profile. The optional
+`fusion` profile uses the same ZCode identity, security notice, harness, capability
+context, permissions, memory, skills, and project instructions, but replaces the
+default dynamic behavior and context-management copy with the unified behavior
+specified in [Fusion Context Profile](fusion-context-profile.md). It does not
+append a competing autonomy or stopping rule to the standard behavior.
+
+Fusion guidance is main-agent behavior: custom system prompts and workflow actor
+identities retain their own contracts and do not receive fusion interaction copy.
+Agent-specific delegation guidance is conditional on the actual available tool
+set. Profile selection never grants permissions or exits Plan mode.
+
 ## Stable Sections
 
 | Section              | Purpose                                                                                                                            |

@@ -11,7 +11,7 @@
 | 本定制仓库 | `https://github.com/qianmeng406/ZCode`（发布 push 目标） |
 | 当前上游基线 tag | `v3.15.1` |
 | 当前上游基线 commit | `aac4755666d09fdcd70272fcf063c077a639015f` |
-| 定制引入方式 | 定制功能以**单个提交**套用在官方基线之上（源自旧仓库 `qianmeng406/Myzcode` 在 v3.14.3 基线上的定制 `72ac0508`） |
+| 定制引入方式 | 定制功能以**提交序列**套用在官方基线之上（源自旧仓库 `qianmeng406/Myzcode` 在 v3.14.3 基线上的定制 `72ac0508` 迁移，其后叠加后续功能提交） |
 | 桌面产品版本 | `3.15.1`（根 `package.json` 的 `version`） |
 | 独立 CLI 版本 | 随上游（`apps/zcode-cli/package.json`） |
 

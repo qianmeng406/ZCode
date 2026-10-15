@@ -15,17 +15,20 @@ Myzcode is a personal customization of ZCode, an AI coding workspace with deskto
 
 ## Upstream Version and Sync Status
 
+- 2026-10-15: Added the **Beta mode** (prompt-fusion mode test version) context profile and produced a `ZCode Preview` installer.
 - 2026-10-13: Migrated the Myzcode customizations onto this repository, based on official v3.15.1.
 - 2026-10-10: Updated to ZCode v3.15.1.
 - 2026-9-23: Updated to ZCode v3.14.3.
 
 - **Latest official source**: As of 2026-10-13, official `main` points to [the v3.15.1 commit `aac47556`](https://github.com/zai-org/ZCode/commit/aac4755666d09fdcd70272fcf063c077a639015f), updated on 2026-10-10. That update adds UI plugins and inline Gen UI experiences, and expands desktop, remote workspace, Agent capabilities, and regression coverage.
-- **This fork's upstream baseline**: This repository is based on [the official v3.15.1 commit `aac47556`](https://github.com/zai-org/ZCode/commit/aac4755666d09fdcd70272fcf063c077a639015f); the root `package.json` version is `3.15.1`. The customizations are applied as a single commit on top of the official baseline; see [docs/upstream-sync.md](docs/upstream-sync.md) for the follow-up sync workflow.
+- **This fork's upstream baseline**: This repository is based on [the official v3.15.1 commit `aac47556`](https://github.com/zai-org/ZCode/commit/aac4755666d09fdcd70272fcf063c077a639015f); the root `package.json` version is `3.15.1`. The customizations are applied as a series of commits on top of the official baseline (migration plus later feature commits); see [docs/upstream-sync.md](docs/upstream-sync.md) for the follow-up sync workflow.
 - **Official documentation**: [Chinese README](https://github.com/zai-org/ZCode/blob/main/README.md), [English README](https://github.com/zai-org/ZCode/blob/main/README.en.md), and [UI Plugin development guide](https://github.com/zai-org/ZCode/blob/aac4755666d09fdcd70272fcf063c077a639015f/UI_PLUGIN.en.md). Features, directories, and commands in newer official versions may not exist in this fork. Use the checked-out source and `package.json` as the source of truth.
 
 ## Fork Customizations
 
 This fork adds dual-model review (Oracle), execution-model selection during plan approval, turn navigation, permission modes, prompt optimization, and bundled SSH/WSL runtime assets. See [README.md](README.md) for details.
+
+**Beta mode (prompt-fusion mode test version)** is an optional context profile in the composer mode menu (shown as "Beta mode"). It combines progress within authorization, minimal complete changes, purposeful delegation, and evidence-based verification while retaining skills, memory, and project instructions. It does not change execution permissions or Plan state; standard context remains the default. See the [Fusion profile specification](apps/zcode-cli/docs/design/v2/loop/fusion-context-profile.md).
 
 These customizations are described relative to the official v3.15.1 baseline, not as a claim of exclusive features. Later official versions may offer similar capabilities.
 
@@ -216,7 +219,7 @@ Open `http://127.0.0.1:3030` to validate the complete flow, with one backend ser
 
 ## Repository Structure
 
-The following lists this fork's main directories, not the complete latest upstream source tree. Fork additions are identified relative to the v3.14.3 baseline.
+The following lists this fork's main directories, not the complete latest upstream source tree. Fork additions are identified relative to the v3.15.1 baseline.
 
 | Directory                                            | Responsibility                                                                          |
 | ---------------------------------------------------- | --------------------------------------------------------------------------------------- |
