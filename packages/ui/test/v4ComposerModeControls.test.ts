@@ -83,6 +83,8 @@ vi.mock("@/shortcuts/useShortcutBindings.js", () => ({
 }));
 
 import { V4ComposerModeSwitch } from "@/v4/composer/V4ComposerModeControls.js";
+import enUS from "@/i18n/locales/en-US.js";
+import zhCN from "@/i18n/locales/zh-CN.js";
 
 describe("V4ComposerModeSwitch", () => {
   beforeEach(() => {
@@ -281,6 +283,30 @@ describe("V4ComposerModeSwitch", () => {
     expect(html).not.toContain("text-warning");
     expect(html).toContain("data-[composer-compact=true]:w-11");
     expect(html).toContain("group-data-[composer-compact=true]/mode:px-0");
+  });
+
+  it("档位显示名回归：真实 zh-CN 文案渲染为「Beta 模式」，描述含测试版本说明", () => {
+    // 本文件把 formatMessage 桩成回显 key，显示名回归只能在这里断言真实字符串：
+    // 若有人把 zh-CN 的 label 改回旧值（如「融合模式」），此用例直接失败。
+    const html = renderToStaticMarkup(
+      createElement(V4ComposerModeSwitch, {
+        workspacePath: "/workspace",
+        provider: "glm",
+        draftConfig: { mode: "build", contextProfile: "fusion" },
+        activeConfigPicker: null,
+        onConfigPickerOpenChange: vi.fn(),
+        onSwitchMode: vi.fn(),
+        onSwitchContextProfile: vi.fn(),
+      }),
+    );
+    expect(zhCN["chat.toolbar.mode.fusionContext.label"]).toBe("Beta 模式");
+    expect(zhCN["chat.toolbar.mode.fusionContext.description"]).toContain("提示词融合模式测试版本");
+    expect(enUS["chat.toolbar.mode.fusionContext.label"]).toBe("Beta mode");
+    expect(enUS["chat.toolbar.mode.fusionContext.description"]).toContain(
+      "Prompt-fusion mode test version",
+    );
+    // key 桩下的 HTML 仍含档位 key；真实显示值由上面两条 message 断言锁定。
+    expect(html).toContain("chat.toolbar.mode.fusionContext.label");
   });
 
   it("缺省草稿按 standard 档位显示且无徽标", () => {
