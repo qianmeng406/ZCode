@@ -10265,3 +10265,120 @@ describe("fusion contextProfile 投影", () => {
     expect(snapshot.config.mode).toBe("yolo");
   });
 });
+
+// ── Composer main-turn metrics（ModelComplete.timings → turnHeader 轮指标）──
+
+describe("ProductProjection main-turn metrics", () => {
+  it("main_turn ModelComplete.timings 聚合 TTFT 与 generationDurationMs，多 step 求和", () => {
+    const log = new EventLog();
+    log.push(SessionEventType.SessionCreated, { mode: "default", contextWindow: 200_000 });
+    log.push(
+      SessionEventType.TurnStarted,
+      { turnNumber: 1, input: "metrics", inputId: "cmd-1", messageId: "user-1" },
+      { turnId: "turn-1" },
+    );
+    // 第一个 main step：TTFT 事实（首 delta 在 start 后 320ms）。
+    log.push(
+      SessionEventType.ModelComplete,
+      {
+        content: "a",
+        stopReason: "tool_use",
+        querySource: "main_turn",
+        toolCallCount: 1,
+        usage: { inputTokens: 10, outputTokens: 20 },
+        timings: { startedAt: 1_000, firstTokenAt: 1_320, generationDurationMs: 800 },
+      },
+      { turnId: "turn-1", timestampMs: 1_800 },
+    );
+    // 第二个 main step：不覆盖 TTFT；时长累计。
+    log.push(
+      SessionEventType.ModelComplete,
+      {
+        content: "b",
+        stopReason: "end_turn",
+        querySource: "main_turn",
+        toolCallCount: 0,
+        usage: { inputTokens: 10, outputTokens: 30 },
+        timings: { startedAt: 2_000, firstTokenAt: 2_200, generationDurationMs: 1_200 },
+      },
+      { turnId: "turn-1", timestampMs: 3_200 },
+    );
+    const snapshot = runAll(log.events).projection.getSnapshot();
+    const header = snapshot.rows.window.find((row) => row.kind === "turnHeader");
+    expect(header).toEqual(
+      expect.objectContaining({
+        outputTokens: 50,
+        timeToFirstTokenMs: 320,
+        generationDurationMs: 2_000,
+      }),
+    );
+  });
+
+  it("sidecar/子代理/compact ModelComplete 不更新轮指标，也不覆盖既有 main_turn TTFT", () => {
+    const log = new EventLog();
+    log.push(SessionEventType.SessionCreated, { mode: "default", contextWindow: 200_000 });
+    log.push(
+      SessionEventType.TurnStarted,
+      { turnNumber: 1, input: "metrics", inputId: "cmd-1", messageId: "user-1" },
+      { turnId: "turn-1" },
+    );
+    log.push(
+      SessionEventType.ModelComplete,
+      {
+        content: "main",
+        stopReason: "tool_use",
+        querySource: "main_turn",
+        usage: { inputTokens: 10, outputTokens: 20 },
+        timings: { startedAt: 1_000, firstTokenAt: 1_500, generationDurationMs: 900 },
+      },
+      { turnId: "turn-1", timestampMs: 1_900 },
+    );
+    for (const querySource of ["session_title", "subagent", "compact", "workflow_child"]) {
+      log.push(
+        SessionEventType.ModelComplete,
+        {
+          content: "sidecar",
+          stopReason: "end_turn",
+          querySource,
+          usage: { inputTokens: 5, outputTokens: 999 },
+          timings: { startedAt: 5_000, firstTokenAt: 5_010, generationDurationMs: 9_999 },
+        },
+        { turnId: "turn-1", timestampMs: 6_000 },
+      );
+    }
+    const snapshot = runAll(log.events).projection.getSnapshot();
+    const header = snapshot.rows.window.find((row) => row.kind === "turnHeader");
+    expect(header).toEqual(
+      expect.objectContaining({
+        outputTokens: 20,
+        timeToFirstTokenMs: 500,
+        generationDurationMs: 900,
+      }),
+    );
+  });
+
+  it("缺失 timings 或 firstTokenAt 的 main ModelComplete 不产生数字占位，speed 分母缺席由 UI 降级", () => {
+    const log = new EventLog();
+    log.push(SessionEventType.SessionCreated, { mode: "default", contextWindow: 200_000 });
+    log.push(
+      SessionEventType.TurnStarted,
+      { turnNumber: 1, input: "metrics", inputId: "cmd-1", messageId: "user-1" },
+      { turnId: "turn-1" },
+    );
+    log.push(
+      SessionEventType.ModelComplete,
+      {
+        content: "no timings",
+        stopReason: "end_turn",
+        querySource: "main_turn",
+        usage: { inputTokens: 10, outputTokens: 20 },
+      },
+      { turnId: "turn-1" },
+    );
+    const snapshot = runAll(log.events).projection.getSnapshot();
+    const header = snapshot.rows.window.find((row) => row.kind === "turnHeader");
+    expect(header).toEqual(expect.objectContaining({ outputTokens: 20 }));
+    expect(header).not.toHaveProperty("timeToFirstTokenMs");
+    expect(header).not.toHaveProperty("generationDurationMs");
+  });
+});

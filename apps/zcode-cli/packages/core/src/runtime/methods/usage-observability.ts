@@ -370,7 +370,7 @@ function modelNetworkEvents(events: readonly SessionEvent[]) {
     );
 }
 
-function firstModelTokenAt(
+export function firstModelTokenAt(
   events: readonly SessionEvent[],
   startIndex: number,
 ): number | undefined {

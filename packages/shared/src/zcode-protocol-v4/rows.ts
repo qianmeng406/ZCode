@@ -8,10 +8,7 @@ import { highspeedMessageMetaSchema } from "../highspeed.js";
 import { executionOutputPreviewSchema } from "../execution-output-preview.js";
 import { timestampSchema } from "./core.js";
 import { conversationInputSourceSchema } from "./input-intent.js";
-import {
-  backgroundResultOriginMetaSchema,
-  workflowLaunchMetaSchema,
-} from "./workflow-row-meta.js";
+import { backgroundResultOriginMetaSchema, workflowLaunchMetaSchema } from "./workflow-row-meta.js";
 import { attachmentRefSchema } from "./attachment-ref.js";
 
 // RowBase。rowId：session 内单调、永不复用、事件日志的确定性纯函数。
@@ -89,6 +86,12 @@ export const turnHeaderRowSchema = z.object({
   activeMs: z.number().optional(),
   // 当前 product turn 内主链路 ModelComplete 的 output usage 累计；optional 兼容旧快照。
   outputTokens: z.number().int().nonnegative().optional(),
+  // 主轮首 token 耗时事实（本 turn 第一个 main_turn ModelRequest → 首个非空 delta）。
+  // 缺失 = 无可靠事实（非流式/冷恢复旧转录），UI 必须显示不可用占位而非估算。
+  timeToFirstTokenMs: z.number().nonnegative().optional(),
+  // 主轮 model request 墙钟总和（sum(ModelComplete.timings.generationDurationMs)）。
+  // speed 由 UI 按 outputTokens / generationDurationMs 推导；CLI 不落导数避免双写口径漂移。
+  generationDurationMs: z.number().nonnegative().optional(),
   // CLI 从运行时事件聚合的真实耗时；optional 兼容旧快照及普通 turn。
   modelDurationMs: z.number().nonnegative().optional(),
   toolDurationMs: z.number().nonnegative().optional(),

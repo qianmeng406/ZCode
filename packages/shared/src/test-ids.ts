@@ -499,6 +499,16 @@ export const TID_CHAT_MODE_SELECT_TRIGGER = "chat-mode-select-trigger";
 export const TID_CHAT_MODE_SELECT_ITEM = "chat-mode-select-item";
 /** 聊天工具栏 context 消耗按钮 */
 export const TID_CHAT_CONTEXT_USAGE_TRIGGER = "chat-context-usage-trigger";
+/** 上下文卡片里的「压缩上下文」按钮 */
+export const TID_CHAT_CONTEXT_COMPACT_BUTTON = "chat-context-compact-button";
+/** Composer 输入框下方 main-turn 指标胶囊容器 */
+export const TID_COMPOSER_TURN_METRICS = "composer-turn-metrics";
+/** 指标胶囊分段（动态后缀为 ttft / tokens-per-second / output-tokens） */
+export const TID_COMPOSER_TURN_METRICS_ITEM = "composer-turn-metrics-item";
+/** 添加模型弹窗「拉取上游模型」按钮 */
+export const TID_MODEL_UPSTREAM_FETCH_BUTTON = "model-upstream-fetch-button";
+/** 上游模型 ID 下拉选择面板（动态后缀为 model id） */
+export const TID_MODEL_UPSTREAM_PICKER = "model-upstream-picker";
 /** 思考块折叠触发按钮 */
 export const TID_CHAT_REASONING_TRIGGER = "chat-reasoning-trigger";
 /** 思考块折叠内容容器 */

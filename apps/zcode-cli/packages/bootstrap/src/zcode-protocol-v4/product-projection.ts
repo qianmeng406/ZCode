@@ -4852,11 +4852,19 @@ export class ProductProjection {
             }
           : {};
       if (isMainTurn || "fileChanges" in fileChanges) {
+        // main_turn 严格过滤：非主轮（compact/标题/子代理/workflow）从不更新轮指标，
+        // 避免 sidecar 请求覆盖主轮事实。TTFT 只认本 turn 第一个 main ModelComplete 的
+        // firstTokenAt − startedAt（与 usage-observability 同口径）；generation 时长按
+        // 同 turn 内逐请求求和。缺失值不写数字占位，UI 按字段缺席渲染不可用。
+        const turnMetrics = isMainTurn
+          ? this.mainTurnMetricsForHeader(headerRow, event, payload)
+          : {};
         deltas.push({
           op: "row.upserted",
           row: {
             ...headerRow,
             ...fileChanges,
+            ...turnMetrics,
             // Bug 根因：Renderer 观察 running 快照的时机不可靠，continuous 可合并更新，
             // replayable 也可能首次恢复即终态。单 Turn token 必须在权威事件投影中累计。
             ...(isMainTurn
@@ -5480,6 +5488,37 @@ export class ProductProjection {
         },
       },
     ];
+  }
+
+  /**
+   * main_turn ModelComplete → turnHeader 轮指标增量。
+   *
+   * - TTFT：本 turn 第一个携带 timings 的 main ModelComplete 提供
+   *   firstTokenAt − startedAt；后续 step 不覆盖（speed 聚合多个 step，但 TTFT 只有一个起点）。
+   * - generationDurationMs：sum(每个 main step 的 generationDurationMs)。
+   * - 字段缺席 = 无可靠事实（旧事件 / 非流式），不写 0 冒充，由 UI 渲染不可用。
+   */
+  private mainTurnMetricsForHeader(
+    headerRow: TurnHeaderRow,
+    event: SessionEvent,
+    payload: ModelCompletePayload,
+  ): Partial<Pick<TurnHeaderRow, "timeToFirstTokenMs" | "generationDurationMs">> {
+    const timings = payload.timings;
+    if (!timings) return {};
+    const patch: Partial<Pick<TurnHeaderRow, "timeToFirstTokenMs" | "generationDurationMs">> = {};
+    if (
+      headerRow.timeToFirstTokenMs === undefined &&
+      timings.firstTokenAt !== undefined &&
+      timings.startedAt !== undefined &&
+      timings.firstTokenAt >= timings.startedAt
+    ) {
+      patch.timeToFirstTokenMs = timings.firstTokenAt - timings.startedAt;
+    }
+    if (timings.generationDurationMs !== undefined && timings.generationDurationMs >= 0) {
+      patch.generationDurationMs =
+        (headerRow.generationDurationMs ?? 0) + timings.generationDurationMs;
+    }
+    return patch;
   }
 
   private recordHighspeedToolStarted(turnId: string, toolCallId: string, startedAt: number): void {

@@ -194,6 +194,9 @@ import type { CodeViewerSource } from "@/lib/codeViewer.js";
 import { useConversationSelectionReferences } from "@/v4/composer/useConversationSelectionReferences.js";
 import { ConversationBackgroundWorkTrigger } from "@/v4/composer/ConversationBackgroundWorkTrigger.js";
 import { V4ComposerCuaEntry } from "@/v4/composer/V4ComposerCuaEntry.js";
+import { hasChatLoadingBlockingActiveWork } from "@/v4/chatLoadingVisibility.js";
+import { ComposerTurnMetricsCapsule } from "@/v4/composer/ComposerTurnMetricsCapsule.js";
+import { deriveComposerTurnMetricsFact } from "@/v4/composer/composerTurnMetricsFact.js";
 import {
   V4ComposerModeSwitch,
   V4ComposerModelControls,
@@ -212,7 +215,9 @@ import type { ComposerSubmissionConfig } from "@/v4/composer/composerSubmissionC
 import { buildV4ConversationPromptTelemetryExtraDetail } from "@/v4/telemetry/conversationPromptTelemetry.js";
 import { resolveAttachableShareContext } from "@/lib/conversationShareContext.js";
 
-const MODEL_SELECTION_LOADING_STATE: ModelSelectionState = { status: "loading" };
+const MODEL_SELECTION_LOADING_STATE: ModelSelectionState = {
+  status: "loading",
+};
 
 export interface ConversationComposerSendOptions {
   /** 点击发送时复制的配置；null 表示未完成选择，Host 不得从 Session 补齐。 */
@@ -229,7 +234,10 @@ export interface ConversationComposerSendOptions {
   telemetrySeed?: ConversationPromptTelemetrySeed;
   /** 本次 busy input 的一次性投递覆盖，不改 session 偏好。 */
   requestedDelivery?: "startNow" | "queue" | "guide";
-  sharedContextRefs?: Array<{ kind: "shared_context_import"; context_id: string }>;
+  sharedContextRefs?: Array<{
+    kind: "shared_context_import";
+    context_id: string;
+  }>;
   /** 插件 UI 代发：随 sendText 持久化，用户消息卡片显示"来自插件 X"。 */
   source?: import("@zcode/shared/zcode-protocol-v4").ConversationInputSource;
 }
@@ -1081,7 +1089,10 @@ function ConversationComposerImpl({
         });
       if (shouldTransferDraft) {
         // 项目解绑只改变草稿的 cwd；输入正文、mention editor state 和组件内附件继续保留。
-        replaceComposerDraft({ ...ownerDraftRef.current.draft, ...previousDraft });
+        replaceComposerDraft({
+          ...ownerDraftRef.current.draft,
+          ...previousDraft,
+        });
         transferredDraft = previousDraft;
       }
     }
@@ -1324,7 +1335,10 @@ function ConversationComposerImpl({
       const undo = snapshotDraftOfEditor();
       inputApiRef.current?.setText(candidate);
       updateText(candidate);
-      promptOptimizer.markApplied(candidate, { text: undo.text, ...(undo.editorStateJson ? { editorStateJson: undo.editorStateJson } : {}) });
+      promptOptimizer.markApplied(candidate, {
+        text: undo.text,
+        ...(undo.editorStateJson ? { editorStateJson: undo.editorStateJson } : {}),
+      });
     },
     [promptOptimizer, snapshotDraftOfEditor, updateText],
   );
@@ -1658,7 +1672,10 @@ function ConversationComposerImpl({
             status: "fail",
             reasonCode: "blocked",
           });
-          sendAction.reject({ resultSource: "authority_ack", admissionResult: "rejected" });
+          sendAction.reject({
+            resultSource: "authority_ack",
+            admissionResult: "rejected",
+          });
           return;
         }
         if (sendResult === "confirmationRequired") {
@@ -1704,7 +1721,10 @@ function ConversationComposerImpl({
         // 提交已接纳：这份草稿的优化结果与撤销点同时作废。否则在飞结果会在消息
         // 发出后迟到发布，或用户重新输入同样文本时旧撤销点又把上一条草稿写回来。
         promptOptimizer.dismiss();
-        sendAction.complete({ resultSource: "authority_ack", admissionResult: "accepted" });
+        sendAction.complete({
+          resultSource: "authority_ack",
+          admissionResult: "accepted",
+        });
       } catch (error) {
         rollbackPromptHistory();
         restoreSubmittedDraft();
@@ -1838,7 +1858,11 @@ function ConversationComposerImpl({
 
   const handleStopClick = useCallback(() => {
     runUserAction({
-      input: { featureId: "conversation.composer.message", action: "stop", trigger: "button" },
+      input: {
+        featureId: "conversation.composer.message",
+        action: "stop",
+        trigger: "button",
+      },
       operation: onStop,
       completed: { resultSource: "optimistic_projection" },
       failureStage: "stop_generation",
@@ -1910,6 +1934,14 @@ function ConversationComposerImpl({
   const resolvedSendTooltipShortcut = modifierTooltip?.shortcut ?? sendShortcut;
   const stopTooltipTitle = intl.formatMessage({ id: "chat.stop" });
   const visibleError = error && !shouldSuppressChatErrorBanner(error) ? error : null;
+  // main-turn 指标胶囊事实源：snapshot 中最近一个带指标事实的 turnHeader。
+  // CLI 投影在权威 ModelComplete 上聚合并严格过滤 main_turn；composer 只读 snapshot，
+  // 不维护第二份 accepted-turn 状态，运行中在事实到达前显示不可用占位而非估算。
+  // 新轮无指标时保留上一完成轮值（见 deriveComposerTurnMetricsFact）。
+  const turnMetricsFact = useMemo(
+    () => deriveComposerTurnMetricsFact(snapshot?.rows.window),
+    [snapshot?.rows.window],
+  );
   // Oracle 一键修复：把问题清单写入输入框后直接走主发送路径（含草稿抢占/队列语义）。
   const handleOracleFixRequest = useCallback(
     (fixPrompt: string) => {
@@ -2124,7 +2156,9 @@ function ConversationComposerImpl({
                       : canPreviewImageAttachment
                         ? attachmentPreviewTitle
                         : canPreviewPdfAttachment
-                          ? intl.formatMessage({ id: "chat.attachments.preview.openPdf" })
+                          ? intl.formatMessage({
+                              id: "chat.attachments.preview.openPdf",
+                            })
                           : undefined
                   }
                 >
@@ -2360,7 +2394,9 @@ function ConversationComposerImpl({
       }),
     [onSelectModel],
   );
-  const optimizePromptTitle = intl.formatMessage({ id: "chat.composer.optimizePrompt" });
+  const optimizePromptTitle = intl.formatMessage({
+    id: "chat.composer.optimizePrompt",
+  });
   // ✨ 旁的下拉：优化用模型清单（按 provider 分组）。没有可用模型时整个下拉不渲染。
   // Oracle 复用同一份模型清单；推理档两者取向相反：优化取最低档走辅助快速通道，
   // Oracle 由用户在档位子菜单里自选（默认跟随模型档位，见 resolveOracleRequestOptions）。
@@ -2383,18 +2419,36 @@ function ConversationComposerImpl({
         })),
     [modelSelectionView],
   );
-  const optimizeModelMenuTitle = intl.formatMessage({ id: "chat.composer.optimizeModel" });
-  const optimizeModelFollowLabel = intl.formatMessage({ id: "chat.composer.optimizeModelFollow" });
-  const optimizeOptionsLabel = intl.formatMessage({ id: "chat.composer.optimizeOptions" });
-  const optimizeModeLabel = intl.formatMessage({ id: "chat.composer.optimizeMode" });
-  const optimizeContextLabel = intl.formatMessage({ id: "chat.composer.optimizeContext" });
-  const oracleReviewButtonTitle = intl.formatMessage({ id: "chat.composer.oracleReview" });
-  const oracleModelMenuTitle = intl.formatMessage({ id: "chat.composer.oracleModel" });
-  const oracleModelFollowLabel = intl.formatMessage({ id: "chat.composer.oracleModelFollow" });
+  const optimizeModelMenuTitle = intl.formatMessage({
+    id: "chat.composer.optimizeModel",
+  });
+  const optimizeModelFollowLabel = intl.formatMessage({
+    id: "chat.composer.optimizeModelFollow",
+  });
+  const optimizeOptionsLabel = intl.formatMessage({
+    id: "chat.composer.optimizeOptions",
+  });
+  const optimizeModeLabel = intl.formatMessage({
+    id: "chat.composer.optimizeMode",
+  });
+  const optimizeContextLabel = intl.formatMessage({
+    id: "chat.composer.optimizeContext",
+  });
+  const oracleReviewButtonTitle = intl.formatMessage({
+    id: "chat.composer.oracleReview",
+  });
+  const oracleModelMenuTitle = intl.formatMessage({
+    id: "chat.composer.oracleModel",
+  });
+  const oracleModelFollowLabel = intl.formatMessage({
+    id: "chat.composer.oracleModelFollow",
+  });
   const oracleReasoningDefaultLabel = intl.formatMessage({
     id: "chat.composer.oracleReasoningDefault",
   });
-  const oracleDepthDeepLabel = intl.formatMessage({ id: "chat.oracleReview.reviewDepth.deep" });
+  const oracleDepthDeepLabel = intl.formatMessage({
+    id: "chat.oracleReview.reviewDepth.deep",
+  });
   const optimizePromptTooltip =
     optimizerModel && promptOptimizer.optimizing === false
       ? `${optimizePromptTitle}（${optimizerModel.modelId}）`
@@ -2417,6 +2471,7 @@ function ConversationComposerImpl({
             draftMode={draftMode}
             draftConfig={draftConfig}
             usage={composerUsage}
+            compactRunning={hasChatLoadingBlockingActiveWork(snapshot?.control.activeWorks ?? [])}
             disabled={disabled}
             modelLocked={highspeedCard !== null}
             highspeedPresented={highspeedPresented}
@@ -2499,7 +2554,11 @@ function ConversationComposerImpl({
                                 providerId: group.key,
                                 modelId: model.modelId,
                                 ...(model.reasoningLevel
-                                  ? { options: { reasoningLevel: model.reasoningLevel } }
+                                  ? {
+                                      options: {
+                                        reasoningLevel: model.reasoningLevel,
+                                      },
+                                    }
                                   : {}),
                               })
                             }
@@ -2536,7 +2595,9 @@ function ConversationComposerImpl({
                   onSelect={() => setOptimizerMode("polish")}
                 >
                   <span className="min-w-0 flex-1 truncate">
-                    {intl.formatMessage({ id: "chat.composer.optimizeModePolish" })}
+                    {intl.formatMessage({
+                      id: "chat.composer.optimizeModePolish",
+                    })}
                   </span>
                   {optimizerMode === "polish" ? <CheckIcon className="size-3.5 shrink-0" /> : null}
                 </DropdownMenuItem>
@@ -2545,7 +2606,9 @@ function ConversationComposerImpl({
                   onSelect={() => setOptimizerMode("structure")}
                 >
                   <span className="min-w-0 flex-1 truncate">
-                    {intl.formatMessage({ id: "chat.composer.optimizeModeStructure" })}
+                    {intl.formatMessage({
+                      id: "chat.composer.optimizeModeStructure",
+                    })}
                   </span>
                   {optimizerMode === "structure" ? (
                     <CheckIcon className="size-3.5 shrink-0" />
@@ -2560,7 +2623,9 @@ function ConversationComposerImpl({
                   onSelect={() => setOptimizerContextRange("draft")}
                 >
                   <span className="min-w-0 flex-1 truncate">
-                    {intl.formatMessage({ id: "chat.composer.optimizeContextDraft" })}
+                    {intl.formatMessage({
+                      id: "chat.composer.optimizeContextDraft",
+                    })}
                   </span>
                   {optimizerContextRange === "draft" ? (
                     <CheckIcon className="size-3.5 shrink-0" />
@@ -2571,7 +2636,9 @@ function ConversationComposerImpl({
                   onSelect={() => setOptimizerContextRange("conversation")}
                 >
                   <span className="min-w-0 flex-1 truncate">
-                    {intl.formatMessage({ id: "chat.composer.optimizeContextConversation" })}
+                    {intl.formatMessage({
+                      id: "chat.composer.optimizeContextConversation",
+                    })}
                   </span>
                   {optimizerContextRange === "conversation" ? (
                     <CheckIcon className="size-3.5 shrink-0" />
@@ -2967,7 +3034,9 @@ function ConversationComposerImpl({
           >
             <div className="mb-1.5 flex min-w-0 items-center gap-2">
               <span className="min-w-0 flex-1 truncate font-medium">
-                {intl.formatMessage({ id: "chat.composer.optimizePreviewTitle" })}
+                {intl.formatMessage({
+                  id: "chat.composer.optimizePreviewTitle",
+                })}
               </span>
               {optimizerState.status === "pending" ? (
                 <span className="text-foreground-subtle text-ui-sm">
@@ -3020,17 +3089,23 @@ function ConversationComposerImpl({
                 ) : null}
                 {optimizerState.warnings?.includes("expanded") ? (
                   <div className="mt-1.5 text-ui-sm text-warning">
-                    {intl.formatMessage({ id: "chat.composer.optimizeWarnExpanded" })}
+                    {intl.formatMessage({
+                      id: "chat.composer.optimizeWarnExpanded",
+                    })}
                   </div>
                 ) : null}
                 {optimizerState.warnings?.includes("literal-mismatch") ? (
                   <div className="mt-1.5 text-ui-sm text-warning">
-                    {intl.formatMessage({ id: "chat.composer.optimizeWarnLiteral" })}
+                    {intl.formatMessage({
+                      id: "chat.composer.optimizeWarnLiteral",
+                    })}
                   </div>
                 ) : null}
                 {optimizerState.warnings?.includes("unchanged") ? (
                   <div className="mt-1.5 text-ui-sm text-foreground-subtle">
-                    {intl.formatMessage({ id: "chat.composer.optimizeUnchanged" })}
+                    {intl.formatMessage({
+                      id: "chat.composer.optimizeUnchanged",
+                    })}
                   </div>
                 ) : null}
                 {optimizerCandidateStale ? (
@@ -3040,7 +3115,9 @@ function ConversationComposerImpl({
                 ) : null}
                 {optimizerHasRichContext && !optimizerCandidateStale ? (
                   <div className="mt-1.5 text-ui-sm text-foreground-subtle">
-                    {intl.formatMessage({ id: "chat.composer.optimizeRichDisabled" })}
+                    {intl.formatMessage({
+                      id: "chat.composer.optimizeRichDisabled",
+                    })}
                   </div>
                 ) : null}
                 <div className="mt-2 flex items-center justify-end gap-2">
@@ -3062,7 +3139,9 @@ function ConversationComposerImpl({
                     data-testid="v4-composer-optimize-dismiss"
                     onClick={promptOptimizer.dismiss}
                   >
-                    {intl.formatMessage({ id: "chat.composer.optimizeDismiss" })}
+                    {intl.formatMessage({
+                      id: "chat.composer.optimizeDismiss",
+                    })}
                   </Button>
                   <Button
                     type="button"
@@ -3136,6 +3215,11 @@ function ConversationComposerImpl({
             <span>{attachmentsApi.attachmentError}</span>
           </p>
         ) : null}
+      </div>
+      {/* main-turn 指标胶囊：输入框下面的常驻 footer，位于 composer 输入壳之外，
+          不参与输入 surface 的圆角/高速背景层级；窄屏由 @container 隐藏 tok/s 分段。 */}
+      <div className="mt-1 flex w-full min-w-0 justify-start px-1">
+        <ComposerTurnMetricsCapsule fact={turnMetricsFact} />
       </div>
       <ImagePreviewDialog
         initialIndex={attachmentPreviewIndex}

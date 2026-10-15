@@ -13,7 +13,12 @@ import {
   traceContextToLogContext,
   TurnMachineImpl,
 } from "../deps.js";
-import type { MessageId, ModelNetworkStatusEvent, ModelToolContract } from "../deps.js";
+import type {
+  MessageId,
+  ModelNetworkStatusEvent,
+  ModelToolContract,
+  SessionEvent,
+} from "../deps.js";
 import {
   createRuntimeAssistantEntry,
   type RuntimeMessageEntry,
@@ -70,6 +75,7 @@ import {
   recordMainTurnCacheHitUsage,
   recordMainTurnModelUsage,
 } from "./turn-model-step-usage.js";
+import { firstModelTokenAt } from "./usage-observability.js";
 import { estimateCurrentModelInputTokens } from "./compact.js";
 import {
   resolveModelStepMaxOutputTokens,
@@ -657,6 +663,11 @@ async function runModelBackedTurnStepImpl(
         ? { contextUsageBreakdown: result.contextUsageBreakdown }
         : {}),
       toolCallCount: toolCalls.length,
+      // 真实请求耗时事实与 usage-observability 同口径（首 delta 事件时间戳）。
+      // UI 不得用浏览器时钟或字符数近似；缺首 token 时 firstTokenAt 缺省 → UI 显示不可用。
+      ...(querySource === "main_turn"
+        ? { timings: modelStepTimings(state.events, networkEventStartIndex, modelStartedAt) }
+        : {}),
     },
     modelTraceContext,
   );
@@ -847,4 +858,27 @@ async function recoverModelStepAfterContextExceeded(
     ).start(),
   );
   return true;
+}
+
+/**
+ * 单个 model step 的真实耗时事实（ModelComplete.timings）。
+ *
+ * 口径与 usage-observability 完全一致：firstTokenAt 读取持久化 ModelStreaming 的首个
+ * 非 空 text/reasoning delta 事件时间戳，不用浏览器时钟近似。startedAt/generationMs
+ * 来自本 step 的不可变快照（切模后读 Session Selection 会把旧请求归到新模型）。
+ */
+function modelStepTimings(
+  events: readonly SessionEvent[],
+  networkEventStartIndex: number,
+  startedAt: number,
+): {
+  firstTokenAt?: number;
+  generationDurationMs: number;
+  startedAt: number;
+} {
+  return {
+    firstTokenAt: firstModelTokenAt(events, networkEventStartIndex),
+    generationDurationMs: Math.max(0, Date.now() - startedAt),
+    startedAt,
+  };
 }

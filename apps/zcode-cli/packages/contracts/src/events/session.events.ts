@@ -818,6 +818,24 @@ export interface NetworkRequestStatusPayload {
   egress?: HttpClientEgressInfo;
 }
 
+export interface ModelCompleteTimings {
+  /**
+   * 本次 model request 的请求开始时间戳（epoch ms）。第一个 main request 的
+   * startedAt 是主轮 TTFT 的分母起点；后续 model step 只累计 generation 时长。
+   */
+  startedAt?: number;
+  /**
+   * 首 token（text_delta / reasoning_delta）到达时间戳（epoch ms）。
+   * 缺失 = 该请求没有可靠的首 token 事实（如非流式），UI 必须显示 `--` 而不是猜测。
+   */
+  firstTokenAt?: number;
+  /**
+   * 本请求的生成耗时（首字节前准备与网络排队排除在语义上不可行，这里统一为
+   * request start → complete 的墙钟；speed 由 UI 侧 sum(generationMs) 聚合推导）。
+   */
+  generationDurationMs?: number;
+}
+
 export interface ModelCompletePayload {
   cacheHit?: {
     inputTokens: number;
@@ -838,6 +856,11 @@ export interface ModelCompletePayload {
   stopReason: string;
   /** 当前模型请求组装出的完整 tool call 数量；旧事件可能缺失。 */
   toolCallCount?: number;
+  /**
+   * 真实请求耗时事实（usage-observability 同口径）；optional 兼容旧事件。
+   * UI 不做浏览器时钟估算：缺失值渲染为不可用占位。
+   */
+  timings?: ModelCompleteTimings;
   usage: TokenUsage | ModelUsage;
 }
 
