@@ -10170,3 +10170,98 @@ describe("userInput 行的 epilogueStart（热路径）", () => {
     expect(rows[1]).not.toHaveProperty("epilogueStart");
   });
 });
+
+// ── 融合档位（contextProfile=fusion）：SessionModeChanged 投影与恢复 ──
+describe("fusion contextProfile 投影", () => {
+  it("显式 fusion 档位写入 config.contextProfile；切档位不改 mode/planEnabled", () => {
+    const log = new EventLog();
+    log.push(SessionEventType.SessionCreated, { mode: "build", contextWindow: 200_000 });
+    log.push(SessionEventType.SessionModeChanged, {
+      mode: "build",
+      previousMode: "build",
+      contextProfile: "fusion",
+      previousContextProfile: "standard",
+      source: "command",
+    });
+    const { projection } = runAll(log.events);
+    const snapshot = projection.getSnapshot();
+    expect(snapshot.config.contextProfile).toBe("fusion");
+    expect(snapshot.config.mode).toBe("build");
+    expect(snapshot.config.planEnabled).toBe(false);
+  });
+
+  it("恢复/重放：fusion 事件重放后档位保留，旧事件（无档位）回落 standard", () => {
+    const log = new EventLog();
+    log.push(SessionEventType.SessionCreated, { mode: "build", contextWindow: 200_000 });
+    log.push(SessionEventType.SessionModeChanged, {
+      mode: "build",
+      previousMode: "build",
+      contextProfile: "fusion",
+      previousContextProfile: "standard",
+      source: "command",
+    });
+    const replayed = runAll(log.events);
+    expect(replayed.projection.getSnapshot().config.contextProfile).toBe("fusion");
+
+    const legacyLog = new EventLog();
+    legacyLog.push(SessionEventType.SessionCreated, { mode: "build", contextWindow: 200_000 });
+    const legacy = runAll(legacyLog.events);
+    expect(legacy.projection.getSnapshot().config.contextProfile).toBe("standard");
+  });
+
+  it("旧事件缺档位：保留现值；旧 mode=minimal 补极简档位（不产生 fusion）", () => {
+    const log = new EventLog();
+    log.push(SessionEventType.SessionCreated, { mode: "build", contextWindow: 200_000 });
+    log.push(SessionEventType.SessionModeChanged, {
+      mode: "minimal",
+      previousMode: "build",
+      source: "command",
+    });
+    const { projection } = runAll(log.events);
+    expect(projection.getSnapshot().config.contextProfile).toBe("minimal");
+  });
+
+  it("同值 fusion 再发：无 delta（幂等早返回）", () => {
+    const log = new EventLog();
+    log.push(SessionEventType.SessionCreated, { mode: "build", contextWindow: 200_000 });
+    log.push(SessionEventType.SessionModeChanged, {
+      mode: "build",
+      previousMode: "build",
+      contextProfile: "fusion",
+      previousContextProfile: "standard",
+      source: "command",
+    });
+    const first = runAll(log.events);
+    const revisionAfterFusion = first.projection.getSnapshot().revision;
+    log.push(SessionEventType.SessionModeChanged, {
+      mode: "build",
+      previousMode: "build",
+      contextProfile: "fusion",
+      previousContextProfile: "fusion",
+      source: "command",
+    });
+    const second = runAll(log.events);
+    expect(second.projection.getSnapshot().revision).toBe(revisionAfterFusion);
+  });
+
+  it("fusion 现值下只切权限的旧事件（无 profile）仍保留 fusion，不暗降 standard", () => {
+    const log = new EventLog();
+    log.push(SessionEventType.SessionCreated, { mode: "build", contextWindow: 200_000 });
+    log.push(SessionEventType.SessionModeChanged, {
+      mode: "build",
+      previousMode: "build",
+      contextProfile: "fusion",
+      previousContextProfile: "standard",
+      source: "command",
+    });
+    log.push(SessionEventType.SessionModeChanged, {
+      mode: "yolo",
+      previousMode: "build",
+      source: "command",
+    });
+    const { projection } = runAll(log.events);
+    const snapshot = projection.getSnapshot();
+    expect(snapshot.config.contextProfile).toBe("fusion", "旧事件缺档位保留现值");
+    expect(snapshot.config.mode).toBe("yolo");
+  });
+});

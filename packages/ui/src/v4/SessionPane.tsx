@@ -28,6 +28,7 @@ import {
   ZCODE_AGENT_PROVIDER,
 } from "@zcode/shared";
 import type {
+  ContextProfile,
   ConversationShareAccessMode,
   GitChangeSourceId,
   HighspeedCardSnapshot,
@@ -4408,7 +4409,7 @@ export function SessionPane({
     [handleDraftSwitchMode],
   );
   const handleSwitchContextProfile = useCallback(
-    (profile: "standard" | "minimal") => {
+    (profile: ContextProfile) => {
       handleDraftSwitchContextProfile(profile);
     },
     [handleDraftSwitchContextProfile],

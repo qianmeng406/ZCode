@@ -6361,6 +6361,12 @@ const enUS: Record<string, string> = {
   "chat.error.feedback": "Report issue",
   "chat.error.feedbackOpened": "Feedback opened with the error context attached",
   "chat.error.noAvailableModel": "No model available. Upgrade or set a custom model.",
+  "chat.error.proto.fusionContextProfileUnsupported":
+    "The connected ZCode runtime does not support Beta mode (prompt-fusion mode test version). Update the runtime and try again; the profile was not changed.",
+  "chat.error.proto.contextProfileUnsupported":
+    "The connected ZCode runtime does not support explicit context profiles. Update the runtime and try again.",
+  "chat.error.proto.independentPlanUnsupported":
+    "The connected ZCode runtime does not support independent Plan mode. Update the runtime and try again.",
   "chat.error.sendFailed": "Failed to send. Try again later.",
   "chat.error.modelSettings": "Model settings",
   "chat.error.setModels": "Set",
@@ -6556,6 +6562,12 @@ const enUS: Record<string, string> = {
   "chat.toolbar.mode.minimalContext.label": "Minimal context",
   "chat.toolbar.mode.minimalContext.description":
     "Keep only the identity line, environment and short guardrails; hides skills, memory, project instructions and MCP tools. It does not change permissions and only affects later requests.",
+  "chat.toolbar.mode.standardContext.label": "Standard context",
+  "chat.toolbar.mode.standardContext.description":
+    "Full context: identity, skills, memory and project instructions. Does not change permissions.",
+  "chat.toolbar.mode.fusionContext.label": "Beta mode",
+  "chat.toolbar.mode.fusionContext.description":
+    "Prompt-fusion mode test version: collaborative, evidence-driven and delegation-aware behavior with the full toolset; permissions and plan stay unchanged. Not an auto-permission mode.",
   "mode.description.glm.build": "Ask before file changes.",
   "mode.description.glm.edit": "Edit files automatically.",
   "mode.description.glm.plan": "Plan before editing.",

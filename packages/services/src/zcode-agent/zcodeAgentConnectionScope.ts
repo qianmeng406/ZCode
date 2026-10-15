@@ -219,6 +219,8 @@ function createHello(context: ZCodeAgentV4ConnectionContext): HelloMessage {
       workspaceHookReview: true,
       independentPlanState: true,
       contextProfileState: true,
+      // 融合档位 additive 能力位；旧消费者 schema 缺失该字段仍可握手。
+      fusionContextProfile: true,
       // 本 Host 会转发 `workflowRun.*` 键级增量；客户端见到它才能在 clientHello 里回声明
       // （那个 capabilities 是 .strict() 的，反过来会让老 Host 握不上手）。
       workflowRunDeltas: true,

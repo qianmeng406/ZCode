@@ -92,7 +92,16 @@ export async function applyRuntimeExecutionState(
   if (unpublishedPermissionGrants.has(runtime)) await recoverPendingPermissionGrant(runtime);
   const previous = readRuntimeExecutionState(runtime);
   const next = resolveExecutionState(input, previous);
-  if (next.mode === previous.mode && next.planEnabled === previous.planEnabled) return next;
+  // 根因：早返回此前只比较 mode/planEnabled，contextProfile 单独变化时被误判为无变化而
+  // 幂等短路——既不持久化也不发布事件，下一次请求仍按旧档位构建上下文。修复：三字段全部
+  // 相同才算真正无变化；保存失败时错误向上冒泡，安装与事件天然不会执行，内存事实不变。
+  if (
+    next.mode === previous.mode &&
+    next.planEnabled === previous.planEnabled &&
+    resolveContextProfile(next) === resolveContextProfile(previous)
+  ) {
+    return next;
+  }
   if (next.planEnabled && !previous.planEnabled) {
     const goal = await runtime.readSessionTargetForContext?.(
       cause.traceContext ?? runtime.rootTraceContext,

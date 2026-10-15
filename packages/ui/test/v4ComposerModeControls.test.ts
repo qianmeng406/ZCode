@@ -1,6 +1,6 @@
 import { createElement, type ReactNode } from "react";
 import { renderToStaticMarkup } from "react-dom/server";
-import { afterEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { TID_V4_COMPOSER_INPUT } from "@zcode/shared";
 
 const captured = vi.hoisted(() => ({
@@ -8,6 +8,9 @@ const captured = vi.hoisted(() => ({
   permissionProps: null as Record<string, unknown> | null,
   planProps: null as Record<string, unknown> | null,
   tooltipProps: null as Record<string, unknown> | null,
+  // 上下文档位三态（普通/极简/融合）改用独立 RadioGroup；按受控值与权限单选区分。
+  contextProfileProps: null as Record<string, unknown> | null,
+  contextProfileItems: [] as Array<Record<string, unknown>>,
 }));
 
 vi.mock("@/ControlHintTooltip.js", () => ({
@@ -24,18 +27,27 @@ vi.mock("@/components/ui/dropdown-menu.js", () => {
     DropdownMenu: children,
     DropdownMenuTrigger: children,
     DropdownMenuSeparator: () => createElement("hr"),
-    DropdownMenuRadioItem: children,
     DropdownMenuContent: (props: Record<string, unknown>) => {
       captured.contentProps = props;
       return children(props);
     },
     DropdownMenuRadioGroup: (props: Record<string, unknown>) => {
-      captured.permissionProps = props;
+      // 权限单选与档位三态都是 RadioGroup：档位组受控值只能是 standard/minimal/fusion，
+      // 按受控值区分归属，避免两个组共用一个捕获槽互相覆盖。
+      if (["standard", "minimal", "fusion"].includes(String(props.value))) {
+        captured.contextProfileProps = props;
+      } else {
+        captured.permissionProps = props;
+      }
+      return children(props);
+    },
+    DropdownMenuRadioItem: (props: Record<string, unknown>) => {
+      // 权限单选与档位三态同为 RadioItem；按 testid 归档，档位组另存一份有序列表。
+      captured.contextProfileItems.push(props);
       return children(props);
     },
     DropdownMenuCheckboxItem: (props: Record<string, unknown>) => {
-      // fork 在 Plan 复选框之外新增 minimal 上下文档位复选框；两者同为 CheckboxItem，
-      // 这里按 testid 只捕获独立 Plan 项，避免被后渲染的 minimal 项覆盖。
+      // fork 在权限菜单里保留独立 Plan 复选项；档位三态已迁到 RadioGroup，不再捕获 Checkbox。
       const testIdValue = String(props["data-testid"] ?? "");
       if (testIdValue.endsWith("plan")) {
         captured.planProps = props;
@@ -73,6 +85,14 @@ vi.mock("@/shortcuts/useShortcutBindings.js", () => ({
 import { V4ComposerModeSwitch } from "@/v4/composer/V4ComposerModeControls.js";
 
 describe("V4ComposerModeSwitch", () => {
+  beforeEach(() => {
+    captured.contentProps = null;
+    captured.permissionProps = null;
+    captured.planProps = null;
+    captured.tooltipProps = null;
+    captured.contextProfileProps = null;
+    captured.contextProfileItems = [];
+  });
   it("Guarded 在新的 Plan/权限菜单保持蓝色和独立 Plan 标记", () => {
     const html = renderToStaticMarkup(
       createElement(V4ComposerModeSwitch, {
@@ -190,5 +210,95 @@ describe("V4ComposerModeSwitch", () => {
     onCheckedChange(true);
     expect(onSwitchMode).toHaveBeenNthCalledWith(2, "plan");
     expect(onSwitchMode).toHaveBeenCalledTimes(2);
+  });
+
+  it("上下文档位是互斥三态单选：普通/极简/融合都在 RadioGroup 里", () => {
+    renderToStaticMarkup(
+      createElement(V4ComposerModeSwitch, {
+        workspacePath: "/workspace",
+        provider: "glm",
+        draftConfig: { mode: "build", contextProfile: "standard" },
+        activeConfigPicker: "mode",
+        onConfigPickerOpenChange: vi.fn(),
+        onSwitchMode: vi.fn(),
+        onSwitchContextProfile: vi.fn(),
+      }),
+    );
+    const suffixes = captured.contextProfileItems
+      .map((item) => String(item["data-testid"] ?? ""))
+      .filter((id) => id.endsWith("-context"))
+      .map((id) =>
+        id.endsWith("standard-context")
+          ? "standard-context"
+          : id.endsWith("minimal-context")
+            ? "minimal-context"
+            : "fusion-context",
+      );
+    expect(suffixes).toEqual(["standard-context", "minimal-context", "fusion-context"]);
+  });
+
+  it("选择融合档位只发档位回调，权限与 Plan 不动", () => {
+    const onSwitchContextProfile = vi.fn();
+    const onSwitchMode = vi.fn();
+    renderToStaticMarkup(
+      createElement(V4ComposerModeSwitch, {
+        workspacePath: "/workspace",
+        provider: "glm",
+        draftConfig: { mode: "guarded", planEnabled: true, contextProfile: "standard" },
+        activeConfigPicker: "mode",
+        onConfigPickerOpenChange: vi.fn(),
+        onSwitchMode,
+        onSwitchContextProfile,
+      }),
+    );
+    const fusionItem = captured.contextProfileItems.find((item) =>
+      String(item["data-testid"] ?? "").endsWith("fusion-context"),
+    )!;
+    // 档位 RadioGroup 的 onValueChange（受 schema 守卫包装）从专属捕获槽读取。
+    const fire = captured.contextProfileProps?.onValueChange as (value: string) => void;
+    expect(fusionItem.value).toBe("fusion");
+    expect(fire).toBeTypeOf("function");
+    fire("fusion");
+    expect(onSwitchContextProfile).toHaveBeenCalledWith("fusion");
+    expect(onSwitchMode).not.toHaveBeenCalled();
+  });
+
+  it("融合档位激活时触发按钮显示档位徽标，权限 label 仍可见且不用警示色", () => {
+    const html = renderToStaticMarkup(
+      createElement(V4ComposerModeSwitch, {
+        workspacePath: "/workspace",
+        provider: "glm",
+        draftConfig: { mode: "build", contextProfile: "fusion" },
+        activeConfigPicker: null,
+        onConfigPickerOpenChange: vi.fn(),
+        onSwitchMode: vi.fn(),
+        onSwitchContextProfile: vi.fn(),
+      }),
+    );
+    expect(html).toContain("chat.toolbar.mode.fusionContext.label");
+    expect(html).toContain("v4-composer-context-profile-marker");
+    expect(html).toContain("mode.label.glm.build");
+    expect(html).not.toContain("text-warning");
+    expect(html).toContain("data-[composer-compact=true]:w-11");
+    expect(html).toContain("group-data-[composer-compact=true]/mode:px-0");
+  });
+
+  it("缺省草稿按 standard 档位显示且无徽标", () => {
+    const html = renderToStaticMarkup(
+      createElement(V4ComposerModeSwitch, {
+        workspacePath: "/workspace",
+        provider: "glm",
+        draftConfig: { mode: "build" },
+        activeConfigPicker: null,
+        onConfigPickerOpenChange: vi.fn(),
+        onSwitchMode: vi.fn(),
+        onSwitchContextProfile: vi.fn(),
+      }),
+    );
+    expect(html).not.toContain("v4-composer-context-profile-marker");
+    const standardItem = captured.contextProfileItems.find((item) =>
+      String(item["data-testid"] ?? "").endsWith("standard-context"),
+    );
+    expect(standardItem).toBeDefined();
   });
 });

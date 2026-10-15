@@ -1,5 +1,8 @@
 import { describe, expect, it, vi } from "vitest";
-import { ensureIndependentPlanSupport } from "../src/zcode-agent/independentPlanSupport.js";
+import {
+  ensureFusionContextProfileSupport,
+  ensureIndependentPlanSupport,
+} from "../src/zcode-agent/independentPlanSupport.js";
 
 describe("独立 Plan 执行端能力", () => {
   it("复用同一 CLI 的成功检查，重建 CLI 后重新检查", async () => {
@@ -15,6 +18,35 @@ describe("独立 Plan 执行端能力", () => {
     const client = { request: vi.fn().mockRejectedValue(new Error("Method not found")) };
     await expect(ensureIndependentPlanSupport(client as never)).rejects.toThrow(
       "proto.independentPlanUnsupported",
+    );
+  });
+});
+
+describe("融合档位执行端能力", () => {
+  it("显式 fusion 复用同一 CLI 的成功检查", async () => {
+    const client = {
+      request: vi.fn().mockResolvedValue({
+        independentPlanState: true,
+        contextProfileState: true,
+        fusionContextProfile: true,
+      }),
+    };
+    await ensureFusionContextProfileSupport(client as never);
+    await ensureFusionContextProfileSupport(client as never);
+    expect(client.request).toHaveBeenCalledTimes(1);
+  });
+  it("contextProfileState=true 不证明 fusion：缺失 fusionContextProfile 时拒绝，不静默降级", async () => {
+    const client = {
+      request: vi.fn().mockResolvedValue({ independentPlanState: true, contextProfileState: true }),
+    };
+    await expect(ensureFusionContextProfileSupport(client as never)).rejects.toThrow(
+      "proto.fusionContextProfileUnsupported",
+    );
+  });
+  it("旧 CLI 不认识能力查询时拒绝", async () => {
+    const client = { request: vi.fn().mockRejectedValue(new Error("Method not found")) };
+    await expect(ensureFusionContextProfileSupport(client as never)).rejects.toThrow(
+      "proto.fusionContextProfileUnsupported",
     );
   });
 });

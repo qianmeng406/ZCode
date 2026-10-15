@@ -76,6 +76,7 @@ import {
   isZCodeFileStreamingToolInputPreviewTool,
   isZCodeModelRetryRecoveryProgressPayload,
   parseZCodeBackgroundTaskNotificationText,
+  contextProfileSchema,
   resolveZCodeBackgroundTaskControlKind,
   zcodeBackgroundTaskNotificationToolUpdateStatus,
 } from "@zcode/shared";
@@ -4109,13 +4110,14 @@ export class ProductProjection {
     if (mode) this.configModeTouchedByEvent = true;
     if (!mode) return [];
     const planEnabled = payload.planEnabled ?? mode === "plan";
-    // 档位：新事件显式携带；旧事件按旧 mode=minimal 补极简档位，其余保留现值。
-    const contextProfile =
-      payload.contextProfile === "standard" || payload.contextProfile === "minimal"
-        ? payload.contextProfile
-        : mode === "minimal"
-          ? "minimal"
-          : this.snapshot.config.contextProfile;
+    // 档位：显式有效值（含 fusion）原样透传；无效值且旧 mode=minimal 补极简档位；
+    // 否则保留快照当前档位——只切权限/Plan 的旧事件不带 profile，不得把 fusion 暗降回 standard。
+    const parsedProfile = contextProfileSchema.safeParse(payload.contextProfile);
+    const contextProfile = parsedProfile.success
+      ? parsedProfile.data
+      : mode === "minimal"
+        ? "minimal"
+        : this.snapshot.config.contextProfile;
     const planTransition =
       payload.source === "tool" && payload.toolCallId
         ? { toolCallId: payload.toolCallId, planEnabled }

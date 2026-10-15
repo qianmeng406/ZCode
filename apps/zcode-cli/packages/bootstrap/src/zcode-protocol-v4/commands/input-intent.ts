@@ -1,5 +1,5 @@
 import type { TurnInputIntentMetadata } from "@zcode/contracts";
-import type { ModelSelection } from "@zcode/shared";
+import type { ContextProfile, ModelSelection } from "@zcode/shared";
 import type {
   AttachmentRef,
   CommandEnvelope,
@@ -18,7 +18,7 @@ export interface CanonicalCommandIntent {
   modelSelection?: ModelSelection;
   mode?: SubmissionMode;
   planEnabled?: boolean;
-  contextProfile?: "standard" | "minimal";
+  contextProfile?: ContextProfile;
   sourceCommandId?: string;
   clientId?: string;
   queueItemId?: string;
@@ -45,7 +45,7 @@ export function inputIntentMetadata(
     modelSelection?: ModelSelection;
     mode?: SubmissionMode;
     planEnabled?: boolean;
-    contextProfile?: "standard" | "minimal";
+    contextProfile?: ContextProfile;
     sharedContextRefs?: TurnInputIntentMetadata["sharedContextRefs"];
     source?: TurnInputIntentMetadata["source"];
   },

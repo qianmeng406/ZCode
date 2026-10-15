@@ -43,6 +43,7 @@ import {
   TID_V4_ATTACHMENT_UPLOAD_RETRY,
   TID_V4_STOP,
   testId,
+  type ContextProfile,
   type HighspeedCardSnapshot,
   type ModelSelection,
   type PlanIdentitySnapshot,
@@ -485,7 +486,7 @@ export interface ConversationComposerProps {
   onSelectThought: (thought: string, modelContext: { provider: string; model: string }) => void;
   onSwitchMode: (mode: string) => void;
   /** 上下文档位切换（standard/minimal）；与权限 mode 正交。 */
-  onSwitchContextProfile?: (profile: "standard" | "minimal") => void;
+  onSwitchContextProfile?: (profile: ContextProfile) => void;
   /** 打开当前 session 的 Status panel，并直达 Running 明细。 */
   onOpenRunningBackgroundWorks?: () => void;
   /**

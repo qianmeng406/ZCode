@@ -41,6 +41,21 @@ const HISTORICAL_MODEL_UNAVAILABLE_MESSAGES = [
   "The model used by this historical task is no longer available",
 ];
 
+/**
+ * 协议 reasonCode → 文案 key 词表。reasonCode 可能出现在 code 也可能裸在 message
+ * （服务层按 Error("proto.xxx") 抛出），两处都查。fusion 档位被旧执行端拒绝时用户
+ * 看到的是“这个 ZCode 连接不支持 Beta 模式（提示词融合模式测试版本）”，而不是裸 code。
+ */
+const PROTO_REASON_MESSAGE_IDS: Readonly<Record<string, string>> = {
+  "proto.fusionContextProfileUnsupported": "chat.error.proto.fusionContextProfileUnsupported",
+  "proto.contextProfileUnsupported": "chat.error.proto.contextProfileUnsupported",
+  "proto.independentPlanUnsupported": "chat.error.proto.independentPlanUnsupported",
+};
+
+export function getProtoReasonMessageId(codeOrMessage: string): string | undefined {
+  return PROTO_REASON_MESSAGE_IDS[codeOrMessage.trim()];
+}
+
 const LOCALIZED_ERROR_CODES = new Set([
   "TASK_OWNED_BY_OTHER_HOST",
   "STALE_TASK_OWNER_COMMAND",
@@ -90,6 +105,15 @@ export function resolveChatErrorBannerDisplayMessage(
 ): string {
   if (isModelConfigMissingError(error)) {
     return intl.formatMessage({ id: "chat.error.noAvailableModel" });
+  }
+
+  // proto.* 是跨进程协议 reasonCode，直接展示对用户不可读。统一按词表映射成
+  // 中英文案；词表外保持原样（仍是稳定 code，比裸 message 更可定位）。
+  const protoMessageId = getProtoReasonMessageId(
+    error.code.startsWith("proto.") ? error.code : error.message,
+  );
+  if (protoMessageId) {
+    return intl.formatMessage({ id: protoMessageId });
   }
 
   if (error.code === "CLAUDE_UNKNOWN_COMMAND") {

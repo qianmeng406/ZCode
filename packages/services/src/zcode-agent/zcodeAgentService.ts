@@ -22,6 +22,7 @@ import { createTopicResourceBridge } from "./topicResourceBridge.js";
 import { uploadTopicResourceToClient } from "./topicResourceUpload.js";
 import {
   ensureContextProfileSupport,
+  ensureFusionContextProfileSupport,
   ensureIndependentPlanSupport,
 } from "./independentPlanSupport.js";
 import {
@@ -5972,6 +5973,7 @@ export function createZCodeAgentService(
           workspaceHookReview: true,
           independentPlanState: true,
           contextProfileState: true,
+          fusionContextProfile: true,
           // 与 connection scope 的 hello 同一份能力集：直连 base service 的宿主内部消费者
           // 也能收到 `workflowRun.*` 增量（是否真收由它自己的 clientHello 决定）。
           workflowRunDeltas: true,
@@ -6117,12 +6119,17 @@ export function createZCodeAgentService(
       }
       // 显式极简档位是 additive 字段：旧执行端会静默剥掉它、按标准上下文执行，
       // 发送前必须确认支持；standard 是旧缺省，无需协商。
+      // fusion 需要独立的 fusionContextProfile 能力位（contextProfileState 不证明 fusion），
+      // 拒绝发生在创建会话/改状态副作用之前；standard/minimal 不做额外拒绝。
       const requestedContextProfile =
         planPayload.contextProfile ??
         planPayload.config?.contextProfile ??
         planPayload.firstInput?.contextProfile;
       if (requestedContextProfile === "minimal") {
         await ensureContextProfileSupport(client);
+      }
+      if (requestedContextProfile === "fusion") {
+        await ensureFusionContextProfileSupport(client);
       }
       // RPC facade 会清掉调用方可伪造的顶层 clientMode，再用 trusted carrier 注入 host
       // 真值；host 内部 adapter 直调仍兼容显式 clientMode。

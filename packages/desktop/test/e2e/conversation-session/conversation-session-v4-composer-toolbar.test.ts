@@ -24,6 +24,7 @@ import {
   clickV4SlashOption,
   getV4ComposerText,
   getV4ConfigProjection,
+  getV4ContextProfile,
   getV4ModelConfig,
   getV4PaneSnapshot,
   getV4SlashOptionIds,
@@ -32,6 +33,7 @@ import {
   sendV4Prompt,
   selectV4TaskById,
   startNewV4Draft,
+  switchV4ContextProfile,
   switchV4Mode,
   switchV4Model,
   waitForV4Pane,
@@ -359,6 +361,42 @@ describe("v4 M5 门禁：composer 工具条与 slash 候选面板", () => {
     await openComposerPicker("thought");
     await waitForOnlyComposerPickerOpen("thought", "Select→Select");
     await closeComposerPicker();
+  });
+
+  it("上下文档位三态互斥：切 fusion 只改档位，权限与 Plan 保持", async () => {
+    await ensureCompletedTask();
+
+    // 初始 standard，权限 build。
+    let profile = await getV4ContextProfile();
+    expect(profile).toBe("standard");
+
+    // standard → fusion：档位锚点更新，mode/plan 不被连带。
+    await switchV4ContextProfile("fusion");
+    await browser.waitUntil(
+      async () => (await getV4ContextProfile()) === "fusion",
+      { timeout: 30000, timeoutMsg: "切换融合后 data-context-profile 没有更新为 fusion" },
+    );
+    let cfg = await getV4ModelConfig();
+    expect(cfg.mode).toBe("build");
+    expect((await getV4ConfigProjection()).planEnabled).toBe(false);
+
+    // fusion → minimal：三态互斥，直接换档仍保持权限。
+    await switchV4ContextProfile("minimal");
+    await browser.waitUntil(
+      async () => (await getV4ContextProfile()) === "minimal",
+      { timeout: 30000, timeoutMsg: "切换极简后 data-context-profile 没有更新为 minimal" },
+    );
+    cfg = await getV4ModelConfig();
+    expect(cfg.mode).toBe("build");
+
+    // minimal → standard：回到缺省档位。
+    await switchV4ContextProfile("standard");
+    await browser.waitUntil(
+      async () => (await getV4ContextProfile()) === "standard",
+      { timeout: 30000, timeoutMsg: "切回普通后 data-context-profile 没有更新为 standard" },
+    );
+    cfg = await getV4ModelConfig();
+    expect(cfg.mode).toBe("build");
   });
 
   it("completed task 的 picker 不跨 scope 自动弹到新 draft", async () => {

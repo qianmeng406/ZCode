@@ -1,5 +1,6 @@
 import type { ExecutionOutputPreview } from "../interfaces/execution.port.js";
 import type { RuntimeInputPresentation } from "../interfaces/runtime-input-presentation.js";
+import type { ContextProfile } from "@zcode/shared";
 /* eslint-disable max-lines -- session event 契约集中在单文件导出，避免 app/agent 协议类型分散后漂移。 */
 // ============================================================
 // Session Events - All event types for the agent loop
@@ -679,9 +680,9 @@ export interface SessionModeChangedPayload {
   previousPlanEnabled?: boolean;
   mode: CollaborationMode;
   previousMode: CollaborationMode;
-  /** 上下文档位；与权限一起提交但正交变化。旧事件无此字段。 */
-  contextProfile?: "standard" | "minimal";
-  previousContextProfile?: "standard" | "minimal";
+  /** 上下文档位；与权限一起提交但正交变化。旧事件无此字段。类型复用 shared 契约源。 */
+  contextProfile?: ContextProfile;
+  previousContextProfile?: ContextProfile;
   source: "tool" | "command" | "system";
   toolCallId?: ToolCallId;
 }

@@ -2711,6 +2711,26 @@ export async function switchV4Mode(mode: string) {
   );
 }
 
+/** 通过同一个模式菜单切换上下文档位（standard/minimal/fusion 三态互斥）。 */
+export async function switchV4ContextProfile(profile: string) {
+  await selectRadixOption(
+    TID_CHAT_MODE_SELECT_TRIGGER,
+    testId(TID_CHAT_MODE_SELECT_ITEM, `${profile}-context`),
+    `v4 模式选择器没有出现上下文档位项: ${profile}`,
+  );
+}
+
+/** 读取 Composer 档位锚点（data-context-profile，与权限/Plan 正交核对用）。 */
+export function getV4ContextProfile(): Promise<string | null> {
+  return browser.execute((modelTestId) => {
+    return (
+      document
+        .querySelector<HTMLElement>(`[data-testid="${modelTestId}"]`)
+        ?.getAttribute("data-context-profile") ?? null
+    );
+  }, TID_V4_MODEL_CONFIG);
+}
+
 /** 读取 config 投影扩展锚点（data-mode / data-usage-*，M5 additive）。 */
 export function getV4ConfigProjection(): Promise<{
   mode: string | null;

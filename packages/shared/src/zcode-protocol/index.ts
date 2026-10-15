@@ -121,8 +121,11 @@ export const ZCODE_PROTOCOL_VERSION = 1 as const;
 export const ZCODE_PROTOCOL_V4_WIRE_VERSION = 3 as const;
 export const zcodeRuntimeCapabilitiesSchema = z.object({
   independentPlanState: z.boolean().optional(),
-  // 显式 contextProfile 协商位；旧执行端缺失等价于 false。
+  // 显式 contextProfile 协商位；旧执行端缺失等价于 false。只证明 standard/minimal。
   contextProfileState: z.boolean().optional(),
+  // 融合档位（contextProfile=fusion）协商位：additive，旧执行端缺失等价于 false。
+  // contextProfileState=true 不代表支持 fusion，两条能力独立判定。
+  fusionContextProfile: z.boolean().optional(),
 });
 export const zcodeProtocolErrorCodes = {
   sessionUnavailable: -32004,

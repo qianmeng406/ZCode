@@ -47,6 +47,16 @@ test("submission freeze keeps the context profile independent of permission", ()
   assert.equal(frozen!.contextProfile, "minimal", "切档位不改权限、冻结必须带档位");
 });
 
+test("fusion profile freezes through submission alongside permission", () => {
+  const frozen = createComposerSubmissionConfig(
+    { mode: "guarded", planEnabled: false, contextProfile: "fusion", modelSelection: selection },
+    view,
+  );
+  assert.equal(frozen!.mode, "guarded", "融合档位不改权限");
+  assert.equal(frozen!.planEnabled, false);
+  assert.equal(frozen!.contextProfile, "fusion", "提交透传 fusion 档位");
+});
+
 test("legacy minimal drafts resolve to the minimal profile", () => {
   const frozen = createComposerSubmissionConfig(
     { mode: "minimal", modelSelection: selection },

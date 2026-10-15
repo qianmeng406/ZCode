@@ -6069,6 +6069,12 @@ const zhCN: Record<string, string> = {
   "chat.error.feedback": "反馈问题",
   "chat.error.feedbackOpened": "已打开反馈，并自动带上报错现场",
   "chat.error.noAvailableModel": "当前没有可用模型。请开通编程套餐或配置自定义模型。",
+  "chat.error.proto.fusionContextProfileUnsupported":
+    "当前连接的 ZCode 执行端不支持 Beta 模式（提示词融合模式测试版本）。请更新执行端后重试；档位未发生变更。",
+  "chat.error.proto.contextProfileUnsupported":
+    "当前连接的 ZCode 执行端不支持显式上下文档位。请更新执行端后重试。",
+  "chat.error.proto.independentPlanUnsupported":
+    "当前连接的 ZCode 执行端不支持独立计划模式。请更新执行端后重试。",
   "chat.error.sendFailed": "发送失败，请稍后重试。",
   "chat.error.modelSettings": "模型设置",
   "chat.error.setModels": "配置",
@@ -6257,6 +6263,12 @@ const zhCN: Record<string, string> = {
   "chat.toolbar.mode.minimalContext.label": "极简上下文",
   "chat.toolbar.mode.minimalContext.description":
     "只保留身份行、环境与短护栏，隐藏技能、记忆、项目指令与 MCP 工具；不改变权限，只影响之后的请求。",
+  "chat.toolbar.mode.standardContext.label": "普通上下文",
+  "chat.toolbar.mode.standardContext.description":
+    "完整上下文：身份、技能、记忆与项目指令全部保留；不改变权限。",
+  "chat.toolbar.mode.fusionContext.label": "Beta 模式",
+  "chat.toolbar.mode.fusionContext.description":
+    "提示词融合模式测试版本：协作、有据推进、按需委派，保留完整工具集；权限与计划不变，不是自动执行权限。",
   "mode.description.glm.build": "改文件前先问我。",
   "mode.description.glm.edit": "自动编辑文件。",
   "mode.description.glm.plan": "编辑前先出计划。",

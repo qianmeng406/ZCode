@@ -36,6 +36,7 @@ import {
   ChevronDownIcon,
   Feather,
   HandIcon,
+  Layers,
   NotepadText,
   ShieldAlertIcon,
   ShieldCheckIcon,
@@ -241,6 +242,8 @@ export function resolveModeOptionIcon(value: unknown): LucideIcon {
   if (typeof value === "string" && value.toLocaleLowerCase() === "research") return Telescope;
   // minimal（极简模式）：只留工具与最小上下文，用羽毛表示「轻」。
   if (typeof value === "string" && value.toLocaleLowerCase() === "minimal") return Feather;
+  // fusion（Beta 模式 / 提示词融合模式测试版）：上下文档位而非权限，用层叠图标表示协作语义，不落入高权限盾牌。
+  if (typeof value === "string" && value.toLocaleLowerCase() === "fusion") return Layers;
   if (isHighPermissionModeValue(value)) {
     return ShieldAlertIcon;
   }

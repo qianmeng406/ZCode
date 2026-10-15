@@ -3,6 +3,7 @@ import type { ZCodeProtocolClient } from "./zcodeProtocolClient.js";
 
 const checks = new WeakMap<object, Promise<void>>();
 const contextProfileChecks = new WeakMap<object, Promise<void>>();
+const fusionContextProfileChecks = new WeakMap<object, Promise<void>>();
 
 /** Host 更新不代表远端 CLI 已更新；旧 CLI 会剥掉 Plan 字段，必须在发送前确认执行端。 */
 export function ensureIndependentPlanSupport(
@@ -42,5 +43,29 @@ export function ensureContextProfileSupport(
       throw new Error("proto.contextProfileUnsupported", { cause });
     });
   contextProfileChecks.set(client, check);
+  return check;
+}
+
+/**
+ * 融合档位（contextProfile=fusion）是 additive 能力：现有 contextProfileState 只证明
+ * standard/minimal，不能放行 fusion。发送显式 fusion 前确认执行端的独立能力位，
+ * 缺能力时报不支持而不是静默按 standard 降级；standard/minimal 不做额外拒绝。
+ */
+export function ensureFusionContextProfileSupport(
+  client: Pick<ZCodeProtocolClient, "request">,
+): Promise<void> {
+  const cached = fusionContextProfileChecks.get(client);
+  if (cached) return cached;
+  const check = client
+    .request(zcodeProtocolMethods.runtimeCapabilities, {}, zcodeRuntimeCapabilitiesSchema)
+    .then((result) => {
+      if (result.fusionContextProfile !== true)
+        throw new Error("proto.fusionContextProfileUnsupported");
+    })
+    .catch((cause: unknown) => {
+      fusionContextProfileChecks.delete(client);
+      throw new Error("proto.fusionContextProfileUnsupported", { cause });
+    });
+  fusionContextProfileChecks.set(client, check);
   return check;
 }

@@ -29,6 +29,19 @@ import {
   buildOutputStyleSection,
   buildSessionGuidanceSection,
 } from "./dynamic-sections.js";
+import {
+  buildFusionBehaviorSection,
+  buildFusionContextManagementSection,
+} from "./fusion-sections.js";
+import {
+  buildContextMetaUserBody as buildContextMetaUserBodyImpl,
+  buildSkillsMetaUserBody as buildSkillsMetaUserBodyImpl,
+} from "./meta-user-body.js";
+import {
+  assembleMetaUserAttachments,
+  assembleSystemMessages,
+  orderSectionsForInjection,
+} from "./message-assembly.js";
 
 // -----------------------------------------------
 // Context Builder
@@ -99,6 +112,10 @@ export class ContextBuilder {
     }
     const isWorkflowActor = workflowActor !== undefined;
     const isMinimalProfile = this.config.promptProfile === "minimal";
+    // 融合只属于主代理默认身份路径；customSystemPrompt / workflowActor 保留自身契约，
+    // 不注入融合交互行为（见 fusion-context-profile.md）。
+    const useFusionSections =
+      this.config.promptProfile === "fusion" && !hasCustomSystemPrompt && !isWorkflowActor;
     // 三条身份路径互斥：极简档位不该同时拿到自定义提示词或子代理身份，
     // 同时在场只可能是接线错误，大声失败而不是默默让其中一条生效。
     if (isMinimalProfile && hasCustomSystemPrompt) {
@@ -156,7 +173,15 @@ export class ContextBuilder {
 
       // behaviour part right after stable sp...
       if (!isWorkflowActor) {
-        sections.push(buildDynamicBehaviorSection());
+        if (useFusionSections) {
+          sections.push(
+            buildFusionBehaviorSection({
+              agentGuidance: (this.config.guidanceToolNames ?? []).includes("Agent"),
+            }),
+          );
+        } else {
+          sections.push(buildDynamicBehaviorSection());
+        }
       }
 
       // Session-specific guidance
@@ -189,7 +214,11 @@ export class ContextBuilder {
       }
 
       // Context Management
-      sections.push(buildContextManagementSection());
+      sections.push(
+        useFusionSections
+          ? buildFusionContextManagementSection()
+          : buildContextManagementSection(),
+      );
 
       const gitSystemContextSection = buildGitSystemContextSection(this.config.envInfo);
       if (gitSystemContextSection) {
@@ -241,8 +270,8 @@ export class ContextBuilder {
     const totalChars = orderedSections.reduce((sum, s) => sum + s.chars, 0);
     const totalTokens = orderedSections.reduce((sum, s) => sum + s.tokens, 0);
 
-    const systemMessages = this.assembleSystemMessages(orderedSections);
-    const metaUserAttachments = this.assembleMetaUserAttachments(orderedSections);
+    const systemMessages = assembleSystemMessages(orderedSections);
+    const metaUserAttachments = assembleMetaUserAttachments(orderedSections);
 
     return {
       sections: orderedSections,
@@ -257,125 +286,16 @@ export class ContextBuilder {
     const names = this.config.guidanceToolNames;
     return names === undefined || names.includes(SKILL_TOOL_NAME);
   }
-
-  private assembleSystemMessages(sections: ContextSection[]): ModelInputMessage[] {
-    const messages: ModelInputMessage[] = [];
-
-    const cliPrefixContent = buildSectionContent(
-      sections.filter(
-        (section) => section.injectionTarget === "system" && section.source === "cli_prefix",
-      ),
-    );
-    if (cliPrefixContent) {
-      messages.push({
-        role: "system",
-        content: cliPrefixContent,
-      });
-    }
-
-    const stableBodyContent = buildSectionContent(
-      sections.filter(
-        (section) =>
-          section.injectionTarget === "system" &&
-          section.cacheHint === "stable" &&
-          section.source !== "cli_prefix",
-      ),
-    );
-    if (stableBodyContent) {
-      messages.push({
-        role: "system",
-        content: stableBodyContent,
-        cacheControl: EPHEMERAL_CACHE_CONTROL,
-      });
-    }
-
-    const dynamicSystemContent = buildSectionContent(
-      sections.filter(
-        (section) => section.injectionTarget === "system" && section.cacheHint === "dynamic",
-      ),
-    );
-    if (dynamicSystemContent) {
-      messages.push({
-        role: "system",
-        // ZCode by design：Main Agent 的 dynamic system block 自带左边界，所有 provider 保持一致。
-        content: `\n\n${dynamicSystemContent}`,
-        cacheControl: EPHEMERAL_CACHE_CONTROL,
-      });
-    }
-
-    return messages;
-  }
-
-  private assembleMetaUserAttachments(sections: ContextSection[]): ContextMetaUserAttachment[] {
-    const attachments: ContextMetaUserAttachment[] = [];
-
-    const skillsContent = buildSkillsMetaUserBody(
-      sections.filter(
-        (section) => section.injectionTarget === "meta_user" && section.source === "skills",
-      ),
-    );
-    if (skillsContent) {
-      attachments.push({
-        source: "skills_listing",
-        content: skillsContent,
-      });
-    }
-
-    const contextContent = buildContextMetaUserBody(
-      sections.filter(
-        (section) => section.injectionTarget === "meta_user" && section.source !== "skills",
-      ),
-    );
-    if (contextContent) {
-      attachments.push({
-        source: "context_prefix",
-        content: contextContent,
-      });
-    }
-
-    return attachments;
-  }
 }
 
-function orderSectionsForInjection(sections: ContextSection[]): ContextSection[] {
-  return [
-    ...sections.filter(
-      (section) => section.injectionTarget === "system" && section.cacheHint === "stable",
-    ),
-    ...sections.filter(
-      (section) => section.injectionTarget === "system" && section.cacheHint === "dynamic",
-    ),
-    ...sections.filter(
-      (section) => section.injectionTarget === "meta_user" && section.cacheHint === "stable",
-    ),
-    ...sections.filter(
-      (section) => section.injectionTarget === "meta_user" && section.cacheHint === "dynamic",
-    ),
-  ];
-}
+export { orderSectionsForInjection } from "./message-assembly.js";
 
 export function buildContextMetaUserBody(sections: ContextSection[]): string | null {
-  if (sections.length === 0) return null;
-
-  return [
-    "As you answer the user's questions, you can use the following context:",
-    buildSectionContent(sections),
-    "",
-    "      IMPORTANT: this context may or may not be relevant to your tasks. You should not respond to this context unless it is highly relevant to your task.",
-  ].join("\n");
+  return buildContextMetaUserBodyImpl(sections);
 }
 
 export function buildSkillsMetaUserBody(sections: ContextSection[]): string | null {
-  const content = buildSectionContent(sections);
-  if (!content) {
-    return null;
-  }
-
-  return content;
-}
-
-function buildSectionContent(sections: ContextSection[]): string {
-  return sections.map((section) => section.content).join("\n\n");
+  return buildSkillsMetaUserBodyImpl(sections);
 }
 
 function createSection(input: {

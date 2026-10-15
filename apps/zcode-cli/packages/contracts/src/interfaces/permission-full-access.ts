@@ -1,4 +1,8 @@
 import { z } from "zod";
+import { contextProfileValues } from "@zcode/shared";
+
+// 约束：shared(zod4) 与本包(zod3) 的 schema 不可直接组合，只能从公开值重建枚举。
+const contextProfileSchema = z.enum(contextProfileValues);
 
 export const PERMISSION_FULL_ACCESS_ENTRY = "runtime/permission_full_access";
 
@@ -19,9 +23,9 @@ export const permissionFullAccessReceiptSchema = z
           .object({
             mode: z.literal("yolo"),
             planEnabled: z.boolean(),
-            /** 上下文档位；授权只改权限、保留档位。旧 receipt 无此字段。 */
-            contextProfile: z.enum(["standard", "minimal"]).optional(),
-            previousContextProfile: z.enum(["standard", "minimal"]).optional(),
+            /** 上下文档位；授权只改权限、保留档位。旧 receipt 无此字段。schema 复用 shared 契约源。 */
+            contextProfile: contextProfileSchema.optional(),
+            previousContextProfile: contextProfileSchema.optional(),
             previousMode: z.enum([
               "build",
               "edit",

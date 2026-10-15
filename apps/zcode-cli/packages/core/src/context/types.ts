@@ -48,7 +48,9 @@ export type ContextSource =
   | "output_style" // 输出风格
   | "context_management" // 长上下文管理提示
   | "desktop_context" // ZCode Desktop 渲染与交互协议
-  | "minimal_guardrails"; // 极简模式的最简护栏（该模式没有其余任何指引）
+  | "minimal_guardrails" // 极简模式的最简护栏（该模式没有其余任何指引）
+  | "fusion_behavior" // 融合档位的行为段（替换默认 Dynamic Behavior）
+  | "fusion_context_management"; // 融合档位的上下文连续性段（替换默认 Context Management）
 
 export type ContextInjectionTarget = "system" | "meta_user";
 
@@ -130,8 +132,13 @@ export interface ContextBuilderConfig {
    * 附件全部不发；工具说明本就由 model request 的 tools 字段承载，不在 system 段内。
    * 缺省即 `default`。仅极简模式使用；与 `customSystemPrompt` / `workflowActor` 不同路径，
    * 三者同时在场属于接线错误，builder 会大声失败。
+   *
+   * `fusion` 只替换默认 Dynamic Behavior 与 Context Management 两个动态段，其余段与
+   * meta_user 附件全部保留（见 docs/design/v2/loop/fusion-context-profile.md）。与
+   * `customSystemPrompt` / `workflowActor` 不互斥：后两者保持各自身份契约，跳过融合
+   * 交互行为段，builder 不为这种组合失败。
    */
-  promptProfile?: "default" | "minimal";
+  promptProfile?: "default" | "minimal" | "fusion";
   language?: string;
   outputStyle?: OutputStylePromptConfig;
   compact?: AutoCompactPolicyConfig;

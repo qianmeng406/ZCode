@@ -23,6 +23,7 @@ import {
   getModelProviderFamilySpec,
   resolveModelProviderFamilySpecByProviderId,
   TID_V4_MODEL_CONFIG,
+  type ContextProfile,
   TID_V4_COMPOSER_INPUT,
   ZCODE_AGENT_PROVIDER,
   type ProviderFamilyConnectionSelection,
@@ -415,7 +416,7 @@ export interface V4ComposerToolbarProps {
   onSelectThought: (thought: string, modelContext: { provider: string; model: string }) => void;
   onSwitchMode: (mode: string) => void;
   /** 切换上下文档位（standard/minimal）；与权限 mode 正交，只影响未来请求的前缀与工具投影。 */
-  onSwitchContextProfile?: (profile: "standard" | "minimal") => void;
+  onSwitchContextProfile?: (profile: ContextProfile) => void;
   /** prepare/configOptions 失败时，custom provider 选择走 workspace recovery 链。 */
   onRecoverCustomModelSelection?: (
     value: string,
@@ -1083,6 +1084,8 @@ function V4ComposerModelControlsImpl({
         }
         data-mode={draftConfig?.mode ?? ""}
         data-plan-enabled={draftConfig?.planEnabled ?? false}
+        // 档位与权限正交；e2e 用独立锚点核对融合切换不连带权限/Plan。
+        data-context-profile={draftConfig?.contextProfile ?? "standard"}
         data-usage-used={usage?.contextWindow?.usedTokens ?? ""}
         data-usage-max={usage?.contextWindow?.maxTokens ?? ""}
         className="hidden"

@@ -10,6 +10,7 @@ import { ZCODE_AGENT_PROVIDER, resolveExecutionState } from "@zcode/shared";
 import { applyComposerPlanTransition } from "@/v4/composer/composerPlanTransition.js";
 import type {
   ZCodeConfigOption,
+  ContextProfile,
   ModelSelection,
   ZCodeProvider,
   ZCodeSlashCommand,
@@ -98,7 +99,7 @@ export interface DraftConfigControl {
   handleDraftSelectThought: (thought: string) => void;
   handleDraftSwitchMode: (mode: string) => void;
   /** 上下文档位与权限正交：单独切换，只改未来请求的前缀与工具投影。 */
-  handleDraftSwitchContextProfile: (profile: "standard" | "minimal") => void;
+  handleDraftSwitchContextProfile: (profile: ContextProfile) => void;
 }
 
 export function useDraftConfigControl(params: {
@@ -488,7 +489,7 @@ export function useDraftConfigControl(params: {
   );
 
   const handleDraftSwitchContextProfile = useCallback(
-    (profile: "standard" | "minimal") => {
+    (profile: ContextProfile) => {
       // 档位与权限正交：只改上下文投影，不动 mode/planEnabled/模型选择。
       updateComposerDraft((current) => ({
         ...current,

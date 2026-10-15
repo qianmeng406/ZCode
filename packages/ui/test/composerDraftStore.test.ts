@@ -42,6 +42,38 @@ describe("Composer Draft 持久选择", () => {
     expect(read()).toBeNull();
   });
 
+  it("fusion 档位随草稿持久化并在恢复时保留", () => {
+    persistV4ComposerDraft(workspace, undefined, "session-a", {
+      text: "",
+      mode: "build",
+      contextProfile: "fusion",
+    });
+    expect(read()).toMatchObject({
+      mode: "build",
+      contextProfile: "fusion",
+    });
+  });
+
+  it("旧草稿非法档位被丢弃，缺省按 standard 解析不误升 fusion", () => {
+    storage.setItem(
+      getV4ComposerDraftStorageKey(workspace),
+      JSON.stringify({
+        version: 1,
+        scopes: {
+          "session-a": {
+            text: "keep",
+            mode: "build",
+            contextProfile: "fusion-plus" as unknown as string,
+            updatedAt: 9,
+          },
+          "session-b": { text: "legacy", mode: "edit", updatedAt: 8 },
+        },
+      }),
+    );
+    expect(read("session-a")?.contextProfile).toBeUndefined();
+    expect(read("session-b")?.contextProfile).toBeUndefined();
+  });
+
   it("初始化过的空选择持久保留，mode 区分它与旧文本草稿", () => {
     persistV4ComposerDraft(workspace, undefined, "session-a", { text: "", mode: "build" });
     expect(read()).toMatchObject({ text: "", mode: "build" });

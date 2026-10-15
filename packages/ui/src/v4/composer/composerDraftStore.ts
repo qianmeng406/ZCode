@@ -12,6 +12,7 @@ import { logger } from "@/logger.js";
 import {
   contextProfileSchema,
   modelSelectionSchema,
+  type ContextProfile,
   type ModelSelection,
 } from "@zcode/shared";
 import { submissionModeSchema, type SubmissionMode } from "@zcode/shared/zcode-protocol-v4";
@@ -25,7 +26,7 @@ export interface V4ComposerDraft {
   mode?: SubmissionMode;
   planEnabled?: boolean;
   /** 上下文档位：与权限正交，随草稿同 scope 保存；新任务默认 standard。 */
-  contextProfile?: "standard" | "minimal";
+  contextProfile?: ContextProfile;
   /** 已处理的工具变更，防止重连快照再次覆盖用户选择。 */
   lastPlanTransitionId?: string;
   lastPermissionGrantId?: string;

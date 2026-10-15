@@ -18,10 +18,18 @@ export const executionPermissionModeSchema = z.enum([
  * 上下文档位，与权限正交：
  * - standard：完整上下文（身份行为段、技能清单、记忆、项目指令等）；
  * - minimal：只留身份行、环境与短护栏，去掉技能/记忆/项目指令并隐藏 MCP/Skill 可见工具。
+ * - fusion：融合档位，保持身份、权限、安全边界、桌面能力、技能、项目指令、记忆与工具集，
+ *   只替换默认动态行为与上下文管理规则；权限与 Plan 语义不变。
  * 它只影响未来请求的前缀与工具投影，不改变权限，也不删除已有历史。
  */
-export const contextProfileSchema = z.enum(["standard", "minimal"]);
+export const contextProfileSchema = z.enum(["standard", "minimal", "fusion"]);
 export type ContextProfile = z.infer<typeof contextProfileSchema>;
+/** 约束：跨 Zod 版本的包经此元组重建枚举，值源唯一。 */
+export const contextProfileValues = contextProfileSchema.options as [
+  "standard",
+  "minimal",
+  "fusion",
+];
 
 /** 持久化/协议形态：contextProfile 允许缺省（旧值/旧发送端）；权威结果由 resolveExecutionState 补齐。 */
 export const executionStateSchema = z.object({

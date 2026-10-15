@@ -24,6 +24,7 @@ import type { GoalCompletionVerificationOutput } from "../tools/target.js";
 import type { PermissionOptionsPolicy, PermissionUpdate } from "./permission.port.js";
 import type { ToolResultDisplayPayload } from "../tools/tool-result-metadata.js";
 import type { ModelSelection } from "../model/model.js";
+import type { ContextProfile } from "@zcode/shared";
 
 // -----------------------------------------------
 // Collaboration Mode and Risk Level
@@ -380,8 +381,8 @@ export interface TurnInputIntentMetadata {
   modelSelection?: ModelSelection;
   /** 与本次用户 Submission 一起固定的协作模式。 */
   mode?: "build" | "edit" | "plan" | "yolo" | "guarded" | "research" | "minimal";
-  /** 与本次 Submission 一起固定的上下文档位；改权限/Plan 不改档位。旧请求缺省。 */
-  contextProfile?: "standard" | "minimal";
+  /** 与本次 Submission 一起固定的上下文档位；改权限/Plan 不改档位。旧请求缺省。类型复用 shared 契约源。 */
+  contextProfile?: ContextProfile;
   admissionSeq: number;
   admittedAt: number;
   requestedDelivery: "auto" | "startNow" | "queue" | "guide";

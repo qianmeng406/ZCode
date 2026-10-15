@@ -31,6 +31,9 @@ export const hostCapabilitiesSchema = z.object({
   independentPlanState: z.boolean().optional(),
   // 显式 contextProfile（standard/minimal）字段协商；旧端缺失等价于 false（只支持标准档位）。
   contextProfileState: z.boolean().optional(),
+  // 融合档位（contextProfile=fusion）协商位：additive，旧端缺失等价于 false；
+  // 与 contextProfileState 独立，后者为 true 不代表支持 fusion。
+  fusionContextProfile: z.boolean().optional(),
   /**
    * 本 Host 会发 `workflowRun.*` 键级增量（delta.ts 的两条 op），因而 `workflowRuns` 的
    * actors / nodes 可以到 1024 而不是旧界的 256。没有这个位的消费者收到的仍是整键

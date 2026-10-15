@@ -150,9 +150,13 @@ export function createContextBuilderFromSnapshot(
     skillMetadataBudget: this.config.skillMetadataBudget,
     customSystemPrompt: this.config.systemPrompt,
     workflowActor: this.config.workflowActor,
-    // 极简上下文档位：system 段只留身份行与环境，见 ContextBuilder 的 promptProfile 分支。
-    // 档位与权限正交：mode=build + contextProfile=minimal 同样走极简前缀。
-    promptProfile: resolveContextProfile(this.config) === "minimal" ? "minimal" : undefined,
+    // 上下文档位映射：minimal 只留身份行与环境；fusion 只替换默认动态段。
+    // 档位与权限正交：mode=build + 各档位组合均生效，见 ContextBuilder 的 promptProfile 分支。
+    promptProfile: resolveContextProfile(this.config) === "minimal"
+      ? "minimal"
+      : resolveContextProfile(this.config) === "fusion"
+        ? "fusion"
+        : undefined,
     language: this.config.language,
     outputStyle: this.config.outputStyle,
     compact: this.config.compact,

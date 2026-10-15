@@ -780,7 +780,13 @@ export class ZCodeProtocolAgentServer {
       case zcodeProtocolMethods.processChildProcesses:
         return listChildProcesses(this.context.deps.mcpTelemetry?.listProcesses() ?? []);
       case zcodeProtocolMethods.runtimeCapabilities:
-        return { independentPlanState: true, contextProfileState: true };
+        // fusionContextProfile 只证明执行端支持 contextProfile=fusion；
+        // contextProfileState 只证明 standard/minimal，两能力独立判定。
+        return {
+          independentPlanState: true,
+          contextProfileState: true,
+          fusionContextProfile: true,
+        };
       case zcodeProtocolMethods.pluginsMarketplaceAdd:
         return await this.withPluginOperationSignal(request, (signal) =>
           addPluginMarketplace(this.context, request.params, signal),
