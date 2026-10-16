@@ -1,0 +1,21 @@
+{
+  "case": "WSL_P2_ACCEPTANCE",
+  "runId": "rmvam4jz9",
+  "status": "failed",
+  "replayPort": 35045,
+  "linuxLoopbackReachable": true,
+  "windowsForwardingReachable": false,
+  "fixturePath": "/home/zcodewslp2/workspace/.zcode-e2e/wsl-p2-rmvam4jz9/marker.txt",
+  "requestLog": [
+    "REQ stage write=false bash=false read=false tools=[Agent,AskUserQuestion,Bash,Edit,EnterPlanMode,ExitPlanMode,Read,Skill,TaskOutput,TaskStop,TodoRead,TodoWrite,WebFetch,Write,SearchDocs,GetLibraryDocs,SearchStackOverflow,SearchGitHub,SearchHackerNews,SearchArxiv,SearchNpm,SearchPyPI,SearchMdn,SearchPapers,SearchPubmed,SendMessage,ReadSessionContext,ReplyToChannel,CreateWorkflow,AmendWorkflow,SaveWorkflow,EvalWorkflowSnippet,ListWorkflowRuns,GetWorkflowRun,ResumeWorkflowRun,ResolveWorkflowQuestion,FillWorkflowHole,ListSavedWorkflows,ListModels,mcp__node_repl__js]",
+    "REQ stage write=true bash=false read=false tools=[Agent,AskUserQuestion,Bash,Edit,EnterPlanMode,ExitPlanMode,Read,Skill,TaskOutput,TaskStop,TodoRead,TodoWrite,WebFetch,Write,SearchDocs,GetLibraryDocs,SearchStackOverflow,SearchGitHub,SearchHackerNews,SearchArxiv,SearchNpm,SearchPyPI,SearchMdn,SearchPapers,SearchPubmed,SendMessage,ReadSessionContext,ReplyToChannel,CreateWorkflow,AmendWorkflow,SaveWorkflow,EvalWorkflowSnippet,ListWorkflowRuns,GetWorkflowRun,ResumeWorkflowRun,ResolveWorkflowQuestion,FillWorkflowHole,ListSavedWorkflows,ListModels,mcp__node_repl__js]",
+    "REQ stage write=true bash=true read=false tools=[Agent,AskUserQuestion,Bash,Edit,EnterPlanMode,ExitPlanMode,Read,Skill,TaskOutput,TaskStop,TodoRead,TodoWrite,WebFetch,Write,SearchDocs,GetLibraryDocs,SearchStackOverflow,SearchGitHub,SearchHackerNews,SearchArxiv,SearchNpm,SearchPyPI,SearchMdn,SearchPapers,SearchPubmed,SendMessage,ReadSessionContext,ReplyToChannel,CreateWorkflow,AmendWorkflow,SaveWorkflow,EvalWorkflowSnippet,ListWorkflowRuns,GetWorkflowRun,ResumeWorkflowRun,ResolveWorkflowQuestion,FillWorkflowHole,ListSavedWorkflows,ListModels,mcp__node_repl__js]",
+    "REQ stage write=true bash=true read=true tools=[Agent,AskUserQuestion,Bash,Edit,EnterPlanMode,ExitPlanMode,Read,Skill,TaskOutput,TaskStop,TodoRead,TodoWrite,WebFetch,Write,SearchDocs,GetLibraryDocs,SearchStackOverflow,SearchGitHub,SearchHackerNews,SearchArxiv,SearchNpm,SearchPyPI,SearchMdn,SearchPapers,SearchPubmed,SendMessage,ReadSessionContext,ReplyToChannel,CreateWorkflow,AmendWorkflow,SaveWorkflow,EvalWorkflowSnippet,ListWorkflowRuns,GetWorkflowRun,ResumeWorkflowRun,ResolveWorkflowQuestion,FillWorkflowHole,ListSavedWorkflows,ListModels,mcp__node_repl__js]",
+    "REQ stage write=false bash=false read=false tools=[]",
+    "REQ stage write=true bash=true read=true tools=[Agent,AskUserQuestion,Bash,Edit,EnterPlanMode,ExitPlanMode,Read,Skill,TaskOutput,TaskStop,TodoRead,TodoWrite,WebFetch,Write,SearchDocs,GetLibraryDocs,SearchStackOverflow,SearchGitHub,SearchHackerNews,SearchArxiv,SearchNpm,SearchPyPI,SearchMdn,SearchPapers,SearchPubmed,SendMessage,ReadSessionContext,ReplyToChannel,CreateWorkflow,AmendWorkflow,SaveWorkflow,EvalWorkflowSnippet,ListWorkflowRuns,GetWorkflowRun,ResumeWorkflowRun,ResolveWorkflowQuestion,FillWorkflowHole,ListSavedWorkflows,ListModels,mcp__node_repl__js]",
+    "REQ stage write=true bash=true read=true tools=[Agent,AskUserQuestion,Bash,Edit,EnterPlanMode,ExitPlanMode,Read,Skill,TaskOutput,TaskStop,TodoRead,TodoWrite,WebFetch,Write,SearchDocs,GetLibraryDocs,SearchStackOverflow,SearchGitHub,SearchHackerNews,SearchArxiv,SearchNpm,SearchPyPI,SearchMdn,SearchPapers,SearchPubmed,SendMessage,ReadSessionContext,ReplyToChannel,CreateWorkflow,AmendWorkflow,SaveWorkflow,EvalWorkflowSnippet,ListWorkflowRuns,GetWorkflowRun,ResumeWorkflowRun,ResolveWorkflowQuestion,FillWorkflowHole,ListSavedWorkflows,ListModels,mcp__node_repl__js]",
+    "EVIDENCE lifecycle=FOLLOW toolResult=true valid=false"
+  ],
+  "stage": "agent-lifecycle",
+  "error": "v4 assistant 消息中没有出现: E2E_WSLP2_FOLLOW_DONE; latest=[\"E2E_WSLP2_ROUND_DONE\"]"
+}

@@ -1,0 +1,12 @@
+{
+  "case": "WSL_P2_ACCEPTANCE",
+  "runId": "rmvalwzog",
+  "status": "failed",
+  "replayPort": 42487,
+  "linuxLoopbackReachable": true,
+  "windowsForwardingReachable": false,
+  "fixturePath": null,
+  "requestLog": [],
+  "stage": "agent-round",
+  "error": "没有点击 Full access/yolo mode: not-started"
+}

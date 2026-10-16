@@ -1,0 +1,22 @@
+OK  replay-started
+OK  no-tools-400
+OK  no-tools-evidence-logged
+OK  round1-write-tooluse
+OK  round1-input-file-path
+OK  bash-error-not-advance
+OK  bash-no-seen-not-advance
+OK  bash-output-has-both-lines
+OK  bash-seen-advance-read
+OK  read-result-final-marker
+OK  schema-mismatch-400
+OK  mcp-prefix-write
+OK  lifecycle-FOLLOW-tool
+OK  lifecycle-FOLLOW-result
+OK  lifecycle-BACKGROUND-tool
+OK  lifecycle-BACKGROUND-background-flag
+OK  lifecycle-BACKGROUND-result
+OK  lifecycle-CANCEL-tool
+OK  lifecycle-CANCEL-background-flag
+OK  lifecycle-CANCEL-result
+OK  stdin-end-exit
+SELFTEST_ALL_PASS

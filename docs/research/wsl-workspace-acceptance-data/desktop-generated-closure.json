@@ -1,0 +1,10 @@
+{
+  "source": "windows-workspace",
+  "destination": "phase2/desktop-workspace",
+  "paths": [
+    "browser-use-plugin/scripts/browser-client.mjs",
+    "node-repl-host/dist",
+    "android-emulator-plugin/dist",
+    "ios-simulator-plugin/dist"
+  ]
+}

@@ -1,0 +1,30 @@
+{
+  "task": "rpc event resubscribe regression (baseline vs fixed channelClient), final round with barrier-flushed pre-init test",
+  "date": "2026-10-16",
+  "workspace": "C:/Users/qianmengyys/Desktop/agent/wsl-agent-lab/phase2/desktop-workspace",
+  "testFile": "packages/rpc/test/channels.test.ts (synced from main repo final: barrier call flush in both resubscribe tests + pre-init test uses server.ready() + barrier call instead of setTimeout(20))",
+  "command": "npx vitest run test/channels.test.ts",
+  "baseline": {
+    "source": "git show HEAD:packages/rpc/src/channelClient.ts",
+    "exitCode": 1,
+    "log": "phase2/logs/rpc-red.log",
+    "summary": "3 failed | 11 passed (14)",
+    "failedTests": [
+      "should re-deliver events after unsubscribe and resubscribe",
+      "should resubscribe same event with same arg via reused listen function",
+      "should not send EventListen when subscription cancelled before Initialize"
+    ],
+    "preInitFailure": {
+      "type": "AssertionError",
+      "detail": "expected \"vi.fn()\" to not be called at all, but actually been called 1 times — leaked whenInitialized doRequest sent EventListen('uninit','onData') after ready(); server channel.listen was invoked despite the subscription having been disposed before Initialize"
+    }
+  },
+  "fixed": {
+    "source": "channelClient.ts with requestEvent activation-generation fix (byte-identical to main repo working copy)",
+    "exitCode": 0,
+    "log": "phase2/logs/rpc-green.log",
+    "summary": "14 passed (14)"
+  },
+  "processBound": "timeout 60 seconds applied to both runs; neither timed out (red ~13s, green ~4s wall)",
+  "verdict": "RED exit=1 with 3 regressions (2 resubscribe + pre-init cancel leak, pre-init now red as expected with deterministic barrier); GREEN exit=0 all 14 pass; fix fully confirmed"
+}

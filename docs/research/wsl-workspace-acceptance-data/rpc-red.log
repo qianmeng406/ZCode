@@ -1,0 +1,79 @@
+
+[1m[30m[46m RUN [49m[39m[22m [36mv4.1.4 [39m[90mC:/Users/qianmengyys/Desktop/agent/wsl-agent-lab/phase2/desktop-workspace/packages/rpc[39m
+
+ [31m❯[39m test/channels.test.ts [2m([22m[2m14 tests[22m[2m | [22m[31m3 failed[39m[2m)[22m[33m 10491[2mms[22m[39m
+     [32m✓[39m should call a method on a registered channel[32m 35[2mms[22m[39m
+     [32m✓[39m should propagate errors[32m 10[2mms[22m[39m
+     [32m✓[39m should reject in-flight calls when the client is disposed[32m 59[2mms[22m[39m
+     [32m✓[39m should reject requests queued before Initialize when the client is disposed[32m 0[2mms[22m[39m
+     [32m✓[39m should keep event subscriptions outside pending promise rejection[32m 57[2mms[22m[39m
+     [32m✓[39m should preserve structured error fields on Error instances[32m 50[2mms[22m[39m
+     [32m✓[39m should listen to events[32m 68[2mms[22m[39m
+[31m     [31m×[31m should re-deliver events after unsubscribe and resubscribe[39m[33m 5014[2mms[22m[39m
+[31m     [31m×[31m should resubscribe same event with same arg via reused listen function[39m[33m 5005[2mms[22m[39m
+[31m     [31m×[31m should not send EventListen when subscription cancelled before Initialize[39m[32m 31[2mms[22m[39m
+     [32m✓[39m should queue requests for channels registered later[32m 82[2mms[22m[39m
+     [32m✓[39m should pass ctx to server channel[32m 37[2mms[22m[39m
+     [32m✓[39m should handle multiple concurrent RPC calls over fragmented socket frames[32m 41[2mms[22m[39m
+     [32m✓[39m should delay call until promise resolves[32m 0[2mms[22m[39m
+
+[31m⎯⎯⎯⎯⎯⎯⎯[39m[1m[41m Failed Tests 3 [49m[22m[31m⎯⎯⎯⎯⎯⎯⎯[39m
+
+[41m[1m FAIL [22m[49m test/channels.test.ts[2m > [22mChannelServer + ChannelClient[2m > [22mshould re-deliver events after unsubscribe and resubscribe
+[31m[1mError[22m: Test timed out in 5000ms.
+If this is a long-running test, pass a timeout value as the last argument or configure it globally with "testTimeout".[39m
+[36m [2m❯[22m test/channels.test.ts:[2m288:3[22m[39m
+    [90m286|[39m   })[33m;[39m
+    [90m287|[39m
+    [90m288|[39m   it("should re-deliver events after unsubscribe and resubscribe", asy…
+    [90m   |[39m   [31m^[39m
+    [90m289|[39m     [35mconst[39m { server[33m,[39m client[33m,[39m dispose } [33m=[39m [34mcreatePair[39m()[33m;[39m
+    [90m290|[39m
+
+[31m[2m⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[1/3]⎯[22m[39m
+
+[41m[1m FAIL [22m[49m test/channels.test.ts[2m > [22mChannelServer + ChannelClient[2m > [22mshould resubscribe same event with same arg via reused listen function
+[31m[1mError[22m: Test timed out in 5000ms.
+If this is a long-running test, pass a timeout value as the last argument or configure it globally with "testTimeout".[39m
+[36m [2m❯[22m test/channels.test.ts:[2m340:3[22m[39m
+    [90m338|[39m   })[33m;[39m
+    [90m339|[39m
+    [90m340|[39m   it("should resubscribe same event with same arg via reused listen fu…
+    [90m   |[39m   [31m^[39m
+    [90m341|[39m     [35mconst[39m [serverProtocol[33m,[39m clientProtocol] [33m=[39m [34mcreateQueuePair[39m()[33m;[39m
+    [90m342|[39m     [90m// 记录客户端实际发出的请求类型，用于断言 EventListen/EventDispose 次数[39m
+
+[31m[2m⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[2/3]⎯[22m[39m
+
+[41m[1m FAIL [22m[49m test/channels.test.ts[2m > [22mChannelServer + ChannelClient[2m > [22mshould not send EventListen when subscription cancelled before Initialize
+[31m[1mAssertionError[22m: expected "vi.fn()" to not be called at all, but actually been called 1 times[90m
+
+Received:
+
+[1m  1st vi.fn() call:
+
+[22m    Array [
+      "test-ctx",
+      "onData",
+      undefined,
+    ]
+[31m[90m
+
+Number of calls: [1m1[22m
+[31m[39m
+[36m [2m❯[22m test/channels.test.ts:[2m424:24[22m[39m
+    [90m422|[39m     [35mawait[39m client[33m.[39m[34mgetChannel[39m([32m"uninit"[39m)[33m.[39m[34mcall[39m([32m"barrier"[39m)[33m;[39m
+    [90m423|[39m
+    [90m424|[39m     [34mexpect[39m(listen)[33m.[39mnot[33m.[39m[34mtoHaveBeenCalled[39m()[33m;[39m
+    [90m   |[39m                        [31m^[39m
+    [90m425|[39m     server[33m.[39m[34mdispose[39m()[33m;[39m
+    [90m426|[39m     client[33m.[39m[34mdispose[39m()[33m;[39m
+
+[31m[2m⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[3/3]⎯[22m[39m
+
+
+[2m Test Files [22m [1m[31m1 failed[39m[22m[90m (1)[39m
+[2m      Tests [22m [1m[31m3 failed[39m[22m[2m | [22m[1m[32m11 passed[39m[22m[90m (14)[39m
+[2m   Start at [22m 15:11:44
+[2m   Duration [22m 10.85s[2m (transform 116ms, setup 0ms, import 149ms, tests 10.49s, environment 0ms)[22m
+

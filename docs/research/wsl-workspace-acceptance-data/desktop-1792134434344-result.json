@@ -1,0 +1,13 @@
+{
+  "case": "WSL_P2_ACCEPTANCE",
+  "runId": "rmvaml3uv",
+  "status": "failed",
+  "replayPort": 44151,
+  "linuxLoopbackReachable": true,
+  "windowsForwardingReachable": true,
+  "fixturePath": null,
+  "requestLog": [],
+  "stage": "wsl-connect",
+  "error": "WSL_P2_ACCEPTANCE: WSL 连接失败: wsl: 检测到 localhost 代理配置，但未镜像到 WSL。NAT 模式下的 WSL 不支持 localhost 代理。 ㌼圾䱓⠠〱″‭敒慬⥹䔠剒剏›牃慥整牐捯獥偳牡敳潃浭湯ㄺ〰㨶朠瑥睰慮⡭捺摯睥汳㉰捺摯睥汳㉰ 慦汩摥〠\n去反馈",
+  "connectionCancelled": true
+}

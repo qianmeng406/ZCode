@@ -1,0 +1,59 @@
+{
+  "schema": "wsl-lifecycle/v1",
+  "runId": "lifecycle-1792131582321",
+  "target": {
+    "kind": "wsl",
+    "distro": "Ubuntu-24.04",
+    "user": "zcodewslp2"
+  },
+  "workspace": "/home/zcodewslp2/workspace",
+  "checks": [
+    {
+      "name": "cancel standard connection while real detect is in flight",
+      "ms": 773.9285,
+      "detail": {
+        "actualDetectStarted": true,
+        "rejectedAfterAbort": true
+      }
+    },
+    {
+      "name": "PTY foreground long command interrupted and child gone",
+      "ms": 514.5918999999994,
+      "detail": {
+        "pid": "804",
+        "interrupt": "PTY ETX (Ctrl+C)",
+        "exited": true
+      }
+    },
+    {
+      "name": "background process output persists and completion is observed",
+      "ms": 218.61109999999826,
+      "detail": {
+        "path": "/home/zcodewslp2/workspace/.zcode-e2e/lifecycle-1792131582321/background.log",
+        "completed": true,
+        "content": "first-markersecond-marker",
+        "scope": "PTY shell background job; not Agent task status"
+      }
+    },
+    {
+      "name": "disconnect while PTY child is running reaps owned process",
+      "ms": 410.94260000000213,
+      "detail": {
+        "pid": "817",
+        "exited": true
+      }
+    },
+    {
+      "name": "fresh backend reconnect and same output file survives",
+      "ms": 17799.6299,
+      "detail": {
+        "filePersistent": true,
+        "backendRecreated": true
+      }
+    }
+  ],
+  "status": "passed",
+  "startedAt": "2026-10-16T06:19:42.321Z",
+  "residualChildPids": [],
+  "finishedAt": "2026-10-16T06:20:21.894Z"
+}

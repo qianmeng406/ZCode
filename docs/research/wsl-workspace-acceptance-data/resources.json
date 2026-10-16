@@ -1,0 +1,19 @@
+{
+  "purpose": "WSL phase-2 acceptance",
+  "sourceCommit": "253d39fc11032007f38c66b7b6cffe7e16143274",
+  "distro": "Ubuntu-24.04",
+  "createdUser": "zcodewslp2",
+  "uid": 1001,
+  "passwordLocked": true,
+  "groups": ["zcodewslp2"],
+  "linuxHome": "/home/zcodewslp2",
+  "linuxWorkspace": "/home/zcodewslp2/workspace",
+  "standardRuntimeRoot": "/home/zcodewslp2/.zcode/server",
+  "desktopSourceCopy": "C:/Users/qianmengyys/Desktop/agent/wsl-agent-lab/phase2/desktop-workspace",
+  "localAssets": "C:/Users/qianmengyys/Desktop/agent/wsl-agent-lab/phase2/assets",
+  "ownership": "Only newly created phase2 directories, user and processes are writable/cleanable; ftuser and main Preview excluded",
+  "defaultDistroChanged": false,
+  "defaultUserChanged": false,
+  "wslConfigurationChanged": false,
+  "wslShutdown": false
+}

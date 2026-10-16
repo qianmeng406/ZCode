@@ -1,0 +1,21 @@
+{
+  "schema": "wsl-first-deploy/v1",
+  "target": {
+    "kind": "wsl",
+    "distro": "Ubuntu-24.04",
+    "user": "zcodewslp2"
+  },
+  "startedAt": "2026-10-16T06:13:41.231Z",
+  "status": "passed",
+  "skipDeploy": false,
+  "assetInstallMode": "local-download-upload",
+  "runtimeAbsentBefore": true,
+  "standardConnectMs": 21179.713300000003,
+  "systemRpcMs": 800.202699999998,
+  "identity": {
+    "platform": "linux",
+    "homedir": "/home/zcodewslp2"
+  },
+  "disposeMs": 53.60009999999966,
+  "finishedAt": "2026-10-16T06:14:03.475Z"
+}

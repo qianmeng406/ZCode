@@ -1,0 +1,95 @@
+{
+  "schema": "wsl-workspace-phase2-checks/v1",
+  "date": "2026-10-16",
+  "sourceBaseline": "253d39fc11032007f38c66b7b6cffe7e16143274",
+  "scope": "Baseline plus this phase's RPC fix and opt-in tests; unrelated working changes retained. No commit or push.",
+  "workingDirectory": "C:/Users/qianmengyys/Desktop/agent/ZCode-fork",
+  "relatedTests": {
+    "command": "pnpm exec vitest run packages/rpc/test packages/server/test/wslWorkspaceSmoke.test.ts packages/server/test/remoteConnect.test.ts packages/server/test/wslBackend.test.ts packages/desktop/test/e2eStartupCredentials.test.ts packages/desktop/test/windowRemoteConnectionRegistry.test.ts packages/desktop/test/desktopRemoteSessions.test.ts",
+    "exitCode": 0,
+    "filesPassed": 15,
+    "testsPassed": 193,
+    "rpcTestsIncluded": 84,
+    "wslBackendTestsIncluded": 17,
+    "note": "Counts are the actual final combined run, not sums of repeated runs.",
+    "localLog": "C:/Users/qianmengyys/.zcode/cli/exec/sess_6a295cdd-c1b8-4f64-84c5-cdb719b83b92/call_LnyUdbI9AIyq4v3WDf1dju7v-stdout.log"
+  },
+  "rpcRedGreen": {
+    "evidence": "rpc-regression-result.json",
+    "baselineExitCode": 1,
+    "baselineFailed": 3,
+    "baselinePassed": 11,
+    "fixedExitCode": 0,
+    "fixedPassed": 14,
+    "note": "Same Event function resubscribe twice, plus pre-Initialize cancellation. Protocol barriers replace fixed sleeps."
+  },
+  "desktopE2E": {
+    "command": "node C:/Users/qianmengyys/Desktop/agent/wsl-agent-lab/phase2/run-desktop.mjs",
+    "run": "desktop-1792135327776",
+    "runId": "rmvan49lw",
+    "exitCode": 0,
+    "specFilesPassed": 1,
+    "testsPassed": 1,
+    "testDuration": "1m46.3s",
+    "evidence": "desktop-1792135327776-result.json",
+    "artifact": "C:/Users/qianmengyys/Desktop/agent/wsl-agent-lab/phase2/desktop-workspace/packages/desktop/.e2e-artifacts/desktop-e2e-20261016-072215-762/summary.md",
+    "finalCleanupEvidence": "final-cleanup-result.json",
+    "postRunChanges": "Only code formatting, import/type cleanup, an equivalent regex escape cleanup and comments after this passing E2E; final related tests and format/lint rechecked. No claim this was a long-duration stability test."
+  },
+  "replaySelftest": {
+    "command": "node packages/desktop/test/e2e/fixtures/upstream/wsl-p2/wsl-p2-replay-selftest.mjs",
+    "exitCode": 0,
+    "checksPassed": 21,
+    "evidence": "replay-selftest.log",
+    "note": "Fixture unit test with synthetic tool_result inputs, not a substitute for real Agent execution. Rerun after comment/control-character cleanup: 21 checks passed, exit 0."
+  },
+  "lint": {
+    "command": "pnpm lint",
+    "exitCode": 0,
+    "warnings": 83,
+    "errors": 0,
+    "files": 6108,
+    "localLog": "C:/Users/qianmengyys/.zcode/cli/exec/sess_6a295cdd-c1b8-4f64-84c5-cdb719b83b92/call_QVteLI0giwgifaqCBaabxCcv-stdout.log",
+    "intermediateFailure": "Formatting briefly raised smoke.ts above max-lines (402 versus 400); merged duplicate type imports and inlined a one-use type, then reran successfully. Removed one new no-useless-escape warning."
+  },
+  "typecheck": {
+    "command": "pnpm typecheck",
+    "exitCode": 2,
+    "status": "failed-existing",
+    "diagnostics": [
+      { "file": "packages/desktop/test/e2e/settings/fork-feature-acceptance.test.ts", "line": 8, "code": "TS2305", "detail": "@zcode/shared has no exported member sel" },
+      { "file": "packages/desktop/test/e2e/settings/fork-feature-acceptance.test.ts", "line": 54, "code": "TS2769", "detail": "HTMLElement is not assignable to parameter of type string" },
+      { "file": "packages/desktop/test/e2e/settings/fork-feature-acceptance.test.ts", "line": 84, "code": "TS2769", "detail": "HTMLElement is not assignable to parameter of type string" }
+    ],
+    "newDiagnostics": 0,
+    "localLog": "C:/Users/qianmengyys/.zcode/cli/exec/sess_6a295cdd-c1b8-4f64-84c5-cdb719b83b92/call_f151d20be69546dfa2444cb7abb7c9a7-stdout.log"
+  },
+  "format": {
+    "command": "pnpm exec oxfmt --check <15 phase-2 code files>",
+    "exitCode": 0,
+    "files": 15,
+    "note": "Targeted code format check, not a claim of full-repository formatting."
+  },
+  "syntax": {
+    "command": "node --check packages/desktop/test/e2e/fixtures/upstream/wsl-p2/wsl-p2-replay.mjs && node --check packages/desktop/test/e2e/fixtures/upstream/wsl-p2/wsl-p2-replay-selftest.mjs",
+    "exitCode": 0
+  },
+  "architecture": {
+    "command": "pnpm architecture:check --changed",
+    "exitCode": 0,
+    "violations": 0,
+    "baseline": 0,
+    "new": 0
+  },
+  "diff": {
+    "command": "git diff --check",
+    "exitCode": 0,
+    "note": "Git CRLF conversion notices only; no whitespace errors. Untracked files separately formatted/parsed."
+  },
+  "limits": [
+    "Standard connection timings are low-sample deployment/handshake wall clocks, not phase-1 hot command measurements or P95 estimates.",
+    "No valid memory observation was collected.",
+    "UI close/reconnect asserted removed identity and a new session; old-server PID timing was not separately sampled between close and reconnect. Final no-residual observation is not that timing assertion.",
+    "No resident mode, default WSL change, long soak, multi-window concurrency or live paid model matrix was tested."
+  ]
+}

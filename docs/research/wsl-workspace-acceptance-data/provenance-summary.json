@@ -1,0 +1,68 @@
+{
+  "generatedAt": "2026-10-16T06:05:39.542Z",
+  "entryCommit": "253d39fc11032007f38c66b7b6cffe7e16143274",
+  "appVersion": "3.15.1",
+  "platformArch": "linux-x64",
+  "manifest": "releases/3.15.1/manifest-linux-x64.json",
+  "manifestVerification": [
+    {
+      "id": "server-bundle",
+      "artifactExists": true,
+      "shaMatch": true
+    },
+    {
+      "id": "node-runtime",
+      "artifactExists": true,
+      "shaMatch": true
+    },
+    {
+      "id": "node-pty",
+      "artifactExists": true,
+      "shaMatch": true
+    },
+    {
+      "id": "glm",
+      "artifactExists": true,
+      "shaMatch": true
+    },
+    {
+      "id": "bfs",
+      "artifactExists": true,
+      "shaMatch": true
+    },
+    {
+      "id": "ripgrep",
+      "artifactExists": true,
+      "shaMatch": true
+    },
+    {
+      "id": "ugrep",
+      "artifactExists": true,
+      "shaMatch": true
+    }
+  ],
+  "components": {
+    "server-bundle": {
+      "version": "v3.15.1+d8afab44df4e",
+      "source": "rebuilt from source 253d39fc via lab remote-probe/build-remote-lab.mts (esbuild, identical options to packages/server/build-remote.ts)",
+      "sha256": "f41522627d1fc21394cf6d1aa2a514e43ee1245b09401f1e298b8c95f3f88025"
+    },
+    "node-runtime": {
+      "version": "v22.16.0",
+      "source": "copied with sha256 verification from original mock-cdn releases/3.15.1/node/linux-x64 (official node v22.16.0 linux-x64 binary + LICENSE.node.txt + NODE-SOURCES.json)",
+      "sha256": "8142d37c6f2f372ef040419e7a111a6baf17df89f8078d02447d6c639ae20c1d"
+    },
+    "node-pty": {
+      "version": "1.2.0-beta.10",
+      "source": "copied with sha256 verification from original mock-cdn; binary identical to lab windows-workspace node_modules/@lydell/node-pty-linux-x64/prebuilds/linux-x64/pty.node",
+      "sha256": "ce00b69d65245a1d169891a006dedd1c2100a575b394c6cd2d6b65907934b909"
+    },
+    "glm": {
+      "version": "v0.1.0+86629c981536",
+      "source": "(见 lab 原文件，含 fresh 构建细节)"
+    },
+    "tools": {
+      "source": "(见 lab 原文件，含 fresh 构建细节)"
+    }
+  }
+}

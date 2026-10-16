@@ -1,0 +1,25 @@
+{
+  "schema": "wsl-lifecycle/v1",
+  "runId": "lifecycle-1792131471488",
+  "target": {
+    "kind": "wsl",
+    "distro": "Ubuntu-24.04",
+    "user": "zcodewslp2"
+  },
+  "workspace": "/home/zcodewslp2/workspace",
+  "checks": [
+    {
+      "name": "cancel standard connection while real detect is in flight",
+      "ms": 764.0491999999999,
+      "detail": {
+        "actualDetectStarted": true,
+        "rejectedAfterAbort": true
+      }
+    }
+  ],
+  "status": "failed",
+  "startedAt": "2026-10-16T06:17:51.488Z",
+  "error": "PTY expected \"LIFE_lifecycle-1792131471488_INTERRUPTED\"; output=\"Traceback (most recent call last):\\r\\n  File \\\"<string>\\\", line 1, in <module>\\r\\nKeyboardInterrupt\\r\\n\\r\\n\\u001b[?2004h\\u001b]0;zcodewslp2@SHANGZAO8: ~/workspace\\u0007\\u001b[01;32mzcodewslp2@SHANGZAO8\\u001b[00m:\\u001b[01;34m~/workspace\\u001b[00m$ \\u001b[?2004l\\r\\r\\n\\u001b[?2004h\\u001b]0;zcodewslp2@SHANGZAO8: ~/workspace\\u0007\\u001b[01;32mzcodewslp2@SHANGZAO8\\u001b[00m:\\u001b[01;34m~/workspace\\u001b[00m$ \"",
+  "residualChildPids": [],
+  "finishedAt": "2026-10-16T06:18:24.751Z"
+}

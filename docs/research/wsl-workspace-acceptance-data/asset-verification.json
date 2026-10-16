@@ -1,0 +1,54 @@
+{
+  "schema": "phase2-assets/v1",
+  "components": [
+    {
+      "id": "server-bundle",
+      "version": "v3.15.1+d8afab44df4e",
+      "sha256": "d8afab44df4ee3f703ad635092d798bcc7c05b5ced028ea045f5175cc0f7c97d",
+      "bytes": 2109052,
+      "verified": true
+    },
+    {
+      "id": "node-runtime",
+      "version": "v22.16.0+4b9c02f76c0f",
+      "sha256": "4b9c02f76c0f12f51b8773e739cd2bca710e5bc467b6729f729ef86691bc34d1",
+      "bytes": 43862717,
+      "verified": true
+    },
+    {
+      "id": "node-pty",
+      "version": "v1.2.0-beta.10+570d8f71c08f",
+      "sha256": "570d8f71c08f8b9966d9e1870f0301ed888b501b3b1ddee1552c67913c789e6d",
+      "bytes": 386403,
+      "verified": true
+    },
+    {
+      "id": "glm",
+      "version": "v0.1.0+86629c981536",
+      "sha256": "86629c9815367feebce3866a2a271aaf566b448404f92804cc341b97a61f7950",
+      "bytes": 6223974,
+      "verified": true
+    },
+    {
+      "id": "bfs",
+      "version": "v4.1.1-2+9eb0f823c511",
+      "sha256": "9eb0f823c511a0bd544cee22fc45b18b25fe0b615b8db2af90c6e5cce656aeb2",
+      "bytes": 428702,
+      "verified": true
+    },
+    {
+      "id": "ripgrep",
+      "version": "v14.1.1-1+e5709cf6b9ea",
+      "sha256": "e5709cf6b9eadd3b969f3b2f71ca0bcfc83bdc26efd16d77cbc22a74f0cf3529",
+      "bytes": 2413794,
+      "verified": true
+    },
+    {
+      "id": "ugrep",
+      "version": "v7.8.4-1+c312d294aec7",
+      "sha256": "c312d294aec703729f7cd1d13d820cad2661d95cede97b63a8ef4a3c64d1ac4a",
+      "bytes": 1569134,
+      "verified": true
+    }
+  ]
+}
