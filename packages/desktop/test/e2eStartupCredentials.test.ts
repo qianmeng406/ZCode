@@ -47,6 +47,7 @@ describe("desktop e2e startup credentials", () => {
     "conversation-session-draft-model-switch-first-send.test.ts",
     "conversation-session-composer-draft-switching.test.ts",
     "conversation-session-ssh-provisioning-failure.test.ts",
+    "conversation-session-wsl-workspace-acceptance-p2.test.ts",
   ])("Composer Draft spec %s 不播种无关账号身份", (spec) => {
     expect(
       createE2EStartupCredentialSeed({

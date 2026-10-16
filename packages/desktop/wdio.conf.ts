@@ -4591,19 +4591,26 @@ export const config: WebdriverIO.Config = {
     // 因此用例内的 this.timeout 无法为人工保留阶段追加预算。显式 hold 只扩展
     // manual-review 运行，不改变普通 E2E 的 120 秒上限。
     timeout:
-      (pluginNoGitGitHubArchiveE2E ||
-      workspacePluginRemoteExplicitSyncE2E ||
-      // 双 Host 参数化场景复用同一组已存在 session，覆盖完整保存/故障链后再核对整段轨迹。
+      // WSL opt-in 含标准部署与真实工具链；adapter 在 test body 前固定预算，
+      // 不能只依赖 case 内 this.timeout，否则会提前截断诊断及 finally 回收。
+      (process.env.ZCODE_E2E_WSL_ACCEPTANCE === "1" &&
       configuredE2ESpecs.some((spec) =>
-        spec.endsWith("conversation-session-subagent-cross-host.test.ts"),
+        spec.endsWith("conversation-session-wsl-workspace-acceptance-p2.test.ts"),
       )
-        ? 600000
-        : // 后台 Bash 冷恢复回归等待真实 child 结束、120s publisher grace 及 60s 清理节拍。
-          configuredE2ESpecs.some((spec) =>
-              spec.endsWith("conversation-session-background-bash-output.test.ts"),
+        ? 25 * 60_000
+        : pluginNoGitGitHubArchiveE2E ||
+            workspacePluginRemoteExplicitSyncE2E ||
+            // 双 Host 参数化场景复用同一组已存在 session，覆盖完整保存/故障链后再核对整段轨迹。
+            configuredE2ESpecs.some((spec) =>
+              spec.endsWith("conversation-session-subagent-cross-host.test.ts"),
             )
-          ? 360000
-          : requestSecuritySpecTimeout(configuredE2ESpecs, 120000)) + manualReviewHoldMs,
+          ? 600000
+          : // 后台 Bash 冷恢复回归等待真实 child 结束、120s publisher grace 及 60s 清理节拍。
+            configuredE2ESpecs.some((spec) =>
+                spec.endsWith("conversation-session-background-bash-output.test.ts"),
+              )
+            ? 360000
+            : requestSecuritySpecTimeout(configuredE2ESpecs, 120000)) + manualReviewHoldMs,
   },
   async onPrepare() {
     try {

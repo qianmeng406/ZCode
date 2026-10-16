@@ -12,6 +12,9 @@ const PERSONAL_PROVIDER_ONLY_SPEC_NAMES = new Set([
   "conversation-session-v4-composer-toolbar.test.ts",
   // SSH 配置同步用例只需 Personal 配置；假 OAuth 的 401 会在连接前遮住向导入口。
   "conversation-session-ssh-provisioning-failure.test.ts",
+  // WSL 第二阶段验收只依赖 Personal 回放 Provider；假 OAuth 401 会在标准
+  // connectRemote 前弹出登录失效提示，遮住 WSL 向导与工具轮次。
+  "conversation-session-wsl-workspace-acceptance-p2.test.ts",
 ]);
 
 // 这些 fork/goal/tool 场景也只使用本地回放 Provider；假 OAuth 会触发真实控制面
