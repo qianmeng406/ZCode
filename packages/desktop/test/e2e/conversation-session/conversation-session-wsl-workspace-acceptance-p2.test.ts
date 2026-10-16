@@ -43,6 +43,12 @@ import {
   verifyWSLCloseAndReconnect,
 } from "../helpers/wsl-workspace-lifecycle-p2.js";
 
+import {
+  registerWSLPairReplay,
+  waitForWSLPairCancellationBarrier,
+  waitForWSLPairPeerExit,
+} from "../helpers/wsl-workspace-pair.js";
+
 const CASE_MARKER = "WSL_P2_ACCEPTANCE";
 const USER_PROMPT_MARKER_PREFIX = "E2E_WSLP2_";
 
@@ -60,6 +66,7 @@ interface WSLP2StructuredResult {
   agentLifecycle?: WSLAgentLifecycleResult;
   connectionCancelled?: boolean;
   closeReconnect?: { identity: string; remoteSessionId: string };
+  peerExitedBeforeReconnect?: boolean;
 }
 
 describe(`${CASE_MARKER}: WSL 工作区第二阶段验收`, () => {
@@ -125,7 +132,8 @@ describe(`${CASE_MARKER}: WSL 工作区第二阶段验收`, () => {
       //    baseURL 显式指向 Linux loopback replay；API key 为固定 e2e dummy（非真实凭据）。
       structuredResult.stage = "provider-setup";
       process.env.E2E_PROVIDER_HTTP_MODE = "replay";
-      const linuxBaseUrl = `http://127.0.0.1:${replay.port}`;
+      const providerPort = await registerWSLPairReplay(config, runId, replay.port);
+      const linuxBaseUrl = `http://127.0.0.1:${providerPort}`;
       process.env.E2E_PROVIDER_RUNTIME_BASE_URL = linuxBaseUrl;
       // 启动器已 seed Windows replay；只修改 worker env 不会更新该配置。
       // 复用正式 Personal Config 测试入口，在首发前改为 Agent 所在 Linux 的回放端点。
@@ -145,6 +153,7 @@ describe(`${CASE_MARKER}: WSL 工作区第二阶段验收`, () => {
       await verifyWSLConnectionCancellation(config, CASE_MARKER);
       structuredResult.connectionCancelled = true;
       await writeReport();
+      await waitForWSLPairCancellationBarrier();
       // 3) 独立桌面 UI 显式选 WSL（distro/user），标准 connectRemote（skipDeploy=false）。
       structuredResult.stage = "wsl-connect";
       await openWSLRemoteDialogAndFill(config, CASE_MARKER);
@@ -209,6 +218,7 @@ describe(`${CASE_MARKER}: WSL 工作区第二阶段验收`, () => {
         },
       );
       structuredResult.stage = "ui-close-reconnect";
+      structuredResult.peerExitedBeforeReconnect = await waitForWSLPairPeerExit();
       await writeReport();
       structuredResult.closeReconnect = await verifyWSLCloseAndReconnect(
         config,
