@@ -1,0 +1,37 @@
+import {spawn,execFile} from 'node:child_process';
+import {promisify} from 'node:util';
+import {mkdir,writeFile,readFile} from 'node:fs/promises';
+import {createWriteStream} from 'node:fs';
+import assert from 'node:assert/strict';
+const exec=promisify(execFile);
+const lab='C:/Users/qianmengyys/Desktop/agent/wsl-agent-lab';
+const repo=lab+'/phase2/desktop-workspace';
+const q=s=>`'${s.replaceAll("'",`'"'"'`)}'`;
+const shell=async c=>(await exec('wsl.exe',['-d','Ubuntu-24.04','-u','zcodewslp2','--','sh','-c',c],{encoding:'utf8',timeout:20000})).stdout.trim();
+const dir=await shell('mkdir -p /home/zcodewslp2/workspace/.zcode-e2e; mktemp -d /home/zcodewslp2/workspace/.zcode-e2e/windowpair-XXXXXX');
+assert.match(dir,/^\/home\/zcodewslp2\/workspace\/\.zcode-e2e\/windowpair-[A-Za-z0-9]+$/);
+await shell(`mkdir ${q(dir+'/A')} ${q(dir+'/B')}`);
+const barrierDir=lab+'/phase3/phase4/pair-barrier-'+Date.now();await mkdir(barrierDir);
+const script=await readFile(repo+'/packages/desktop/test/e2e/fixtures/upstream/wsl-p2/wsl-p2-pair-router.mjs');
+await shell(`printf %s ${script.toString('base64')} | base64 -d > ${q(dir+'/router.mjs')}`);
+const router=spawn('wsl.exe',['-d','Ubuntu-24.04','-u','zcodewslp2','--','sh','-c',`ZCODE_WSL_PAIR_ROUTER=1 exec /home/zcodewslp2/lab-tools/node-v24.14.0-linux-x64/bin/node ${q(dir+'/router.mjs')}`],{stdio:['pipe','pipe','pipe'],windowsHide:true});
+let routerOutput='';let routerClosed=false;router.stdout.on('data',b=>routerOutput+=b);router.stderr.on('data',()=>{});router.once('close',()=>routerClosed=true);
+const startedAt=new Date().toISOString();const readyStart=Date.now();while(!/PAIR_ROUTER_PID=\d+/.test(routerOutput)){if(routerClosed||Date.now()-readyStart>15000)throw Error('router startup failed');await new Promise(r=>setTimeout(r,100));}
+const routerPort=Number(/PAIR_ROUTER_PORT=(\d+)/.exec(routerOutput)[1]);
+const routerPid=Number(/PAIR_ROUTER_PID=(\d+)/.exec(routerOutput)[1]);
+const spec='test/e2e/conversation-session/conversation-session-wsl-workspace-acceptance-p2.test.ts';
+async function run(label){
+ const home=lab+'/phase3/phase4/desktop-pair-home-'+label+'-'+Date.now();await mkdir(home,{recursive:true});
+ const resultFile=lab+'/phase3/phase4/desktop-pair-'+label+'-result.json';
+ const env={...process.env,ZCODE_E2E_HOME_DIR:home,ZCODE_E2E_WSL_RESULT_FILE:resultFile,ZCODE_E2E_NETWORK_CAPTURE_DIR:home+'/network',ZCODE_E2E_SKIP_BUILD:'1',ZCODE_E2E_SKIP_AGENT_BUILD:'1',ZCODE_REMOTE_ASSET_LOCAL_DIR:lab+'/phase2/assets',ZCODE_E2E_WSL_ACCEPTANCE:'1',ZCODE_E2E_WSL_DISTRO:'Ubuntu-24.04',ZCODE_E2E_WSL_USER:'zcodewslp2',ZCODE_E2E_WSL_WORKSPACE_PATH:dir+'/'+label,ZCODE_E2E_WSL_LINUX_NODE:'/home/zcodewslp2/lab-tools/node-v24.14.0-linux-x64/bin/node',ZCODE_E2E_WSL_PAIR_ROUTER_PORT:String(routerPort),ZCODE_E2E_WSL_PAIR_BARRIER_DIR:barrierDir,ZCODE_E2E_WSL_PAIR_LABEL:label,E2E_PROVIDER_HTTP_MODE:'replay',E2E_PROVIDER_CAPTURE_MODE:'replay',E2E_PROVIDER_PRESET:'env',E2E_PROVIDER_API_KEY:'e2e-fixture-key',ZCODE_ENV:'test',VITE_ZCODE_E2E_STORE_BRIDGE:'1',PNPM_CONFIG_VERIFY_DEPS_BEFORE_RUN:'false'};
+ for(const k of ['ZCODE_E2E_PACKAGED_APP_PATH','ZCODE_E2E_SPEC','ZCODE_E2E_EXCLUDE_SPEC','E2E_PROVIDER_RUNTIME_BASE_URL','ZCODE_AGENT_SERVER_COMMAND','ZCODE_AGENT_SERVER_ARGS_JSON','NODE_OPTIONS'])delete env[k];
+ const log=createWriteStream(lab+'/phase3/phase4/desktop-pair-'+label+'-green.log');
+ const launchedAt=new Date().toISOString();
+ return new Promise((resolve,reject)=>{const child=spawn(process.execPath,[repo+'/node_modules/@wdio/cli/bin/wdio.js','run','wdio.conf.ts','--spec',spec],{cwd:repo+'/packages/desktop',env,stdio:['ignore','pipe','pipe'],windowsHide:true});child.stdout.pipe(log);child.stderr.pipe(log);child.on('error',reject);child.on('close',async code=>{log.end();let result;try{result=JSON.parse(await readFile(resultFile,'utf8'))}catch{}await writeFile(barrierDir+'/'+label+'-exited',JSON.stringify({code}));resolve({label,exitCode:code,launchedAt,exitedAt:new Date().toISOString(),home,result})});});
+}
+let results=[];
+try{results=await Promise.all([run('A'),run('B')]);}
+finally{router.stdin.end();const start=Date.now();while(!routerClosed&&Date.now()-start<10000)await new Promise(r=>setTimeout(r,100));await writeFile(lab+'/phase3/phase4/pair-router.log',routerOutput);}
+const routerPidGone=await shell(`if kill -0 ${routerPid} 2>/dev/null; then printf alive; else printf gone; fi`)==='gone';
+const report={schema:'wsl-dual-desktop/v2',status:results.length===2&&results.every(r=>r.exitCode===0&&r.result?.status==='passed')&&routerClosed&&routerPidGone?'passed':'failed',startedAt,finishedAt:new Date().toISOString(),runDir:dir,routerPort,routerPid,routerExited:routerClosed,routerPidGone,barrierDir,results,scope:'Two simultaneously running isolated desktop application instances with distinct HOME, both sharing the WSL user/install root; not a same-application multi-window test',sharedUserProviderConfig:true};
+await writeFile(new URL('./desktop-pair-result.json',import.meta.url),JSON.stringify(report,null,2)+'\n');console.log(JSON.stringify({status:report.status,instances:results.map(r=>({label:r.label,exitCode:r.exitCode,status:r.result?.status,error:r.result?.error}))}));if(report.status!=='passed')process.exitCode=1;

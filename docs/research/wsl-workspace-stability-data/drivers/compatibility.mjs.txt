@@ -1,0 +1,42 @@
+import {spawn,execFile} from 'node:child_process';
+import {promisify} from 'node:util';
+import {writeFile} from 'node:fs/promises';
+import assert from 'node:assert/strict';
+const exec=promisify(execFile);
+const target=['-d','Ubuntu-24.04','-u','zcodewslp2','--'];
+const node='/home/zcodewslp2/lab-tools/node-v24.14.0-linux-x64/bin/node';
+const shell=async c=>(await exec('wsl.exe',[...target,'sh','-c',c],{encoding:'utf8',timeout:15000})).stdout.trim();
+const script=`const http=require('node:http');const server=http.createServer((req,res)=>{res.end('isolated-loopback-probe')});server.listen(0,'127.0.0.1',()=>console.log(JSON.stringify({port:server.address().port,pid:process.pid})));process.stdin.resume();process.stdin.on('end',()=>server.close(()=>process.exit(0)));`;
+const dir=await shell('mktemp -d /home/zcodewslp2/workspace/.zcode-e2e/loopback-XXXXXX');
+assert.match(dir,/^\/home\/zcodewslp2\/workspace\/\.zcode-e2e\/loopback-[A-Za-z0-9]+$/);
+await shell(`printf %s ${Buffer.from(script).toString('base64')} | base64 -d > ${dir}/probe.cjs`);
+const child=spawn('wsl.exe',[...target,node,dir+'/probe.cjs'],{stdio:['pipe','pipe','pipe'],windowsHide:true});
+let output='';let stderr='';child.stdout.on('data',b=>output+=b);child.stderr.on('data',b=>stderr+=b);
+const startedAt=new Date().toISOString();const samples=[];let ready;let closed=false;
+child.once('close',()=>closed=true);
+const report={schema:'wsl-compatibility/v1',status:'running',startedAt,samples};
+try{
+ const start=Date.now();while(!output.includes('\n')){if(closed||Date.now()-start>15000)throw Error('loopback probe startup failed');await new Promise(r=>setTimeout(r,100));}
+ ready=JSON.parse(output.trim().split('\n')[0]);assert(Number.isInteger(ready.port));assert(Number.isInteger(ready.pid));
+ for(let i=1;i<=10;i++){
+  const begin=Date.now();const linux=await shell(`curl -fsS --max-time 3 http://127.0.0.1:${ready.port}/`);
+  const winStart=Date.now();const windows=await fetch(`http://127.0.0.1:${ready.port}/`,{signal:AbortSignal.timeout(3000)}).then(async r=>r.ok&&(await r.text())==='isolated-loopback-probe').catch(()=>false);
+  samples.push({round:i,linuxReachable:linux==='isolated-loopback-probe',windowsForwardingReachable:windows,totalMs:Date.now()-begin,windowsMs:Date.now()-winStart});
+  assert.equal(linux,'isolated-loopback-probe');
+ }
+ const list=await exec('wsl.exe',['--list','--quiet'],{encoding:'buffer',timeout:15000});
+ report.installedDistros=list.stdout.toString('utf16le').replace(/\0/g,'').split(/\r?\n/).map(x=>x.trim()).filter(Boolean);
+ report.environment=await shell('printf "user="; id -un; printf "uid="; id -u; printf "home=%s\\n" "$HOME"; printf "filesystem="; stat -f -c %T "$HOME"; cat /etc/os-release | grep -E "^(ID|VERSION_ID)="');
+ report.matrix=[{scenario:'Ubuntu-24.04 / explicit zcodewslp2 / ext4 HOME',status:'passed'},{scenario:'spaces and Unicode workspace paths',status:'passed',evidence:'stability-result.json concurrent rounds'},{scenario:'other general-purpose distro',status:'unavailable',reason:'No other general-purpose distro installed; docker-desktop excluded'},{scenario:'other WSL user',status:'unavailable',reason:'Only the dedicated user is authorized; shared users are not used'},{scenario:'omitted/default user resolution',status:'not-run',reason:'Would use the shared default user; outside the isolated acceptance scope'},{scenario:'same-application second workspace window',status:'unavailable',reason:'PrimaryWindowCoordinator reuses an existing main window; current File menu has no New Window entry'}];
+ report.status='passed';
+}catch(e){report.status='failed';report.error=e.message;process.exitCode=1}
+finally{
+ child.stdin.end();const start=Date.now();while(!closed&&Date.now()-start<10000)await new Promise(r=>setTimeout(r,100));
+ if(!closed){child.kill();report.status='failed';report.cleanupError='probe did not exit on stdin end';process.exitCode=1}
+ report.probeExited=closed;
+ if(ready)report.linuxProbePidGone=await shell(`if kill -0 ${ready.pid} 2>/dev/null; then printf alive; else printf gone; fi`)==='gone';
+ await shell(`rm -f ${dir}/probe.cjs && rmdir ${dir}`);report.ownedProbeDirectoryRemoved=true;
+ report.finishedAt=new Date().toISOString();report.limits=['Observed existing localhost forwarding only; no system network configuration changed','Linux loopback is required by the replay; Windows forwarding observation is environment-specific','Compatibility matrix has explicit unavailable/not-run rows and is not a cross-distro pass'];
+ await writeFile(new URL('./compatibility-result.json',import.meta.url),JSON.stringify(report,null,2)+'\n');
+ console.log(JSON.stringify({status:report.status,rounds:samples.length,linux:samples.filter(x=>x.linuxReachable).length,windows:samples.filter(x=>x.windowsForwardingReachable).length,probeExited:report.probeExited}));
+}

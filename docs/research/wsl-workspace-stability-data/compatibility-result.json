@@ -1,0 +1,122 @@
+{
+  "schema": "wsl-compatibility/v1",
+  "status": "passed",
+  "startedAt": "2026-10-16T11:48:42.064Z",
+  "samples": [
+    {
+      "round": 1,
+      "linuxReachable": true,
+      "windowsForwardingReachable": false,
+      "totalMs": 160,
+      "windowsMs": 26
+    },
+    {
+      "round": 2,
+      "linuxReachable": true,
+      "windowsForwardingReachable": true,
+      "totalMs": 150,
+      "windowsMs": 12
+    },
+    {
+      "round": 3,
+      "linuxReachable": true,
+      "windowsForwardingReachable": true,
+      "totalMs": 152,
+      "windowsMs": 2
+    },
+    {
+      "round": 4,
+      "linuxReachable": true,
+      "windowsForwardingReachable": true,
+      "totalMs": 124,
+      "windowsMs": 1
+    },
+    {
+      "round": 5,
+      "linuxReachable": true,
+      "windowsForwardingReachable": true,
+      "totalMs": 129,
+      "windowsMs": 2
+    },
+    {
+      "round": 6,
+      "linuxReachable": true,
+      "windowsForwardingReachable": true,
+      "totalMs": 126,
+      "windowsMs": 2
+    },
+    {
+      "round": 7,
+      "linuxReachable": true,
+      "windowsForwardingReachable": true,
+      "totalMs": 126,
+      "windowsMs": 1
+    },
+    {
+      "round": 8,
+      "linuxReachable": true,
+      "windowsForwardingReachable": true,
+      "totalMs": 131,
+      "windowsMs": 2
+    },
+    {
+      "round": 9,
+      "linuxReachable": true,
+      "windowsForwardingReachable": true,
+      "totalMs": 126,
+      "windowsMs": 2
+    },
+    {
+      "round": 10,
+      "linuxReachable": true,
+      "windowsForwardingReachable": true,
+      "totalMs": 128,
+      "windowsMs": 2
+    }
+  ],
+  "installedDistros": [
+    "Ubuntu-24.04",
+    "docker-desktop"
+  ],
+  "environment": "user=zcodewslp2\nuid=1001\nhome=/home/zcodewslp2\nfilesystem=ext2/ext3\nVERSION_ID=\"24.04\"\nID=ubuntu",
+  "matrix": [
+    {
+      "scenario": "Ubuntu-24.04 / explicit zcodewslp2 / ext4 HOME",
+      "status": "passed"
+    },
+    {
+      "scenario": "spaces and Unicode workspace paths",
+      "status": "passed",
+      "evidence": "stability-result.json concurrent rounds"
+    },
+    {
+      "scenario": "other general-purpose distro",
+      "status": "unavailable",
+      "reason": "No other general-purpose distro installed; docker-desktop excluded"
+    },
+    {
+      "scenario": "other WSL user",
+      "status": "unavailable",
+      "reason": "Only the dedicated user is authorized; shared users are not used"
+    },
+    {
+      "scenario": "omitted/default user resolution",
+      "status": "not-run",
+      "reason": "Would use the shared default user; outside the isolated acceptance scope"
+    },
+    {
+      "scenario": "same-application second workspace window",
+      "status": "unavailable",
+      "reason": "PrimaryWindowCoordinator reuses an existing main window; current File menu has no New Window entry"
+    }
+  ],
+  "probeExited": true,
+  "linuxProbePidGone": true,
+  "ownedProbeDirectoryRemoved": true,
+  "finishedAt": "2026-10-16T11:48:44.080Z",
+  "limits": [
+    "Observed existing localhost forwarding only; no system network configuration changed",
+    "Linux loopback is required by the replay; Windows forwarding observation is environment-specific",
+    "Compatibility matrix has explicit unavailable/not-run rows and is not a cross-distro pass"
+  ]
+}

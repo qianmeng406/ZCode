@@ -1,0 +1,14 @@
+{
+  "schema": "wsl-compatibility/v1",
+  "status": "failed",
+  "startedAt": "2026-10-16T11:46:46.726Z",
+  "samples": [],
+  "error": "loopback probe startup failed",
+  "probeExited": true,
+  "finishedAt": "2026-10-16T11:46:46.942Z",
+  "limits": [
+    "Observed existing localhost forwarding only; no system network configuration changed",
+    "Linux loopback is required by the replay; Windows forwarding observation is environment-specific",
+    "Compatibility matrix has explicit unavailable/not-run rows and is not a cross-distro pass"
+  ]
+}

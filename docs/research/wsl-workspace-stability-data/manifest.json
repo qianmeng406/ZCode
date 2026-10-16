@@ -1,0 +1,79 @@
+{
+  "schema": "wsl-stability-evidence-manifest/v1",
+  "date": "2026-10-16",
+  "baseCommit": "2971ecb7",
+  "batchImplementationCommit": "94175eeb",
+  "archived": [
+    {
+      "file": "stability-result.json",
+      "sha256": "6c68781851256fb965fa72055175b29c062e7243ecab7de2c98b391909564d57"
+    },
+    {
+      "file": "step-real-proof.json",
+      "sha256": "98c41b284bee8713b69812edf1f25ea851c71eaa05d2e79b49919f925051e951"
+    },
+    {
+      "file": "compatibility-result.json",
+      "sha256": "9d38a719f54fc49d634296dde3fcae2d29406baa92576cc2c7077f49398d39b8"
+    },
+    {
+      "file": "compatibility-startup-red.json",
+      "sha256": "9b2db0d967fea483220028062833f7b11f8caf047552e7eccea3a996321cb12d"
+    },
+    {
+      "file": "desktop-pair-result.json",
+      "sha256": "4a6526bdede9eec5b2e7f59924fab5abf96a5569b947cf8e288efea6a8d78f3e"
+    },
+    {
+      "file": "desktop-pair-result-red.json",
+      "sha256": "37ad349c2efc438a4a1922c078dd9c6886df650af624770ace3230a7486315a3"
+    },
+    {
+      "file": "drivers/stability.mts.txt",
+      "sha256": "0d1c5329b309b0e08408511b6dac8e91eff4ca4d1802f27f5f5faf2c0632acf9",
+      "source": "C:/Users/qianmengyys/Desktop/agent/wsl-agent-lab/phase3/phase4/stability.mts",
+      "machineBound": true,
+      "executeFromLab": true
+    },
+    {
+      "file": "drivers/compatibility.mjs.txt",
+      "sha256": "27ece3dbb858ccfc70c91dcb03e89aa69d86478cf3ae0ce0023cc4ed4febf672",
+      "source": "C:/Users/qianmengyys/Desktop/agent/wsl-agent-lab/phase3/phase4/compatibility.mjs",
+      "machineBound": true,
+      "executeFromLab": true
+    },
+    {
+      "file": "drivers/run-desktop-pair.mjs.txt",
+      "sha256": "e40acefb1cbbc51b9dc4162b0056739125e28b4118decb2283cbb2818a21db2d",
+      "source": "C:/Users/qianmengyys/Desktop/agent/wsl-agent-lab/phase3/phase4/run-desktop-pair.mjs",
+      "machineBound": true,
+      "executeFromLab": true
+    }
+  ],
+  "testedSource": [
+    {
+      "file": "packages/desktop/test/e2e/conversation-session/conversation-session-wsl-workspace-acceptance-p2.test.ts",
+      "currentSha256": "7e992f907c35659a81a696fee410f619fe806f90a5d551273b5d353c79472ffc",
+      "testedSha256": "7e992f907c35659a81a696fee410f619fe806f90a5d551273b5d353c79472ffc",
+      "notes": "identical bytes"
+    },
+    {
+      "file": "packages/desktop/test/e2e/helpers/wsl-workspace-pair.ts",
+      "currentSha256": "e72039f460ea6d56dce9cf17f28363cb264881922b897ac3603dab4984b0565e",
+      "testedSha256": "065883c5c323e81afdab5bdd93fe84f6c2a17d1475ce05f473da96d814ec386c",
+      "notes": "Reviewed git diff --no-index: oxfmt whitespace and trailing-comma changes only; exact tested SHA preserved"
+    },
+    {
+      "file": "packages/desktop/test/e2e/fixtures/upstream/wsl-p2/wsl-p2-pair-router.mjs",
+      "currentSha256": "da713bc4950189285377ac56c95f6e2bd5a41c1e2c3d4f2ac2b793dc8e999b4a",
+      "testedSha256": "bec185f6cab6ae32776f8e13612855365619bed84f56fac546b3e249c4fa0fc1",
+      "notes": "Reviewed git diff --no-index: oxfmt whitespace and trailing-comma changes only; exact tested SHA preserved"
+    }
+  ],
+  "rawCredentialsOrModelEventsArchived": false,
+  "desktopHostBuildProof": "../wsl-connection-latency-data/desktop-readbatch-build-proof.json",
+  "notes": [
+    "Exact machine-bound lab driver snapshots are text files to prevent accidental execution over historical evidence",
+    "Two helpers were formatted after desktop execution; reviewed diff contains only whitespace/trailing-comma changes; exact tested SHA and current SHA are both preserved"
+  ]
+}

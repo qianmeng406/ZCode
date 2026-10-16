@@ -1,0 +1,118 @@
+{
+  "schema": "wsl-dual-desktop/v2",
+  "status": "passed",
+  "startedAt": "2026-10-16T11:54:06.398Z",
+  "finishedAt": "2026-10-16T11:55:55.533Z",
+  "runDir": "/home/zcodewslp2/workspace/.zcode-e2e/windowpair-BvPKdM",
+  "routerPort": 37629,
+  "routerPid": 27,
+  "routerExited": true,
+  "routerPidGone": true,
+  "barrierDir": "C:/Users/qianmengyys/Desktop/agent/wsl-agent-lab/phase3/phase4/pair-barrier-1792151646227",
+  "results": [
+    {
+      "label": "A",
+      "exitCode": 0,
+      "launchedAt": "2026-10-16T11:54:06.733Z",
+      "exitedAt": "2026-10-16T11:55:55.302Z",
+      "home": "C:/Users/qianmengyys/Desktop/agent/wsl-agent-lab/phase3/phase4/desktop-pair-home-A-1792151646732",
+      "result": {
+        "case": "WSL_P2_ACCEPTANCE",
+        "runId": "rmvawu635",
+        "status": "passed",
+        "replayPort": 40019,
+        "linuxLoopbackReachable": true,
+        "windowsForwardingReachable": false,
+        "fixturePath": "/home/zcodewslp2/workspace/.zcode-e2e/windowpair-BvPKdM/A/.zcode-e2e/wsl-p2-rmvawu635/marker.txt",
+        "requestLog": [
+          "REQ stage write=false bash=false read=false tools=[omitted; synthetic replay tool inventory]",
+          "REQ stage write=true bash=false read=false tools=[omitted; synthetic replay tool inventory]",
+          "REQ stage write=true bash=true read=false tools=[omitted; synthetic replay tool inventory]",
+          "REQ stage write=true bash=true read=true tools=[omitted; synthetic replay tool inventory]",
+          "REQ stage write=false bash=false read=false tools=[omitted; synthetic replay tool inventory]",
+          "REQ stage write=true bash=true read=true tools=[omitted; synthetic replay tool inventory]",
+          "REQ stage write=true bash=true read=true tools=[omitted; synthetic replay tool inventory]",
+          "EVIDENCE lifecycle=FOLLOW toolResult=true valid=true",
+          "REQ stage write=true bash=true read=true tools=[omitted; synthetic replay tool inventory]",
+          "EVIDENCE lifecycle=BACKGROUND toolResult=false",
+          "REQ stage write=true bash=true read=true tools=[omitted; synthetic replay tool inventory]",
+          "EVIDENCE lifecycle=BACKGROUND toolResult=true valid=true",
+          "REQ stage write=true bash=true read=true tools=[omitted; synthetic replay tool inventory]",
+          "REQ stage write=true bash=true read=true tools=[omitted; synthetic replay tool inventory]",
+          "EVIDENCE lifecycle=CANCEL toolResult=false"
+        ],
+        "stage": "ui-close-reconnect",
+        "error": null,
+        "connectionCancelled": true,
+        "agentLifecycle": {
+          "followup": true,
+          "backgroundOutput": true,
+          "backgroundStatus": true,
+          "cancellation": true,
+          "childPids": [
+            1039,
+            1122
+          ]
+        },
+        "peerExitedBeforeReconnect": true,
+        "closeReconnect": {
+          "identity": "remote:wsl:Ubuntu-24.04:zcodewslp2:/home/zcodewslp2/workspace/.zcode-e2e/windowpair-BvPKdM/A",
+          "remoteSessionId": "968ece71-963c-423a-9e3b-608f6fd729fa"
+        }
+      }
+    },
+    {
+      "label": "B",
+      "exitCode": 0,
+      "launchedAt": "2026-10-16T11:54:06.747Z",
+      "exitedAt": "2026-10-16T11:55:46.383Z",
+      "home": "C:/Users/qianmengyys/Desktop/agent/wsl-agent-lab/phase3/phase4/desktop-pair-home-B-1792151646732",
+      "result": {
+        "case": "WSL_P2_ACCEPTANCE",
+        "runId": "rmvawu65r",
+        "status": "passed",
+        "replayPort": 45673,
+        "linuxLoopbackReachable": true,
+        "windowsForwardingReachable": false,
+        "fixturePath": "/home/zcodewslp2/workspace/.zcode-e2e/windowpair-BvPKdM/B/.zcode-e2e/wsl-p2-rmvawu65r/marker.txt",
+        "requestLog": [
+          "REQ stage write=false bash=false read=false tools=[omitted; synthetic replay tool inventory]",
+          "REQ stage write=true bash=false read=false tools=[omitted; synthetic replay tool inventory]",
+          "REQ stage write=true bash=true read=false tools=[omitted; synthetic replay tool inventory]",
+          "REQ stage write=true bash=true read=true tools=[omitted; synthetic replay tool inventory]",
+          "REQ stage write=false bash=false read=false tools=[omitted; synthetic replay tool inventory]",
+          "REQ stage write=true bash=true read=true tools=[omitted; synthetic replay tool inventory]",
+          "REQ stage write=true bash=true read=true tools=[omitted; synthetic replay tool inventory]",
+          "EVIDENCE lifecycle=FOLLOW toolResult=true valid=true",
+          "REQ stage write=true bash=true read=true tools=[omitted; synthetic replay tool inventory]",
+          "EVIDENCE lifecycle=BACKGROUND toolResult=false",
+          "REQ stage write=true bash=true read=true tools=[omitted; synthetic replay tool inventory]",
+          "EVIDENCE lifecycle=BACKGROUND toolResult=true valid=true",
+          "REQ stage write=true bash=true read=true tools=[omitted; synthetic replay tool inventory]",
+          "REQ stage write=true bash=true read=true tools=[omitted; synthetic replay tool inventory]",
+          "EVIDENCE lifecycle=CANCEL toolResult=false"
+        ],
+        "stage": "ui-close-reconnect",
+        "error": null,
+        "connectionCancelled": true,
+        "agentLifecycle": {
+          "followup": true,
+          "backgroundOutput": true,
+          "backgroundStatus": true,
+          "cancellation": true,
+          "childPids": [
+            1019,
+            1085
+          ]
+        },
+        "peerExitedBeforeReconnect": false,
+        "closeReconnect": {
+          "identity": "remote:wsl:Ubuntu-24.04:zcodewslp2:/home/zcodewslp2/workspace/.zcode-e2e/windowpair-BvPKdM/B",
+          "remoteSessionId": "441ca9c3-32e2-419c-a1b7-25a87716b72b"
+        }
+      }
+    }
+  ],
+  "scope": "Two simultaneously running isolated desktop application instances with distinct HOME, both sharing the WSL user/install root; not a same-application multi-window test",
+  "sharedUserProviderConfig": true
+}

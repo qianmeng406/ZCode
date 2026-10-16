@@ -1,0 +1,84 @@
+{
+  "schema": "wsl-real-step/v1",
+  "status": "passed",
+  "providerId": "new-provider-2",
+  "model": "cn:step-5-preview",
+  "route": "configured",
+  "elapsedMs": 26769,
+  "exitCode": 0,
+  "runDir": "/home/zcodewslp2/workspace/.zcode-e2e/step-real-0tmcIh",
+  "marker": "STEP_REAL_1792150719492",
+  "fileMatches": true,
+  "finalMarkerSeen": true,
+  "eventCount": 194,
+  "eventTypes": [
+    "session.titleUpdated",
+    "turn.started",
+    "session.updated",
+    "model.streaming",
+    "tool.updated",
+    "checkpoint.created",
+    "streamRecovery.updated",
+    "turn.completed",
+    "result"
+  ],
+  "toolsSeen": [
+    "Write",
+    "Bash",
+    "Read"
+  ],
+  "errorCategory": null,
+  "proofVersion": 2,
+  "completedTools": [
+    {
+      "toolName": "Write",
+      "scheduledEvent": 27,
+      "startedEvent": 30,
+      "resultEvent": 31,
+      "success": true
+    },
+    {
+      "toolName": "Bash",
+      "scheduledEvent": 56,
+      "startedEvent": 59,
+      "resultEvent": 60,
+      "success": true
+    },
+    {
+      "toolName": "Bash",
+      "scheduledEvent": 88,
+      "startedEvent": 91,
+      "resultEvent": 92,
+      "success": true
+    },
+    {
+      "toolName": "Read",
+      "scheduledEvent": 110,
+      "startedEvent": 114,
+      "resultEvent": 117,
+      "success": true
+    }
+  ],
+  "toolOrderVerified": true,
+  "allToolResultsSuccessful": true,
+  "finalResultMarkerVerified": true,
+  "independentFileReadVerified": true,
+  "temporaryProviderConfigsRemoved": true,
+  "rawEventsArchived": false,
+  "usage": {
+    "source": "provider",
+    "modelRequestCount": 5,
+    "inputTokens": 75658,
+    "outputTokens": 563,
+    "totalTokens": 76221,
+    "cacheReadTokens": 29824,
+    "cacheWriteTokens": 0,
+    "reasoningTokens": 16,
+    "webFetchRequests": 0,
+    "webSearchRequests": 0
+  },
+  "limits": [
+    "Real step Agent ran in the isolated Linux CLI; desktop UI used the free local replay, not the paid provider",
+    "Credential configuration and raw model/tool event text are excluded from repository evidence"
+  ]
+}

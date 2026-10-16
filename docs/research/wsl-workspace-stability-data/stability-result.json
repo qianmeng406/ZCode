@@ -1,0 +1,608 @@
+{
+  "schema": "wsl-stability/v1",
+  "status": "passed",
+  "startedAt": "2026-10-16T11:36:32.591Z",
+  "target": {
+    "kind": "wsl",
+    "distro": "Ubuntu-24.04",
+    "user": "zcodewslp2"
+  },
+  "sequential": [
+    {
+      "round": 1,
+      "connectMs": 5777,
+      "disposeMs": 51,
+      "pid": "241",
+      "rssKb": 187240,
+      "fdCount": 26,
+      "passed": true
+    },
+    {
+      "round": 2,
+      "connectMs": 5000,
+      "disposeMs": 34,
+      "pid": "514",
+      "rssKb": 183072,
+      "fdCount": 25,
+      "passed": true
+    },
+    {
+      "round": 3,
+      "connectMs": 5058,
+      "disposeMs": 28,
+      "pid": "787",
+      "rssKb": 181060,
+      "fdCount": 25,
+      "passed": true
+    },
+    {
+      "round": 4,
+      "connectMs": 5113,
+      "disposeMs": 27,
+      "pid": "1060",
+      "rssKb": 182968,
+      "fdCount": 25,
+      "passed": true
+    },
+    {
+      "round": 5,
+      "connectMs": 5077,
+      "disposeMs": 33,
+      "pid": "1367",
+      "rssKb": 183772,
+      "fdCount": 25,
+      "passed": true
+    },
+    {
+      "round": 6,
+      "connectMs": 5293,
+      "disposeMs": 28,
+      "pid": "1657",
+      "rssKb": 182888,
+      "fdCount": 25,
+      "passed": true
+    },
+    {
+      "round": 7,
+      "connectMs": 5128,
+      "disposeMs": 28,
+      "pid": "1930",
+      "rssKb": 187868,
+      "fdCount": 27,
+      "passed": true
+    },
+    {
+      "round": 8,
+      "connectMs": 4999,
+      "disposeMs": 28,
+      "pid": "2203",
+      "rssKb": 183288,
+      "fdCount": 25,
+      "passed": true
+    },
+    {
+      "round": 9,
+      "connectMs": 4974,
+      "disposeMs": 26,
+      "pid": "2476",
+      "rssKb": 182824,
+      "fdCount": 25,
+      "passed": true
+    },
+    {
+      "round": 10,
+      "connectMs": 4865,
+      "disposeMs": 28,
+      "pid": "2783",
+      "rssKb": 181224,
+      "fdCount": 25,
+      "passed": true
+    },
+    {
+      "round": 11,
+      "connectMs": 5032,
+      "disposeMs": 27,
+      "pid": "3073",
+      "rssKb": 181004,
+      "fdCount": 25,
+      "passed": true
+    },
+    {
+      "round": 12,
+      "connectMs": 5217,
+      "disposeMs": 28,
+      "pid": "3346",
+      "rssKb": 181072,
+      "fdCount": 25,
+      "passed": true
+    },
+    {
+      "round": 13,
+      "connectMs": 5170,
+      "disposeMs": 25,
+      "pid": "3619",
+      "rssKb": 183160,
+      "fdCount": 25,
+      "passed": true
+    },
+    {
+      "round": 14,
+      "connectMs": 5050,
+      "disposeMs": 27,
+      "pid": "3892",
+      "rssKb": 183356,
+      "fdCount": 25,
+      "passed": true
+    },
+    {
+      "round": 15,
+      "connectMs": 4940,
+      "disposeMs": 29,
+      "pid": "4199",
+      "rssKb": 178904,
+      "fdCount": 25,
+      "passed": true
+    },
+    {
+      "round": 16,
+      "connectMs": 5031,
+      "disposeMs": 26,
+      "pid": "4489",
+      "rssKb": 178192,
+      "fdCount": 25,
+      "passed": true
+    },
+    {
+      "round": 17,
+      "connectMs": 5216,
+      "disposeMs": 27,
+      "pid": "4762",
+      "rssKb": 179452,
+      "fdCount": 25,
+      "passed": true
+    },
+    {
+      "round": 18,
+      "connectMs": 4961,
+      "disposeMs": 30,
+      "pid": "5035",
+      "rssKb": 181136,
+      "fdCount": 25,
+      "passed": true
+    },
+    {
+      "round": 19,
+      "connectMs": 4962,
+      "disposeMs": 28,
+      "pid": "5308",
+      "rssKb": 183296,
+      "fdCount": 25,
+      "passed": true
+    },
+    {
+      "round": 20,
+      "connectMs": 4846,
+      "disposeMs": 27,
+      "pid": "5615",
+      "rssKb": 181336,
+      "fdCount": 25,
+      "passed": true
+    },
+    {
+      "round": 21,
+      "connectMs": 5317,
+      "disposeMs": 28,
+      "pid": "5905",
+      "rssKb": 183132,
+      "fdCount": 25,
+      "passed": true
+    },
+    {
+      "round": 22,
+      "connectMs": 5305,
+      "disposeMs": 28,
+      "pid": "6219",
+      "rssKb": 182108,
+      "fdCount": 25,
+      "passed": true
+    },
+    {
+      "round": 23,
+      "connectMs": 5028,
+      "disposeMs": 29,
+      "pid": "6492",
+      "rssKb": 181132,
+      "fdCount": 25,
+      "passed": true
+    },
+    {
+      "round": 24,
+      "connectMs": 4839,
+      "disposeMs": 26,
+      "pid": "6824",
+      "rssKb": 182588,
+      "fdCount": 25,
+      "passed": true
+    },
+    {
+      "round": 25,
+      "connectMs": 4838,
+      "disposeMs": 34,
+      "pid": "7151",
+      "rssKb": 181812,
+      "fdCount": 25,
+      "passed": true
+    },
+    {
+      "round": 26,
+      "connectMs": 5306,
+      "disposeMs": 29,
+      "pid": "7449",
+      "rssKb": 180812,
+      "fdCount": 25,
+      "passed": true
+    },
+    {
+      "round": 27,
+      "connectMs": 5088,
+      "disposeMs": 25,
+      "pid": "7722",
+      "rssKb": 179352,
+      "fdCount": 25,
+      "passed": true
+    },
+    {
+      "round": 28,
+      "connectMs": 5248,
+      "disposeMs": 31,
+      "pid": "7995",
+      "rssKb": 180904,
+      "fdCount": 25,
+      "passed": true
+    },
+    {
+      "round": 29,
+      "connectMs": 5300,
+      "disposeMs": 33,
+      "pid": "8268",
+      "rssKb": 179348,
+      "fdCount": 25,
+      "passed": true
+    },
+    {
+      "round": 30,
+      "connectMs": 4883,
+      "disposeMs": 36,
+      "pid": "8575",
+      "rssKb": 180780,
+      "fdCount": 25,
+      "passed": true
+    }
+  ],
+  "concurrent": [
+    {
+      "round": 1,
+      "connectMs": [
+        5123,
+        8259
+      ],
+      "distinctServerPids": [
+        "8961",
+        "9131"
+      ],
+      "survivingConnectionVerified": true,
+      "closedPidsExited": true
+    },
+    {
+      "round": 2,
+      "connectMs": [
+        5172,
+        8191
+      ],
+      "distinctServerPids": [
+        "9518",
+        "9688"
+      ],
+      "survivingConnectionVerified": true,
+      "closedPidsExited": true
+    },
+    {
+      "round": 3,
+      "connectMs": [
+        8200,
+        5193
+      ],
+      "distinctServerPids": [
+        "10075",
+        "10245"
+      ],
+      "survivingConnectionVerified": true,
+      "closedPidsExited": true
+    },
+    {
+      "round": 4,
+      "connectMs": [
+        8158,
+        5027
+      ],
+      "distinctServerPids": [
+        "10632",
+        "10802"
+      ],
+      "survivingConnectionVerified": true,
+      "closedPidsExited": true
+    },
+    {
+      "round": 5,
+      "connectMs": [
+        8182,
+        5211
+      ],
+      "distinctServerPids": [
+        "11195",
+        "11359"
+      ],
+      "survivingConnectionVerified": true,
+      "closedPidsExited": true
+    }
+  ],
+  "cancellation": [
+    {
+      "round": 5,
+      "kind": "detect",
+      "rejected": true
+    },
+    {
+      "round": 5,
+      "kind": "PTY Ctrl+C",
+      "pid": "1417",
+      "exited": true
+    },
+    {
+      "round": 10,
+      "kind": "detect",
+      "rejected": true
+    },
+    {
+      "round": 10,
+      "kind": "PTY Ctrl+C",
+      "pid": "2833",
+      "exited": true
+    },
+    {
+      "round": 15,
+      "kind": "detect",
+      "rejected": true
+    },
+    {
+      "round": 15,
+      "kind": "PTY Ctrl+C",
+      "pid": "4249",
+      "exited": true
+    },
+    {
+      "round": 20,
+      "kind": "detect",
+      "rejected": true
+    },
+    {
+      "round": 20,
+      "kind": "PTY Ctrl+C",
+      "pid": "5665",
+      "exited": true
+    },
+    {
+      "round": 25,
+      "kind": "detect",
+      "rejected": true
+    },
+    {
+      "round": 25,
+      "kind": "PTY Ctrl+C",
+      "pid": "7201",
+      "exited": true
+    },
+    {
+      "round": 30,
+      "kind": "detect",
+      "rejected": true
+    },
+    {
+      "round": 30,
+      "kind": "PTY Ctrl+C",
+      "pid": "8625",
+      "exited": true
+    }
+  ],
+  "resourceSamples": [
+    {
+      "round": 1,
+      "hostRssBytes": 118829056,
+      "serverRssKb": 187240,
+      "fdCount": 26
+    },
+    {
+      "round": 2,
+      "hostRssBytes": 121479168,
+      "serverRssKb": 183072,
+      "fdCount": 25
+    },
+    {
+      "round": 3,
+      "hostRssBytes": 119083008,
+      "serverRssKb": 181060,
+      "fdCount": 25
+    },
+    {
+      "round": 4,
+      "hostRssBytes": 119173120,
+      "serverRssKb": 182968,
+      "fdCount": 25
+    },
+    {
+      "round": 5,
+      "hostRssBytes": 119472128,
+      "serverRssKb": 183772,
+      "fdCount": 25
+    },
+    {
+      "round": 6,
+      "hostRssBytes": 120479744,
+      "serverRssKb": 182888,
+      "fdCount": 25
+    },
+    {
+      "round": 7,
+      "hostRssBytes": 121262080,
+      "serverRssKb": 187868,
+      "fdCount": 27
+    },
+    {
+      "round": 8,
+      "hostRssBytes": 121839616,
+      "serverRssKb": 183288,
+      "fdCount": 25
+    },
+    {
+      "round": 9,
+      "hostRssBytes": 121839616,
+      "serverRssKb": 182824,
+      "fdCount": 25
+    },
+    {
+      "round": 10,
+      "hostRssBytes": 125382656,
+      "serverRssKb": 181224,
+      "fdCount": 25
+    },
+    {
+      "round": 11,
+      "hostRssBytes": 125960192,
+      "serverRssKb": 181004,
+      "fdCount": 25
+    },
+    {
+      "round": 12,
+      "hostRssBytes": 125440000,
+      "serverRssKb": 181072,
+      "fdCount": 25
+    },
+    {
+      "round": 13,
+      "hostRssBytes": 125329408,
+      "serverRssKb": 183160,
+      "fdCount": 25
+    },
+    {
+      "round": 14,
+      "hostRssBytes": 126054400,
+      "serverRssKb": 183356,
+      "fdCount": 25
+    },
+    {
+      "round": 15,
+      "hostRssBytes": 126156800,
+      "serverRssKb": 178904,
+      "fdCount": 25
+    },
+    {
+      "round": 16,
+      "hostRssBytes": 126554112,
+      "serverRssKb": 178192,
+      "fdCount": 25
+    },
+    {
+      "round": 17,
+      "hostRssBytes": 131178496,
+      "serverRssKb": 179452,
+      "fdCount": 25
+    },
+    {
+      "round": 18,
+      "hostRssBytes": 131887104,
+      "serverRssKb": 181136,
+      "fdCount": 25
+    },
+    {
+      "round": 19,
+      "hostRssBytes": 131997696,
+      "serverRssKb": 183296,
+      "fdCount": 25
+    },
+    {
+      "round": 20,
+      "hostRssBytes": 132227072,
+      "serverRssKb": 181336,
+      "fdCount": 25
+    },
+    {
+      "round": 21,
+      "hostRssBytes": 132349952,
+      "serverRssKb": 183132,
+      "fdCount": 25
+    },
+    {
+      "round": 22,
+      "hostRssBytes": 132423680,
+      "serverRssKb": 182108,
+      "fdCount": 25
+    },
+    {
+      "round": 23,
+      "hostRssBytes": 132648960,
+      "serverRssKb": 181132,
+      "fdCount": 25
+    },
+    {
+      "round": 24,
+      "hostRssBytes": 132628480,
+      "serverRssKb": 182588,
+      "fdCount": 25
+    },
+    {
+      "round": 25,
+      "hostRssBytes": 133070848,
+      "serverRssKb": 181812,
+      "fdCount": 25
+    },
+    {
+      "round": 26,
+      "hostRssBytes": 133185536,
+      "serverRssKb": 180812,
+      "fdCount": 25
+    },
+    {
+      "round": 27,
+      "hostRssBytes": 133242880,
+      "serverRssKb": 179352,
+      "fdCount": 25
+    },
+    {
+      "round": 28,
+      "hostRssBytes": 133312512,
+      "serverRssKb": 180904,
+      "fdCount": 25
+    },
+    {
+      "round": 29,
+      "hostRssBytes": 133677056,
+      "serverRssKb": 179348,
+      "fdCount": 25
+    },
+    {
+      "round": 30,
+      "hostRssBytes": 140349440,
+      "serverRssKb": 180780,
+      "fdCount": 25
+    }
+  ],
+  "limits": [
+    "30 rounds are short-duration repeated-connect soak, not a 24-hour or overnight test",
+    "Concurrent RPC connections do not substitute for multi-window UI testing"
+  ],
+  "runDir": "/home/zcodewslp2/workspace/.zcode-e2e/stability-YKr2FF",
+  "residualOwnedPids": [],
+  "finishedAt": "2026-10-16T11:40:28.202Z",
+  "durationMs": 235611,
+  "finalProcessTable": "PID    PPID COMMAND\n  11821   11820 sh -c ps -u zcodewslp2 -o pid,ppid,args\n  11822   11821 ps -u zcodewslp2 -o pid,ppid,args"
+}

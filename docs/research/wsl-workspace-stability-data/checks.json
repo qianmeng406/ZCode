@@ -1,0 +1,148 @@
+{
+  "schema": "wsl-stability-checks/v1",
+  "date": "2026-10-16",
+  "batchImplementationCommit": "94175eeb",
+  "checks": [
+    {
+      "name": "freshness",
+      "command": "node scripts/check-workspace-freshness.mjs",
+      "exitCode": 0,
+      "notes": "migrate/fork-features; no push or fetch performed by this acceptance"
+    },
+    {
+      "name": "deployment-and-wsl-regressions",
+      "command": "pnpm exec vitest run packages/server/test/remoteDeploy.test.ts packages/server/test/remoteDeployLock.test.ts packages/server/test/runtimeToolDeploy.test.ts packages/server/test/remoteExistsMany.test.ts packages/server/test/wslConnectLatency.test.ts packages/server/test/remoteReadFiles.test.ts packages/server/test/wslBackend.test.ts packages/server/test/wslReadFiles.test.ts",
+      "exitCode": 0,
+      "passed": 148,
+      "files": 8,
+      "skipped": 0
+    },
+    {
+      "name": "rpc-and-remote-lifecycle-regressions",
+      "command": "pnpm exec vitest run packages/rpc/test packages/server/test/remoteConnect.test.ts packages/server/test/wslWorkspaceSmoke.test.ts packages/desktop/test/e2eStartupCredentials.test.ts packages/desktop/test/windowRemoteConnectionRegistry.test.ts packages/desktop/test/desktopRemoteSessions.test.ts",
+      "exitCode": 0,
+      "passed": 176,
+      "files": 14,
+      "skipped": 0
+    },
+    {
+      "name": "typecheck",
+      "command": "pnpm typecheck",
+      "exitCode": 0,
+      "diagnostics": 0
+    },
+    {
+      "name": "lint",
+      "command": "pnpm lint",
+      "exitCode": 0,
+      "errors": 0,
+      "warnings": 83
+    },
+    {
+      "name": "architecture",
+      "command": "pnpm architecture:check --changed",
+      "exitCode": 0,
+      "violations": 0
+    },
+    {
+      "name": "free-replay-selftest",
+      "command": "node packages/desktop/test/e2e/fixtures/upstream/wsl-p2/wsl-p2-replay-selftest.mjs",
+      "exitCode": 0,
+      "passed": 21,
+      "finalMarker": "SELFTEST_ALL_PASS"
+    },
+    {
+      "name": "pair-router-selftest",
+      "command": "node packages/desktop/test/e2e/fixtures/upstream/wsl-p2/wsl-p2-pair-router-selftest.mjs",
+      "exitCode": 0,
+      "coverage": [
+        "registration",
+        "conflict-rejection",
+        "port-validation",
+        "concurrent-SSE-forwarding",
+        "unknown-rejection",
+        "ambiguous-rejection",
+        "no-cross-routing"
+      ]
+    },
+    {
+      "name": "short-soak-and-shared-root-concurrency",
+      "command": "node --import file:///C:/Users/qianmengyys/Desktop/agent/ZCode-fork/node_modules/tsx/dist/loader.mjs C:/Users/qianmengyys/Desktop/agent/wsl-agent-lab/phase3/phase4/stability.mts",
+      "exitCode": 0,
+      "sequentialRounds": 30,
+      "concurrentPairs": 5,
+      "cancellations": 12,
+      "durationMs": 235611,
+      "residualOwnedPids": 0,
+      "evidence": "stability-result.json"
+    },
+    {
+      "name": "dual-desktop-ui",
+      "command": "node C:/Users/qianmengyys/Desktop/agent/wsl-agent-lab/phase3/phase4/run-desktop-pair.mjs",
+      "exitCode": 0,
+      "wdioExitCodes": [0, 0],
+      "passedPerInstance": [1, 1],
+      "peerExitedBeforeAReconnect": true,
+      "scope": "two isolated application instances; not two main windows in one application",
+      "evidence": "desktop-pair-result.json",
+      "redEvidence": "desktop-pair-result-red.json"
+    },
+    {
+      "name": "real-step-agent",
+      "command": "private run-step-agent.mjs + extract-step-proof.mjs; not a default test",
+      "exitCode": 0,
+      "providerId": "new-provider-2",
+      "model": "cn:step-5-preview",
+      "completedTools": ["Write", "Bash", "Bash", "Read"],
+      "allResultsSuccessful": true,
+      "independentFileAndFinalMarkerVerified": true,
+      "temporaryProviderConfigsRemoved": true,
+      "evidence": "step-real-proof.json"
+    },
+    {
+      "name": "loopback-and-matrix",
+      "command": "node C:/Users/qianmengyys/Desktop/agent/wsl-agent-lab/phase3/phase4/compatibility.mjs",
+      "exitCode": 0,
+      "rounds": 10,
+      "linuxReachable": 10,
+      "windowsForwardingReachable": 9,
+      "evidence": "compatibility-result.json",
+      "notes": "Matrix includes unavailable/not-run rows; this is not a cross-distro or multi-user pass"
+    },
+    {
+      "name": "format",
+      "command": "pnpm exec oxfmt --check <4 pair test files + 4 spec/report/readme files>; prior batch 13 files separately checked",
+      "exitCode": 0,
+      "historicalEvidenceJsonReformatted": false
+    },
+    {
+      "name": "diff-whitespace",
+      "command": "git diff --check",
+      "exitCode": 0
+    },
+    {
+      "name": "evidence-integrity-and-secret-scan",
+      "command": "Parse archived JSON; verify 9 manifest SHA256 entries, outcome/count assertions and absence of selected private credential literal without printing it",
+      "exitCode": 0,
+      "sha256Verified": 9,
+      "secretLiteralMatches": 0,
+      "rawCredentialsOrModelEventsArchived": false
+    },
+    {
+      "name": "cleanup",
+      "command": "Read-only ps for isolated user; verify temporary step provider files removed and no provider files in isolated data",
+      "exitCode": 0,
+      "clean": true,
+      "evidence": "cleanup.json"
+    }
+  ],
+  "limits": [
+    "235.611 seconds is a short repeated-connect soak, not an overnight or persistent-session stability test",
+    "Windows test-driver RSS grew from 113.32 to 133.85 MiB; no heap/GC evidence distinguishes retention from leakage",
+    "Provider Personal Config is shared by Linux user; different endpoints for one provider ID are not connection-isolated",
+    "Same-application multi-window, other distros/users and default-user path remain unavailable/not-run",
+    "Real paid step ran in Linux CLI Agent; desktop UI used free replay",
+    "Code/model access does not authorize pushing; no push was performed",
+    "Unrelated main index, ledger/path scripts, shortcut repair files and local logs remain outside owned commits"
+  ]
+}

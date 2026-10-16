@@ -1,0 +1,60 @@
+import {execFile} from 'node:child_process';
+import {promisify} from 'node:util';
+import {writeFile} from 'node:fs/promises';
+import {pathToFileURL} from 'node:url';
+import assert from 'node:assert/strict';
+const exec=promisify(execFile);
+const repo='C:/Users/qianmengyys/Desktop/agent/ZCode-fork';
+(globalThis as any).__ZCODE_VERSION__='3.15.1';
+const {createRemoteBackend,connectRemote}=await import(pathToFileURL(repo+'/packages/server/src/remote/index.ts').href);
+const target={kind:'wsl' as const,distro:'Ubuntu-24.04',user:'zcodewslp2'};
+const opts={mockCdnDir:'C:/Users/qianmengyys/Desktop/agent/wsl-agent-lab/phase2/assets',assetInstallMode:'local-download-upload' as const,handshakeTimeout:30000};
+const quote=(s:string)=>`'${s.replaceAll("'",`'"'"'`)}'`;
+async function shell(c:string){return (await exec('wsl.exe',['-d',target.distro,'-u',target.user,'--','sh','-c',c],{encoding:'utf8',timeout:20000})).stdout.trim();}
+async function until<T>(f:()=>Promise<T>,done:(v:T)=>boolean,ms=15000){const start=Date.now();while(true){const v=await f();if(done(v))return v;if(Date.now()-start>ms)throw Error('condition timeout');await new Promise(r=>setTimeout(r,100));}}
+const report:any={schema:'wsl-stability/v1',status:'running',startedAt:new Date().toISOString(),target,sequential:[],concurrent:[],cancellation:[],resourceSamples:[],limits:['30 rounds are short-duration repeated-connect soak, not a 24-hour or overnight test','Concurrent RPC connections do not substitute for multi-window UI testing']};
+const runDir=await shell('mkdir -p /home/zcodewslp2/workspace/.zcode-e2e; mktemp -d /home/zcodewslp2/workspace/.zcode-e2e/stability-XXXXXX');
+assert.match(runDir,/^\/home\/zcodewslp2\/workspace\/\.zcode-e2e\/stability-[A-Za-z0-9]+$/);
+report.runDir=runDir;
+const open=new Set<any>();
+const pids:string[]=[];
+async function create(label:string){const backend=await createRemoteBackend(target);const start=Date.now();try{const connection=await connectRemote(backend,{...opts,clientId:label});const v={backend,connection,ms:Date.now()-start};open.add(v);return v;}catch(e){await backend.disposeAndWait?.();throw e;}}
+async function close(v:any){const start=Date.now();await v.connection.disposeAndWait({timeoutMs:10000});await v.backend.disposeAndWait?.();open.delete(v);return Date.now()-start;}
+async function ptyRun(v:any,cwd:string,command:string){const service=v.connection.services.terminalService;const term=await service.create({cols:100,rows:30,cwd});let out='';const sub=service.onDynamicData(term.id)((s:string)=>{out=(out+s).slice(-65536)});try{await service.write({id:term.id,data:'stty -echo\n'});const nonce=`P4_${Date.now()}_${Math.random().toString(16).slice(2)}`;await service.write({id:term.id,data:`${command}; printf 'P4_%s\\n' ${quote(nonce.slice(3))}\n`});await until(async()=>out,x=>x.includes(nonce));return {id:term.id,service,out,sub};}catch(e){sub.dispose();await service.dispose({id:term.id});throw e;}}
+async function fileRound(v:any,dir:string,content:string){await v.connection.services.fileService.writeWorkspaceFileSearchIgnore({rootPath:dir,content});const p=await ptyRun(v,dir,`test "$(cat .zcodeignore)" = ${quote(content.trim())} && printf '\\npty-seen' >> .zcodeignore`);p.sub.dispose();await p.service.dispose({id:p.id});const read=await v.connection.services.fileService.readTextFile({path:dir+'/.zcodeignore',length:2048});assert.equal(read.content,content+'\npty-seen');}
+async function processGone(pid:string){assert.match(pid,/^\d+$/);return await shell(`if kill -0 ${pid} 2>/dev/null; then printf alive; else printf gone; fi`)==='gone';}
+async function cancelDetect(i:number){const backend=await createRemoteBackend(target);const ac=new AbortController();const proxy=new Proxy(backend,{get(t,p){const value=Reflect.get(t,p);if(p==='detect')return async()=>{const pending=value.call(t);ac.abort();return pending};return typeof value==='function'?value.bind(t):value}});let rejected=false;try{await connectRemote(proxy,{...opts,signal:ac.signal});}catch{rejected=true}finally{await backend.disposeAndWait?.()}assert(rejected);report.cancellation.push({round:i,kind:'detect',rejected:true});}
+async function interrupt(v:any,dir:string,i:number){const path=dir+'/cancel.pid';const t=await ptyRun(v,dir,'true');try{await t.service.write({id:t.id,data:`python3 -c ${quote(`import os,time,pathlib; pathlib.Path(${JSON.stringify(path)}).write_text(str(os.getpid())); time.sleep(90)`)}\n`});const pid=await until(()=>shell(`test -f ${quote(path)} && cat ${quote(path)} || true`),x=>/^\d+$/.test(x));pids.push(pid);await t.service.write({id:t.id,data:'\u0003'});await until(()=>processGone(pid),x=>x);report.cancellation.push({round:i,kind:'PTY Ctrl+C',pid,exited:true});}finally{t.sub.dispose();await t.service.dispose({id:t.id})}}
+try{
+ await shell(`mkdir ${quote(runDir+'/seq')} ${quote(runDir+'/a space')} ${quote(runDir+'/b-中文')}`);
+ for(let i=1;i<=30;i++){
+  if(i%5===0)await cancelDetect(i);
+  const v=await create(`p4-seq-${i}`);
+  const info=await v.connection.services.systemService.info();assert.equal(info.homedir,'/home/zcodewslp2');assert.equal(info.platform,'linux');
+  if(i>1){const old=await v.connection.services.fileService.readTextFile({path:runDir+'/seq/.zcodeignore',length:2048});assert.equal(old.content,`round-${i-1}\n\npty-seen`)}
+  await fileRound(v,runDir+'/seq',`round-${i}\n`);
+  if(i%5===0)await interrupt(v,runDir+'/seq',i);
+  const processes=await shell('ps -u zcodewslp2 -o pid=,ppid=,rss=,args=');
+  const serverLines=processes.split('\n').filter(x=>x.includes('/.zcode/server/zcode-server.cjs')&&!x.includes('ps -u'));
+  assert.equal(serverLines.length,1,'one stdio server for sequential round');
+  const pid=serverLines[0]!.trim().split(/\s+/)[0]!;pids.push(pid);
+  const rssKb=Number(serverLines[0]!.trim().split(/\s+/)[2]);
+  const fdCount=Number(await shell(`find /proc/${pid}/fd -mindepth 1 -maxdepth 1 2>/dev/null | wc -l`));
+  const disposeMs=await close(v);await until(()=>processGone(pid),x=>x);
+  report.sequential.push({round:i,connectMs:v.ms,disposeMs,pid,rssKb,fdCount,passed:true});
+  report.resourceSamples.push({round:i,hostRssBytes:process.memoryUsage().rss,serverRssKb:rssKb,fdCount});
+  console.log(`PASS sequential ${i}/30 connect=${v.ms}ms`);
+  await writeFile(new URL('./stability-result.json',import.meta.url),JSON.stringify(report,null,2)+'\n');
+ }
+ for(let i=1;i<=5;i++){
+  const values=await Promise.all([create(`p4-A-${i}`),create(`p4-B-${i}`)]);const [a,b]=values;
+  await Promise.all([fileRound(a,runDir+'/a space',`A-${i}\n`),fileRound(b,runDir+'/b-中文',`B-${i}\n`)]);
+  const processes=await shell('ps -u zcodewslp2 -o pid=,args=');const ids=processes.split('\n').filter(x=>x.includes('/.zcode/server/zcode-server.cjs')&&!x.includes('ps -u')).map(x=>x.trim().split(/\s+/)[0]!);assert.equal(ids.length,2);assert.equal(new Set(ids).size,2);pids.push(...ids);
+  await close(a);await fileRound(b,runDir+'/b-中文',`B-survives-${i}\n`);await close(b);
+  for(const pid of ids)await until(()=>processGone(pid),x=>x);
+  report.concurrent.push({round:i,connectMs:values.map(v=>v.ms),distinctServerPids:ids,survivingConnectionVerified:true,closedPidsExited:true});console.log(`PASS concurrent ${i}/5`);
+ }
+ const persisted=await create('p4-final');const r=await persisted.connection.services.fileService.readTextFile({path:runDir+'/b-中文/.zcodeignore',length:2048});assert.equal(r.content,'B-survives-5\n\npty-seen');await close(persisted);
+ report.status='passed';
+}catch(e){report.status='failed';report.error=e instanceof Error?e.message:String(e);process.exitCode=1}
+finally{for(const v of open){try{await close(v)}catch{}}const remaining=[];for(const pid of new Set(pids)){if(!await processGone(pid))remaining.push(pid)}report.residualOwnedPids=remaining;if(remaining.length){report.status='failed';process.exitCode=1}report.finishedAt=new Date().toISOString();report.durationMs=Date.parse(report.finishedAt)-Date.parse(report.startedAt);report.finalProcessTable=await shell('ps -u zcodewslp2 -o pid,ppid,args');await writeFile(new URL('./stability-result.json',import.meta.url),JSON.stringify(report,null,2)+'\n');console.log(`Result: ${report.status}`)}

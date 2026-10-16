@@ -1,0 +1,18 @@
+{
+  "schema": "wsl-stability-cleanup/v1",
+  "observedAt": "2026-10-16T12:01:18.839Z",
+  "clean": true,
+  "processTable": "    PID    PPID COMMAND\n     13      12 sh -c ps -u zcodewslp2 -o pid,ppid,args\n     14      13 ps -u zcodewslp2 -o pid,ppid,args\n",
+  "temporaryStepProviderConfigsRemoved": true,
+  "stepDataProviderFilesFound": 0,
+  "probeDirectoryRemoved": true,
+  "retained": [
+    "dedicated zcodewslp2 user",
+    "standard installed runtime under ~/.zcode/server",
+    "unique synthetic workspaces and isolated HOME artifacts for reproduction"
+  ],
+  "limits": [
+    "No deletion of shared runtime or other-user data",
+    "Final observation complements per-owned-PID assertions; it does not measure each UI-close server-exit instant"
+  ]
+}
