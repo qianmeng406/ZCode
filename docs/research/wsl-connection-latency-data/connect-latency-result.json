@@ -1,0 +1,4883 @@
+{
+  "schema": "wsl-connect-latency/v1",
+  "status": "passed",
+  "distro": "Ubuntu-24.04",
+  "user": "zcodewslp2",
+  "workspace": "/home/zcodewslp2/workspace",
+  "mode": "warm-idempotent",
+  "zcodeVersion": "3.15.1",
+  "finishedAt": "2026-10-16T08:35:03.470Z",
+  "iterationsRequested": 10,
+  "iterationsCompleted": 10,
+  "gapMs": 500,
+  "calibration": {
+    "command": "wsl.exe -d Ubuntu-24.04 -u zcodewslp2 --exec true",
+    "samplesMs": [
+      2073.0294999999996,
+      187.09360000000015,
+      173.59879999999976,
+      176.87599999999975,
+      166.9168999999997
+    ],
+    "stats": {
+      "count": 5,
+      "minMs": 166.9168999999997,
+      "medianMs": 176.87599999999975,
+      "maxMs": 2073.0294999999996,
+      "meanMs": 555.5029599999998
+    }
+  },
+  "aggregate": {
+    "totalMs": {
+      "count": 10,
+      "minMs": 16383.318,
+      "medianMs": 16580.259149999998,
+      "maxMs": 17700.2595,
+      "meanMs": 16809.480430000003
+    },
+    "systemRpcMs": {
+      "count": 10,
+      "minMs": 93.55909999999858,
+      "medianMs": 99.8518499999991,
+      "maxMs": 112.41120000000228,
+      "meanMs": 102.2522100000031
+    },
+    "disposeMs": {
+      "count": 10,
+      "minMs": 32.35339999999269,
+      "medianMs": 48.4942499999961,
+      "maxMs": 85.75770000000193,
+      "meanMs": 48.14643999999898
+    },
+    "detectMs": {
+      "count": 10,
+      "minMs": 590.3263000000152,
+      "medianMs": 604.2204999999994,
+      "maxMs": 667.6941000000006,
+      "meanMs": 612.5419700000002
+    },
+    "runtimeNetworkMs": {
+      "count": 10,
+      "minMs": 0.14679999998770654,
+      "medianMs": 0.1668500000014319,
+      "maxMs": 0.35419999999976426,
+      "meanMs": 0.18795999999874766
+    },
+    "deployMs": {
+      "count": 10,
+      "minMs": 15319.501900000003,
+      "medianMs": 15502.720149999994,
+      "maxMs": 16559.0199,
+      "meanMs": 15722.056359999999
+    },
+    "launchMs": {
+      "count": 10,
+      "minMs": 64.71060000000216,
+      "medianMs": 70.29090000001452,
+      "maxMs": 82.77999999999884,
+      "meanMs": 71.32913000000372
+    },
+    "handshakeMs": {
+      "count": 10,
+      "minMs": 377.98519999999553,
+      "medianMs": 406.1028500000066,
+      "maxMs": 424.42239999999583,
+      "meanMs": 402.7417899999979
+    },
+    "wrapMs": {
+      "count": 10,
+      "minMs": 0.24930000001040753,
+      "medianMs": 0.32334999999875436,
+      "maxMs": 0.5967000000018743,
+      "meanMs": 0.3578000000008615
+    },
+    "unattributedMs": {
+      "count": 10,
+      "minMs": 0.12330000000656582,
+      "medianMs": 0.14174999999522697,
+      "maxMs": 1.400999999994383,
+      "meanMs": 0.26541999999972177
+    }
+  },
+  "perIteration": [
+    {
+      "iteration": 1,
+      "backendCalls": [
+        {
+          "method": "detect",
+          "durationMs": 666.9683000000005,
+          "detail": ""
+        },
+        {
+          "method": "exists",
+          "durationMs": 208.1849000000002,
+          "detail": "~/.zcode/server/node"
+        },
+        {
+          "method": "exists",
+          "durationMs": 200.15280000000075,
+          "detail": "~/.zcode/server/zcode-server.cjs"
+        },
+        {
+          "method": "exec",
+          "durationMs": 73.89369999999963,
+          "detail": "\"$HOME\"'/.zcode/server/node' \"$HOME\"'/.zcode/server/zcode-server.cjs' --version"
+        },
+        {
+          "method": "exec",
+          "durationMs": 78.09599999999955,
+          "detail": "\"$HOME\"'/.zcode/server/node' -e '\nconst fs = require(\"fs\");\nconst content = fs.readFileSync(process.argv[1], \"utf8\");\nconst missing = [\"skill-sync\",\"mcp-sync\",\"plugin-sync\",\"__zcode_rpc_nested_uint8array_v1\",\"exportMarketplaceSourceArchive\""
+        },
+        {
+          "method": "exec",
+          "durationMs": 86.50340000000051,
+          "detail": "set -eu\nmkdir -p \"$HOME\"'/.zcode/server'\nprintf '%b' '\\163\\145\\164\\040\\055\\145\\165\\012\\154\\157\\143\\153\\137\\144\\151\\162\\075\\042\\044\\110\\117\\115\\105\\042\\047\\057\\056\\172\\143\\157\\144\\145\\057\\163\\145\\162\\166\\145\\162\\057\\056\\144\\145\\160\\154\\157\\1"
+        },
+        {
+          "method": "exists",
+          "durationMs": 243.1328999999996,
+          "detail": "~/.zcode/server/node"
+        },
+        {
+          "method": "exists",
+          "durationMs": 219.7575999999999,
+          "detail": "~/.zcode/server/zcode-server.cjs"
+        },
+        {
+          "method": "exec",
+          "durationMs": 84.17820000000029,
+          "detail": "\"$HOME\"'/.zcode/server/node' \"$HOME\"'/.zcode/server/zcode-server.cjs' --version"
+        },
+        {
+          "method": "exec",
+          "durationMs": 82.39670000000024,
+          "detail": "\"$HOME\"'/.zcode/server/node' -e '\nconst fs = require(\"fs\");\nconst content = fs.readFileSync(process.argv[1], \"utf8\");\nconst missing = [\"skill-sync\",\"mcp-sync\",\"plugin-sync\",\"__zcode_rpc_nested_uint8array_v1\",\"exportMarketplaceSourceArchive\""
+        },
+        {
+          "method": "readFile",
+          "durationMs": 221.53450000000066,
+          "detail": "~/.zcode/server/.asset-components/server-bundle.json"
+        },
+        {
+          "method": "readFile",
+          "durationMs": 194.1813000000002,
+          "detail": "~/.zcode/server/.asset-components/glm.json"
+        },
+        {
+          "method": "exists",
+          "durationMs": 224.14909999999963,
+          "detail": "~/.zcode/server/build/Release/pty.node"
+        },
+        {
+          "method": "exists",
+          "durationMs": 228.88410000000113,
+          "detail": "~/.zcode/server/agents/glm/packages/android-emulator-plugin/.zcode-plugin/plugin.json"
+        },
+        {
+          "method": "exists",
+          "durationMs": 200.16339999999946,
+          "detail": "~/.zcode/server/agents/glm/packages/browser-use-plugin/.zcode-plugin/plugin.json"
+        },
+        {
+          "method": "exists",
+          "durationMs": 209.38620000000083,
+          "detail": "~/.zcode/server/agents/glm/packages/zcode-cua-plugin/.zcode-plugin/plugin.json"
+        },
+        {
+          "method": "exists",
+          "durationMs": 206.05199999999968,
+          "detail": "~/.zcode/server/agents/glm/packages/documents-plugin/.zcode-plugin/plugin.json"
+        },
+        {
+          "method": "exists",
+          "durationMs": 199.55199999999968,
+          "detail": "~/.zcode/server/agents/glm/packages/pdf-plugin/.zcode-plugin/plugin.json"
+        },
+        {
+          "method": "exists",
+          "durationMs": 369.0023000000001,
+          "detail": "~/.zcode/server/agents/glm/packages/presentations-plugin/.zcode-plugin/plugin.json"
+        },
+        {
+          "method": "exists",
+          "durationMs": 211.48029999999926,
+          "detail": "~/.zcode/server/agents/glm/packages/spreadsheets-plugin/.zcode-plugin/plugin.json"
+        },
+        {
+          "method": "exists",
+          "durationMs": 229.3204999999998,
+          "detail": "~/.zcode/server/agents/glm/packages/image-search-plugin/.zcode-plugin/plugin.json"
+        },
+        {
+          "method": "exists",
+          "durationMs": 199.70110000000022,
+          "detail": "~/.zcode/server/agents/glm/packages/ios-simulator-plugin/.zcode-plugin/plugin.json"
+        },
+        {
+          "method": "exists",
+          "durationMs": 184.7476999999999,
+          "detail": "~/.zcode/server/agents/glm/packages/restore-legacy-sessions-plugin/.zcode-plugin/plugin.json"
+        },
+        {
+          "method": "exists",
+          "durationMs": 186.22559999999976,
+          "detail": "~/.zcode/server/agents/glm/packages/skill-creator-plugin/.zcode-plugin/plugin.json"
+        },
+        {
+          "method": "exists",
+          "durationMs": 188.45540000000074,
+          "detail": "~/.zcode/server/agents/glm/packages/plugin-creator-plugin/.zcode-plugin/plugin.json"
+        },
+        {
+          "method": "exists",
+          "durationMs": 183.72319999999854,
+          "detail": "~/.zcode/server/agents/glm/packages/zcode-guide-plugin/.zcode-plugin/plugin.json"
+        },
+        {
+          "method": "exists",
+          "durationMs": 186.11009999999987,
+          "detail": "~/.zcode/server/agents/glm/packages/visualize-plugin/.zcode-plugin/plugin.json"
+        },
+        {
+          "method": "exists",
+          "durationMs": 193.72609999999986,
+          "detail": "~/.zcode/server/agents/glm/packages/visualize-plugin/skills/visualize/SKILL.md"
+        },
+        {
+          "method": "exists",
+          "durationMs": 176.92540000000008,
+          "detail": "~/.zcode/server/agents/glm/packages/visualize-plugin/skills/visualize/references/api.md"
+        },
+        {
+          "method": "exists",
+          "durationMs": 175.86009999999987,
+          "detail": "~/.zcode/server/agents/glm/packages/visualize-plugin/skills/visualize/references/styles.md"
+        },
+        {
+          "method": "exists",
+          "durationMs": 174.27760000000126,
+          "detail": "~/.zcode/server/agents/glm/packages/visualize-plugin/skills/visualize/tweak.md"
+        },
+        {
+          "method": "exists",
+          "durationMs": 201.3099000000002,
+          "detail": "~/.zcode/server/agents/glm/packages/visualize-plugin/skills/visualize/LICENSE.md"
+        },
+        {
+          "method": "exists",
+          "durationMs": 195.02649999999994,
+          "detail": "~/.zcode/server/agents/glm/packages/visualize-plugin/skills/visualize/scripts/render.py"
+        },
+        {
+          "method": "exists",
+          "durationMs": 178.66129999999976,
+          "detail": "~/.zcode/server/agents/glm/packages/visualize-plugin/skills/visualize/assets/visualize.css"
+        },
+        {
+          "method": "exists",
+          "durationMs": 177.0617999999995,
+          "detail": "~/.zcode/server/agents/glm/packages/visualize-plugin/skills/visualize/assets/visualize.html"
+        },
+        {
+          "method": "exists",
+          "durationMs": 190.3658000000014,
+          "detail": "~/.zcode/server/agents/glm/packages/visualize-plugin/skills/visualize/assets/calendar.js"
+        },
+        {
+          "method": "exists",
+          "durationMs": 174.13290000000052,
+          "detail": "~/.zcode/server/agents/glm/packages/visualize-plugin/skills/visualize/assets/runtime-manifest.json"
+        },
+        {
+          "method": "exists",
+          "durationMs": 171.60929999999826,
+          "detail": "~/.zcode/server/agents/glm/packages/visualize-plugin/skills/visualize/scripts/vendor.py"
+        },
+        {
+          "method": "exists",
+          "durationMs": 185.83390000000145,
+          "detail": "~/.zcode/server/agents/glm/packages/visualize-plugin/skills/visualize/assets/vendor/manifest.json"
+        },
+        {
+          "method": "exists",
+          "durationMs": 238.14520000000084,
+          "detail": "~/.zcode/server/agents/glm/packages/visualize-plugin/skills/visualize/assets/vendor/floating-ui-core-1.7.3.min.js"
+        },
+        {
+          "method": "exists",
+          "durationMs": 190.91449999999895,
+          "detail": "~/.zcode/server/agents/glm/packages/visualize-plugin/skills/visualize/assets/vendor/floating-ui-core-1.7.3.min.js.LICENSE"
+        },
+        {
+          "method": "exists",
+          "durationMs": 183.20390000000043,
+          "detail": "~/.zcode/server/agents/glm/packages/visualize-plugin/skills/visualize/assets/vendor/floating-ui-dom-1.7.4.min.js"
+        },
+        {
+          "method": "exists",
+          "durationMs": 183.4976999999999,
+          "detail": "~/.zcode/server/agents/glm/packages/visualize-plugin/skills/visualize/assets/vendor/floating-ui-dom-1.7.4.min.js.LICENSE"
+        },
+        {
+          "method": "exists",
+          "durationMs": 184.0077000000001,
+          "detail": "~/.zcode/server/agents/glm/packages/visualize-plugin/skills/visualize/assets/vendor/lucide-1.17.0.js"
+        },
+        {
+          "method": "exists",
+          "durationMs": 197.40619999999944,
+          "detail": "~/.zcode/server/agents/glm/packages/visualize-plugin/skills/visualize/assets/vendor/lucide-1.17.0.js.LICENSE"
+        },
+        {
+          "method": "exists",
+          "durationMs": 188.82409999999982,
+          "detail": "~/.zcode/server/agents/glm/packages/visualize-plugin/skills/visualize/assets/vendor/d3-7.9.0.min.js"
+        },
+        {
+          "method": "exists",
+          "durationMs": 192.08359999999993,
+          "detail": "~/.zcode/server/agents/glm/packages/visualize-plugin/skills/visualize/assets/vendor/d3-7.9.0.min.js.LICENSE"
+        },
+        {
+          "method": "exists",
+          "durationMs": 177.74099999999999,
+          "detail": "~/.zcode/server/agents/glm/packages/visualize-plugin/skills/visualize/assets/standalone-host-bridge.js"
+        },
+        {
+          "method": "exists",
+          "durationMs": 201.08029999999962,
+          "detail": "~/.zcode/server/agents/glm/packages/visualize-plugin/skills/visualize/assets/standalone-shell.js"
+        },
+        {
+          "method": "exists",
+          "durationMs": 175.93509999999878,
+          "detail": "~/.zcode/server/agents/glm/packages/visualize-plugin/skills/visualize/widgets/calendar.md"
+        },
+        {
+          "method": "exists",
+          "durationMs": 196.8889999999992,
+          "detail": "~/.zcode/server/agents/glm/packages/visualize-plugin/skills/visualize/examples/calendar.html"
+        },
+        {
+          "method": "exists",
+          "durationMs": 176.95889999999963,
+          "detail": "~/.zcode/server/agents/glm/packages/browser-use-plugin/docs/api.json"
+        },
+        {
+          "method": "exists",
+          "durationMs": 214.10630000000128,
+          "detail": "~/.zcode/server/agents/glm/packages/browser-use-plugin/docs/documents.json"
+        },
+        {
+          "method": "exists",
+          "durationMs": 209.47180000000117,
+          "detail": "~/.zcode/server/agents/glm/packages/browser-use-plugin/docs/overview.md"
+        },
+        {
+          "method": "exists",
+          "durationMs": 198.19870000000083,
+          "detail": "~/.zcode/server/agents/glm/packages/browser-use-plugin/docs/recording.md"
+        },
+        {
+          "method": "exists",
+          "durationMs": 181.89010000000053,
+          "detail": "~/.zcode/server/agents/glm/packages/browser-use-plugin/docs/workflow.md"
+        },
+        {
+          "method": "exists",
+          "durationMs": 185.1794000000009,
+          "detail": "~/.zcode/server/agents/glm/packages/browser-use-plugin/scripts/browser-client.mjs"
+        },
+        {
+          "method": "exists",
+          "durationMs": 173.50600000000122,
+          "detail": "~/.zcode/server/agents/glm/packages/browser-use-plugin/skills/control-browser/SKILL.md"
+        },
+        {
+          "method": "exists",
+          "durationMs": 189.17689999999857,
+          "detail": "~/.zcode/server/agents/glm/packages/browser-use-plugin/skills/web-gui-tester/SKILL.md"
+        },
+        {
+          "method": "exists",
+          "durationMs": 187.65680000000066,
+          "detail": "~/.zcode/server/agents/glm/packages/image-search-plugin/.mcp.json"
+        },
+        {
+          "method": "exists",
+          "durationMs": 173.18730000000141,
+          "detail": "~/.zcode/server/agents/glm/packages/documents-plugin/agents/visual-judge.md"
+        },
+        {
+          "method": "exists",
+          "durationMs": 174.39429999999993,
+          "detail": "~/.zcode/server/agents/glm/packages/documents-plugin/skills/docx/SKILL.md"
+        },
+        {
+          "method": "exists",
+          "durationMs": 167.9226000000017,
+          "detail": "~/.zcode/server/agents/glm/packages/pdf-plugin/agents/visual-judge.md"
+        },
+        {
+          "method": "exists",
+          "durationMs": 186.00630000000092,
+          "detail": "~/.zcode/server/agents/glm/packages/pdf-plugin/skills/pdf/SKILL.md"
+        },
+        {
+          "method": "exists",
+          "durationMs": 180.8176999999996,
+          "detail": "~/.zcode/server/agents/glm/packages/presentations-plugin/agents/visual-judge.md"
+        },
+        {
+          "method": "exists",
+          "durationMs": 210.84740000000238,
+          "detail": "~/.zcode/server/agents/glm/packages/presentations-plugin/skills/pptx/SKILL.md"
+        },
+        {
+          "method": "exists",
+          "durationMs": 189.75469999999768,
+          "detail": "~/.zcode/server/agents/glm/packages/spreadsheets-plugin/agents/visual-judge.md"
+        },
+        {
+          "method": "exists",
+          "durationMs": 184.27070000000094,
+          "detail": "~/.zcode/server/agents/glm/packages/spreadsheets-plugin/skills/xlsx/SKILL.md"
+        },
+        {
+          "method": "exists",
+          "durationMs": 171.4297000000006,
+          "detail": "~/.zcode/server/agents/glm/packages/zcode-cua-plugin/docs/computer-use.md"
+        },
+        {
+          "method": "exists",
+          "durationMs": 172.16009999999733,
+          "detail": "~/.zcode/server/agents/glm/packages/zcode-cua-plugin/scripts/computer-use-client.mjs"
+        },
+        {
+          "method": "exists",
+          "durationMs": 173.0547000000006,
+          "detail": "~/.zcode/server/agents/glm/packages/zcode-cua-plugin/skills/computer-use/SKILL.md"
+        },
+        {
+          "method": "readFile",
+          "durationMs": 187.38500000000204,
+          "detail": "~/.zcode/server/.asset-components/glm.json"
+        },
+        {
+          "method": "exists",
+          "durationMs": 181.6078000000016,
+          "detail": "~/.zcode/server/agents/glm/zcode-agent"
+        },
+        {
+          "method": "readFile",
+          "durationMs": 207.67439999999988,
+          "detail": "~/.zcode/server/agents/glm/zcode-agent"
+        },
+        {
+          "method": "exists",
+          "durationMs": 178.78399999999965,
+          "detail": "~/.zcode/server/agents/glm/zcode.cjs"
+        },
+        {
+          "method": "readFile",
+          "durationMs": 180.74309999999969,
+          "detail": "~/.zcode/server/tools/bfs/.version"
+        },
+        {
+          "method": "exists",
+          "durationMs": 176.53440000000046,
+          "detail": "~/.zcode/server/tools/bfs/bfs"
+        },
+        {
+          "method": "readFile",
+          "durationMs": 202.9965000000011,
+          "detail": "~/.zcode/server/tools/ripgrep/.version"
+        },
+        {
+          "method": "exists",
+          "durationMs": 181.20200000000114,
+          "detail": "~/.zcode/server/tools/ripgrep/rg"
+        },
+        {
+          "method": "readFile",
+          "durationMs": 193.33489999999802,
+          "detail": "~/.zcode/server/tools/ugrep/.version"
+        },
+        {
+          "method": "exists",
+          "durationMs": 187.47829999999885,
+          "detail": "~/.zcode/server/tools/ugrep/ugrep"
+        },
+        {
+          "method": "exec",
+          "durationMs": 64.43610000000263,
+          "detail": "ZCODE_SERVICE_AUTHORITY_MODE=\"desktop-attached-remote\" ZCODE_SERVER_RUNTIME_ROOT=\"$HOME/.zcode/server\" ~/.zcode/server/node ~/.zcode/server/zcode-server.cjs"
+        }
+      ],
+      "totalMs": 17700.2595,
+      "phases": {
+        "detectMs": 667.6941000000006,
+        "runtimeNetworkMs": 0.35419999999976426,
+        "deployMs": 16559.0199,
+        "launchMs": 64.71060000000216,
+        "handshakeMs": 406.4830000000002,
+        "wrapMs": 0.5967000000018743,
+        "unattributedMs": 1.400999999994383
+      },
+      "systemRpcMs": 112.41120000000228,
+      "identity": {
+        "platform": "linux",
+        "homedir": "/home/zcodewslp2"
+      },
+      "disposeMs": 85.75770000000193
+    },
+    {
+      "iteration": 2,
+      "backendCalls": [
+        {
+          "method": "detect",
+          "durationMs": 598.4235999999983,
+          "detail": ""
+        },
+        {
+          "method": "exists",
+          "durationMs": 186.72839999999997,
+          "detail": "~/.zcode/server/node"
+        },
+        {
+          "method": "exists",
+          "durationMs": 171.66930000000139,
+          "detail": "~/.zcode/server/zcode-server.cjs"
+        },
+        {
+          "method": "exec",
+          "durationMs": 62.82150000000183,
+          "detail": "\"$HOME\"'/.zcode/server/node' \"$HOME\"'/.zcode/server/zcode-server.cjs' --version"
+        },
+        {
+          "method": "exec",
+          "durationMs": 79.99239999999918,
+          "detail": "\"$HOME\"'/.zcode/server/node' -e '\nconst fs = require(\"fs\");\nconst content = fs.readFileSync(process.argv[1], \"utf8\");\nconst missing = [\"skill-sync\",\"mcp-sync\",\"plugin-sync\",\"__zcode_rpc_nested_uint8array_v1\",\"exportMarketplaceSourceArchive\""
+        },
+        {
+          "method": "exec",
+          "durationMs": 64.10150000000067,
+          "detail": "set -eu\nmkdir -p \"$HOME\"'/.zcode/server'\nprintf '%b' '\\163\\145\\164\\040\\055\\145\\165\\012\\154\\157\\143\\153\\137\\144\\151\\162\\075\\042\\044\\110\\117\\115\\105\\042\\047\\057\\056\\172\\143\\157\\144\\145\\057\\163\\145\\162\\166\\145\\162\\057\\056\\144\\145\\160\\154\\157\\1"
+        },
+        {
+          "method": "exists",
+          "durationMs": 184.3765999999996,
+          "detail": "~/.zcode/server/node"
+        },
+        {
+          "method": "exists",
+          "durationMs": 177.1826000000001,
+          "detail": "~/.zcode/server/zcode-server.cjs"
+        },
+        {
+          "method": "exec",
+          "durationMs": 63.453599999997095,
+          "detail": "\"$HOME\"'/.zcode/server/node' \"$HOME\"'/.zcode/server/zcode-server.cjs' --version"
+        },
+        {
+          "method": "exec",
+          "durationMs": 81.67829999999958,
+          "detail": "\"$HOME\"'/.zcode/server/node' -e '\nconst fs = require(\"fs\");\nconst content = fs.readFileSync(process.argv[1], \"utf8\");\nconst missing = [\"skill-sync\",\"mcp-sync\",\"plugin-sync\",\"__zcode_rpc_nested_uint8array_v1\",\"exportMarketplaceSourceArchive\""
+        },
+        {
+          "method": "readFile",
+          "durationMs": 191.8809000000001,
+          "detail": "~/.zcode/server/.asset-components/server-bundle.json"
+        },
+        {
+          "method": "readFile",
+          "durationMs": 189.24530000000232,
+          "detail": "~/.zcode/server/.asset-components/glm.json"
+        },
+        {
+          "method": "exists",
+          "durationMs": 173.2488000000012,
+          "detail": "~/.zcode/server/build/Release/pty.node"
+        },
+        {
+          "method": "exists",
+          "durationMs": 171.25570000000153,
+          "detail": "~/.zcode/server/agents/glm/packages/android-emulator-plugin/.zcode-plugin/plugin.json"
+        },
+        {
+          "method": "exists",
+          "durationMs": 175.57900000000154,
+          "detail": "~/.zcode/server/agents/glm/packages/browser-use-plugin/.zcode-plugin/plugin.json"
+        },
+        {
+          "method": "exists",
+          "durationMs": 180.61809999999969,
+          "detail": "~/.zcode/server/agents/glm/packages/zcode-cua-plugin/.zcode-plugin/plugin.json"
+        },
+        {
+          "method": "exists",
+          "durationMs": 187.85310000000027,
+          "detail": "~/.zcode/server/agents/glm/packages/documents-plugin/.zcode-plugin/plugin.json"
+        },
+        {
+          "method": "exists",
+          "durationMs": 182.40539999999964,
+          "detail": "~/.zcode/server/agents/glm/packages/pdf-plugin/.zcode-plugin/plugin.json"
+        },
+        {
+          "method": "exists",
+          "durationMs": 169.7592999999979,
+          "detail": "~/.zcode/server/agents/glm/packages/presentations-plugin/.zcode-plugin/plugin.json"
+        },
+        {
+          "method": "exists",
+          "durationMs": 170.3181000000004,
+          "detail": "~/.zcode/server/agents/glm/packages/spreadsheets-plugin/.zcode-plugin/plugin.json"
+        },
+        {
+          "method": "exists",
+          "durationMs": 169.84679999999935,
+          "detail": "~/.zcode/server/agents/glm/packages/image-search-plugin/.zcode-plugin/plugin.json"
+        },
+        {
+          "method": "exists",
+          "durationMs": 167.31559999999808,
+          "detail": "~/.zcode/server/agents/glm/packages/ios-simulator-plugin/.zcode-plugin/plugin.json"
+        },
+        {
+          "method": "exists",
+          "durationMs": 200.9334000000017,
+          "detail": "~/.zcode/server/agents/glm/packages/restore-legacy-sessions-plugin/.zcode-plugin/plugin.json"
+        },
+        {
+          "method": "exists",
+          "durationMs": 178.0607999999993,
+          "detail": "~/.zcode/server/agents/glm/packages/skill-creator-plugin/.zcode-plugin/plugin.json"
+        },
+        {
+          "method": "exists",
+          "durationMs": 188.22780000000057,
+          "detail": "~/.zcode/server/agents/glm/packages/plugin-creator-plugin/.zcode-plugin/plugin.json"
+        },
+        {
+          "method": "exists",
+          "durationMs": 180.87999999999738,
+          "detail": "~/.zcode/server/agents/glm/packages/zcode-guide-plugin/.zcode-plugin/plugin.json"
+        },
+        {
+          "method": "exists",
+          "durationMs": 189.79069999999774,
+          "detail": "~/.zcode/server/agents/glm/packages/visualize-plugin/.zcode-plugin/plugin.json"
+        },
+        {
+          "method": "exists",
+          "durationMs": 200.78229999999894,
+          "detail": "~/.zcode/server/agents/glm/packages/visualize-plugin/skills/visualize/SKILL.md"
+        },
+        {
+          "method": "exists",
+          "durationMs": 199.001400000001,
+          "detail": "~/.zcode/server/agents/glm/packages/visualize-plugin/skills/visualize/references/api.md"
+        },
+        {
+          "method": "exists",
+          "durationMs": 187.39570000000094,
+          "detail": "~/.zcode/server/agents/glm/packages/visualize-plugin/skills/visualize/references/styles.md"
+        },
+        {
+          "method": "exists",
+          "durationMs": 205.29100000000108,
+          "detail": "~/.zcode/server/agents/glm/packages/visualize-plugin/skills/visualize/tweak.md"
+        },
+        {
+          "method": "exists",
+          "durationMs": 216.39730000000054,
+          "detail": "~/.zcode/server/agents/glm/packages/visualize-plugin/skills/visualize/LICENSE.md"
+        },
+        {
+          "method": "exists",
+          "durationMs": 192.67079999999987,
+          "detail": "~/.zcode/server/agents/glm/packages/visualize-plugin/skills/visualize/scripts/render.py"
+        },
+        {
+          "method": "exists",
+          "durationMs": 187.1864999999998,
+          "detail": "~/.zcode/server/agents/glm/packages/visualize-plugin/skills/visualize/assets/visualize.css"
+        },
+        {
+          "method": "exists",
+          "durationMs": 207.03240000000005,
+          "detail": "~/.zcode/server/agents/glm/packages/visualize-plugin/skills/visualize/assets/visualize.html"
+        },
+        {
+          "method": "exists",
+          "durationMs": 189.90029999999751,
+          "detail": "~/.zcode/server/agents/glm/packages/visualize-plugin/skills/visualize/assets/calendar.js"
+        },
+        {
+          "method": "exists",
+          "durationMs": 213.41690000000017,
+          "detail": "~/.zcode/server/agents/glm/packages/visualize-plugin/skills/visualize/assets/runtime-manifest.json"
+        },
+        {
+          "method": "exists",
+          "durationMs": 206.14679999999862,
+          "detail": "~/.zcode/server/agents/glm/packages/visualize-plugin/skills/visualize/scripts/vendor.py"
+        },
+        {
+          "method": "exists",
+          "durationMs": 211.80389999999898,
+          "detail": "~/.zcode/server/agents/glm/packages/visualize-plugin/skills/visualize/assets/vendor/manifest.json"
+        },
+        {
+          "method": "exists",
+          "durationMs": 193.52899999999863,
+          "detail": "~/.zcode/server/agents/glm/packages/visualize-plugin/skills/visualize/assets/vendor/floating-ui-core-1.7.3.min.js"
+        },
+        {
+          "method": "exists",
+          "durationMs": 193.72050000000309,
+          "detail": "~/.zcode/server/agents/glm/packages/visualize-plugin/skills/visualize/assets/vendor/floating-ui-core-1.7.3.min.js.LICENSE"
+        },
+        {
+          "method": "exists",
+          "durationMs": 192.86209999999846,
+          "detail": "~/.zcode/server/agents/glm/packages/visualize-plugin/skills/visualize/assets/vendor/floating-ui-dom-1.7.4.min.js"
+        },
+        {
+          "method": "exists",
+          "durationMs": 213.2612999999983,
+          "detail": "~/.zcode/server/agents/glm/packages/visualize-plugin/skills/visualize/assets/vendor/floating-ui-dom-1.7.4.min.js.LICENSE"
+        },
+        {
+          "method": "exists",
+          "durationMs": 191.64489999999932,
+          "detail": "~/.zcode/server/agents/glm/packages/visualize-plugin/skills/visualize/assets/vendor/lucide-1.17.0.js"
+        },
+        {
+          "method": "exists",
+          "durationMs": 194.06359999999768,
+          "detail": "~/.zcode/server/agents/glm/packages/visualize-plugin/skills/visualize/assets/vendor/lucide-1.17.0.js.LICENSE"
+        },
+        {
+          "method": "exists",
+          "durationMs": 215.1317999999992,
+          "detail": "~/.zcode/server/agents/glm/packages/visualize-plugin/skills/visualize/assets/vendor/d3-7.9.0.min.js"
+        },
+        {
+          "method": "exists",
+          "durationMs": 190.14310000000114,
+          "detail": "~/.zcode/server/agents/glm/packages/visualize-plugin/skills/visualize/assets/vendor/d3-7.9.0.min.js.LICENSE"
+        },
+        {
+          "method": "exists",
+          "durationMs": 211.04750000000058,
+          "detail": "~/.zcode/server/agents/glm/packages/visualize-plugin/skills/visualize/assets/standalone-host-bridge.js"
+        },
+        {
+          "method": "exists",
+          "durationMs": 212.5529000000024,
+          "detail": "~/.zcode/server/agents/glm/packages/visualize-plugin/skills/visualize/assets/standalone-shell.js"
+        },
+        {
+          "method": "exists",
+          "durationMs": 212.168700000002,
+          "detail": "~/.zcode/server/agents/glm/packages/visualize-plugin/skills/visualize/widgets/calendar.md"
+        },
+        {
+          "method": "exists",
+          "durationMs": 203.2161999999953,
+          "detail": "~/.zcode/server/agents/glm/packages/visualize-plugin/skills/visualize/examples/calendar.html"
+        },
+        {
+          "method": "exists",
+          "durationMs": 209.34640000000218,
+          "detail": "~/.zcode/server/agents/glm/packages/browser-use-plugin/docs/api.json"
+        },
+        {
+          "method": "exists",
+          "durationMs": 195.47849999999744,
+          "detail": "~/.zcode/server/agents/glm/packages/browser-use-plugin/docs/documents.json"
+        },
+        {
+          "method": "exists",
+          "durationMs": 192.16300000000047,
+          "detail": "~/.zcode/server/agents/glm/packages/browser-use-plugin/docs/overview.md"
+        },
+        {
+          "method": "exists",
+          "durationMs": 199.61539999999513,
+          "detail": "~/.zcode/server/agents/glm/packages/browser-use-plugin/docs/recording.md"
+        },
+        {
+          "method": "exists",
+          "durationMs": 192.16860000000452,
+          "detail": "~/.zcode/server/agents/glm/packages/browser-use-plugin/docs/workflow.md"
+        },
+        {
+          "method": "exists",
+          "durationMs": 185.58669999999984,
+          "detail": "~/.zcode/server/agents/glm/packages/browser-use-plugin/scripts/browser-client.mjs"
+        },
+        {
+          "method": "exists",
+          "durationMs": 194.52700000000186,
+          "detail": "~/.zcode/server/agents/glm/packages/browser-use-plugin/skills/control-browser/SKILL.md"
+        },
+        {
+          "method": "exists",
+          "durationMs": 215.02350000000297,
+          "detail": "~/.zcode/server/agents/glm/packages/browser-use-plugin/skills/web-gui-tester/SKILL.md"
+        },
+        {
+          "method": "exists",
+          "durationMs": 185.91599999999744,
+          "detail": "~/.zcode/server/agents/glm/packages/image-search-plugin/.mcp.json"
+        },
+        {
+          "method": "exists",
+          "durationMs": 221.47899999999936,
+          "detail": "~/.zcode/server/agents/glm/packages/documents-plugin/agents/visual-judge.md"
+        },
+        {
+          "method": "exists",
+          "durationMs": 184.67789999999513,
+          "detail": "~/.zcode/server/agents/glm/packages/documents-plugin/skills/docx/SKILL.md"
+        },
+        {
+          "method": "exists",
+          "durationMs": 195.66330000000016,
+          "detail": "~/.zcode/server/agents/glm/packages/pdf-plugin/agents/visual-judge.md"
+        },
+        {
+          "method": "exists",
+          "durationMs": 191.42930000000342,
+          "detail": "~/.zcode/server/agents/glm/packages/pdf-plugin/skills/pdf/SKILL.md"
+        },
+        {
+          "method": "exists",
+          "durationMs": 220.14190000000235,
+          "detail": "~/.zcode/server/agents/glm/packages/presentations-plugin/agents/visual-judge.md"
+        },
+        {
+          "method": "exists",
+          "durationMs": 192.8365999999951,
+          "detail": "~/.zcode/server/agents/glm/packages/presentations-plugin/skills/pptx/SKILL.md"
+        },
+        {
+          "method": "exists",
+          "durationMs": 204.84970000000612,
+          "detail": "~/.zcode/server/agents/glm/packages/spreadsheets-plugin/agents/visual-judge.md"
+        },
+        {
+          "method": "exists",
+          "durationMs": 195.12490000000253,
+          "detail": "~/.zcode/server/agents/glm/packages/spreadsheets-plugin/skills/xlsx/SKILL.md"
+        },
+        {
+          "method": "exists",
+          "durationMs": 192.41629999999714,
+          "detail": "~/.zcode/server/agents/glm/packages/zcode-cua-plugin/docs/computer-use.md"
+        },
+        {
+          "method": "exists",
+          "durationMs": 185.74919999999838,
+          "detail": "~/.zcode/server/agents/glm/packages/zcode-cua-plugin/scripts/computer-use-client.mjs"
+        },
+        {
+          "method": "exists",
+          "durationMs": 183.8695000000007,
+          "detail": "~/.zcode/server/agents/glm/packages/zcode-cua-plugin/skills/computer-use/SKILL.md"
+        },
+        {
+          "method": "readFile",
+          "durationMs": 190.45620000000054,
+          "detail": "~/.zcode/server/.asset-components/glm.json"
+        },
+        {
+          "method": "exists",
+          "durationMs": 200.11769999999524,
+          "detail": "~/.zcode/server/agents/glm/zcode-agent"
+        },
+        {
+          "method": "readFile",
+          "durationMs": 193.0885000000053,
+          "detail": "~/.zcode/server/agents/glm/zcode-agent"
+        },
+        {
+          "method": "exists",
+          "durationMs": 180.52260000000388,
+          "detail": "~/.zcode/server/agents/glm/zcode.cjs"
+        },
+        {
+          "method": "readFile",
+          "durationMs": 216.9658000000054,
+          "detail": "~/.zcode/server/tools/bfs/.version"
+        },
+        {
+          "method": "exists",
+          "durationMs": 183.47769999999582,
+          "detail": "~/.zcode/server/tools/bfs/bfs"
+        },
+        {
+          "method": "readFile",
+          "durationMs": 187.78399999999965,
+          "detail": "~/.zcode/server/tools/ripgrep/.version"
+        },
+        {
+          "method": "exists",
+          "durationMs": 203.5138999999981,
+          "detail": "~/.zcode/server/tools/ripgrep/rg"
+        },
+        {
+          "method": "readFile",
+          "durationMs": 208.67179999999644,
+          "detail": "~/.zcode/server/tools/ugrep/.version"
+        },
+        {
+          "method": "exists",
+          "durationMs": 189.65170000000217,
+          "detail": "~/.zcode/server/tools/ugrep/ugrep"
+        },
+        {
+          "method": "exec",
+          "durationMs": 76.21040000000357,
+          "detail": "ZCODE_SERVICE_AUTHORITY_MODE=\"desktop-attached-remote\" ZCODE_SERVER_RUNTIME_ROOT=\"$HOME/.zcode/server\" ~/.zcode/server/node ~/.zcode/server/zcode-server.cjs"
+        }
+      ],
+      "totalMs": 17232.2023,
+      "phases": {
+        "detectMs": 598.5926999999974,
+        "runtimeNetworkMs": 0.1588000000010652,
+        "deployMs": 16132.2477,
+        "launchMs": 76.38670000000275,
+        "handshakeMs": 424.42239999999583,
+        "wrapMs": 0.2657000000035623,
+        "unattributedMs": 0.1283000000003085
+      },
+      "systemRpcMs": 100.23040000000037,
+      "identity": {
+        "platform": "linux",
+        "homedir": "/home/zcodewslp2"
+      },
+      "disposeMs": 55.36460000000079
+    },
+    {
+      "iteration": 3,
+      "backendCalls": [
+        {
+          "method": "detect",
+          "durationMs": 627.8555000000051,
+          "detail": ""
+        },
+        {
+          "method": "exists",
+          "durationMs": 193.90630000000237,
+          "detail": "~/.zcode/server/node"
+        },
+        {
+          "method": "exists",
+          "durationMs": 198.51950000000215,
+          "detail": "~/.zcode/server/zcode-server.cjs"
+        },
+        {
+          "method": "exec",
+          "durationMs": 69.72460000000137,
+          "detail": "\"$HOME\"'/.zcode/server/node' \"$HOME\"'/.zcode/server/zcode-server.cjs' --version"
+        },
+        {
+          "method": "exec",
+          "durationMs": 72.2474000000002,
+          "detail": "\"$HOME\"'/.zcode/server/node' -e '\nconst fs = require(\"fs\");\nconst content = fs.readFileSync(process.argv[1], \"utf8\");\nconst missing = [\"skill-sync\",\"mcp-sync\",\"plugin-sync\",\"__zcode_rpc_nested_uint8array_v1\",\"exportMarketplaceSourceArchive\""
+        },
+        {
+          "method": "exec",
+          "durationMs": 71.33789999999863,
+          "detail": "set -eu\nmkdir -p \"$HOME\"'/.zcode/server'\nprintf '%b' '\\163\\145\\164\\040\\055\\145\\165\\012\\154\\157\\143\\153\\137\\144\\151\\162\\075\\042\\044\\110\\117\\115\\105\\042\\047\\057\\056\\172\\143\\157\\144\\145\\057\\163\\145\\162\\166\\145\\162\\057\\056\\144\\145\\160\\154\\157\\1"
+        },
+        {
+          "method": "exists",
+          "durationMs": 205.20899999999529,
+          "detail": "~/.zcode/server/node"
+        },
+        {
+          "method": "exists",
+          "durationMs": 188.5100999999995,
+          "detail": "~/.zcode/server/zcode-server.cjs"
+        },
+        {
+          "method": "exec",
+          "durationMs": 69.02189999999973,
+          "detail": "\"$HOME\"'/.zcode/server/node' \"$HOME\"'/.zcode/server/zcode-server.cjs' --version"
+        },
+        {
+          "method": "exec",
+          "durationMs": 71.63539999999921,
+          "detail": "\"$HOME\"'/.zcode/server/node' -e '\nconst fs = require(\"fs\");\nconst content = fs.readFileSync(process.argv[1], \"utf8\");\nconst missing = [\"skill-sync\",\"mcp-sync\",\"plugin-sync\",\"__zcode_rpc_nested_uint8array_v1\",\"exportMarketplaceSourceArchive\""
+        },
+        {
+          "method": "readFile",
+          "durationMs": 200.38500000000204,
+          "detail": "~/.zcode/server/.asset-components/server-bundle.json"
+        },
+        {
+          "method": "readFile",
+          "durationMs": 193.71850000000268,
+          "detail": "~/.zcode/server/.asset-components/glm.json"
+        },
+        {
+          "method": "exists",
+          "durationMs": 193.3509000000049,
+          "detail": "~/.zcode/server/build/Release/pty.node"
+        },
+        {
+          "method": "exists",
+          "durationMs": 189.5581999999995,
+          "detail": "~/.zcode/server/agents/glm/packages/android-emulator-plugin/.zcode-plugin/plugin.json"
+        },
+        {
+          "method": "exists",
+          "durationMs": 198.59560000000056,
+          "detail": "~/.zcode/server/agents/glm/packages/browser-use-plugin/.zcode-plugin/plugin.json"
+        },
+        {
+          "method": "exists",
+          "durationMs": 204.72409999999945,
+          "detail": "~/.zcode/server/agents/glm/packages/zcode-cua-plugin/.zcode-plugin/plugin.json"
+        },
+        {
+          "method": "exists",
+          "durationMs": 204.83170000000246,
+          "detail": "~/.zcode/server/agents/glm/packages/documents-plugin/.zcode-plugin/plugin.json"
+        },
+        {
+          "method": "exists",
+          "durationMs": 212.30010000000038,
+          "detail": "~/.zcode/server/agents/glm/packages/pdf-plugin/.zcode-plugin/plugin.json"
+        },
+        {
+          "method": "exists",
+          "durationMs": 192.29910000000382,
+          "detail": "~/.zcode/server/agents/glm/packages/presentations-plugin/.zcode-plugin/plugin.json"
+        },
+        {
+          "method": "exists",
+          "durationMs": 190.66820000000007,
+          "detail": "~/.zcode/server/agents/glm/packages/spreadsheets-plugin/.zcode-plugin/plugin.json"
+        },
+        {
+          "method": "exists",
+          "durationMs": 193.63910000000033,
+          "detail": "~/.zcode/server/agents/glm/packages/image-search-plugin/.zcode-plugin/plugin.json"
+        },
+        {
+          "method": "exists",
+          "durationMs": 190.71929999999702,
+          "detail": "~/.zcode/server/agents/glm/packages/ios-simulator-plugin/.zcode-plugin/plugin.json"
+        },
+        {
+          "method": "exists",
+          "durationMs": 201.73180000000139,
+          "detail": "~/.zcode/server/agents/glm/packages/restore-legacy-sessions-plugin/.zcode-plugin/plugin.json"
+        },
+        {
+          "method": "exists",
+          "durationMs": 217.25789999999688,
+          "detail": "~/.zcode/server/agents/glm/packages/skill-creator-plugin/.zcode-plugin/plugin.json"
+        },
+        {
+          "method": "exists",
+          "durationMs": 210.96199999999953,
+          "detail": "~/.zcode/server/agents/glm/packages/plugin-creator-plugin/.zcode-plugin/plugin.json"
+        },
+        {
+          "method": "exists",
+          "durationMs": 190.21250000000146,
+          "detail": "~/.zcode/server/agents/glm/packages/zcode-guide-plugin/.zcode-plugin/plugin.json"
+        },
+        {
+          "method": "exists",
+          "durationMs": 188.0977999999959,
+          "detail": "~/.zcode/server/agents/glm/packages/visualize-plugin/.zcode-plugin/plugin.json"
+        },
+        {
+          "method": "exists",
+          "durationMs": 201.6027000000031,
+          "detail": "~/.zcode/server/agents/glm/packages/visualize-plugin/skills/visualize/SKILL.md"
+        },
+        {
+          "method": "exists",
+          "durationMs": 191.0833999999959,
+          "detail": "~/.zcode/server/agents/glm/packages/visualize-plugin/skills/visualize/references/api.md"
+        },
+        {
+          "method": "exists",
+          "durationMs": 211.22090000000026,
+          "detail": "~/.zcode/server/agents/glm/packages/visualize-plugin/skills/visualize/references/styles.md"
+        },
+        {
+          "method": "exists",
+          "durationMs": 195.68640000000596,
+          "detail": "~/.zcode/server/agents/glm/packages/visualize-plugin/skills/visualize/tweak.md"
+        },
+        {
+          "method": "exists",
+          "durationMs": 201.21480000000156,
+          "detail": "~/.zcode/server/agents/glm/packages/visualize-plugin/skills/visualize/LICENSE.md"
+        },
+        {
+          "method": "exists",
+          "durationMs": 212.66159999999945,
+          "detail": "~/.zcode/server/agents/glm/packages/visualize-plugin/skills/visualize/scripts/render.py"
+        },
+        {
+          "method": "exists",
+          "durationMs": 192.04879999999685,
+          "detail": "~/.zcode/server/agents/glm/packages/visualize-plugin/skills/visualize/assets/visualize.css"
+        },
+        {
+          "method": "exists",
+          "durationMs": 193.71609999999782,
+          "detail": "~/.zcode/server/agents/glm/packages/visualize-plugin/skills/visualize/assets/visualize.html"
+        },
+        {
+          "method": "exists",
+          "durationMs": 199.17980000000534,
+          "detail": "~/.zcode/server/agents/glm/packages/visualize-plugin/skills/visualize/assets/calendar.js"
+        },
+        {
+          "method": "exists",
+          "durationMs": 219.98589999999967,
+          "detail": "~/.zcode/server/agents/glm/packages/visualize-plugin/skills/visualize/assets/runtime-manifest.json"
+        },
+        {
+          "method": "exists",
+          "durationMs": 191.63009999999485,
+          "detail": "~/.zcode/server/agents/glm/packages/visualize-plugin/skills/visualize/scripts/vendor.py"
+        },
+        {
+          "method": "exists",
+          "durationMs": 189.56199999999808,
+          "detail": "~/.zcode/server/agents/glm/packages/visualize-plugin/skills/visualize/assets/vendor/manifest.json"
+        },
+        {
+          "method": "exists",
+          "durationMs": 191.998599999999,
+          "detail": "~/.zcode/server/agents/glm/packages/visualize-plugin/skills/visualize/assets/vendor/floating-ui-core-1.7.3.min.js"
+        },
+        {
+          "method": "exists",
+          "durationMs": 219.2289000000019,
+          "detail": "~/.zcode/server/agents/glm/packages/visualize-plugin/skills/visualize/assets/vendor/floating-ui-core-1.7.3.min.js.LICENSE"
+        },
+        {
+          "method": "exists",
+          "durationMs": 194.44710000000487,
+          "detail": "~/.zcode/server/agents/glm/packages/visualize-plugin/skills/visualize/assets/vendor/floating-ui-dom-1.7.4.min.js"
+        },
+        {
+          "method": "exists",
+          "durationMs": 189.5309000000052,
+          "detail": "~/.zcode/server/agents/glm/packages/visualize-plugin/skills/visualize/assets/vendor/floating-ui-dom-1.7.4.min.js.LICENSE"
+        },
+        {
+          "method": "exists",
+          "durationMs": 193.21919999999955,
+          "detail": "~/.zcode/server/agents/glm/packages/visualize-plugin/skills/visualize/assets/vendor/lucide-1.17.0.js"
+        },
+        {
+          "method": "exists",
+          "durationMs": 207.0676999999996,
+          "detail": "~/.zcode/server/agents/glm/packages/visualize-plugin/skills/visualize/assets/vendor/lucide-1.17.0.js.LICENSE"
+        },
+        {
+          "method": "exists",
+          "durationMs": 182.2401000000027,
+          "detail": "~/.zcode/server/agents/glm/packages/visualize-plugin/skills/visualize/assets/vendor/d3-7.9.0.min.js"
+        },
+        {
+          "method": "exists",
+          "durationMs": 219.29179999999906,
+          "detail": "~/.zcode/server/agents/glm/packages/visualize-plugin/skills/visualize/assets/vendor/d3-7.9.0.min.js.LICENSE"
+        },
+        {
+          "method": "exists",
+          "durationMs": 202.92679999999382,
+          "detail": "~/.zcode/server/agents/glm/packages/visualize-plugin/skills/visualize/assets/standalone-host-bridge.js"
+        },
+        {
+          "method": "exists",
+          "durationMs": 188.8165999999983,
+          "detail": "~/.zcode/server/agents/glm/packages/visualize-plugin/skills/visualize/assets/standalone-shell.js"
+        },
+        {
+          "method": "exists",
+          "durationMs": 186.2598999999973,
+          "detail": "~/.zcode/server/agents/glm/packages/visualize-plugin/skills/visualize/widgets/calendar.md"
+        },
+        {
+          "method": "exists",
+          "durationMs": 185.0685999999987,
+          "detail": "~/.zcode/server/agents/glm/packages/visualize-plugin/skills/visualize/examples/calendar.html"
+        },
+        {
+          "method": "exists",
+          "durationMs": 189.08529999999882,
+          "detail": "~/.zcode/server/agents/glm/packages/browser-use-plugin/docs/api.json"
+        },
+        {
+          "method": "exists",
+          "durationMs": 195.33340000000317,
+          "detail": "~/.zcode/server/agents/glm/packages/browser-use-plugin/docs/documents.json"
+        },
+        {
+          "method": "exists",
+          "durationMs": 210.79760000000533,
+          "detail": "~/.zcode/server/agents/glm/packages/browser-use-plugin/docs/overview.md"
+        },
+        {
+          "method": "exists",
+          "durationMs": 190.9334000000017,
+          "detail": "~/.zcode/server/agents/glm/packages/browser-use-plugin/docs/recording.md"
+        },
+        {
+          "method": "exists",
+          "durationMs": 203.98159999999916,
+          "detail": "~/.zcode/server/agents/glm/packages/browser-use-plugin/docs/workflow.md"
+        },
+        {
+          "method": "exists",
+          "durationMs": 186.62109999999666,
+          "detail": "~/.zcode/server/agents/glm/packages/browser-use-plugin/scripts/browser-client.mjs"
+        },
+        {
+          "method": "exists",
+          "durationMs": 189.33860000000277,
+          "detail": "~/.zcode/server/agents/glm/packages/browser-use-plugin/skills/control-browser/SKILL.md"
+        },
+        {
+          "method": "exists",
+          "durationMs": 189.21390000000247,
+          "detail": "~/.zcode/server/agents/glm/packages/browser-use-plugin/skills/web-gui-tester/SKILL.md"
+        },
+        {
+          "method": "exists",
+          "durationMs": 214.1443999999974,
+          "detail": "~/.zcode/server/agents/glm/packages/image-search-plugin/.mcp.json"
+        },
+        {
+          "method": "exists",
+          "durationMs": 193.85480000000098,
+          "detail": "~/.zcode/server/agents/glm/packages/documents-plugin/agents/visual-judge.md"
+        },
+        {
+          "method": "exists",
+          "durationMs": 189.99410000000353,
+          "detail": "~/.zcode/server/agents/glm/packages/documents-plugin/skills/docx/SKILL.md"
+        },
+        {
+          "method": "exists",
+          "durationMs": 191.74200000000565,
+          "detail": "~/.zcode/server/agents/glm/packages/pdf-plugin/agents/visual-judge.md"
+        },
+        {
+          "method": "exists",
+          "durationMs": 190.11500000000524,
+          "detail": "~/.zcode/server/agents/glm/packages/pdf-plugin/skills/pdf/SKILL.md"
+        },
+        {
+          "method": "exists",
+          "durationMs": 198.73649999999907,
+          "detail": "~/.zcode/server/agents/glm/packages/presentations-plugin/agents/visual-judge.md"
+        },
+        {
+          "method": "exists",
+          "durationMs": 204.80390000000625,
+          "detail": "~/.zcode/server/agents/glm/packages/presentations-plugin/skills/pptx/SKILL.md"
+        },
+        {
+          "method": "exists",
+          "durationMs": 204.24759999999515,
+          "detail": "~/.zcode/server/agents/glm/packages/spreadsheets-plugin/agents/visual-judge.md"
+        },
+        {
+          "method": "exists",
+          "durationMs": 194.17659999999887,
+          "detail": "~/.zcode/server/agents/glm/packages/spreadsheets-plugin/skills/xlsx/SKILL.md"
+        },
+        {
+          "method": "exists",
+          "durationMs": 190.58150000000023,
+          "detail": "~/.zcode/server/agents/glm/packages/zcode-cua-plugin/docs/computer-use.md"
+        },
+        {
+          "method": "exists",
+          "durationMs": 186.06410000000324,
+          "detail": "~/.zcode/server/agents/glm/packages/zcode-cua-plugin/scripts/computer-use-client.mjs"
+        },
+        {
+          "method": "exists",
+          "durationMs": 200.8324999999968,
+          "detail": "~/.zcode/server/agents/glm/packages/zcode-cua-plugin/skills/computer-use/SKILL.md"
+        },
+        {
+          "method": "readFile",
+          "durationMs": 198.99079999999958,
+          "detail": "~/.zcode/server/.asset-components/glm.json"
+        },
+        {
+          "method": "exists",
+          "durationMs": 196.4106000000029,
+          "detail": "~/.zcode/server/agents/glm/zcode-agent"
+        },
+        {
+          "method": "readFile",
+          "durationMs": 194.07790000000386,
+          "detail": "~/.zcode/server/agents/glm/zcode-agent"
+        },
+        {
+          "method": "exists",
+          "durationMs": 226.9108999999953,
+          "detail": "~/.zcode/server/agents/glm/zcode.cjs"
+        },
+        {
+          "method": "readFile",
+          "durationMs": 218.64549999999872,
+          "detail": "~/.zcode/server/tools/bfs/.version"
+        },
+        {
+          "method": "exists",
+          "durationMs": 187.912900000003,
+          "detail": "~/.zcode/server/tools/bfs/bfs"
+        },
+        {
+          "method": "readFile",
+          "durationMs": 195.38680000000022,
+          "detail": "~/.zcode/server/tools/ripgrep/.version"
+        },
+        {
+          "method": "exists",
+          "durationMs": 192.2702999999965,
+          "detail": "~/.zcode/server/tools/ripgrep/rg"
+        },
+        {
+          "method": "readFile",
+          "durationMs": 192.21710000000166,
+          "detail": "~/.zcode/server/tools/ugrep/.version"
+        },
+        {
+          "method": "exists",
+          "durationMs": 186.3882999999987,
+          "detail": "~/.zcode/server/tools/ugrep/ugrep"
+        },
+        {
+          "method": "exec",
+          "durationMs": 73.25309999999445,
+          "detail": "ZCODE_SERVICE_AUTHORITY_MODE=\"desktop-attached-remote\" ZCODE_SERVER_RUNTIME_ROOT=\"$HOME/.zcode/server\" ~/.zcode/server/node ~/.zcode/server/zcode-server.cjs"
+        }
+      ],
+      "totalMs": 17613.238400000002,
+      "phases": {
+        "detectMs": 627.9848000000056,
+        "runtimeNetworkMs": 0.16539999999804422,
+        "deployMs": 16498.222999999998,
+        "launchMs": 73.44920000000275,
+        "handshakeMs": 412.9345999999932,
+        "wrapMs": 0.33240000000660075,
+        "unattributedMs": 0.14899999999761349
+      },
+      "systemRpcMs": 112.06919999999809,
+      "identity": {
+        "platform": "linux",
+        "homedir": "/home/zcodewslp2"
+      },
+      "disposeMs": 36.64899999999761
+    },
+    {
+      "iteration": 4,
+      "backendCalls": [
+        {
+          "method": "detect",
+          "durationMs": 599.6785000000018,
+          "detail": ""
+        },
+        {
+          "method": "exists",
+          "durationMs": 205.98180000000139,
+          "detail": "~/.zcode/server/node"
+        },
+        {
+          "method": "exists",
+          "durationMs": 198.07069999999658,
+          "detail": "~/.zcode/server/zcode-server.cjs"
+        },
+        {
+          "method": "exec",
+          "durationMs": 62.19260000000213,
+          "detail": "\"$HOME\"'/.zcode/server/node' \"$HOME\"'/.zcode/server/zcode-server.cjs' --version"
+        },
+        {
+          "method": "exec",
+          "durationMs": 65.8148000000001,
+          "detail": "\"$HOME\"'/.zcode/server/node' -e '\nconst fs = require(\"fs\");\nconst content = fs.readFileSync(process.argv[1], \"utf8\");\nconst missing = [\"skill-sync\",\"mcp-sync\",\"plugin-sync\",\"__zcode_rpc_nested_uint8array_v1\",\"exportMarketplaceSourceArchive\""
+        },
+        {
+          "method": "exec",
+          "durationMs": 67.91779999999562,
+          "detail": "set -eu\nmkdir -p \"$HOME\"'/.zcode/server'\nprintf '%b' '\\163\\145\\164\\040\\055\\145\\165\\012\\154\\157\\143\\153\\137\\144\\151\\162\\075\\042\\044\\110\\117\\115\\105\\042\\047\\057\\056\\172\\143\\157\\144\\145\\057\\163\\145\\162\\166\\145\\162\\057\\056\\144\\145\\160\\154\\157\\1"
+        },
+        {
+          "method": "exists",
+          "durationMs": 227.58439999999973,
+          "detail": "~/.zcode/server/node"
+        },
+        {
+          "method": "exists",
+          "durationMs": 170.00740000000224,
+          "detail": "~/.zcode/server/zcode-server.cjs"
+        },
+        {
+          "method": "exec",
+          "durationMs": 84.75460000000021,
+          "detail": "\"$HOME\"'/.zcode/server/node' \"$HOME\"'/.zcode/server/zcode-server.cjs' --version"
+        },
+        {
+          "method": "exec",
+          "durationMs": 61.290399999998044,
+          "detail": "\"$HOME\"'/.zcode/server/node' -e '\nconst fs = require(\"fs\");\nconst content = fs.readFileSync(process.argv[1], \"utf8\");\nconst missing = [\"skill-sync\",\"mcp-sync\",\"plugin-sync\",\"__zcode_rpc_nested_uint8array_v1\",\"exportMarketplaceSourceArchive\""
+        },
+        {
+          "method": "readFile",
+          "durationMs": 190.77679999999964,
+          "detail": "~/.zcode/server/.asset-components/server-bundle.json"
+        },
+        {
+          "method": "readFile",
+          "durationMs": 172.29240000000573,
+          "detail": "~/.zcode/server/.asset-components/glm.json"
+        },
+        {
+          "method": "exists",
+          "durationMs": 189.3425000000061,
+          "detail": "~/.zcode/server/build/Release/pty.node"
+        },
+        {
+          "method": "exists",
+          "durationMs": 204.73180000000139,
+          "detail": "~/.zcode/server/agents/glm/packages/android-emulator-plugin/.zcode-plugin/plugin.json"
+        },
+        {
+          "method": "exists",
+          "durationMs": 180.75219999999536,
+          "detail": "~/.zcode/server/agents/glm/packages/browser-use-plugin/.zcode-plugin/plugin.json"
+        },
+        {
+          "method": "exists",
+          "durationMs": 180.83899999999994,
+          "detail": "~/.zcode/server/agents/glm/packages/zcode-cua-plugin/.zcode-plugin/plugin.json"
+        },
+        {
+          "method": "exists",
+          "durationMs": 185.28050000000076,
+          "detail": "~/.zcode/server/agents/glm/packages/documents-plugin/.zcode-plugin/plugin.json"
+        },
+        {
+          "method": "exists",
+          "durationMs": 199.8078999999998,
+          "detail": "~/.zcode/server/agents/glm/packages/pdf-plugin/.zcode-plugin/plugin.json"
+        },
+        {
+          "method": "exists",
+          "durationMs": 196.98340000000462,
+          "detail": "~/.zcode/server/agents/glm/packages/presentations-plugin/.zcode-plugin/plugin.json"
+        },
+        {
+          "method": "exists",
+          "durationMs": 231.18469999999797,
+          "detail": "~/.zcode/server/agents/glm/packages/spreadsheets-plugin/.zcode-plugin/plugin.json"
+        },
+        {
+          "method": "exists",
+          "durationMs": 213.2600999999995,
+          "detail": "~/.zcode/server/agents/glm/packages/image-search-plugin/.zcode-plugin/plugin.json"
+        },
+        {
+          "method": "exists",
+          "durationMs": 211.787900000003,
+          "detail": "~/.zcode/server/agents/glm/packages/ios-simulator-plugin/.zcode-plugin/plugin.json"
+        },
+        {
+          "method": "exists",
+          "durationMs": 191.5156999999963,
+          "detail": "~/.zcode/server/agents/glm/packages/restore-legacy-sessions-plugin/.zcode-plugin/plugin.json"
+        },
+        {
+          "method": "exists",
+          "durationMs": 185.69919999999547,
+          "detail": "~/.zcode/server/agents/glm/packages/skill-creator-plugin/.zcode-plugin/plugin.json"
+        },
+        {
+          "method": "exists",
+          "durationMs": 173.44930000000022,
+          "detail": "~/.zcode/server/agents/glm/packages/plugin-creator-plugin/.zcode-plugin/plugin.json"
+        },
+        {
+          "method": "exists",
+          "durationMs": 175.42730000000302,
+          "detail": "~/.zcode/server/agents/glm/packages/zcode-guide-plugin/.zcode-plugin/plugin.json"
+        },
+        {
+          "method": "exists",
+          "durationMs": 169.2233999999953,
+          "detail": "~/.zcode/server/agents/glm/packages/visualize-plugin/.zcode-plugin/plugin.json"
+        },
+        {
+          "method": "exists",
+          "durationMs": 168.98980000000302,
+          "detail": "~/.zcode/server/agents/glm/packages/visualize-plugin/skills/visualize/SKILL.md"
+        },
+        {
+          "method": "exists",
+          "durationMs": 170.84100000000035,
+          "detail": "~/.zcode/server/agents/glm/packages/visualize-plugin/skills/visualize/references/api.md"
+        },
+        {
+          "method": "exists",
+          "durationMs": 182.43770000000222,
+          "detail": "~/.zcode/server/agents/glm/packages/visualize-plugin/skills/visualize/references/styles.md"
+        },
+        {
+          "method": "exists",
+          "durationMs": 170.56690000000526,
+          "detail": "~/.zcode/server/agents/glm/packages/visualize-plugin/skills/visualize/tweak.md"
+        },
+        {
+          "method": "exists",
+          "durationMs": 175.35280000000785,
+          "detail": "~/.zcode/server/agents/glm/packages/visualize-plugin/skills/visualize/LICENSE.md"
+        },
+        {
+          "method": "exists",
+          "durationMs": 168.58669999999984,
+          "detail": "~/.zcode/server/agents/glm/packages/visualize-plugin/skills/visualize/scripts/render.py"
+        },
+        {
+          "method": "exists",
+          "durationMs": 173.32710000000952,
+          "detail": "~/.zcode/server/agents/glm/packages/visualize-plugin/skills/visualize/assets/visualize.css"
+        },
+        {
+          "method": "exists",
+          "durationMs": 182.24289999999746,
+          "detail": "~/.zcode/server/agents/glm/packages/visualize-plugin/skills/visualize/assets/visualize.html"
+        },
+        {
+          "method": "exists",
+          "durationMs": 191.9158000000025,
+          "detail": "~/.zcode/server/agents/glm/packages/visualize-plugin/skills/visualize/assets/calendar.js"
+        },
+        {
+          "method": "exists",
+          "durationMs": 203.90599999998813,
+          "detail": "~/.zcode/server/agents/glm/packages/visualize-plugin/skills/visualize/assets/runtime-manifest.json"
+        },
+        {
+          "method": "exists",
+          "durationMs": 188.48940000000584,
+          "detail": "~/.zcode/server/agents/glm/packages/visualize-plugin/skills/visualize/scripts/vendor.py"
+        },
+        {
+          "method": "exists",
+          "durationMs": 178.61549999999988,
+          "detail": "~/.zcode/server/agents/glm/packages/visualize-plugin/skills/visualize/assets/vendor/manifest.json"
+        },
+        {
+          "method": "exists",
+          "durationMs": 177.69630000001052,
+          "detail": "~/.zcode/server/agents/glm/packages/visualize-plugin/skills/visualize/assets/vendor/floating-ui-core-1.7.3.min.js"
+        },
+        {
+          "method": "exists",
+          "durationMs": 176.10169999999925,
+          "detail": "~/.zcode/server/agents/glm/packages/visualize-plugin/skills/visualize/assets/vendor/floating-ui-core-1.7.3.min.js.LICENSE"
+        },
+        {
+          "method": "exists",
+          "durationMs": 176.6762999999919,
+          "detail": "~/.zcode/server/agents/glm/packages/visualize-plugin/skills/visualize/assets/vendor/floating-ui-dom-1.7.4.min.js"
+        },
+        {
+          "method": "exists",
+          "durationMs": 187.2262000000046,
+          "detail": "~/.zcode/server/agents/glm/packages/visualize-plugin/skills/visualize/assets/vendor/floating-ui-dom-1.7.4.min.js.LICENSE"
+        },
+        {
+          "method": "exists",
+          "durationMs": 187.61710000000312,
+          "detail": "~/.zcode/server/agents/glm/packages/visualize-plugin/skills/visualize/assets/vendor/lucide-1.17.0.js"
+        },
+        {
+          "method": "exists",
+          "durationMs": 182.76989999999932,
+          "detail": "~/.zcode/server/agents/glm/packages/visualize-plugin/skills/visualize/assets/vendor/lucide-1.17.0.js.LICENSE"
+        },
+        {
+          "method": "exists",
+          "durationMs": 184.59619999999995,
+          "detail": "~/.zcode/server/agents/glm/packages/visualize-plugin/skills/visualize/assets/vendor/d3-7.9.0.min.js"
+        },
+        {
+          "method": "exists",
+          "durationMs": 173.14670000001206,
+          "detail": "~/.zcode/server/agents/glm/packages/visualize-plugin/skills/visualize/assets/vendor/d3-7.9.0.min.js.LICENSE"
+        },
+        {
+          "method": "exists",
+          "durationMs": 173.3685000000114,
+          "detail": "~/.zcode/server/agents/glm/packages/visualize-plugin/skills/visualize/assets/standalone-host-bridge.js"
+        },
+        {
+          "method": "exists",
+          "durationMs": 167.1180000000022,
+          "detail": "~/.zcode/server/agents/glm/packages/visualize-plugin/skills/visualize/assets/standalone-shell.js"
+        },
+        {
+          "method": "exists",
+          "durationMs": 188.14100000000326,
+          "detail": "~/.zcode/server/agents/glm/packages/visualize-plugin/skills/visualize/widgets/calendar.md"
+        },
+        {
+          "method": "exists",
+          "durationMs": 172.89070000000356,
+          "detail": "~/.zcode/server/agents/glm/packages/visualize-plugin/skills/visualize/examples/calendar.html"
+        },
+        {
+          "method": "exists",
+          "durationMs": 169.23309999999765,
+          "detail": "~/.zcode/server/agents/glm/packages/browser-use-plugin/docs/api.json"
+        },
+        {
+          "method": "exists",
+          "durationMs": 170.81650000000081,
+          "detail": "~/.zcode/server/agents/glm/packages/browser-use-plugin/docs/documents.json"
+        },
+        {
+          "method": "exists",
+          "durationMs": 175.77019999999902,
+          "detail": "~/.zcode/server/agents/glm/packages/browser-use-plugin/docs/overview.md"
+        },
+        {
+          "method": "exists",
+          "durationMs": 171.8338999999978,
+          "detail": "~/.zcode/server/agents/glm/packages/browser-use-plugin/docs/recording.md"
+        },
+        {
+          "method": "exists",
+          "durationMs": 197.2381999999925,
+          "detail": "~/.zcode/server/agents/glm/packages/browser-use-plugin/docs/workflow.md"
+        },
+        {
+          "method": "exists",
+          "durationMs": 231.87129999999888,
+          "detail": "~/.zcode/server/agents/glm/packages/browser-use-plugin/scripts/browser-client.mjs"
+        },
+        {
+          "method": "exists",
+          "durationMs": 194.98709999999846,
+          "detail": "~/.zcode/server/agents/glm/packages/browser-use-plugin/skills/control-browser/SKILL.md"
+        },
+        {
+          "method": "exists",
+          "durationMs": 196.65959999999905,
+          "detail": "~/.zcode/server/agents/glm/packages/browser-use-plugin/skills/web-gui-tester/SKILL.md"
+        },
+        {
+          "method": "exists",
+          "durationMs": 210.5100999999995,
+          "detail": "~/.zcode/server/agents/glm/packages/image-search-plugin/.mcp.json"
+        },
+        {
+          "method": "exists",
+          "durationMs": 182.76239999999234,
+          "detail": "~/.zcode/server/agents/glm/packages/documents-plugin/agents/visual-judge.md"
+        },
+        {
+          "method": "exists",
+          "durationMs": 177.51399999999558,
+          "detail": "~/.zcode/server/agents/glm/packages/documents-plugin/skills/docx/SKILL.md"
+        },
+        {
+          "method": "exists",
+          "durationMs": 203.34929999998712,
+          "detail": "~/.zcode/server/agents/glm/packages/pdf-plugin/agents/visual-judge.md"
+        },
+        {
+          "method": "exists",
+          "durationMs": 198.9872000000032,
+          "detail": "~/.zcode/server/agents/glm/packages/pdf-plugin/skills/pdf/SKILL.md"
+        },
+        {
+          "method": "exists",
+          "durationMs": 196.33370000000286,
+          "detail": "~/.zcode/server/agents/glm/packages/presentations-plugin/agents/visual-judge.md"
+        },
+        {
+          "method": "exists",
+          "durationMs": 192.51230000000214,
+          "detail": "~/.zcode/server/agents/glm/packages/presentations-plugin/skills/pptx/SKILL.md"
+        },
+        {
+          "method": "exists",
+          "durationMs": 183.75909999999567,
+          "detail": "~/.zcode/server/agents/glm/packages/spreadsheets-plugin/agents/visual-judge.md"
+        },
+        {
+          "method": "exists",
+          "durationMs": 173.13860000000568,
+          "detail": "~/.zcode/server/agents/glm/packages/spreadsheets-plugin/skills/xlsx/SKILL.md"
+        },
+        {
+          "method": "exists",
+          "durationMs": 184.67309999999998,
+          "detail": "~/.zcode/server/agents/glm/packages/zcode-cua-plugin/docs/computer-use.md"
+        },
+        {
+          "method": "exists",
+          "durationMs": 199.875,
+          "detail": "~/.zcode/server/agents/glm/packages/zcode-cua-plugin/scripts/computer-use-client.mjs"
+        },
+        {
+          "method": "exists",
+          "durationMs": 168.10559999999532,
+          "detail": "~/.zcode/server/agents/glm/packages/zcode-cua-plugin/skills/computer-use/SKILL.md"
+        },
+        {
+          "method": "readFile",
+          "durationMs": 194.7146000000066,
+          "detail": "~/.zcode/server/.asset-components/glm.json"
+        },
+        {
+          "method": "exists",
+          "durationMs": 169.00739999998768,
+          "detail": "~/.zcode/server/agents/glm/zcode-agent"
+        },
+        {
+          "method": "readFile",
+          "durationMs": 170.4713999999949,
+          "detail": "~/.zcode/server/agents/glm/zcode-agent"
+        },
+        {
+          "method": "exists",
+          "durationMs": 179.40400000000955,
+          "detail": "~/.zcode/server/agents/glm/zcode.cjs"
+        },
+        {
+          "method": "readFile",
+          "durationMs": 208.18960000001243,
+          "detail": "~/.zcode/server/tools/bfs/.version"
+        },
+        {
+          "method": "exists",
+          "durationMs": 173.25260000000708,
+          "detail": "~/.zcode/server/tools/bfs/bfs"
+        },
+        {
+          "method": "readFile",
+          "durationMs": 188.73509999999078,
+          "detail": "~/.zcode/server/tools/ripgrep/.version"
+        },
+        {
+          "method": "exists",
+          "durationMs": 183.84979999999632,
+          "detail": "~/.zcode/server/tools/ripgrep/rg"
+        },
+        {
+          "method": "readFile",
+          "durationMs": 179.60689999999886,
+          "detail": "~/.zcode/server/tools/ugrep/.version"
+        },
+        {
+          "method": "exists",
+          "durationMs": 176.65670000000682,
+          "detail": "~/.zcode/server/tools/ugrep/ugrep"
+        },
+        {
+          "method": "exec",
+          "durationMs": 66.40060000000813,
+          "detail": "ZCODE_SERVICE_AUTHORITY_MODE=\"desktop-attached-remote\" ZCODE_SERVER_RUNTIME_ROOT=\"$HOME/.zcode/server\" ~/.zcode/server/node ~/.zcode/server/zcode-server.cjs"
+        }
+      ],
+      "totalMs": 16607.1164,
+      "phases": {
+        "detectMs": 599.8018999999986,
+        "runtimeNetworkMs": 0.15969999999651918,
+        "deployMs": 15530.714300000007,
+        "launchMs": 66.6359999999986,
+        "handshakeMs": 409.3243999999977,
+        "wrapMs": 0.31590000000142027,
+        "unattributedMs": 0.16419999999925494
+      },
+      "systemRpcMs": 97.38050000001385,
+      "identity": {
+        "platform": "linux",
+        "homedir": "/home/zcodewslp2"
+      },
+      "disposeMs": 47.714099999997416
+    },
+    {
+      "iteration": 5,
+      "backendCalls": [
+        {
+          "method": "detect",
+          "durationMs": 628.1150999999954,
+          "detail": ""
+        },
+        {
+          "method": "exists",
+          "durationMs": 202.49199999999837,
+          "detail": "~/.zcode/server/node"
+        },
+        {
+          "method": "exists",
+          "durationMs": 170.29829999999492,
+          "detail": "~/.zcode/server/zcode-server.cjs"
+        },
+        {
+          "method": "exec",
+          "durationMs": 66.87969999999041,
+          "detail": "\"$HOME\"'/.zcode/server/node' \"$HOME\"'/.zcode/server/zcode-server.cjs' --version"
+        },
+        {
+          "method": "exec",
+          "durationMs": 64.9890000000014,
+          "detail": "\"$HOME\"'/.zcode/server/node' -e '\nconst fs = require(\"fs\");\nconst content = fs.readFileSync(process.argv[1], \"utf8\");\nconst missing = [\"skill-sync\",\"mcp-sync\",\"plugin-sync\",\"__zcode_rpc_nested_uint8array_v1\",\"exportMarketplaceSourceArchive\""
+        },
+        {
+          "method": "exec",
+          "durationMs": 66.76920000000973,
+          "detail": "set -eu\nmkdir -p \"$HOME\"'/.zcode/server'\nprintf '%b' '\\163\\145\\164\\040\\055\\145\\165\\012\\154\\157\\143\\153\\137\\144\\151\\162\\075\\042\\044\\110\\117\\115\\105\\042\\047\\057\\056\\172\\143\\157\\144\\145\\057\\163\\145\\162\\166\\145\\162\\057\\056\\144\\145\\160\\154\\157\\1"
+        },
+        {
+          "method": "exists",
+          "durationMs": 194.93099999999686,
+          "detail": "~/.zcode/server/node"
+        },
+        {
+          "method": "exists",
+          "durationMs": 178.04310000000987,
+          "detail": "~/.zcode/server/zcode-server.cjs"
+        },
+        {
+          "method": "exec",
+          "durationMs": 66.82729999998992,
+          "detail": "\"$HOME\"'/.zcode/server/node' \"$HOME\"'/.zcode/server/zcode-server.cjs' --version"
+        },
+        {
+          "method": "exec",
+          "durationMs": 64.62309999999707,
+          "detail": "\"$HOME\"'/.zcode/server/node' -e '\nconst fs = require(\"fs\");\nconst content = fs.readFileSync(process.argv[1], \"utf8\");\nconst missing = [\"skill-sync\",\"mcp-sync\",\"plugin-sync\",\"__zcode_rpc_nested_uint8array_v1\",\"exportMarketplaceSourceArchive\""
+        },
+        {
+          "method": "readFile",
+          "durationMs": 185.24950000000536,
+          "detail": "~/.zcode/server/.asset-components/server-bundle.json"
+        },
+        {
+          "method": "readFile",
+          "durationMs": 178.52290000001085,
+          "detail": "~/.zcode/server/.asset-components/glm.json"
+        },
+        {
+          "method": "exists",
+          "durationMs": 200.02030000000377,
+          "detail": "~/.zcode/server/build/Release/pty.node"
+        },
+        {
+          "method": "exists",
+          "durationMs": 188.76959999999963,
+          "detail": "~/.zcode/server/agents/glm/packages/android-emulator-plugin/.zcode-plugin/plugin.json"
+        },
+        {
+          "method": "exists",
+          "durationMs": 216.61069999999017,
+          "detail": "~/.zcode/server/agents/glm/packages/browser-use-plugin/.zcode-plugin/plugin.json"
+        },
+        {
+          "method": "exists",
+          "durationMs": 180.32880000000296,
+          "detail": "~/.zcode/server/agents/glm/packages/zcode-cua-plugin/.zcode-plugin/plugin.json"
+        },
+        {
+          "method": "exists",
+          "durationMs": 184.47189999998955,
+          "detail": "~/.zcode/server/agents/glm/packages/documents-plugin/.zcode-plugin/plugin.json"
+        },
+        {
+          "method": "exists",
+          "durationMs": 171.23110000000452,
+          "detail": "~/.zcode/server/agents/glm/packages/pdf-plugin/.zcode-plugin/plugin.json"
+        },
+        {
+          "method": "exists",
+          "durationMs": 182.58550000000105,
+          "detail": "~/.zcode/server/agents/glm/packages/presentations-plugin/.zcode-plugin/plugin.json"
+        },
+        {
+          "method": "exists",
+          "durationMs": 206.19740000000456,
+          "detail": "~/.zcode/server/agents/glm/packages/spreadsheets-plugin/.zcode-plugin/plugin.json"
+        },
+        {
+          "method": "exists",
+          "durationMs": 207.86290000000736,
+          "detail": "~/.zcode/server/agents/glm/packages/image-search-plugin/.zcode-plugin/plugin.json"
+        },
+        {
+          "method": "exists",
+          "durationMs": 179.9221000000107,
+          "detail": "~/.zcode/server/agents/glm/packages/ios-simulator-plugin/.zcode-plugin/plugin.json"
+        },
+        {
+          "method": "exists",
+          "durationMs": 176.38349999999627,
+          "detail": "~/.zcode/server/agents/glm/packages/restore-legacy-sessions-plugin/.zcode-plugin/plugin.json"
+        },
+        {
+          "method": "exists",
+          "durationMs": 170.38129999999364,
+          "detail": "~/.zcode/server/agents/glm/packages/skill-creator-plugin/.zcode-plugin/plugin.json"
+        },
+        {
+          "method": "exists",
+          "durationMs": 184.14049999999406,
+          "detail": "~/.zcode/server/agents/glm/packages/plugin-creator-plugin/.zcode-plugin/plugin.json"
+        },
+        {
+          "method": "exists",
+          "durationMs": 171.0865999999951,
+          "detail": "~/.zcode/server/agents/glm/packages/zcode-guide-plugin/.zcode-plugin/plugin.json"
+        },
+        {
+          "method": "exists",
+          "durationMs": 171.75400000000081,
+          "detail": "~/.zcode/server/agents/glm/packages/visualize-plugin/.zcode-plugin/plugin.json"
+        },
+        {
+          "method": "exists",
+          "durationMs": 202.72290000000794,
+          "detail": "~/.zcode/server/agents/glm/packages/visualize-plugin/skills/visualize/SKILL.md"
+        },
+        {
+          "method": "exists",
+          "durationMs": 176.8905999999988,
+          "detail": "~/.zcode/server/agents/glm/packages/visualize-plugin/skills/visualize/references/api.md"
+        },
+        {
+          "method": "exists",
+          "durationMs": 182.19749999999476,
+          "detail": "~/.zcode/server/agents/glm/packages/visualize-plugin/skills/visualize/references/styles.md"
+        },
+        {
+          "method": "exists",
+          "durationMs": 188.27889999999024,
+          "detail": "~/.zcode/server/agents/glm/packages/visualize-plugin/skills/visualize/tweak.md"
+        },
+        {
+          "method": "exists",
+          "durationMs": 186.601800000004,
+          "detail": "~/.zcode/server/agents/glm/packages/visualize-plugin/skills/visualize/LICENSE.md"
+        },
+        {
+          "method": "exists",
+          "durationMs": 194.898199999996,
+          "detail": "~/.zcode/server/agents/glm/packages/visualize-plugin/skills/visualize/scripts/render.py"
+        },
+        {
+          "method": "exists",
+          "durationMs": 190.62940000000526,
+          "detail": "~/.zcode/server/agents/glm/packages/visualize-plugin/skills/visualize/assets/visualize.css"
+        },
+        {
+          "method": "exists",
+          "durationMs": 191.04369999999471,
+          "detail": "~/.zcode/server/agents/glm/packages/visualize-plugin/skills/visualize/assets/visualize.html"
+        },
+        {
+          "method": "exists",
+          "durationMs": 187.48670000000857,
+          "detail": "~/.zcode/server/agents/glm/packages/visualize-plugin/skills/visualize/assets/calendar.js"
+        },
+        {
+          "method": "exists",
+          "durationMs": 195.80920000000333,
+          "detail": "~/.zcode/server/agents/glm/packages/visualize-plugin/skills/visualize/assets/runtime-manifest.json"
+        },
+        {
+          "method": "exists",
+          "durationMs": 190.66330000000016,
+          "detail": "~/.zcode/server/agents/glm/packages/visualize-plugin/skills/visualize/scripts/vendor.py"
+        },
+        {
+          "method": "exists",
+          "durationMs": 176.46110000000044,
+          "detail": "~/.zcode/server/agents/glm/packages/visualize-plugin/skills/visualize/assets/vendor/manifest.json"
+        },
+        {
+          "method": "exists",
+          "durationMs": 174.5951999999961,
+          "detail": "~/.zcode/server/agents/glm/packages/visualize-plugin/skills/visualize/assets/vendor/floating-ui-core-1.7.3.min.js"
+        },
+        {
+          "method": "exists",
+          "durationMs": 190.1136000000115,
+          "detail": "~/.zcode/server/agents/glm/packages/visualize-plugin/skills/visualize/assets/vendor/floating-ui-core-1.7.3.min.js.LICENSE"
+        },
+        {
+          "method": "exists",
+          "durationMs": 168.67369999999937,
+          "detail": "~/.zcode/server/agents/glm/packages/visualize-plugin/skills/visualize/assets/vendor/floating-ui-dom-1.7.4.min.js"
+        },
+        {
+          "method": "exists",
+          "durationMs": 174.63150000000314,
+          "detail": "~/.zcode/server/agents/glm/packages/visualize-plugin/skills/visualize/assets/vendor/floating-ui-dom-1.7.4.min.js.LICENSE"
+        },
+        {
+          "method": "exists",
+          "durationMs": 169.6539000000048,
+          "detail": "~/.zcode/server/agents/glm/packages/visualize-plugin/skills/visualize/assets/vendor/lucide-1.17.0.js"
+        },
+        {
+          "method": "exists",
+          "durationMs": 176.3246999999974,
+          "detail": "~/.zcode/server/agents/glm/packages/visualize-plugin/skills/visualize/assets/vendor/lucide-1.17.0.js.LICENSE"
+        },
+        {
+          "method": "exists",
+          "durationMs": 167.5856000000058,
+          "detail": "~/.zcode/server/agents/glm/packages/visualize-plugin/skills/visualize/assets/vendor/d3-7.9.0.min.js"
+        },
+        {
+          "method": "exists",
+          "durationMs": 189.4835000000021,
+          "detail": "~/.zcode/server/agents/glm/packages/visualize-plugin/skills/visualize/assets/vendor/d3-7.9.0.min.js.LICENSE"
+        },
+        {
+          "method": "exists",
+          "durationMs": 178.15179999999236,
+          "detail": "~/.zcode/server/agents/glm/packages/visualize-plugin/skills/visualize/assets/standalone-host-bridge.js"
+        },
+        {
+          "method": "exists",
+          "durationMs": 169.72359999999753,
+          "detail": "~/.zcode/server/agents/glm/packages/visualize-plugin/skills/visualize/assets/standalone-shell.js"
+        },
+        {
+          "method": "exists",
+          "durationMs": 182.22939999999653,
+          "detail": "~/.zcode/server/agents/glm/packages/visualize-plugin/skills/visualize/widgets/calendar.md"
+        },
+        {
+          "method": "exists",
+          "durationMs": 209.26970000000438,
+          "detail": "~/.zcode/server/agents/glm/packages/visualize-plugin/skills/visualize/examples/calendar.html"
+        },
+        {
+          "method": "exists",
+          "durationMs": 176.6435000000056,
+          "detail": "~/.zcode/server/agents/glm/packages/browser-use-plugin/docs/api.json"
+        },
+        {
+          "method": "exists",
+          "durationMs": 179.26969999998983,
+          "detail": "~/.zcode/server/agents/glm/packages/browser-use-plugin/docs/documents.json"
+        },
+        {
+          "method": "exists",
+          "durationMs": 233.05190000000584,
+          "detail": "~/.zcode/server/agents/glm/packages/browser-use-plugin/docs/overview.md"
+        },
+        {
+          "method": "exists",
+          "durationMs": 179.43400000000838,
+          "detail": "~/.zcode/server/agents/glm/packages/browser-use-plugin/docs/recording.md"
+        },
+        {
+          "method": "exists",
+          "durationMs": 175.27050000001327,
+          "detail": "~/.zcode/server/agents/glm/packages/browser-use-plugin/docs/workflow.md"
+        },
+        {
+          "method": "exists",
+          "durationMs": 176.08409999999276,
+          "detail": "~/.zcode/server/agents/glm/packages/browser-use-plugin/scripts/browser-client.mjs"
+        },
+        {
+          "method": "exists",
+          "durationMs": 184.72600000000966,
+          "detail": "~/.zcode/server/agents/glm/packages/browser-use-plugin/skills/control-browser/SKILL.md"
+        },
+        {
+          "method": "exists",
+          "durationMs": 188.95739999999932,
+          "detail": "~/.zcode/server/agents/glm/packages/browser-use-plugin/skills/web-gui-tester/SKILL.md"
+        },
+        {
+          "method": "exists",
+          "durationMs": 186.84470000000147,
+          "detail": "~/.zcode/server/agents/glm/packages/image-search-plugin/.mcp.json"
+        },
+        {
+          "method": "exists",
+          "durationMs": 182.07110000000102,
+          "detail": "~/.zcode/server/agents/glm/packages/documents-plugin/agents/visual-judge.md"
+        },
+        {
+          "method": "exists",
+          "durationMs": 171.806700000001,
+          "detail": "~/.zcode/server/agents/glm/packages/documents-plugin/skills/docx/SKILL.md"
+        },
+        {
+          "method": "exists",
+          "durationMs": 178.11759999999776,
+          "detail": "~/.zcode/server/agents/glm/packages/pdf-plugin/agents/visual-judge.md"
+        },
+        {
+          "method": "exists",
+          "durationMs": 166.19060000000172,
+          "detail": "~/.zcode/server/agents/glm/packages/pdf-plugin/skills/pdf/SKILL.md"
+        },
+        {
+          "method": "exists",
+          "durationMs": 187.08400000000256,
+          "detail": "~/.zcode/server/agents/glm/packages/presentations-plugin/agents/visual-judge.md"
+        },
+        {
+          "method": "exists",
+          "durationMs": 170.52529999999388,
+          "detail": "~/.zcode/server/agents/glm/packages/presentations-plugin/skills/pptx/SKILL.md"
+        },
+        {
+          "method": "exists",
+          "durationMs": 189.84709999999905,
+          "detail": "~/.zcode/server/agents/glm/packages/spreadsheets-plugin/agents/visual-judge.md"
+        },
+        {
+          "method": "exists",
+          "durationMs": 169.88940000000002,
+          "detail": "~/.zcode/server/agents/glm/packages/spreadsheets-plugin/skills/xlsx/SKILL.md"
+        },
+        {
+          "method": "exists",
+          "durationMs": 172.53519999999844,
+          "detail": "~/.zcode/server/agents/glm/packages/zcode-cua-plugin/docs/computer-use.md"
+        },
+        {
+          "method": "exists",
+          "durationMs": 172.89319999999134,
+          "detail": "~/.zcode/server/agents/glm/packages/zcode-cua-plugin/scripts/computer-use-client.mjs"
+        },
+        {
+          "method": "exists",
+          "durationMs": 176.65019999998913,
+          "detail": "~/.zcode/server/agents/glm/packages/zcode-cua-plugin/skills/computer-use/SKILL.md"
+        },
+        {
+          "method": "readFile",
+          "durationMs": 189.1820000000007,
+          "detail": "~/.zcode/server/.asset-components/glm.json"
+        },
+        {
+          "method": "exists",
+          "durationMs": 190.5674999999901,
+          "detail": "~/.zcode/server/agents/glm/zcode-agent"
+        },
+        {
+          "method": "readFile",
+          "durationMs": 194.87179999999353,
+          "detail": "~/.zcode/server/agents/glm/zcode-agent"
+        },
+        {
+          "method": "exists",
+          "durationMs": 184.09249999999884,
+          "detail": "~/.zcode/server/agents/glm/zcode.cjs"
+        },
+        {
+          "method": "readFile",
+          "durationMs": 188.94370000000345,
+          "detail": "~/.zcode/server/tools/bfs/.version"
+        },
+        {
+          "method": "exists",
+          "durationMs": 184.07399999999325,
+          "detail": "~/.zcode/server/tools/bfs/bfs"
+        },
+        {
+          "method": "readFile",
+          "durationMs": 184.75380000000587,
+          "detail": "~/.zcode/server/tools/ripgrep/.version"
+        },
+        {
+          "method": "exists",
+          "durationMs": 208.28100000000268,
+          "detail": "~/.zcode/server/tools/ripgrep/rg"
+        },
+        {
+          "method": "readFile",
+          "durationMs": 199.04739999999583,
+          "detail": "~/.zcode/server/tools/ugrep/.version"
+        },
+        {
+          "method": "exists",
+          "durationMs": 183.65630000000237,
+          "detail": "~/.zcode/server/tools/ugrep/ugrep"
+        },
+        {
+          "method": "exec",
+          "durationMs": 71.65359999999055,
+          "detail": "ZCODE_SERVICE_AUTHORITY_MODE=\"desktop-attached-remote\" ZCODE_SERVER_RUNTIME_ROOT=\"$HOME/.zcode/server\" ~/.zcode/server/node ~/.zcode/server/zcode-server.cjs"
+        }
+      ],
+      "totalMs": 16549.892399999997,
+      "phases": {
+        "detectMs": 628.267399999997,
+        "runtimeNetworkMs": 0.21050000000104774,
+        "deployMs": 15460.971600000004,
+        "launchMs": 71.80999999999767,
+        "handshakeMs": 388.13210000000254,
+        "wrapMs": 0.35890000000654254,
+        "unattributedMs": 0.14189999998779967
+      },
+      "systemRpcMs": 93.55909999999858,
+      "identity": {
+        "platform": "linux",
+        "homedir": "/home/zcodewslp2"
+      },
+      "disposeMs": 52.33390000001236
+    },
+    {
+      "iteration": 6,
+      "backendCalls": [
+        {
+          "method": "detect",
+          "durationMs": 608.4683000000077,
+          "detail": ""
+        },
+        {
+          "method": "exists",
+          "durationMs": 169.00340000000142,
+          "detail": "~/.zcode/server/node"
+        },
+        {
+          "method": "exists",
+          "durationMs": 193.24039999999513,
+          "detail": "~/.zcode/server/zcode-server.cjs"
+        },
+        {
+          "method": "exec",
+          "durationMs": 73.22440000000643,
+          "detail": "\"$HOME\"'/.zcode/server/node' \"$HOME\"'/.zcode/server/zcode-server.cjs' --version"
+        },
+        {
+          "method": "exec",
+          "durationMs": 66.37709999999788,
+          "detail": "\"$HOME\"'/.zcode/server/node' -e '\nconst fs = require(\"fs\");\nconst content = fs.readFileSync(process.argv[1], \"utf8\");\nconst missing = [\"skill-sync\",\"mcp-sync\",\"plugin-sync\",\"__zcode_rpc_nested_uint8array_v1\",\"exportMarketplaceSourceArchive\""
+        },
+        {
+          "method": "exec",
+          "durationMs": 63.05030000000261,
+          "detail": "set -eu\nmkdir -p \"$HOME\"'/.zcode/server'\nprintf '%b' '\\163\\145\\164\\040\\055\\145\\165\\012\\154\\157\\143\\153\\137\\144\\151\\162\\075\\042\\044\\110\\117\\115\\105\\042\\047\\057\\056\\172\\143\\157\\144\\145\\057\\163\\145\\162\\166\\145\\162\\057\\056\\144\\145\\160\\154\\157\\1"
+        },
+        {
+          "method": "exists",
+          "durationMs": 189.9930000000022,
+          "detail": "~/.zcode/server/node"
+        },
+        {
+          "method": "exists",
+          "durationMs": 210.35540000000037,
+          "detail": "~/.zcode/server/zcode-server.cjs"
+        },
+        {
+          "method": "exec",
+          "durationMs": 84.21270000000368,
+          "detail": "\"$HOME\"'/.zcode/server/node' \"$HOME\"'/.zcode/server/zcode-server.cjs' --version"
+        },
+        {
+          "method": "exec",
+          "durationMs": 67.58060000000114,
+          "detail": "\"$HOME\"'/.zcode/server/node' -e '\nconst fs = require(\"fs\");\nconst content = fs.readFileSync(process.argv[1], \"utf8\");\nconst missing = [\"skill-sync\",\"mcp-sync\",\"plugin-sync\",\"__zcode_rpc_nested_uint8array_v1\",\"exportMarketplaceSourceArchive\""
+        },
+        {
+          "method": "readFile",
+          "durationMs": 175.08179999999993,
+          "detail": "~/.zcode/server/.asset-components/server-bundle.json"
+        },
+        {
+          "method": "readFile",
+          "durationMs": 169.8917000000074,
+          "detail": "~/.zcode/server/.asset-components/glm.json"
+        },
+        {
+          "method": "exists",
+          "durationMs": 199.5523000000103,
+          "detail": "~/.zcode/server/build/Release/pty.node"
+        },
+        {
+          "method": "exists",
+          "durationMs": 171.00500000000466,
+          "detail": "~/.zcode/server/agents/glm/packages/android-emulator-plugin/.zcode-plugin/plugin.json"
+        },
+        {
+          "method": "exists",
+          "durationMs": 173.89680000000226,
+          "detail": "~/.zcode/server/agents/glm/packages/browser-use-plugin/.zcode-plugin/plugin.json"
+        },
+        {
+          "method": "exists",
+          "durationMs": 172.14040000000386,
+          "detail": "~/.zcode/server/agents/glm/packages/zcode-cua-plugin/.zcode-plugin/plugin.json"
+        },
+        {
+          "method": "exists",
+          "durationMs": 172.3301999999967,
+          "detail": "~/.zcode/server/agents/glm/packages/documents-plugin/.zcode-plugin/plugin.json"
+        },
+        {
+          "method": "exists",
+          "durationMs": 170.63159999999334,
+          "detail": "~/.zcode/server/agents/glm/packages/pdf-plugin/.zcode-plugin/plugin.json"
+        },
+        {
+          "method": "exists",
+          "durationMs": 180.1875999999902,
+          "detail": "~/.zcode/server/agents/glm/packages/presentations-plugin/.zcode-plugin/plugin.json"
+        },
+        {
+          "method": "exists",
+          "durationMs": 182.4646000000066,
+          "detail": "~/.zcode/server/agents/glm/packages/spreadsheets-plugin/.zcode-plugin/plugin.json"
+        },
+        {
+          "method": "exists",
+          "durationMs": 170.5124000000069,
+          "detail": "~/.zcode/server/agents/glm/packages/image-search-plugin/.zcode-plugin/plugin.json"
+        },
+        {
+          "method": "exists",
+          "durationMs": 188.59920000001148,
+          "detail": "~/.zcode/server/agents/glm/packages/ios-simulator-plugin/.zcode-plugin/plugin.json"
+        },
+        {
+          "method": "exists",
+          "durationMs": 179.31029999999737,
+          "detail": "~/.zcode/server/agents/glm/packages/restore-legacy-sessions-plugin/.zcode-plugin/plugin.json"
+        },
+        {
+          "method": "exists",
+          "durationMs": 183.9100999999937,
+          "detail": "~/.zcode/server/agents/glm/packages/skill-creator-plugin/.zcode-plugin/plugin.json"
+        },
+        {
+          "method": "exists",
+          "durationMs": 182.05160000000615,
+          "detail": "~/.zcode/server/agents/glm/packages/plugin-creator-plugin/.zcode-plugin/plugin.json"
+        },
+        {
+          "method": "exists",
+          "durationMs": 190.84320000000298,
+          "detail": "~/.zcode/server/agents/glm/packages/zcode-guide-plugin/.zcode-plugin/plugin.json"
+        },
+        {
+          "method": "exists",
+          "durationMs": 188.58379999999306,
+          "detail": "~/.zcode/server/agents/glm/packages/visualize-plugin/.zcode-plugin/plugin.json"
+        },
+        {
+          "method": "exists",
+          "durationMs": 178.05770000000484,
+          "detail": "~/.zcode/server/agents/glm/packages/visualize-plugin/skills/visualize/SKILL.md"
+        },
+        {
+          "method": "exists",
+          "durationMs": 180.01089999999385,
+          "detail": "~/.zcode/server/agents/glm/packages/visualize-plugin/skills/visualize/references/api.md"
+        },
+        {
+          "method": "exists",
+          "durationMs": 195.92260000000533,
+          "detail": "~/.zcode/server/agents/glm/packages/visualize-plugin/skills/visualize/references/styles.md"
+        },
+        {
+          "method": "exists",
+          "durationMs": 179.24669999998878,
+          "detail": "~/.zcode/server/agents/glm/packages/visualize-plugin/skills/visualize/tweak.md"
+        },
+        {
+          "method": "exists",
+          "durationMs": 202.17529999998806,
+          "detail": "~/.zcode/server/agents/glm/packages/visualize-plugin/skills/visualize/LICENSE.md"
+        },
+        {
+          "method": "exists",
+          "durationMs": 189.42020000000775,
+          "detail": "~/.zcode/server/agents/glm/packages/visualize-plugin/skills/visualize/scripts/render.py"
+        },
+        {
+          "method": "exists",
+          "durationMs": 171.99150000000373,
+          "detail": "~/.zcode/server/agents/glm/packages/visualize-plugin/skills/visualize/assets/visualize.css"
+        },
+        {
+          "method": "exists",
+          "durationMs": 175.47119999999995,
+          "detail": "~/.zcode/server/agents/glm/packages/visualize-plugin/skills/visualize/assets/visualize.html"
+        },
+        {
+          "method": "exists",
+          "durationMs": 168.12369999999646,
+          "detail": "~/.zcode/server/agents/glm/packages/visualize-plugin/skills/visualize/assets/calendar.js"
+        },
+        {
+          "method": "exists",
+          "durationMs": 173.4314000000013,
+          "detail": "~/.zcode/server/agents/glm/packages/visualize-plugin/skills/visualize/assets/runtime-manifest.json"
+        },
+        {
+          "method": "exists",
+          "durationMs": 184.13330000000133,
+          "detail": "~/.zcode/server/agents/glm/packages/visualize-plugin/skills/visualize/scripts/vendor.py"
+        },
+        {
+          "method": "exists",
+          "durationMs": 183.24270000000251,
+          "detail": "~/.zcode/server/agents/glm/packages/visualize-plugin/skills/visualize/assets/vendor/manifest.json"
+        },
+        {
+          "method": "exists",
+          "durationMs": 180.85000000000582,
+          "detail": "~/.zcode/server/agents/glm/packages/visualize-plugin/skills/visualize/assets/vendor/floating-ui-core-1.7.3.min.js"
+        },
+        {
+          "method": "exists",
+          "durationMs": 178.11710000000312,
+          "detail": "~/.zcode/server/agents/glm/packages/visualize-plugin/skills/visualize/assets/vendor/floating-ui-core-1.7.3.min.js.LICENSE"
+        },
+        {
+          "method": "exists",
+          "durationMs": 166.24490000000515,
+          "detail": "~/.zcode/server/agents/glm/packages/visualize-plugin/skills/visualize/assets/vendor/floating-ui-dom-1.7.4.min.js"
+        },
+        {
+          "method": "exists",
+          "durationMs": 167.35599999999977,
+          "detail": "~/.zcode/server/agents/glm/packages/visualize-plugin/skills/visualize/assets/vendor/floating-ui-dom-1.7.4.min.js.LICENSE"
+        },
+        {
+          "method": "exists",
+          "durationMs": 181.99189999999362,
+          "detail": "~/.zcode/server/agents/glm/packages/visualize-plugin/skills/visualize/assets/vendor/lucide-1.17.0.js"
+        },
+        {
+          "method": "exists",
+          "durationMs": 205.597299999994,
+          "detail": "~/.zcode/server/agents/glm/packages/visualize-plugin/skills/visualize/assets/vendor/lucide-1.17.0.js.LICENSE"
+        },
+        {
+          "method": "exists",
+          "durationMs": 199.56690000000526,
+          "detail": "~/.zcode/server/agents/glm/packages/visualize-plugin/skills/visualize/assets/vendor/d3-7.9.0.min.js"
+        },
+        {
+          "method": "exists",
+          "durationMs": 184.8457999999955,
+          "detail": "~/.zcode/server/agents/glm/packages/visualize-plugin/skills/visualize/assets/vendor/d3-7.9.0.min.js.LICENSE"
+        },
+        {
+          "method": "exists",
+          "durationMs": 177.07200000000012,
+          "detail": "~/.zcode/server/agents/glm/packages/visualize-plugin/skills/visualize/assets/standalone-host-bridge.js"
+        },
+        {
+          "method": "exists",
+          "durationMs": 180.66960000000836,
+          "detail": "~/.zcode/server/agents/glm/packages/visualize-plugin/skills/visualize/assets/standalone-shell.js"
+        },
+        {
+          "method": "exists",
+          "durationMs": 176.63030000000435,
+          "detail": "~/.zcode/server/agents/glm/packages/visualize-plugin/skills/visualize/widgets/calendar.md"
+        },
+        {
+          "method": "exists",
+          "durationMs": 180.02650000000722,
+          "detail": "~/.zcode/server/agents/glm/packages/visualize-plugin/skills/visualize/examples/calendar.html"
+        },
+        {
+          "method": "exists",
+          "durationMs": 201.23639999999432,
+          "detail": "~/.zcode/server/agents/glm/packages/browser-use-plugin/docs/api.json"
+        },
+        {
+          "method": "exists",
+          "durationMs": 188.25400000000081,
+          "detail": "~/.zcode/server/agents/glm/packages/browser-use-plugin/docs/documents.json"
+        },
+        {
+          "method": "exists",
+          "durationMs": 179.81690000000526,
+          "detail": "~/.zcode/server/agents/glm/packages/browser-use-plugin/docs/overview.md"
+        },
+        {
+          "method": "exists",
+          "durationMs": 180.68889999999374,
+          "detail": "~/.zcode/server/agents/glm/packages/browser-use-plugin/docs/recording.md"
+        },
+        {
+          "method": "exists",
+          "durationMs": 194.53730000001087,
+          "detail": "~/.zcode/server/agents/glm/packages/browser-use-plugin/docs/workflow.md"
+        },
+        {
+          "method": "exists",
+          "durationMs": 191.23029999999562,
+          "detail": "~/.zcode/server/agents/glm/packages/browser-use-plugin/scripts/browser-client.mjs"
+        },
+        {
+          "method": "exists",
+          "durationMs": 172.10119999999006,
+          "detail": "~/.zcode/server/agents/glm/packages/browser-use-plugin/skills/control-browser/SKILL.md"
+        },
+        {
+          "method": "exists",
+          "durationMs": 218.3701999999903,
+          "detail": "~/.zcode/server/agents/glm/packages/browser-use-plugin/skills/web-gui-tester/SKILL.md"
+        },
+        {
+          "method": "exists",
+          "durationMs": 170.46229999999923,
+          "detail": "~/.zcode/server/agents/glm/packages/image-search-plugin/.mcp.json"
+        },
+        {
+          "method": "exists",
+          "durationMs": 167.60620000000927,
+          "detail": "~/.zcode/server/agents/glm/packages/documents-plugin/agents/visual-judge.md"
+        },
+        {
+          "method": "exists",
+          "durationMs": 175.3119000000006,
+          "detail": "~/.zcode/server/agents/glm/packages/documents-plugin/skills/docx/SKILL.md"
+        },
+        {
+          "method": "exists",
+          "durationMs": 175.75220000000263,
+          "detail": "~/.zcode/server/agents/glm/packages/pdf-plugin/agents/visual-judge.md"
+        },
+        {
+          "method": "exists",
+          "durationMs": 173.06990000000224,
+          "detail": "~/.zcode/server/agents/glm/packages/pdf-plugin/skills/pdf/SKILL.md"
+        },
+        {
+          "method": "exists",
+          "durationMs": 171.64480000000913,
+          "detail": "~/.zcode/server/agents/glm/packages/presentations-plugin/agents/visual-judge.md"
+        },
+        {
+          "method": "exists",
+          "durationMs": 207.90110000000277,
+          "detail": "~/.zcode/server/agents/glm/packages/presentations-plugin/skills/pptx/SKILL.md"
+        },
+        {
+          "method": "exists",
+          "durationMs": 177.61709999998857,
+          "detail": "~/.zcode/server/agents/glm/packages/spreadsheets-plugin/agents/visual-judge.md"
+        },
+        {
+          "method": "exists",
+          "durationMs": 205.11329999999725,
+          "detail": "~/.zcode/server/agents/glm/packages/spreadsheets-plugin/skills/xlsx/SKILL.md"
+        },
+        {
+          "method": "exists",
+          "durationMs": 179.09289999998873,
+          "detail": "~/.zcode/server/agents/glm/packages/zcode-cua-plugin/docs/computer-use.md"
+        },
+        {
+          "method": "exists",
+          "durationMs": 180.4137999999948,
+          "detail": "~/.zcode/server/agents/glm/packages/zcode-cua-plugin/scripts/computer-use-client.mjs"
+        },
+        {
+          "method": "exists",
+          "durationMs": 178.85259999999835,
+          "detail": "~/.zcode/server/agents/glm/packages/zcode-cua-plugin/skills/computer-use/SKILL.md"
+        },
+        {
+          "method": "readFile",
+          "durationMs": 185.9308000000019,
+          "detail": "~/.zcode/server/.asset-components/glm.json"
+        },
+        {
+          "method": "exists",
+          "durationMs": 209.24589999999444,
+          "detail": "~/.zcode/server/agents/glm/zcode-agent"
+        },
+        {
+          "method": "readFile",
+          "durationMs": 198.0503000000026,
+          "detail": "~/.zcode/server/agents/glm/zcode-agent"
+        },
+        {
+          "method": "exists",
+          "durationMs": 183.11179999999877,
+          "detail": "~/.zcode/server/agents/glm/zcode.cjs"
+        },
+        {
+          "method": "readFile",
+          "durationMs": 182.45699999999488,
+          "detail": "~/.zcode/server/tools/bfs/.version"
+        },
+        {
+          "method": "exists",
+          "durationMs": 174.66220000000612,
+          "detail": "~/.zcode/server/tools/bfs/bfs"
+        },
+        {
+          "method": "readFile",
+          "durationMs": 194.19229999999516,
+          "detail": "~/.zcode/server/tools/ripgrep/.version"
+        },
+        {
+          "method": "exists",
+          "durationMs": 200.74240000000282,
+          "detail": "~/.zcode/server/tools/ripgrep/rg"
+        },
+        {
+          "method": "readFile",
+          "durationMs": 170.93850000000384,
+          "detail": "~/.zcode/server/tools/ugrep/.version"
+        },
+        {
+          "method": "exists",
+          "durationMs": 173.50689999999304,
+          "detail": "~/.zcode/server/tools/ugrep/ugrep"
+        },
+        {
+          "method": "exec",
+          "durationMs": 66.59530000000086,
+          "detail": "ZCODE_SERVICE_AUTHORITY_MODE=\"desktop-attached-remote\" ZCODE_SERVER_RUNTIME_ROOT=\"$HOME/.zcode/server\" ~/.zcode/server/node ~/.zcode/server/zcode-server.cjs"
+        }
+      ],
+      "totalMs": 16383.318,
+      "phases": {
+        "detectMs": 608.6391000000003,
+        "runtimeNetworkMs": 0.17199999999138527,
+        "deployMs": 15329.315400000007,
+        "launchMs": 66.77150000000256,
+        "handshakeMs": 377.98519999999553,
+        "wrapMs": 0.3062999999965541,
+        "unattributedMs": 0.12850000000617
+      },
+      "systemRpcMs": 108.41509999999835,
+      "identity": {
+        "platform": "linux",
+        "homedir": "/home/zcodewslp2"
+      },
+      "disposeMs": 55.548500000004424
+    },
+    {
+      "iteration": 7,
+      "backendCalls": [
+        {
+          "method": "detect",
+          "durationMs": 598.213699999993,
+          "detail": ""
+        },
+        {
+          "method": "exists",
+          "durationMs": 216.37320000000182,
+          "detail": "~/.zcode/server/node"
+        },
+        {
+          "method": "exists",
+          "durationMs": 180.21489999999176,
+          "detail": "~/.zcode/server/zcode-server.cjs"
+        },
+        {
+          "method": "exec",
+          "durationMs": 66.59960000000137,
+          "detail": "\"$HOME\"'/.zcode/server/node' \"$HOME\"'/.zcode/server/zcode-server.cjs' --version"
+        },
+        {
+          "method": "exec",
+          "durationMs": 65.88340000000608,
+          "detail": "\"$HOME\"'/.zcode/server/node' -e '\nconst fs = require(\"fs\");\nconst content = fs.readFileSync(process.argv[1], \"utf8\");\nconst missing = [\"skill-sync\",\"mcp-sync\",\"plugin-sync\",\"__zcode_rpc_nested_uint8array_v1\",\"exportMarketplaceSourceArchive\""
+        },
+        {
+          "method": "exec",
+          "durationMs": 63.453899999993155,
+          "detail": "set -eu\nmkdir -p \"$HOME\"'/.zcode/server'\nprintf '%b' '\\163\\145\\164\\040\\055\\145\\165\\012\\154\\157\\143\\153\\137\\144\\151\\162\\075\\042\\044\\110\\117\\115\\105\\042\\047\\057\\056\\172\\143\\157\\144\\145\\057\\163\\145\\162\\166\\145\\162\\057\\056\\144\\145\\160\\154\\157\\1"
+        },
+        {
+          "method": "exists",
+          "durationMs": 193.57330000000366,
+          "detail": "~/.zcode/server/node"
+        },
+        {
+          "method": "exists",
+          "durationMs": 170.1417999999976,
+          "detail": "~/.zcode/server/zcode-server.cjs"
+        },
+        {
+          "method": "exec",
+          "durationMs": 60.839099999997416,
+          "detail": "\"$HOME\"'/.zcode/server/node' \"$HOME\"'/.zcode/server/zcode-server.cjs' --version"
+        },
+        {
+          "method": "exec",
+          "durationMs": 63.97620000000461,
+          "detail": "\"$HOME\"'/.zcode/server/node' -e '\nconst fs = require(\"fs\");\nconst content = fs.readFileSync(process.argv[1], \"utf8\");\nconst missing = [\"skill-sync\",\"mcp-sync\",\"plugin-sync\",\"__zcode_rpc_nested_uint8array_v1\",\"exportMarketplaceSourceArchive\""
+        },
+        {
+          "method": "readFile",
+          "durationMs": 199.30680000000575,
+          "detail": "~/.zcode/server/.asset-components/server-bundle.json"
+        },
+        {
+          "method": "readFile",
+          "durationMs": 174.6429000000062,
+          "detail": "~/.zcode/server/.asset-components/glm.json"
+        },
+        {
+          "method": "exists",
+          "durationMs": 175.64670000001206,
+          "detail": "~/.zcode/server/build/Release/pty.node"
+        },
+        {
+          "method": "exists",
+          "durationMs": 165.18880000000354,
+          "detail": "~/.zcode/server/agents/glm/packages/android-emulator-plugin/.zcode-plugin/plugin.json"
+        },
+        {
+          "method": "exists",
+          "durationMs": 178.6692999999941,
+          "detail": "~/.zcode/server/agents/glm/packages/browser-use-plugin/.zcode-plugin/plugin.json"
+        },
+        {
+          "method": "exists",
+          "durationMs": 204.91809999999532,
+          "detail": "~/.zcode/server/agents/glm/packages/zcode-cua-plugin/.zcode-plugin/plugin.json"
+        },
+        {
+          "method": "exists",
+          "durationMs": 175.56560000000172,
+          "detail": "~/.zcode/server/agents/glm/packages/documents-plugin/.zcode-plugin/plugin.json"
+        },
+        {
+          "method": "exists",
+          "durationMs": 191.329899999997,
+          "detail": "~/.zcode/server/agents/glm/packages/pdf-plugin/.zcode-plugin/plugin.json"
+        },
+        {
+          "method": "exists",
+          "durationMs": 180.12110000000393,
+          "detail": "~/.zcode/server/agents/glm/packages/presentations-plugin/.zcode-plugin/plugin.json"
+        },
+        {
+          "method": "exists",
+          "durationMs": 202.65890000000945,
+          "detail": "~/.zcode/server/agents/glm/packages/spreadsheets-plugin/.zcode-plugin/plugin.json"
+        },
+        {
+          "method": "exists",
+          "durationMs": 194.34900000000198,
+          "detail": "~/.zcode/server/agents/glm/packages/image-search-plugin/.zcode-plugin/plugin.json"
+        },
+        {
+          "method": "exists",
+          "durationMs": 182.70389999999315,
+          "detail": "~/.zcode/server/agents/glm/packages/ios-simulator-plugin/.zcode-plugin/plugin.json"
+        },
+        {
+          "method": "exists",
+          "durationMs": 173.25809999999183,
+          "detail": "~/.zcode/server/agents/glm/packages/restore-legacy-sessions-plugin/.zcode-plugin/plugin.json"
+        },
+        {
+          "method": "exists",
+          "durationMs": 214.38730000000214,
+          "detail": "~/.zcode/server/agents/glm/packages/skill-creator-plugin/.zcode-plugin/plugin.json"
+        },
+        {
+          "method": "exists",
+          "durationMs": 203.88339999999152,
+          "detail": "~/.zcode/server/agents/glm/packages/plugin-creator-plugin/.zcode-plugin/plugin.json"
+        },
+        {
+          "method": "exists",
+          "durationMs": 193.2341000000015,
+          "detail": "~/.zcode/server/agents/glm/packages/zcode-guide-plugin/.zcode-plugin/plugin.json"
+        },
+        {
+          "method": "exists",
+          "durationMs": 176.25290000000678,
+          "detail": "~/.zcode/server/agents/glm/packages/visualize-plugin/.zcode-plugin/plugin.json"
+        },
+        {
+          "method": "exists",
+          "durationMs": 168.99909999998636,
+          "detail": "~/.zcode/server/agents/glm/packages/visualize-plugin/skills/visualize/SKILL.md"
+        },
+        {
+          "method": "exists",
+          "durationMs": 174.2100000000064,
+          "detail": "~/.zcode/server/agents/glm/packages/visualize-plugin/skills/visualize/references/api.md"
+        },
+        {
+          "method": "exists",
+          "durationMs": 171.2569999999978,
+          "detail": "~/.zcode/server/agents/glm/packages/visualize-plugin/skills/visualize/references/styles.md"
+        },
+        {
+          "method": "exists",
+          "durationMs": 208.7566999999981,
+          "detail": "~/.zcode/server/agents/glm/packages/visualize-plugin/skills/visualize/tweak.md"
+        },
+        {
+          "method": "exists",
+          "durationMs": 172.67320000000473,
+          "detail": "~/.zcode/server/agents/glm/packages/visualize-plugin/skills/visualize/LICENSE.md"
+        },
+        {
+          "method": "exists",
+          "durationMs": 167.15600000000268,
+          "detail": "~/.zcode/server/agents/glm/packages/visualize-plugin/skills/visualize/scripts/render.py"
+        },
+        {
+          "method": "exists",
+          "durationMs": 182.65050000000338,
+          "detail": "~/.zcode/server/agents/glm/packages/visualize-plugin/skills/visualize/assets/visualize.css"
+        },
+        {
+          "method": "exists",
+          "durationMs": 178.19259999999485,
+          "detail": "~/.zcode/server/agents/glm/packages/visualize-plugin/skills/visualize/assets/visualize.html"
+        },
+        {
+          "method": "exists",
+          "durationMs": 176.47159999998985,
+          "detail": "~/.zcode/server/agents/glm/packages/visualize-plugin/skills/visualize/assets/calendar.js"
+        },
+        {
+          "method": "exists",
+          "durationMs": 184.95400000001246,
+          "detail": "~/.zcode/server/agents/glm/packages/visualize-plugin/skills/visualize/assets/runtime-manifest.json"
+        },
+        {
+          "method": "exists",
+          "durationMs": 203.21059999999125,
+          "detail": "~/.zcode/server/agents/glm/packages/visualize-plugin/skills/visualize/scripts/vendor.py"
+        },
+        {
+          "method": "exists",
+          "durationMs": 173.88030000000435,
+          "detail": "~/.zcode/server/agents/glm/packages/visualize-plugin/skills/visualize/assets/vendor/manifest.json"
+        },
+        {
+          "method": "exists",
+          "durationMs": 179.99259999999776,
+          "detail": "~/.zcode/server/agents/glm/packages/visualize-plugin/skills/visualize/assets/vendor/floating-ui-core-1.7.3.min.js"
+        },
+        {
+          "method": "exists",
+          "durationMs": 177.47419999999693,
+          "detail": "~/.zcode/server/agents/glm/packages/visualize-plugin/skills/visualize/assets/vendor/floating-ui-core-1.7.3.min.js.LICENSE"
+        },
+        {
+          "method": "exists",
+          "durationMs": 180.6860000000015,
+          "detail": "~/.zcode/server/agents/glm/packages/visualize-plugin/skills/visualize/assets/vendor/floating-ui-dom-1.7.4.min.js"
+        },
+        {
+          "method": "exists",
+          "durationMs": 180.55019999999786,
+          "detail": "~/.zcode/server/agents/glm/packages/visualize-plugin/skills/visualize/assets/vendor/floating-ui-dom-1.7.4.min.js.LICENSE"
+        },
+        {
+          "method": "exists",
+          "durationMs": 205.3808999999892,
+          "detail": "~/.zcode/server/agents/glm/packages/visualize-plugin/skills/visualize/assets/vendor/lucide-1.17.0.js"
+        },
+        {
+          "method": "exists",
+          "durationMs": 179.9902000000002,
+          "detail": "~/.zcode/server/agents/glm/packages/visualize-plugin/skills/visualize/assets/vendor/lucide-1.17.0.js.LICENSE"
+        },
+        {
+          "method": "exists",
+          "durationMs": 180.5158999999985,
+          "detail": "~/.zcode/server/agents/glm/packages/visualize-plugin/skills/visualize/assets/vendor/d3-7.9.0.min.js"
+        },
+        {
+          "method": "exists",
+          "durationMs": 177.44670000000042,
+          "detail": "~/.zcode/server/agents/glm/packages/visualize-plugin/skills/visualize/assets/vendor/d3-7.9.0.min.js.LICENSE"
+        },
+        {
+          "method": "exists",
+          "durationMs": 179.61699999999837,
+          "detail": "~/.zcode/server/agents/glm/packages/visualize-plugin/skills/visualize/assets/standalone-host-bridge.js"
+        },
+        {
+          "method": "exists",
+          "durationMs": 188.49860000000626,
+          "detail": "~/.zcode/server/agents/glm/packages/visualize-plugin/skills/visualize/assets/standalone-shell.js"
+        },
+        {
+          "method": "exists",
+          "durationMs": 210.83819999999832,
+          "detail": "~/.zcode/server/agents/glm/packages/visualize-plugin/skills/visualize/widgets/calendar.md"
+        },
+        {
+          "method": "exists",
+          "durationMs": 202.39439999999013,
+          "detail": "~/.zcode/server/agents/glm/packages/visualize-plugin/skills/visualize/examples/calendar.html"
+        },
+        {
+          "method": "exists",
+          "durationMs": 182.6478999999963,
+          "detail": "~/.zcode/server/agents/glm/packages/browser-use-plugin/docs/api.json"
+        },
+        {
+          "method": "exists",
+          "durationMs": 169.68420000000333,
+          "detail": "~/.zcode/server/agents/glm/packages/browser-use-plugin/docs/documents.json"
+        },
+        {
+          "method": "exists",
+          "durationMs": 183.0610000000015,
+          "detail": "~/.zcode/server/agents/glm/packages/browser-use-plugin/docs/overview.md"
+        },
+        {
+          "method": "exists",
+          "durationMs": 170.43369999999413,
+          "detail": "~/.zcode/server/agents/glm/packages/browser-use-plugin/docs/recording.md"
+        },
+        {
+          "method": "exists",
+          "durationMs": 171.38259999999718,
+          "detail": "~/.zcode/server/agents/glm/packages/browser-use-plugin/docs/workflow.md"
+        },
+        {
+          "method": "exists",
+          "durationMs": 189.8125,
+          "detail": "~/.zcode/server/agents/glm/packages/browser-use-plugin/scripts/browser-client.mjs"
+        },
+        {
+          "method": "exists",
+          "durationMs": 196.81230000000505,
+          "detail": "~/.zcode/server/agents/glm/packages/browser-use-plugin/skills/control-browser/SKILL.md"
+        },
+        {
+          "method": "exists",
+          "durationMs": 179.39379999999073,
+          "detail": "~/.zcode/server/agents/glm/packages/browser-use-plugin/skills/web-gui-tester/SKILL.md"
+        },
+        {
+          "method": "exists",
+          "durationMs": 185.3136000000086,
+          "detail": "~/.zcode/server/agents/glm/packages/image-search-plugin/.mcp.json"
+        },
+        {
+          "method": "exists",
+          "durationMs": 177.68159999999625,
+          "detail": "~/.zcode/server/agents/glm/packages/documents-plugin/agents/visual-judge.md"
+        },
+        {
+          "method": "exists",
+          "durationMs": 186.08669999999984,
+          "detail": "~/.zcode/server/agents/glm/packages/documents-plugin/skills/docx/SKILL.md"
+        },
+        {
+          "method": "exists",
+          "durationMs": 192.33529999999155,
+          "detail": "~/.zcode/server/agents/glm/packages/pdf-plugin/agents/visual-judge.md"
+        },
+        {
+          "method": "exists",
+          "durationMs": 206.84249999999884,
+          "detail": "~/.zcode/server/agents/glm/packages/pdf-plugin/skills/pdf/SKILL.md"
+        },
+        {
+          "method": "exists",
+          "durationMs": 190.17269999999553,
+          "detail": "~/.zcode/server/agents/glm/packages/presentations-plugin/agents/visual-judge.md"
+        },
+        {
+          "method": "exists",
+          "durationMs": 214.5676999999996,
+          "detail": "~/.zcode/server/agents/glm/packages/presentations-plugin/skills/pptx/SKILL.md"
+        },
+        {
+          "method": "exists",
+          "durationMs": 209.04640000000654,
+          "detail": "~/.zcode/server/agents/glm/packages/spreadsheets-plugin/agents/visual-judge.md"
+        },
+        {
+          "method": "exists",
+          "durationMs": 203.31459999999788,
+          "detail": "~/.zcode/server/agents/glm/packages/spreadsheets-plugin/skills/xlsx/SKILL.md"
+        },
+        {
+          "method": "exists",
+          "durationMs": 196.65509999998903,
+          "detail": "~/.zcode/server/agents/glm/packages/zcode-cua-plugin/docs/computer-use.md"
+        },
+        {
+          "method": "exists",
+          "durationMs": 184.8932000000059,
+          "detail": "~/.zcode/server/agents/glm/packages/zcode-cua-plugin/scripts/computer-use-client.mjs"
+        },
+        {
+          "method": "exists",
+          "durationMs": 183.79000000000815,
+          "detail": "~/.zcode/server/agents/glm/packages/zcode-cua-plugin/skills/computer-use/SKILL.md"
+        },
+        {
+          "method": "readFile",
+          "durationMs": 179.0460999999923,
+          "detail": "~/.zcode/server/.asset-components/glm.json"
+        },
+        {
+          "method": "exists",
+          "durationMs": 186.14890000000014,
+          "detail": "~/.zcode/server/agents/glm/zcode-agent"
+        },
+        {
+          "method": "readFile",
+          "durationMs": 180.3764999999985,
+          "detail": "~/.zcode/server/agents/glm/zcode-agent"
+        },
+        {
+          "method": "exists",
+          "durationMs": 202.32910000000265,
+          "detail": "~/.zcode/server/agents/glm/zcode.cjs"
+        },
+        {
+          "method": "readFile",
+          "durationMs": 192.44409999999334,
+          "detail": "~/.zcode/server/tools/bfs/.version"
+        },
+        {
+          "method": "exists",
+          "durationMs": 177.27469999999448,
+          "detail": "~/.zcode/server/tools/bfs/bfs"
+        },
+        {
+          "method": "readFile",
+          "durationMs": 168.73159999999916,
+          "detail": "~/.zcode/server/tools/ripgrep/.version"
+        },
+        {
+          "method": "exists",
+          "durationMs": 168.83920000000217,
+          "detail": "~/.zcode/server/tools/ripgrep/rg"
+        },
+        {
+          "method": "readFile",
+          "durationMs": 171.86719999999332,
+          "detail": "~/.zcode/server/tools/ugrep/.version"
+        },
+        {
+          "method": "exists",
+          "durationMs": 188.94460000000254,
+          "detail": "~/.zcode/server/tools/ugrep/ugrep"
+        },
+        {
+          "method": "exec",
+          "durationMs": 70.18519999999262,
+          "detail": "ZCODE_SERVICE_AUTHORITY_MODE=\"desktop-attached-remote\" ZCODE_SERVER_RUNTIME_ROOT=\"$HOME/.zcode/server\" ~/.zcode/server/node ~/.zcode/server/zcode-server.cjs"
+        }
+      ],
+      "totalMs": 16622.8502,
+      "phases": {
+        "detectMs": 598.3932999999961,
+        "runtimeNetworkMs": 0.1683000000048196,
+        "deployMs": 15537.452999999994,
+        "launchMs": 70.39070000000356,
+        "handshakeMs": 416.0631999999896,
+        "wrapMs": 0.24930000001040753,
+        "unattributedMs": 0.13240000000223517
+      },
+      "systemRpcMs": 99.47329999999783,
+      "identity": {
+        "platform": "linux",
+        "homedir": "/home/zcodewslp2"
+      },
+      "disposeMs": 33.26940000000468
+    },
+    {
+      "iteration": 8,
+      "backendCalls": [
+        {
+          "method": "detect",
+          "durationMs": 612.069399999993,
+          "detail": ""
+        },
+        {
+          "method": "exists",
+          "durationMs": 179.3335999999981,
+          "detail": "~/.zcode/server/node"
+        },
+        {
+          "method": "exists",
+          "durationMs": 173.73970000000554,
+          "detail": "~/.zcode/server/zcode-server.cjs"
+        },
+        {
+          "method": "exec",
+          "durationMs": 62.02620000000752,
+          "detail": "\"$HOME\"'/.zcode/server/node' \"$HOME\"'/.zcode/server/zcode-server.cjs' --version"
+        },
+        {
+          "method": "exec",
+          "durationMs": 68.64740000000165,
+          "detail": "\"$HOME\"'/.zcode/server/node' -e '\nconst fs = require(\"fs\");\nconst content = fs.readFileSync(process.argv[1], \"utf8\");\nconst missing = [\"skill-sync\",\"mcp-sync\",\"plugin-sync\",\"__zcode_rpc_nested_uint8array_v1\",\"exportMarketplaceSourceArchive\""
+        },
+        {
+          "method": "exec",
+          "durationMs": 62.10080000000016,
+          "detail": "set -eu\nmkdir -p \"$HOME\"'/.zcode/server'\nprintf '%b' '\\163\\145\\164\\040\\055\\145\\165\\012\\154\\157\\143\\153\\137\\144\\151\\162\\075\\042\\044\\110\\117\\115\\105\\042\\047\\057\\056\\172\\143\\157\\144\\145\\057\\163\\145\\162\\166\\145\\162\\057\\056\\144\\145\\160\\154\\157\\1"
+        },
+        {
+          "method": "exists",
+          "durationMs": 179.92609999999695,
+          "detail": "~/.zcode/server/node"
+        },
+        {
+          "method": "exists",
+          "durationMs": 173.93519999999262,
+          "detail": "~/.zcode/server/zcode-server.cjs"
+        },
+        {
+          "method": "exec",
+          "durationMs": 65.24599999999919,
+          "detail": "\"$HOME\"'/.zcode/server/node' \"$HOME\"'/.zcode/server/zcode-server.cjs' --version"
+        },
+        {
+          "method": "exec",
+          "durationMs": 90.46180000000459,
+          "detail": "\"$HOME\"'/.zcode/server/node' -e '\nconst fs = require(\"fs\");\nconst content = fs.readFileSync(process.argv[1], \"utf8\");\nconst missing = [\"skill-sync\",\"mcp-sync\",\"plugin-sync\",\"__zcode_rpc_nested_uint8array_v1\",\"exportMarketplaceSourceArchive\""
+        },
+        {
+          "method": "readFile",
+          "durationMs": 175.33950000000186,
+          "detail": "~/.zcode/server/.asset-components/server-bundle.json"
+        },
+        {
+          "method": "readFile",
+          "durationMs": 202.70109999999113,
+          "detail": "~/.zcode/server/.asset-components/glm.json"
+        },
+        {
+          "method": "exists",
+          "durationMs": 193.59730000000854,
+          "detail": "~/.zcode/server/build/Release/pty.node"
+        },
+        {
+          "method": "exists",
+          "durationMs": 198.22490000000107,
+          "detail": "~/.zcode/server/agents/glm/packages/android-emulator-plugin/.zcode-plugin/plugin.json"
+        },
+        {
+          "method": "exists",
+          "durationMs": 219.25599999999395,
+          "detail": "~/.zcode/server/agents/glm/packages/browser-use-plugin/.zcode-plugin/plugin.json"
+        },
+        {
+          "method": "exists",
+          "durationMs": 201.3367000000144,
+          "detail": "~/.zcode/server/agents/glm/packages/zcode-cua-plugin/.zcode-plugin/plugin.json"
+        },
+        {
+          "method": "exists",
+          "durationMs": 190.44130000000587,
+          "detail": "~/.zcode/server/agents/glm/packages/documents-plugin/.zcode-plugin/plugin.json"
+        },
+        {
+          "method": "exists",
+          "durationMs": 203.5810000000056,
+          "detail": "~/.zcode/server/agents/glm/packages/pdf-plugin/.zcode-plugin/plugin.json"
+        },
+        {
+          "method": "exists",
+          "durationMs": 189.65869999999995,
+          "detail": "~/.zcode/server/agents/glm/packages/presentations-plugin/.zcode-plugin/plugin.json"
+        },
+        {
+          "method": "exists",
+          "durationMs": 182.0523000000103,
+          "detail": "~/.zcode/server/agents/glm/packages/spreadsheets-plugin/.zcode-plugin/plugin.json"
+        },
+        {
+          "method": "exists",
+          "durationMs": 174.94049999999697,
+          "detail": "~/.zcode/server/agents/glm/packages/image-search-plugin/.zcode-plugin/plugin.json"
+        },
+        {
+          "method": "exists",
+          "durationMs": 220.04080000001704,
+          "detail": "~/.zcode/server/agents/glm/packages/ios-simulator-plugin/.zcode-plugin/plugin.json"
+        },
+        {
+          "method": "exists",
+          "durationMs": 195.9812999999849,
+          "detail": "~/.zcode/server/agents/glm/packages/restore-legacy-sessions-plugin/.zcode-plugin/plugin.json"
+        },
+        {
+          "method": "exists",
+          "durationMs": 169.1539000000048,
+          "detail": "~/.zcode/server/agents/glm/packages/skill-creator-plugin/.zcode-plugin/plugin.json"
+        },
+        {
+          "method": "exists",
+          "durationMs": 173.56609999999637,
+          "detail": "~/.zcode/server/agents/glm/packages/plugin-creator-plugin/.zcode-plugin/plugin.json"
+        },
+        {
+          "method": "exists",
+          "durationMs": 172.73099999999977,
+          "detail": "~/.zcode/server/agents/glm/packages/zcode-guide-plugin/.zcode-plugin/plugin.json"
+        },
+        {
+          "method": "exists",
+          "durationMs": 169.55079999999725,
+          "detail": "~/.zcode/server/agents/glm/packages/visualize-plugin/.zcode-plugin/plugin.json"
+        },
+        {
+          "method": "exists",
+          "durationMs": 194.95160000000033,
+          "detail": "~/.zcode/server/agents/glm/packages/visualize-plugin/skills/visualize/SKILL.md"
+        },
+        {
+          "method": "exists",
+          "durationMs": 175.6252000000095,
+          "detail": "~/.zcode/server/agents/glm/packages/visualize-plugin/skills/visualize/references/api.md"
+        },
+        {
+          "method": "exists",
+          "durationMs": 171.7381999999925,
+          "detail": "~/.zcode/server/agents/glm/packages/visualize-plugin/skills/visualize/references/styles.md"
+        },
+        {
+          "method": "exists",
+          "durationMs": 185.81609999999637,
+          "detail": "~/.zcode/server/agents/glm/packages/visualize-plugin/skills/visualize/tweak.md"
+        },
+        {
+          "method": "exists",
+          "durationMs": 178.6078999999736,
+          "detail": "~/.zcode/server/agents/glm/packages/visualize-plugin/skills/visualize/LICENSE.md"
+        },
+        {
+          "method": "exists",
+          "durationMs": 183.27210000000196,
+          "detail": "~/.zcode/server/agents/glm/packages/visualize-plugin/skills/visualize/scripts/render.py"
+        },
+        {
+          "method": "exists",
+          "durationMs": 178.22949999998673,
+          "detail": "~/.zcode/server/agents/glm/packages/visualize-plugin/skills/visualize/assets/visualize.css"
+        },
+        {
+          "method": "exists",
+          "durationMs": 195.6944000000076,
+          "detail": "~/.zcode/server/agents/glm/packages/visualize-plugin/skills/visualize/assets/visualize.html"
+        },
+        {
+          "method": "exists",
+          "durationMs": 176.90669999999227,
+          "detail": "~/.zcode/server/agents/glm/packages/visualize-plugin/skills/visualize/assets/calendar.js"
+        },
+        {
+          "method": "exists",
+          "durationMs": 181.83879999999772,
+          "detail": "~/.zcode/server/agents/glm/packages/visualize-plugin/skills/visualize/assets/runtime-manifest.json"
+        },
+        {
+          "method": "exists",
+          "durationMs": 192.3334999999788,
+          "detail": "~/.zcode/server/agents/glm/packages/visualize-plugin/skills/visualize/scripts/vendor.py"
+        },
+        {
+          "method": "exists",
+          "durationMs": 191.54709999999614,
+          "detail": "~/.zcode/server/agents/glm/packages/visualize-plugin/skills/visualize/assets/vendor/manifest.json"
+        },
+        {
+          "method": "exists",
+          "durationMs": 191.8533999999927,
+          "detail": "~/.zcode/server/agents/glm/packages/visualize-plugin/skills/visualize/assets/vendor/floating-ui-core-1.7.3.min.js"
+        },
+        {
+          "method": "exists",
+          "durationMs": 217.02959999997984,
+          "detail": "~/.zcode/server/agents/glm/packages/visualize-plugin/skills/visualize/assets/vendor/floating-ui-core-1.7.3.min.js.LICENSE"
+        },
+        {
+          "method": "exists",
+          "durationMs": 195.7392000000109,
+          "detail": "~/.zcode/server/agents/glm/packages/visualize-plugin/skills/visualize/assets/vendor/floating-ui-dom-1.7.4.min.js"
+        },
+        {
+          "method": "exists",
+          "durationMs": 191.78810000000522,
+          "detail": "~/.zcode/server/agents/glm/packages/visualize-plugin/skills/visualize/assets/vendor/floating-ui-dom-1.7.4.min.js.LICENSE"
+        },
+        {
+          "method": "exists",
+          "durationMs": 186.99090000000433,
+          "detail": "~/.zcode/server/agents/glm/packages/visualize-plugin/skills/visualize/assets/vendor/lucide-1.17.0.js"
+        },
+        {
+          "method": "exists",
+          "durationMs": 179.4316000000108,
+          "detail": "~/.zcode/server/agents/glm/packages/visualize-plugin/skills/visualize/assets/vendor/lucide-1.17.0.js.LICENSE"
+        },
+        {
+          "method": "exists",
+          "durationMs": 205.15599999998813,
+          "detail": "~/.zcode/server/agents/glm/packages/visualize-plugin/skills/visualize/assets/vendor/d3-7.9.0.min.js"
+        },
+        {
+          "method": "exists",
+          "durationMs": 196.14689999999246,
+          "detail": "~/.zcode/server/agents/glm/packages/visualize-plugin/skills/visualize/assets/vendor/d3-7.9.0.min.js.LICENSE"
+        },
+        {
+          "method": "exists",
+          "durationMs": 181.44190000000526,
+          "detail": "~/.zcode/server/agents/glm/packages/visualize-plugin/skills/visualize/assets/standalone-host-bridge.js"
+        },
+        {
+          "method": "exists",
+          "durationMs": 174.4893999999913,
+          "detail": "~/.zcode/server/agents/glm/packages/visualize-plugin/skills/visualize/assets/standalone-shell.js"
+        },
+        {
+          "method": "exists",
+          "durationMs": 173.60399999999208,
+          "detail": "~/.zcode/server/agents/glm/packages/visualize-plugin/skills/visualize/widgets/calendar.md"
+        },
+        {
+          "method": "exists",
+          "durationMs": 174.16849999999977,
+          "detail": "~/.zcode/server/agents/glm/packages/visualize-plugin/skills/visualize/examples/calendar.html"
+        },
+        {
+          "method": "exists",
+          "durationMs": 179.1704000000027,
+          "detail": "~/.zcode/server/agents/glm/packages/browser-use-plugin/docs/api.json"
+        },
+        {
+          "method": "exists",
+          "durationMs": 185.2274000000034,
+          "detail": "~/.zcode/server/agents/glm/packages/browser-use-plugin/docs/documents.json"
+        },
+        {
+          "method": "exists",
+          "durationMs": 216.34209999997984,
+          "detail": "~/.zcode/server/agents/glm/packages/browser-use-plugin/docs/overview.md"
+        },
+        {
+          "method": "exists",
+          "durationMs": 182.85440000001108,
+          "detail": "~/.zcode/server/agents/glm/packages/browser-use-plugin/docs/recording.md"
+        },
+        {
+          "method": "exists",
+          "durationMs": 177.99680000002263,
+          "detail": "~/.zcode/server/agents/glm/packages/browser-use-plugin/docs/workflow.md"
+        },
+        {
+          "method": "exists",
+          "durationMs": 177.45000000001164,
+          "detail": "~/.zcode/server/agents/glm/packages/browser-use-plugin/scripts/browser-client.mjs"
+        },
+        {
+          "method": "exists",
+          "durationMs": 196.8307999999961,
+          "detail": "~/.zcode/server/agents/glm/packages/browser-use-plugin/skills/control-browser/SKILL.md"
+        },
+        {
+          "method": "exists",
+          "durationMs": 177.1645000000135,
+          "detail": "~/.zcode/server/agents/glm/packages/browser-use-plugin/skills/web-gui-tester/SKILL.md"
+        },
+        {
+          "method": "exists",
+          "durationMs": 187.44539999999688,
+          "detail": "~/.zcode/server/agents/glm/packages/image-search-plugin/.mcp.json"
+        },
+        {
+          "method": "exists",
+          "durationMs": 198.3646000000008,
+          "detail": "~/.zcode/server/agents/glm/packages/documents-plugin/agents/visual-judge.md"
+        },
+        {
+          "method": "exists",
+          "durationMs": 181.13710000002175,
+          "detail": "~/.zcode/server/agents/glm/packages/documents-plugin/skills/docx/SKILL.md"
+        },
+        {
+          "method": "exists",
+          "durationMs": 224.6576000000059,
+          "detail": "~/.zcode/server/agents/glm/packages/pdf-plugin/agents/visual-judge.md"
+        },
+        {
+          "method": "exists",
+          "durationMs": 167.37450000000536,
+          "detail": "~/.zcode/server/agents/glm/packages/pdf-plugin/skills/pdf/SKILL.md"
+        },
+        {
+          "method": "exists",
+          "durationMs": 173.2737999999954,
+          "detail": "~/.zcode/server/agents/glm/packages/presentations-plugin/agents/visual-judge.md"
+        },
+        {
+          "method": "exists",
+          "durationMs": 167.80999999999767,
+          "detail": "~/.zcode/server/agents/glm/packages/presentations-plugin/skills/pptx/SKILL.md"
+        },
+        {
+          "method": "exists",
+          "durationMs": 188.5237999999954,
+          "detail": "~/.zcode/server/agents/glm/packages/spreadsheets-plugin/agents/visual-judge.md"
+        },
+        {
+          "method": "exists",
+          "durationMs": 167.8062000000209,
+          "detail": "~/.zcode/server/agents/glm/packages/spreadsheets-plugin/skills/xlsx/SKILL.md"
+        },
+        {
+          "method": "exists",
+          "durationMs": 167.64770000000135,
+          "detail": "~/.zcode/server/agents/glm/packages/zcode-cua-plugin/docs/computer-use.md"
+        },
+        {
+          "method": "exists",
+          "durationMs": 168.9786000000022,
+          "detail": "~/.zcode/server/agents/glm/packages/zcode-cua-plugin/scripts/computer-use-client.mjs"
+        },
+        {
+          "method": "exists",
+          "durationMs": 173.6300999999803,
+          "detail": "~/.zcode/server/agents/glm/packages/zcode-cua-plugin/skills/computer-use/SKILL.md"
+        },
+        {
+          "method": "readFile",
+          "durationMs": 175.7485999999917,
+          "detail": "~/.zcode/server/.asset-components/glm.json"
+        },
+        {
+          "method": "exists",
+          "durationMs": 189.27460000000428,
+          "detail": "~/.zcode/server/agents/glm/zcode-agent"
+        },
+        {
+          "method": "readFile",
+          "durationMs": 194.05650000000605,
+          "detail": "~/.zcode/server/agents/glm/zcode-agent"
+        },
+        {
+          "method": "exists",
+          "durationMs": 182.42319999999017,
+          "detail": "~/.zcode/server/agents/glm/zcode.cjs"
+        },
+        {
+          "method": "readFile",
+          "durationMs": 179.79699999999139,
+          "detail": "~/.zcode/server/tools/bfs/.version"
+        },
+        {
+          "method": "exists",
+          "durationMs": 182.63339999999152,
+          "detail": "~/.zcode/server/tools/bfs/bfs"
+        },
+        {
+          "method": "readFile",
+          "durationMs": 178.0125999999873,
+          "detail": "~/.zcode/server/tools/ripgrep/.version"
+        },
+        {
+          "method": "exists",
+          "durationMs": 190.9493000000075,
+          "detail": "~/.zcode/server/tools/ripgrep/rg"
+        },
+        {
+          "method": "readFile",
+          "durationMs": 183.3007000000216,
+          "detail": "~/.zcode/server/tools/ugrep/.version"
+        },
+        {
+          "method": "exists",
+          "durationMs": 187.5341999999946,
+          "detail": "~/.zcode/server/tools/ugrep/ugrep"
+        },
+        {
+          "method": "exec",
+          "durationMs": 69.9720999999845,
+          "detail": "ZCODE_SERVICE_AUTHORITY_MODE=\"desktop-attached-remote\" ZCODE_SERVER_RUNTIME_ROOT=\"$HOME/.zcode/server\" ~/.zcode/server/node ~/.zcode/server/zcode-server.cjs"
+        }
+      ],
+      "totalMs": 16553.401899999997,
+      "phases": {
+        "detectMs": 612.2201999999961,
+        "runtimeNetworkMs": 0.1608000000123866,
+        "deployMs": 15474.72599999998,
+        "launchMs": 70.19110000002547,
+        "handshakeMs": 395.70999999999185,
+        "wrapMs": 0.2497999999905005,
+        "unattributedMs": 0.14400000000023283
+      },
+      "systemRpcMs": 97.77290000001085,
+      "identity": {
+        "platform": "linux",
+        "homedir": "/home/zcodewslp2"
+      },
+      "disposeMs": 33.19939999998314
+    },
+    {
+      "iteration": 9,
+      "backendCalls": [
+        {
+          "method": "detect",
+          "durationMs": 593.3578999999736,
+          "detail": ""
+        },
+        {
+          "method": "exists",
+          "durationMs": 173.10379999998258,
+          "detail": "~/.zcode/server/node"
+        },
+        {
+          "method": "exists",
+          "durationMs": 171.10480000000098,
+          "detail": "~/.zcode/server/zcode-server.cjs"
+        },
+        {
+          "method": "exec",
+          "durationMs": 62.109900000010384,
+          "detail": "\"$HOME\"'/.zcode/server/node' \"$HOME\"'/.zcode/server/zcode-server.cjs' --version"
+        },
+        {
+          "method": "exec",
+          "durationMs": 63.71020000000135,
+          "detail": "\"$HOME\"'/.zcode/server/node' -e '\nconst fs = require(\"fs\");\nconst content = fs.readFileSync(process.argv[1], \"utf8\");\nconst missing = [\"skill-sync\",\"mcp-sync\",\"plugin-sync\",\"__zcode_rpc_nested_uint8array_v1\",\"exportMarketplaceSourceArchive\""
+        },
+        {
+          "method": "exec",
+          "durationMs": 87.16819999998552,
+          "detail": "set -eu\nmkdir -p \"$HOME\"'/.zcode/server'\nprintf '%b' '\\163\\145\\164\\040\\055\\145\\165\\012\\154\\157\\143\\153\\137\\144\\151\\162\\075\\042\\044\\110\\117\\115\\105\\042\\047\\057\\056\\172\\143\\157\\144\\145\\057\\163\\145\\162\\166\\145\\162\\057\\056\\144\\145\\160\\154\\157\\1"
+        },
+        {
+          "method": "exists",
+          "durationMs": 180.3071999999811,
+          "detail": "~/.zcode/server/node"
+        },
+        {
+          "method": "exists",
+          "durationMs": 177.43960000001243,
+          "detail": "~/.zcode/server/zcode-server.cjs"
+        },
+        {
+          "method": "exec",
+          "durationMs": 69.74680000002263,
+          "detail": "\"$HOME\"'/.zcode/server/node' \"$HOME\"'/.zcode/server/zcode-server.cjs' --version"
+        },
+        {
+          "method": "exec",
+          "durationMs": 85.99319999999716,
+          "detail": "\"$HOME\"'/.zcode/server/node' -e '\nconst fs = require(\"fs\");\nconst content = fs.readFileSync(process.argv[1], \"utf8\");\nconst missing = [\"skill-sync\",\"mcp-sync\",\"plugin-sync\",\"__zcode_rpc_nested_uint8array_v1\",\"exportMarketplaceSourceArchive\""
+        },
+        {
+          "method": "readFile",
+          "durationMs": 196.76010000001406,
+          "detail": "~/.zcode/server/.asset-components/server-bundle.json"
+        },
+        {
+          "method": "readFile",
+          "durationMs": 178.1576000000059,
+          "detail": "~/.zcode/server/.asset-components/glm.json"
+        },
+        {
+          "method": "exists",
+          "durationMs": 204.48769999999786,
+          "detail": "~/.zcode/server/build/Release/pty.node"
+        },
+        {
+          "method": "exists",
+          "durationMs": 206.54230000000098,
+          "detail": "~/.zcode/server/agents/glm/packages/android-emulator-plugin/.zcode-plugin/plugin.json"
+        },
+        {
+          "method": "exists",
+          "durationMs": 169.27059999998892,
+          "detail": "~/.zcode/server/agents/glm/packages/browser-use-plugin/.zcode-plugin/plugin.json"
+        },
+        {
+          "method": "exists",
+          "durationMs": 171.5952999999863,
+          "detail": "~/.zcode/server/agents/glm/packages/zcode-cua-plugin/.zcode-plugin/plugin.json"
+        },
+        {
+          "method": "exists",
+          "durationMs": 168.63229999999749,
+          "detail": "~/.zcode/server/agents/glm/packages/documents-plugin/.zcode-plugin/plugin.json"
+        },
+        {
+          "method": "exists",
+          "durationMs": 169.5576000000001,
+          "detail": "~/.zcode/server/agents/glm/packages/pdf-plugin/.zcode-plugin/plugin.json"
+        },
+        {
+          "method": "exists",
+          "durationMs": 166.33819999999832,
+          "detail": "~/.zcode/server/agents/glm/packages/presentations-plugin/.zcode-plugin/plugin.json"
+        },
+        {
+          "method": "exists",
+          "durationMs": 175.52479999998468,
+          "detail": "~/.zcode/server/agents/glm/packages/spreadsheets-plugin/.zcode-plugin/plugin.json"
+        },
+        {
+          "method": "exists",
+          "durationMs": 180.90160000001197,
+          "detail": "~/.zcode/server/agents/glm/packages/image-search-plugin/.zcode-plugin/plugin.json"
+        },
+        {
+          "method": "exists",
+          "durationMs": 175.23770000002696,
+          "detail": "~/.zcode/server/agents/glm/packages/ios-simulator-plugin/.zcode-plugin/plugin.json"
+        },
+        {
+          "method": "exists",
+          "durationMs": 188.4250999999931,
+          "detail": "~/.zcode/server/agents/glm/packages/restore-legacy-sessions-plugin/.zcode-plugin/plugin.json"
+        },
+        {
+          "method": "exists",
+          "durationMs": 168.21080000000075,
+          "detail": "~/.zcode/server/agents/glm/packages/skill-creator-plugin/.zcode-plugin/plugin.json"
+        },
+        {
+          "method": "exists",
+          "durationMs": 186.16249999997672,
+          "detail": "~/.zcode/server/agents/glm/packages/plugin-creator-plugin/.zcode-plugin/plugin.json"
+        },
+        {
+          "method": "exists",
+          "durationMs": 181.45089999999618,
+          "detail": "~/.zcode/server/agents/glm/packages/zcode-guide-plugin/.zcode-plugin/plugin.json"
+        },
+        {
+          "method": "exists",
+          "durationMs": 195.18979999999283,
+          "detail": "~/.zcode/server/agents/glm/packages/visualize-plugin/.zcode-plugin/plugin.json"
+        },
+        {
+          "method": "exists",
+          "durationMs": 180.55900000000838,
+          "detail": "~/.zcode/server/agents/glm/packages/visualize-plugin/skills/visualize/SKILL.md"
+        },
+        {
+          "method": "exists",
+          "durationMs": 177.85399999999208,
+          "detail": "~/.zcode/server/agents/glm/packages/visualize-plugin/skills/visualize/references/api.md"
+        },
+        {
+          "method": "exists",
+          "durationMs": 177.44390000001295,
+          "detail": "~/.zcode/server/agents/glm/packages/visualize-plugin/skills/visualize/references/styles.md"
+        },
+        {
+          "method": "exists",
+          "durationMs": 174.31530000001658,
+          "detail": "~/.zcode/server/agents/glm/packages/visualize-plugin/skills/visualize/tweak.md"
+        },
+        {
+          "method": "exists",
+          "durationMs": 179.15659999998752,
+          "detail": "~/.zcode/server/agents/glm/packages/visualize-plugin/skills/visualize/LICENSE.md"
+        },
+        {
+          "method": "exists",
+          "durationMs": 183.35089999999036,
+          "detail": "~/.zcode/server/agents/glm/packages/visualize-plugin/skills/visualize/scripts/render.py"
+        },
+        {
+          "method": "exists",
+          "durationMs": 194.89450000002398,
+          "detail": "~/.zcode/server/agents/glm/packages/visualize-plugin/skills/visualize/assets/visualize.css"
+        },
+        {
+          "method": "exists",
+          "durationMs": 180.21570000000065,
+          "detail": "~/.zcode/server/agents/glm/packages/visualize-plugin/skills/visualize/assets/visualize.html"
+        },
+        {
+          "method": "exists",
+          "durationMs": 195.04870000001392,
+          "detail": "~/.zcode/server/agents/glm/packages/visualize-plugin/skills/visualize/assets/calendar.js"
+        },
+        {
+          "method": "exists",
+          "durationMs": 188.71390000000247,
+          "detail": "~/.zcode/server/agents/glm/packages/visualize-plugin/skills/visualize/assets/runtime-manifest.json"
+        },
+        {
+          "method": "exists",
+          "durationMs": 175.48829999999725,
+          "detail": "~/.zcode/server/agents/glm/packages/visualize-plugin/skills/visualize/scripts/vendor.py"
+        },
+        {
+          "method": "exists",
+          "durationMs": 182.06220000001485,
+          "detail": "~/.zcode/server/agents/glm/packages/visualize-plugin/skills/visualize/assets/vendor/manifest.json"
+        },
+        {
+          "method": "exists",
+          "durationMs": 182.32760000001872,
+          "detail": "~/.zcode/server/agents/glm/packages/visualize-plugin/skills/visualize/assets/vendor/floating-ui-core-1.7.3.min.js"
+        },
+        {
+          "method": "exists",
+          "durationMs": 185.9701000000059,
+          "detail": "~/.zcode/server/agents/glm/packages/visualize-plugin/skills/visualize/assets/vendor/floating-ui-core-1.7.3.min.js.LICENSE"
+        },
+        {
+          "method": "exists",
+          "durationMs": 185.20669999998063,
+          "detail": "~/.zcode/server/agents/glm/packages/visualize-plugin/skills/visualize/assets/vendor/floating-ui-dom-1.7.4.min.js"
+        },
+        {
+          "method": "exists",
+          "durationMs": 190.44570000001113,
+          "detail": "~/.zcode/server/agents/glm/packages/visualize-plugin/skills/visualize/assets/vendor/floating-ui-dom-1.7.4.min.js.LICENSE"
+        },
+        {
+          "method": "exists",
+          "durationMs": 183.3992000000144,
+          "detail": "~/.zcode/server/agents/glm/packages/visualize-plugin/skills/visualize/assets/vendor/lucide-1.17.0.js"
+        },
+        {
+          "method": "exists",
+          "durationMs": 168.52390000000014,
+          "detail": "~/.zcode/server/agents/glm/packages/visualize-plugin/skills/visualize/assets/vendor/lucide-1.17.0.js.LICENSE"
+        },
+        {
+          "method": "exists",
+          "durationMs": 173.99770000000717,
+          "detail": "~/.zcode/server/agents/glm/packages/visualize-plugin/skills/visualize/assets/vendor/d3-7.9.0.min.js"
+        },
+        {
+          "method": "exists",
+          "durationMs": 220.59010000000126,
+          "detail": "~/.zcode/server/agents/glm/packages/visualize-plugin/skills/visualize/assets/vendor/d3-7.9.0.min.js.LICENSE"
+        },
+        {
+          "method": "exists",
+          "durationMs": 178.5445999999938,
+          "detail": "~/.zcode/server/agents/glm/packages/visualize-plugin/skills/visualize/assets/standalone-host-bridge.js"
+        },
+        {
+          "method": "exists",
+          "durationMs": 181.2173999999941,
+          "detail": "~/.zcode/server/agents/glm/packages/visualize-plugin/skills/visualize/assets/standalone-shell.js"
+        },
+        {
+          "method": "exists",
+          "durationMs": 181.5222000000067,
+          "detail": "~/.zcode/server/agents/glm/packages/visualize-plugin/skills/visualize/widgets/calendar.md"
+        },
+        {
+          "method": "exists",
+          "durationMs": 179.56969999999274,
+          "detail": "~/.zcode/server/agents/glm/packages/visualize-plugin/skills/visualize/examples/calendar.html"
+        },
+        {
+          "method": "exists",
+          "durationMs": 187.75579999998445,
+          "detail": "~/.zcode/server/agents/glm/packages/browser-use-plugin/docs/api.json"
+        },
+        {
+          "method": "exists",
+          "durationMs": 188.12429999999586,
+          "detail": "~/.zcode/server/agents/glm/packages/browser-use-plugin/docs/documents.json"
+        },
+        {
+          "method": "exists",
+          "durationMs": 205.0834999999788,
+          "detail": "~/.zcode/server/agents/glm/packages/browser-use-plugin/docs/overview.md"
+        },
+        {
+          "method": "exists",
+          "durationMs": 180.12739999999758,
+          "detail": "~/.zcode/server/agents/glm/packages/browser-use-plugin/docs/recording.md"
+        },
+        {
+          "method": "exists",
+          "durationMs": 180.4024999999965,
+          "detail": "~/.zcode/server/agents/glm/packages/browser-use-plugin/docs/workflow.md"
+        },
+        {
+          "method": "exists",
+          "durationMs": 178.26410000000033,
+          "detail": "~/.zcode/server/agents/glm/packages/browser-use-plugin/scripts/browser-client.mjs"
+        },
+        {
+          "method": "exists",
+          "durationMs": 175.77439999999478,
+          "detail": "~/.zcode/server/agents/glm/packages/browser-use-plugin/skills/control-browser/SKILL.md"
+        },
+        {
+          "method": "exists",
+          "durationMs": 183.28859999999986,
+          "detail": "~/.zcode/server/agents/glm/packages/browser-use-plugin/skills/web-gui-tester/SKILL.md"
+        },
+        {
+          "method": "exists",
+          "durationMs": 195.83199999999488,
+          "detail": "~/.zcode/server/agents/glm/packages/image-search-plugin/.mcp.json"
+        },
+        {
+          "method": "exists",
+          "durationMs": 167.0615000000107,
+          "detail": "~/.zcode/server/agents/glm/packages/documents-plugin/agents/visual-judge.md"
+        },
+        {
+          "method": "exists",
+          "durationMs": 172.5119999999879,
+          "detail": "~/.zcode/server/agents/glm/packages/documents-plugin/skills/docx/SKILL.md"
+        },
+        {
+          "method": "exists",
+          "durationMs": 170.16840000002412,
+          "detail": "~/.zcode/server/agents/glm/packages/pdf-plugin/agents/visual-judge.md"
+        },
+        {
+          "method": "exists",
+          "durationMs": 171.37719999998808,
+          "detail": "~/.zcode/server/agents/glm/packages/pdf-plugin/skills/pdf/SKILL.md"
+        },
+        {
+          "method": "exists",
+          "durationMs": 170.04909999997471,
+          "detail": "~/.zcode/server/agents/glm/packages/presentations-plugin/agents/visual-judge.md"
+        },
+        {
+          "method": "exists",
+          "durationMs": 177.75179999999818,
+          "detail": "~/.zcode/server/agents/glm/packages/presentations-plugin/skills/pptx/SKILL.md"
+        },
+        {
+          "method": "exists",
+          "durationMs": 184.8475000000035,
+          "detail": "~/.zcode/server/agents/glm/packages/spreadsheets-plugin/agents/visual-judge.md"
+        },
+        {
+          "method": "exists",
+          "durationMs": 188.51270000002114,
+          "detail": "~/.zcode/server/agents/glm/packages/spreadsheets-plugin/skills/xlsx/SKILL.md"
+        },
+        {
+          "method": "exists",
+          "durationMs": 184.56179999999586,
+          "detail": "~/.zcode/server/agents/glm/packages/zcode-cua-plugin/docs/computer-use.md"
+        },
+        {
+          "method": "exists",
+          "durationMs": 200.10940000001574,
+          "detail": "~/.zcode/server/agents/glm/packages/zcode-cua-plugin/scripts/computer-use-client.mjs"
+        },
+        {
+          "method": "exists",
+          "durationMs": 183.82800000000861,
+          "detail": "~/.zcode/server/agents/glm/packages/zcode-cua-plugin/skills/computer-use/SKILL.md"
+        },
+        {
+          "method": "readFile",
+          "durationMs": 176.7846000000136,
+          "detail": "~/.zcode/server/.asset-components/glm.json"
+        },
+        {
+          "method": "exists",
+          "durationMs": 195.1471999999776,
+          "detail": "~/.zcode/server/agents/glm/zcode-agent"
+        },
+        {
+          "method": "readFile",
+          "durationMs": 186.26889999999548,
+          "detail": "~/.zcode/server/agents/glm/zcode-agent"
+        },
+        {
+          "method": "exists",
+          "durationMs": 177.7146000000066,
+          "detail": "~/.zcode/server/agents/glm/zcode.cjs"
+        },
+        {
+          "method": "readFile",
+          "durationMs": 190.8922999999777,
+          "detail": "~/.zcode/server/tools/bfs/.version"
+        },
+        {
+          "method": "exists",
+          "durationMs": 180.50299999999697,
+          "detail": "~/.zcode/server/tools/bfs/bfs"
+        },
+        {
+          "method": "readFile",
+          "durationMs": 202.13910000000033,
+          "detail": "~/.zcode/server/tools/ripgrep/.version"
+        },
+        {
+          "method": "exists",
+          "durationMs": 181.9265000000014,
+          "detail": "~/.zcode/server/tools/ripgrep/rg"
+        },
+        {
+          "method": "readFile",
+          "durationMs": 222.3400000000256,
+          "detail": "~/.zcode/server/tools/ugrep/.version"
+        },
+        {
+          "method": "exists",
+          "durationMs": 181.88340000002063,
+          "detail": "~/.zcode/server/tools/ugrep/ugrep"
+        },
+        {
+          "method": "exec",
+          "durationMs": 69.96749999999884,
+          "detail": "ZCODE_SERVICE_AUTHORITY_MODE=\"desktop-attached-remote\" ZCODE_SERVER_RUNTIME_ROOT=\"$HOME/.zcode/server\" ~/.zcode/server/node ~/.zcode/server/zcode-server.cjs"
+        }
+      ],
+      "totalMs": 16389.52720000001,
+      "phases": {
+        "detectMs": 593.4998999999953,
+        "runtimeNetworkMs": 0.18309999999473803,
+        "deployMs": 15319.501900000003,
+        "launchMs": 70.1655000000028,
+        "handshakeMs": 405.722700000013,
+        "wrapMs": 0.33079999999608845,
+        "unattributedMs": 0.12330000000656582
+      },
+      "systemRpcMs": 97.01190000001225,
+      "identity": {
+        "platform": "linux",
+        "homedir": "/home/zcodewslp2"
+      },
+      "disposeMs": 32.35339999999269
+    },
+    {
+      "iteration": 10,
+      "backendCalls": [
+        {
+          "method": "detect",
+          "durationMs": 590.1506999999983,
+          "detail": ""
+        },
+        {
+          "method": "exists",
+          "durationMs": 177.9100000000035,
+          "detail": "~/.zcode/server/node"
+        },
+        {
+          "method": "exists",
+          "durationMs": 199.058400000009,
+          "detail": "~/.zcode/server/zcode-server.cjs"
+        },
+        {
+          "method": "exec",
+          "durationMs": 62.91610000000219,
+          "detail": "\"$HOME\"'/.zcode/server/node' \"$HOME\"'/.zcode/server/zcode-server.cjs' --version"
+        },
+        {
+          "method": "exec",
+          "durationMs": 65.87790000002133,
+          "detail": "\"$HOME\"'/.zcode/server/node' -e '\nconst fs = require(\"fs\");\nconst content = fs.readFileSync(process.argv[1], \"utf8\");\nconst missing = [\"skill-sync\",\"mcp-sync\",\"plugin-sync\",\"__zcode_rpc_nested_uint8array_v1\",\"exportMarketplaceSourceArchive\""
+        },
+        {
+          "method": "exec",
+          "durationMs": 88.68319999999949,
+          "detail": "set -eu\nmkdir -p \"$HOME\"'/.zcode/server'\nprintf '%b' '\\163\\145\\164\\040\\055\\145\\165\\012\\154\\157\\143\\153\\137\\144\\151\\162\\075\\042\\044\\110\\117\\115\\105\\042\\047\\057\\056\\172\\143\\157\\144\\145\\057\\163\\145\\162\\166\\145\\162\\057\\056\\144\\145\\160\\154\\157\\1"
+        },
+        {
+          "method": "exists",
+          "durationMs": 193.37950000001,
+          "detail": "~/.zcode/server/node"
+        },
+        {
+          "method": "exists",
+          "durationMs": 203.79219999999623,
+          "detail": "~/.zcode/server/zcode-server.cjs"
+        },
+        {
+          "method": "exec",
+          "durationMs": 69.65009999999893,
+          "detail": "\"$HOME\"'/.zcode/server/node' \"$HOME\"'/.zcode/server/zcode-server.cjs' --version"
+        },
+        {
+          "method": "exec",
+          "durationMs": 70.3347000000067,
+          "detail": "\"$HOME\"'/.zcode/server/node' -e '\nconst fs = require(\"fs\");\nconst content = fs.readFileSync(process.argv[1], \"utf8\");\nconst missing = [\"skill-sync\",\"mcp-sync\",\"plugin-sync\",\"__zcode_rpc_nested_uint8array_v1\",\"exportMarketplaceSourceArchive\""
+        },
+        {
+          "method": "readFile",
+          "durationMs": 170.33730000001378,
+          "detail": "~/.zcode/server/.asset-components/server-bundle.json"
+        },
+        {
+          "method": "readFile",
+          "durationMs": 189.91399999998976,
+          "detail": "~/.zcode/server/.asset-components/glm.json"
+        },
+        {
+          "method": "exists",
+          "durationMs": 173.67889999999898,
+          "detail": "~/.zcode/server/build/Release/pty.node"
+        },
+        {
+          "method": "exists",
+          "durationMs": 184.15340000001015,
+          "detail": "~/.zcode/server/agents/glm/packages/android-emulator-plugin/.zcode-plugin/plugin.json"
+        },
+        {
+          "method": "exists",
+          "durationMs": 177.1704000000027,
+          "detail": "~/.zcode/server/agents/glm/packages/browser-use-plugin/.zcode-plugin/plugin.json"
+        },
+        {
+          "method": "exists",
+          "durationMs": 180.75820000001113,
+          "detail": "~/.zcode/server/agents/glm/packages/zcode-cua-plugin/.zcode-plugin/plugin.json"
+        },
+        {
+          "method": "exists",
+          "durationMs": 177.13469999999506,
+          "detail": "~/.zcode/server/agents/glm/packages/documents-plugin/.zcode-plugin/plugin.json"
+        },
+        {
+          "method": "exists",
+          "durationMs": 179.37100000001374,
+          "detail": "~/.zcode/server/agents/glm/packages/pdf-plugin/.zcode-plugin/plugin.json"
+        },
+        {
+          "method": "exists",
+          "durationMs": 192.09289999998873,
+          "detail": "~/.zcode/server/agents/glm/packages/presentations-plugin/.zcode-plugin/plugin.json"
+        },
+        {
+          "method": "exists",
+          "durationMs": 181.28750000000582,
+          "detail": "~/.zcode/server/agents/glm/packages/spreadsheets-plugin/.zcode-plugin/plugin.json"
+        },
+        {
+          "method": "exists",
+          "durationMs": 189.81499999997322,
+          "detail": "~/.zcode/server/agents/glm/packages/image-search-plugin/.zcode-plugin/plugin.json"
+        },
+        {
+          "method": "exists",
+          "durationMs": 189.33170000000973,
+          "detail": "~/.zcode/server/agents/glm/packages/ios-simulator-plugin/.zcode-plugin/plugin.json"
+        },
+        {
+          "method": "exists",
+          "durationMs": 182.86720000000787,
+          "detail": "~/.zcode/server/agents/glm/packages/restore-legacy-sessions-plugin/.zcode-plugin/plugin.json"
+        },
+        {
+          "method": "exists",
+          "durationMs": 204.31029999998282,
+          "detail": "~/.zcode/server/agents/glm/packages/skill-creator-plugin/.zcode-plugin/plugin.json"
+        },
+        {
+          "method": "exists",
+          "durationMs": 193.0522999999812,
+          "detail": "~/.zcode/server/agents/glm/packages/plugin-creator-plugin/.zcode-plugin/plugin.json"
+        },
+        {
+          "method": "exists",
+          "durationMs": 182.3171999999904,
+          "detail": "~/.zcode/server/agents/glm/packages/zcode-guide-plugin/.zcode-plugin/plugin.json"
+        },
+        {
+          "method": "exists",
+          "durationMs": 179.95549999998184,
+          "detail": "~/.zcode/server/agents/glm/packages/visualize-plugin/.zcode-plugin/plugin.json"
+        },
+        {
+          "method": "exists",
+          "durationMs": 179.11509999999544,
+          "detail": "~/.zcode/server/agents/glm/packages/visualize-plugin/skills/visualize/SKILL.md"
+        },
+        {
+          "method": "exists",
+          "durationMs": 177.54980000000796,
+          "detail": "~/.zcode/server/agents/glm/packages/visualize-plugin/skills/visualize/references/api.md"
+        },
+        {
+          "method": "exists",
+          "durationMs": 175.9372999999905,
+          "detail": "~/.zcode/server/agents/glm/packages/visualize-plugin/skills/visualize/references/styles.md"
+        },
+        {
+          "method": "exists",
+          "durationMs": 179.91699999998673,
+          "detail": "~/.zcode/server/agents/glm/packages/visualize-plugin/skills/visualize/tweak.md"
+        },
+        {
+          "method": "exists",
+          "durationMs": 191.94560000000638,
+          "detail": "~/.zcode/server/agents/glm/packages/visualize-plugin/skills/visualize/LICENSE.md"
+        },
+        {
+          "method": "exists",
+          "durationMs": 172.1826000000001,
+          "detail": "~/.zcode/server/agents/glm/packages/visualize-plugin/skills/visualize/scripts/render.py"
+        },
+        {
+          "method": "exists",
+          "durationMs": 170.3349000000162,
+          "detail": "~/.zcode/server/agents/glm/packages/visualize-plugin/skills/visualize/assets/visualize.css"
+        },
+        {
+          "method": "exists",
+          "durationMs": 184.0960999999952,
+          "detail": "~/.zcode/server/agents/glm/packages/visualize-plugin/skills/visualize/assets/visualize.html"
+        },
+        {
+          "method": "exists",
+          "durationMs": 166.71369999999297,
+          "detail": "~/.zcode/server/agents/glm/packages/visualize-plugin/skills/visualize/assets/calendar.js"
+        },
+        {
+          "method": "exists",
+          "durationMs": 179.03040000001783,
+          "detail": "~/.zcode/server/agents/glm/packages/visualize-plugin/skills/visualize/assets/runtime-manifest.json"
+        },
+        {
+          "method": "exists",
+          "durationMs": 207.83600000001024,
+          "detail": "~/.zcode/server/agents/glm/packages/visualize-plugin/skills/visualize/scripts/vendor.py"
+        },
+        {
+          "method": "exists",
+          "durationMs": 181.8808999999892,
+          "detail": "~/.zcode/server/agents/glm/packages/visualize-plugin/skills/visualize/assets/vendor/manifest.json"
+        },
+        {
+          "method": "exists",
+          "durationMs": 188.1923999999999,
+          "detail": "~/.zcode/server/agents/glm/packages/visualize-plugin/skills/visualize/assets/vendor/floating-ui-core-1.7.3.min.js"
+        },
+        {
+          "method": "exists",
+          "durationMs": 179.57320000001346,
+          "detail": "~/.zcode/server/agents/glm/packages/visualize-plugin/skills/visualize/assets/vendor/floating-ui-core-1.7.3.min.js.LICENSE"
+        },
+        {
+          "method": "exists",
+          "durationMs": 177.8583000000217,
+          "detail": "~/.zcode/server/agents/glm/packages/visualize-plugin/skills/visualize/assets/vendor/floating-ui-dom-1.7.4.min.js"
+        },
+        {
+          "method": "exists",
+          "durationMs": 184.12079999997513,
+          "detail": "~/.zcode/server/agents/glm/packages/visualize-plugin/skills/visualize/assets/vendor/floating-ui-dom-1.7.4.min.js.LICENSE"
+        },
+        {
+          "method": "exists",
+          "durationMs": 178.25249999997322,
+          "detail": "~/.zcode/server/agents/glm/packages/visualize-plugin/skills/visualize/assets/vendor/lucide-1.17.0.js"
+        },
+        {
+          "method": "exists",
+          "durationMs": 195.69690000000992,
+          "detail": "~/.zcode/server/agents/glm/packages/visualize-plugin/skills/visualize/assets/vendor/lucide-1.17.0.js.LICENSE"
+        },
+        {
+          "method": "exists",
+          "durationMs": 178.81490000002668,
+          "detail": "~/.zcode/server/agents/glm/packages/visualize-plugin/skills/visualize/assets/vendor/d3-7.9.0.min.js"
+        },
+        {
+          "method": "exists",
+          "durationMs": 172.90400000000955,
+          "detail": "~/.zcode/server/agents/glm/packages/visualize-plugin/skills/visualize/assets/vendor/d3-7.9.0.min.js.LICENSE"
+        },
+        {
+          "method": "exists",
+          "durationMs": 214.51900000000023,
+          "detail": "~/.zcode/server/agents/glm/packages/visualize-plugin/skills/visualize/assets/standalone-host-bridge.js"
+        },
+        {
+          "method": "exists",
+          "durationMs": 178.04300000000512,
+          "detail": "~/.zcode/server/agents/glm/packages/visualize-plugin/skills/visualize/assets/standalone-shell.js"
+        },
+        {
+          "method": "exists",
+          "durationMs": 177.84859999999753,
+          "detail": "~/.zcode/server/agents/glm/packages/visualize-plugin/skills/visualize/widgets/calendar.md"
+        },
+        {
+          "method": "exists",
+          "durationMs": 210.18250000002445,
+          "detail": "~/.zcode/server/agents/glm/packages/visualize-plugin/skills/visualize/examples/calendar.html"
+        },
+        {
+          "method": "exists",
+          "durationMs": 184.64929999999003,
+          "detail": "~/.zcode/server/agents/glm/packages/browser-use-plugin/docs/api.json"
+        },
+        {
+          "method": "exists",
+          "durationMs": 167.77499999999418,
+          "detail": "~/.zcode/server/agents/glm/packages/browser-use-plugin/docs/documents.json"
+        },
+        {
+          "method": "exists",
+          "durationMs": 172.79370000000927,
+          "detail": "~/.zcode/server/agents/glm/packages/browser-use-plugin/docs/overview.md"
+        },
+        {
+          "method": "exists",
+          "durationMs": 170.27369999999064,
+          "detail": "~/.zcode/server/agents/glm/packages/browser-use-plugin/docs/recording.md"
+        },
+        {
+          "method": "exists",
+          "durationMs": 169.47409999999218,
+          "detail": "~/.zcode/server/agents/glm/packages/browser-use-plugin/docs/workflow.md"
+        },
+        {
+          "method": "exists",
+          "durationMs": 169.1583999999857,
+          "detail": "~/.zcode/server/agents/glm/packages/browser-use-plugin/scripts/browser-client.mjs"
+        },
+        {
+          "method": "exists",
+          "durationMs": 188.08220000000438,
+          "detail": "~/.zcode/server/agents/glm/packages/browser-use-plugin/skills/control-browser/SKILL.md"
+        },
+        {
+          "method": "exists",
+          "durationMs": 177.37039999998524,
+          "detail": "~/.zcode/server/agents/glm/packages/browser-use-plugin/skills/web-gui-tester/SKILL.md"
+        },
+        {
+          "method": "exists",
+          "durationMs": 174.0964999999851,
+          "detail": "~/.zcode/server/agents/glm/packages/image-search-plugin/.mcp.json"
+        },
+        {
+          "method": "exists",
+          "durationMs": 167.19820000001346,
+          "detail": "~/.zcode/server/agents/glm/packages/documents-plugin/agents/visual-judge.md"
+        },
+        {
+          "method": "exists",
+          "durationMs": 175.05119999998715,
+          "detail": "~/.zcode/server/agents/glm/packages/documents-plugin/skills/docx/SKILL.md"
+        },
+        {
+          "method": "exists",
+          "durationMs": 179.00620000000345,
+          "detail": "~/.zcode/server/agents/glm/packages/pdf-plugin/agents/visual-judge.md"
+        },
+        {
+          "method": "exists",
+          "durationMs": 179.3968000000168,
+          "detail": "~/.zcode/server/agents/glm/packages/pdf-plugin/skills/pdf/SKILL.md"
+        },
+        {
+          "method": "exists",
+          "durationMs": 198.11539999998058,
+          "detail": "~/.zcode/server/agents/glm/packages/presentations-plugin/agents/visual-judge.md"
+        },
+        {
+          "method": "exists",
+          "durationMs": 200.39059999998426,
+          "detail": "~/.zcode/server/agents/glm/packages/presentations-plugin/skills/pptx/SKILL.md"
+        },
+        {
+          "method": "exists",
+          "durationMs": 182.07809999998426,
+          "detail": "~/.zcode/server/agents/glm/packages/spreadsheets-plugin/agents/visual-judge.md"
+        },
+        {
+          "method": "exists",
+          "durationMs": 203.9030999999959,
+          "detail": "~/.zcode/server/agents/glm/packages/spreadsheets-plugin/skills/xlsx/SKILL.md"
+        },
+        {
+          "method": "exists",
+          "durationMs": 185.33809999999357,
+          "detail": "~/.zcode/server/agents/glm/packages/zcode-cua-plugin/docs/computer-use.md"
+        },
+        {
+          "method": "exists",
+          "durationMs": 182.62299999999232,
+          "detail": "~/.zcode/server/agents/glm/packages/zcode-cua-plugin/scripts/computer-use-client.mjs"
+        },
+        {
+          "method": "exists",
+          "durationMs": 198.41330000001471,
+          "detail": "~/.zcode/server/agents/glm/packages/zcode-cua-plugin/skills/computer-use/SKILL.md"
+        },
+        {
+          "method": "readFile",
+          "durationMs": 202.109300000011,
+          "detail": "~/.zcode/server/.asset-components/glm.json"
+        },
+        {
+          "method": "exists",
+          "durationMs": 179.15669999999227,
+          "detail": "~/.zcode/server/agents/glm/zcode-agent"
+        },
+        {
+          "method": "readFile",
+          "durationMs": 168.80530000000726,
+          "detail": "~/.zcode/server/agents/glm/zcode-agent"
+        },
+        {
+          "method": "exists",
+          "durationMs": 170.31789999999455,
+          "detail": "~/.zcode/server/agents/glm/zcode.cjs"
+        },
+        {
+          "method": "readFile",
+          "durationMs": 179.351800000004,
+          "detail": "~/.zcode/server/tools/bfs/.version"
+        },
+        {
+          "method": "exists",
+          "durationMs": 168.86879999999655,
+          "detail": "~/.zcode/server/tools/bfs/bfs"
+        },
+        {
+          "method": "readFile",
+          "durationMs": 187.38870000001043,
+          "detail": "~/.zcode/server/tools/ripgrep/.version"
+        },
+        {
+          "method": "exists",
+          "durationMs": 177.4703000000154,
+          "detail": "~/.zcode/server/tools/ripgrep/rg"
+        },
+        {
+          "method": "readFile",
+          "durationMs": 208.70000000001164,
+          "detail": "~/.zcode/server/tools/ugrep/.version"
+        },
+        {
+          "method": "exists",
+          "durationMs": 178.539300000004,
+          "detail": "~/.zcode/server/tools/ugrep/ugrep"
+        },
+        {
+          "method": "exec",
+          "durationMs": 82.61689999999362,
+          "detail": "ZCODE_SERVICE_AUTHORITY_MODE=\"desktop-attached-remote\" ZCODE_SERVER_RUNTIME_ROOT=\"$HOME/.zcode/server\" ~/.zcode/server/node ~/.zcode/server/zcode-server.cjs"
+        }
+      ],
+      "totalMs": 16442.997999999992,
+      "phases": {
+        "detectMs": 590.3263000000152,
+        "runtimeNetworkMs": 0.14679999998770654,
+        "deployMs": 15378.390799999994,
+        "launchMs": 82.77999999999884,
+        "handshakeMs": 390.6402999999991,
+        "wrapMs": 0.572199999995064,
+        "unattributedMs": 0.14160000000265427
+      },
+      "systemRpcMs": 104.1984999999986,
+      "identity": {
+        "platform": "linux",
+        "homedir": "/home/zcodewslp2"
+      },
+      "disposeMs": 49.274399999994785
+    }
+  ],
+  "execCalls": [
+    {
+      "method": "exists",
+      "detail": "~/.zcode/server/agents/glm/packages/visualize-plugin/skills/visualize/assets/vendor/manifest.json",
+      "count": 90,
+      "totalMs": 16887.861500000094,
+      "maxMs": 238.14520000000084
+    },
+    {
+      "method": "detect",
+      "detail": "",
+      "count": 10,
+      "totalMs": 6123.300999999967,
+      "maxMs": 666.9683000000005
+    },
+    {
+      "method": "exists",
+      "detail": "~/.zcode/server/node",
+      "count": 20,
+      "totalMs": 3905.4303999999747,
+      "maxMs": 243.1328999999996
+    },
+    {
+      "method": "exists",
+      "detail": "~/.zcode/server/zcode-server.cjs",
+      "count": 20,
+      "totalMs": 3725.233800000009,
+      "maxMs": 219.7575999999999
+    },
+    {
+      "method": "readFile",
+      "detail": "~/.zcode/server/.asset-components/glm.json",
+      "count": 20,
+      "totalMs": 3723.615700000042,
+      "maxMs": 202.70109999999113
+    },
+    {
+      "method": "exists",
+      "detail": "~/.zcode/server/agents/glm/packages/visualize-plugin/skills/visualize/assets/standalone-host-bridge.js",
+      "count": 20,
+      "totalMs": 3716.639500000001,
+      "maxMs": 214.51900000000023
+    },
+    {
+      "method": "exists",
+      "detail": "~/.zcode/server/agents/glm/packages/visualize-plugin/skills/visualize/assets/visualize.css",
+      "count": 20,
+      "totalMs": 3684.720900000033,
+      "maxMs": 207.03240000000005
+    },
+    {
+      "method": "exists",
+      "detail": "~/.zcode/server/agents/glm/packages/visualize-plugin/skills/visualize/references/api.md",
+      "count": 20,
+      "totalMs": 3631.402600000003,
+      "maxMs": 211.22090000000026
+    },
+    {
+      "method": "exists",
+      "detail": "~/.zcode/server/agents/glm/packages/presentations-plugin/.zcode-plugin/plugin.json",
+      "count": 10,
+      "totalMs": 2019.0280999999886,
+      "maxMs": 369.0023000000001
+    },
+    {
+      "method": "exists",
+      "detail": "~/.zcode/server/agents/glm/packages/browser-use-plugin/docs/overview.md",
+      "count": 10,
+      "totalMs": 1978.3516999999865,
+      "maxMs": 233.05190000000584
+    },
+    {
+      "method": "exists",
+      "detail": "~/.zcode/server/agents/glm/packages/presentations-plugin/skills/pptx/SKILL.md",
+      "count": 10,
+      "totalMs": 1939.9466999999822,
+      "maxMs": 214.5676999999996
+    },
+    {
+      "method": "readFile",
+      "detail": "~/.zcode/server/tools/bfs/.version",
+      "count": 10,
+      "totalMs": 1938.429899999981,
+      "maxMs": 218.64549999999872
+    },
+    {
+      "method": "exists",
+      "detail": "~/.zcode/server/agents/glm/packages/spreadsheets-plugin/.zcode-plugin/plugin.json",
+      "count": 10,
+      "totalMs": 1933.8368000000191,
+      "maxMs": 231.18469999999797
+    },
+    {
+      "method": "readFile",
+      "detail": "~/.zcode/server/tools/ugrep/.version",
+      "count": 10,
+      "totalMs": 1930.0245000000468,
+      "maxMs": 222.3400000000256
+    },
+    {
+      "method": "exists",
+      "detail": "~/.zcode/server/build/Release/pty.node",
+      "count": 10,
+      "totalMs": 1927.0745000000434,
+      "maxMs": 224.14909999999963
+    },
+    {
+      "method": "exists",
+      "detail": "~/.zcode/server/agents/glm/packages/image-search-plugin/.zcode-plugin/plugin.json",
+      "count": 10,
+      "totalMs": 1924.4478999999974,
+      "maxMs": 229.3204999999998
+    },
+    {
+      "method": "exists",
+      "detail": "~/.zcode/server/agents/glm/packages/visualize-plugin/skills/visualize/assets/runtime-manifest.json",
+      "count": 10,
+      "totalMs": 1915.2194000000236,
+      "maxMs": 219.98589999999967
+    },
+    {
+      "method": "exists",
+      "detail": "~/.zcode/server/agents/glm/packages/browser-use-plugin/skills/web-gui-tester/SKILL.md",
+      "count": 10,
+      "totalMs": 1914.618799999982,
+      "maxMs": 218.3701999999903
+    },
+    {
+      "method": "exists",
+      "detail": "~/.zcode/server/agents/glm/packages/spreadsheets-plugin/agents/visual-judge.md",
+      "count": 10,
+      "totalMs": 1914.571099999972,
+      "maxMs": 209.04640000000654
+    },
+    {
+      "method": "exists",
+      "detail": "~/.zcode/server/agents/glm/packages/visualize-plugin/skills/visualize/examples/calendar.html",
+      "count": 10,
+      "totalMs": 1913.6758000000154,
+      "maxMs": 210.18250000002445
+    },
+    {
+      "method": "exists",
+      "detail": "~/.zcode/server/agents/glm/packages/visualize-plugin/skills/visualize/scripts/vendor.py",
+      "count": 10,
+      "totalMs": 1911.5405999999766,
+      "maxMs": 207.83600000001024
+    },
+    {
+      "method": "exists",
+      "detail": "~/.zcode/server/agents/glm/packages/android-emulator-plugin/.zcode-plugin/plugin.json",
+      "count": 10,
+      "totalMs": 1908.3138000000235,
+      "maxMs": 228.88410000000113
+    },
+    {
+      "method": "readFile",
+      "detail": "~/.zcode/server/.asset-components/server-bundle.json",
+      "count": 10,
+      "totalMs": 1906.6522000000432,
+      "maxMs": 221.53450000000066
+    },
+    {
+      "method": "exists",
+      "detail": "~/.zcode/server/agents/glm/packages/visualize-plugin/skills/visualize/LICENSE.md",
+      "count": 10,
+      "totalMs": 1905.4351999999744,
+      "maxMs": 216.39730000000054
+    },
+    {
+      "method": "exists",
+      "detail": "~/.zcode/server/agents/glm/packages/ios-simulator-plugin/.zcode-plugin/plugin.json",
+      "count": 10,
+      "totalMs": 1905.3593000000674,
+      "maxMs": 220.04080000001704
+    },
+    {
+      "method": "exists",
+      "detail": "~/.zcode/server/agents/glm/packages/image-search-plugin/.mcp.json",
+      "count": 10,
+      "totalMs": 1898.2217999999812,
+      "maxMs": 214.1443999999974
+    },
+    {
+      "method": "exists",
+      "detail": "~/.zcode/server/agents/glm/zcode-agent",
+      "count": 10,
+      "totalMs": 1896.6842999999462,
+      "maxMs": 209.24589999999444
+    },
+    {
+      "method": "readFile",
+      "detail": "~/.zcode/server/tools/ripgrep/.version",
+      "count": 10,
+      "totalMs": 1890.12049999999,
+      "maxMs": 202.9965000000011
+    },
+    {
+      "method": "exists",
+      "detail": "~/.zcode/server/agents/glm/packages/browser-use-plugin/.zcode-plugin/plugin.json",
+      "count": 10,
+      "totalMs": 1889.963999999969,
+      "maxMs": 219.25599999999395
+    },
+    {
+      "method": "exists",
+      "detail": "~/.zcode/server/tools/ripgrep/rg",
+      "count": 10,
+      "totalMs": 1889.044700000024,
+      "maxMs": 208.28100000000268
+    },
+    {
+      "method": "readFile",
+      "detail": "~/.zcode/server/agents/glm/zcode-agent",
+      "count": 10,
+      "totalMs": 1887.7415000000074,
+      "maxMs": 207.67439999999988
+    },
+    {
+      "method": "exists",
+      "detail": "~/.zcode/server/agents/glm/packages/zcode-cua-plugin/.zcode-plugin/plugin.json",
+      "count": 10,
+      "totalMs": 1886.6449000000139,
+      "maxMs": 209.38620000000083
+    },
+    {
+      "method": "exists",
+      "detail": "~/.zcode/server/agents/glm/packages/presentations-plugin/agents/visual-judge.md",
+      "count": 10,
+      "totalMs": 1886.3695999999618,
+      "maxMs": 220.14190000000235
+    },
+    {
+      "method": "exists",
+      "detail": "~/.zcode/server/agents/glm/packages/spreadsheets-plugin/skills/xlsx/SKILL.md",
+      "count": 10,
+      "totalMs": 1885.2501000000411,
+      "maxMs": 205.11329999999725
+    },
+    {
+      "method": "exists",
+      "detail": "~/.zcode/server/agents/glm/packages/plugin-creator-plugin/.zcode-plugin/plugin.json",
+      "count": 10,
+      "totalMs": 1883.950899999947,
+      "maxMs": 210.96199999999953
+    },
+    {
+      "method": "exists",
+      "detail": "~/.zcode/server/agents/glm/packages/pdf-plugin/.zcode-plugin/plugin.json",
+      "count": 10,
+      "totalMs": 1879.7676000000138,
+      "maxMs": 212.30010000000038
+    },
+    {
+      "method": "exists",
+      "detail": "~/.zcode/server/agents/glm/packages/pdf-plugin/agents/visual-judge.md",
+      "count": 10,
+      "totalMs": 1878.71450000002,
+      "maxMs": 224.6576000000059
+    },
+    {
+      "method": "exists",
+      "detail": "~/.zcode/server/agents/glm/packages/skill-creator-plugin/.zcode-plugin/plugin.json",
+      "count": 10,
+      "totalMs": 1877.5971999999692,
+      "maxMs": 217.25789999999688
+    },
+    {
+      "method": "exists",
+      "detail": "~/.zcode/server/agents/glm/packages/restore-legacy-sessions-plugin/.zcode-plugin/plugin.json",
+      "count": 10,
+      "totalMs": 1875.1540999999706,
+      "maxMs": 201.73180000000139
+    },
+    {
+      "method": "exists",
+      "detail": "~/.zcode/server/agents/glm/packages/browser-use-plugin/scripts/browser-client.mjs",
+      "count": 10,
+      "totalMs": 1871.2578999999823,
+      "maxMs": 231.87129999999888
+    },
+    {
+      "method": "exists",
+      "detail": "~/.zcode/server/agents/glm/packages/visualize-plugin/skills/visualize/SKILL.md",
+      "count": 10,
+      "totalMs": 1869.5063000000082,
+      "maxMs": 202.72290000000794
+    },
+    {
+      "method": "exists",
+      "detail": "~/.zcode/server/agents/glm/packages/browser-use-plugin/skills/control-browser/SKILL.md",
+      "count": 10,
+      "totalMs": 1866.6856000000043,
+      "maxMs": 196.8307999999961
+    },
+    {
+      "method": "exists",
+      "detail": "~/.zcode/server/agents/glm/zcode.cjs",
+      "count": 10,
+      "totalMs": 1865.6106,
+      "maxMs": 226.9108999999953
+    },
+    {
+      "method": "exists",
+      "detail": "~/.zcode/server/agents/glm/packages/visualize-plugin/skills/visualize/widgets/calendar.md",
+      "count": 10,
+      "totalMs": 1865.1773999999969,
+      "maxMs": 212.168700000002
+    },
+    {
+      "method": "exists",
+      "detail": "~/.zcode/server/agents/glm/packages/visualize-plugin/skills/visualize/tweak.md",
+      "count": 10,
+      "totalMs": 1862.1525999999903,
+      "maxMs": 208.7566999999981
+    },
+    {
+      "method": "exists",
+      "detail": "~/.zcode/server/agents/glm/packages/visualize-plugin/skills/visualize/scripts/render.py",
+      "count": 10,
+      "totalMs": 1859.225599999998,
+      "maxMs": 212.66159999999945
+    },
+    {
+      "method": "exists",
+      "detail": "~/.zcode/server/agents/glm/packages/browser-use-plugin/docs/api.json",
+      "count": 10,
+      "totalMs": 1856.7269999999717,
+      "maxMs": 209.34640000000218
+    },
+    {
+      "method": "exists",
+      "detail": "~/.zcode/server/agents/glm/packages/browser-use-plugin/docs/documents.json",
+      "count": 10,
+      "totalMs": 1854.06929999999,
+      "maxMs": 214.10630000000128
+    },
+    {
+      "method": "exists",
+      "detail": "~/.zcode/server/agents/glm/packages/documents-plugin/.zcode-plugin/plugin.json",
+      "count": 10,
+      "totalMs": 1852.5932999999895,
+      "maxMs": 206.05199999999968
+    },
+    {
+      "method": "exists",
+      "detail": "~/.zcode/server/agents/glm/packages/browser-use-plugin/docs/workflow.md",
+      "count": 10,
+      "totalMs": 1844.3423000000294,
+      "maxMs": 203.98159999999916
+    },
+    {
+      "method": "exists",
+      "detail": "~/.zcode/server/agents/glm/packages/visualize-plugin/skills/visualize/assets/calendar.js",
+      "count": 10,
+      "totalMs": 1842.1128000000008,
+      "maxMs": 199.17980000000534
+    },
+    {
+      "method": "exists",
+      "detail": "~/.zcode/server/tools/ugrep/ugrep",
+      "count": 10,
+      "totalMs": 1834.2397000000237,
+      "maxMs": 189.65170000000217
+    },
+    {
+      "method": "exists",
+      "detail": "~/.zcode/server/agents/glm/packages/zcode-cua-plugin/scripts/computer-use-client.mjs",
+      "count": 10,
+      "totalMs": 1833.7596000000012,
+      "maxMs": 200.10940000001574
+    },
+    {
+      "method": "exists",
+      "detail": "~/.zcode/server/agents/glm/packages/documents-plugin/agents/visual-judge.md",
+      "count": 10,
+      "totalMs": 1831.2667000000256,
+      "maxMs": 221.47899999999936
+    },
+    {
+      "method": "exists",
+      "detail": "~/.zcode/server/agents/glm/packages/pdf-plugin/skills/pdf/SKILL.md",
+      "count": 10,
+      "totalMs": 1830.7893000000258,
+      "maxMs": 206.84249999999884
+    },
+    {
+      "method": "exists",
+      "detail": "~/.zcode/server/agents/glm/packages/zcode-cua-plugin/docs/computer-use.md",
+      "count": 10,
+      "totalMs": 1824.931399999965,
+      "maxMs": 196.65509999998903
+    },
+    {
+      "method": "exists",
+      "detail": "~/.zcode/server/agents/glm/packages/browser-use-plugin/docs/recording.md",
+      "count": 10,
+      "totalMs": 1824.393499999991,
+      "maxMs": 199.61539999999513
+    },
+    {
+      "method": "exists",
+      "detail": "~/.zcode/server/agents/glm/packages/zcode-guide-plugin/.zcode-plugin/plugin.json",
+      "count": 10,
+      "totalMs": 1821.9059999999863,
+      "maxMs": 193.2341000000015
+    },
+    {
+      "method": "exists",
+      "detail": "~/.zcode/server/agents/glm/packages/zcode-cua-plugin/skills/computer-use/SKILL.md",
+      "count": 10,
+      "totalMs": 1821.0264999999927,
+      "maxMs": 200.8324999999968
+    },
+    {
+      "method": "exists",
+      "detail": "~/.zcode/server/agents/glm/packages/visualize-plugin/.zcode-plugin/plugin.json",
+      "count": 10,
+      "totalMs": 1814.5087999999614,
+      "maxMs": 195.18979999999283
+    },
+    {
+      "method": "exists",
+      "detail": "~/.zcode/server/tools/bfs/bfs",
+      "count": 10,
+      "totalMs": 1789.1936999999853,
+      "maxMs": 187.912900000003
+    },
+    {
+      "method": "exists",
+      "detail": "~/.zcode/server/agents/glm/packages/documents-plugin/skills/docx/SKILL.md",
+      "count": 10,
+      "totalMs": 1788.4858999999924,
+      "maxMs": 189.99410000000353
+    },
+    {
+      "method": "exec",
+      "detail": "\"$HOME\"'/.zcode/server/node' -e '\nconst fs = require(\"fs\");\nconst content = fs.readFileSync(process.argv[1], \"utf8\");\nconst missing = [\"skill-sync\",\"mcp-sync\",\"plugin-sync\",\"__zcode_rpc_nested_uint8array_v1\",\"exportMarketplaceSourceArchive\"",
+      "count": 20,
+      "totalMs": 1431.606000000037,
+      "maxMs": 90.46180000000459
+    },
+    {
+      "method": "exec",
+      "detail": "\"$HOME\"'/.zcode/server/node' \"$HOME\"'/.zcode/server/zcode-server.cjs' --version",
+      "count": 20,
+      "totalMs": 1380.3186000000323,
+      "maxMs": 84.75460000000021
+    },
+    {
+      "method": "exec",
+      "detail": "set -eu\nmkdir -p \"$HOME\"'/.zcode/server'\nprintf '%b' '\\163\\145\\164\\040\\055\\145\\165\\012\\154\\157\\143\\153\\137\\144\\151\\162\\075\\042\\044\\110\\117\\115\\105\\042\\047\\057\\056\\172\\143\\157\\144\\145\\057\\163\\145\\162\\166\\145\\162\\057\\056\\144\\145\\160\\154\\157\\1",
+      "count": 10,
+      "totalMs": 721.0861999999861,
+      "maxMs": 88.68319999999949
+    },
+    {
+      "method": "exec",
+      "detail": "ZCODE_SERVICE_AUTHORITY_MODE=\"desktop-attached-remote\" ZCODE_SERVER_RUNTIME_ROOT=\"$HOME/.zcode/server\" ~/.zcode/server/node ~/.zcode/server/zcode-server.cjs",
+      "count": 10,
+      "totalMs": 711.2907999999697,
+      "maxMs": 82.61689999999362
+    }
+  ],
+  "notes": [
+    "warm 幂等部署连接：运行时已安装，deploy 段是幂等核对，不是首次安装（首装样本见 first-deploy-result.json 21.18s）",
+    "n<20 只报 min/median/max/mean，不给 P95",
+    "unattributedMs 含调用前隙与 execStarted→handshaking 小隙；标记缺失的段为 null 不做估算"
+  ]
+}
