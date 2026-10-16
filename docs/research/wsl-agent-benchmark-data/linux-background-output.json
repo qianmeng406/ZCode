@@ -1,0 +1,10 @@
+{
+  "platform": "linux",
+  "workspace": "/home/ftuser/zcode-agent-lab/linux-workspace",
+  "ok": true,
+  "status": "completed",
+  "outputPath": "/home/ftuser/zcode-agent-lab/results/linux-background-output/artifacts/background-probe/output-1792127700689-stdout.log",
+  "markers": ["first-marker", "second-marker"],
+  "note": "combined persisted stdout/stderr contains both markers after background completion",
+  "closed": true
+}

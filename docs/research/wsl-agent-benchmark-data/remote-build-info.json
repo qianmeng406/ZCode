@@ -1,0 +1,15 @@
+{
+  "entryCommit": "253d39fc11032007f38c66b7b6cffe7e16143274",
+  "workspaceClean": true,
+  "entryPoint": "packages/server/src/entry-stdio.ts",
+  "esbuildOptions": "identical to packages/server/build-remote.ts (bundle/cjs/node22/banner/define)",
+  "appVersion": "3.15.1",
+  "output": "C:/Users/qianmengyys/Desktop/agent/wsl-agent-lab/remote-probe/built-from-253d/zcode-server.cjs",
+  "outputBytes": 11884133,
+  "sha256": "f41522627d1fc21394cf6d1aa2a514e43ee1245b09401f1e298b8c95f3f88025",
+  "inputCount": 1155,
+  "inputHashesFile": "C:/Users/qianmengyys/Desktop/agent/wsl-agent-lab/remote-probe/built-from-253d/input-hashes.json",
+  "metafileFile": "C:/Users/qianmengyys/Desktop/agent/wsl-agent-lab/remote-probe/built-from-253d/metafile.json",
+  "buildMs": 870,
+  "validated": true
+}

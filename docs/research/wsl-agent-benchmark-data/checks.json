@@ -1,0 +1,90 @@
+{
+  "scope": "phase-1 WSL benchmark; product behavior unchanged",
+  "sourceCommit": "253d39fc11032007f38c66b7b6cffe7e16143274",
+  "checks": [
+    {
+      "command": "node --test scripts/test/bench-agent-linux.test.mjs scripts/test/bench-wsl-boundary.test.mjs",
+      "platform": "Windows",
+      "exitCode": 0,
+      "passed": 10,
+      "failed": 0,
+      "skipped": 0
+    },
+    {
+      "command": "node --test bench-scripts/test/bench-agent-linux.test.mjs bench-scripts/test/bench-wsl-boundary.test.mjs",
+      "platform": "WSL Linux",
+      "exitCode": 0,
+      "passed": 10,
+      "failed": 0,
+      "skipped": 0
+    },
+    {
+      "command": "pnpm lint",
+      "exitCode": 0,
+      "warnings": 83,
+      "errors": 0,
+      "note": "existing baseline warnings; 6098 files"
+    },
+    {
+      "command": "pnpm exec oxlint <8 benchmark script/test files>",
+      "exitCode": 0,
+      "warnings": 0,
+      "errors": 0
+    },
+    {
+      "command": "pnpm typecheck",
+      "exitCode": 2,
+      "baselineFailures": [
+        "packages/desktop/test/e2e/settings/fork-feature-acceptance.test.ts:8 TS2305 @zcode/shared has no exported member sel",
+        "packages/desktop/test/e2e/settings/fork-feature-acceptance.test.ts:54 TS2769 HTMLElement is not assignable to string",
+        "packages/desktop/test/e2e/settings/fork-feature-acceptance.test.ts:84 TS2769 HTMLElement is not assignable to string"
+      ]
+    },
+    {
+      "command": "pnpm architecture:check --changed",
+      "exitCode": 0,
+      "violations": 0,
+      "note": "gate applies only to configured module coverage"
+    },
+    {
+      "command": "pnpm exec oxfmt --check <benchmark scripts/tests/docs/data>",
+      "exitCode": 0,
+      "scope": "new benchmark files only; not repository-wide formatting"
+    },
+    { "command": "git diff --check", "exitCode": 0 },
+    {
+      "command": "node --check <benchmark scripts/tests>",
+      "exitCode": 0
+    },
+    {
+      "command": "node scripts/check-workspace-freshness.mjs --no-fetch",
+      "exitCode": 0,
+      "limitation": "network fetch failed with connection reset; only cached refs were verified"
+    }
+  ],
+  "measurementChecks": {
+    "windowsExitCode": 0,
+    "linuxExitCode": 0,
+    "failuresEmptyBothSides": true,
+    "trackedFilesByteEqual": 17004,
+    "gitStatusCleanBothSides": true,
+    "adapterTimeoutCancelBackgroundPassedBothSides": true,
+    "backgroundPersistedStdoutStderrPassedBothSides": true,
+    "freshServerRpcPassed": 5,
+    "standardRemoteDeployVerified": false,
+    "fullModelAgentVerified": false,
+    "terminalPtyVerified": false,
+    "wslResidentVerified": false
+  },
+  "safetyAndScope": {
+    "paidModelCalls": 0,
+    "mainCredentialsCopied": false,
+    "defaultExecutionBackendChanged": false,
+    "wslConfigurationChanged": false,
+    "wslShutdown": false,
+    "previewStoppedOrOverwritten": false,
+    "committed": false,
+    "pushed": false,
+    "unrelatedChangesPreserved": true
+  }
+}

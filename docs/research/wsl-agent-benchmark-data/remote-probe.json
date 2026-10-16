@@ -1,0 +1,87 @@
+{
+  "meta": {
+    "startedAt": "2026-10-16T05:03:59.668Z",
+    "repo": "C:/Users/qianmengyys/Desktop/agent/ZCode-fork",
+    "wsl": {
+      "distro": "Ubuntu-24.04",
+      "user": "ftuser"
+    },
+    "remoteNode": "/home/ftuser/zcode-agent-lab/tools/node-v24.14.0-linux-x64/bin/node",
+    "workspace": "/home/ftuser/zcode-agent-lab/linux-workspace",
+    "bundleLocalPath": "C:/Users/qianmengyys/Desktop/agent/wsl-agent-lab/remote-probe/built-from-253d/zcode-server.cjs",
+    "bundleSource": "fresh build from clean HEAD 253d39fc (lab copy), sourceCommit verified-by-build",
+    "deployMode": "skipDeploy + 自管目录",
+    "note": "bundle 由 lab 副本（clean HEAD 253d39fc）源码构建，sha256 f4152262... 与旧 dist/mock-cdn 产物同哈希；sourceCommit verified-by-build。"
+  },
+  "bundleHash": {
+    "algorithm": "sha256",
+    "freshBuiltFrom253d": "f41522627d1fc21394cf6d1aa2a514e43ee1245b09401f1e298b8c95f3f88025",
+    "distRemoteBundleExpected": "f41522627d1fc21394cf6d1aa2a514e43ee1245b09401f1e298b8c95f3f88025",
+    "mockCdnLooseBundleExpected": "f41522627d1fc21394cf6d1aa2a514e43ee1245b09401f1e298b8c95f3f88025",
+    "sourceCommitConsistency": "verified-by-build"
+  },
+  "identity": {
+    "distro": "Ubuntu-24.04",
+    "user": "ftuser"
+  },
+  "env": {
+    "platform": "linux",
+    "arch": "x64"
+  },
+  "handshake": {
+    "ok": true,
+    "version": "3.15.1"
+  },
+  "rpc": {
+    "fileService.readdir": {
+      "ok": true,
+      "value": "[{\"name\":\".agents\",\"path\":\"/home/ftuser/zcode-agent-lab/linux-workspace/.agents\",\"type\":\"directory\",\"isSymbolicLink\":false},{\"name\":\".git\",\"path\":\"/home/ftuser/zcode-agent-lab/linux-workspace/.git\",\"type\":\"directory\",\"isSymbolicLink\":false},{\"name\":\".husky\",\"path\":\"/home/ftuser/zcode-agent-lab/linux-workspace/.husky\",\"type\":\"directory\",\"isSymbolicLink\":false},{\"name\":\".vscode\",\"path\":\"/home/ftuser/zcode-agent-lab/linux-workspace/.vscode\",\"type\":\"directory\",\"isSymbolicLink\":false},{\"name\":\"apps\",...(truncated)"
+    },
+    "fileService.readTextFile": {
+      "ok": true,
+      "value": "{\"path\":\"/home/ftuser/zcode-agent-lab/linux-workspace/package.json\",\"content\":\"{\\n  \\\"name\\\": \\\"zcode\\\",\\n  \\\"version\\\": \\\"3.15.1\\\",\\n  \\\"private\\\": true,\\n  \\\"license\\\": \\\"Apache-2.0\\\",\\n  \\\"type\\\": \\\"module\\\",\\n  \\\"scripts\\\": {\\n    \\\"dev:web\\\": \\\"concurrently -k -n server,web -c blue,green \\\\\\\"pnpm --filter @zcode/server dev\\\\\\\" \\\\\\\"pnpm --filter @zcode/web dev\\\\\\\"\\\",\\n    \\\"dev:docs\\\": \\\"pnpm --filter @zcode/dev-docs dev\\\",\\n    \\\"dev:desktop\\\": \\\"pnpm run dev:desktop:prod\\\",\\n    \\\"dev:desk...(truncated)"
+    },
+    "gitService.getRepositorySummary": {
+      "ok": true,
+      "value": "{\"workspacePath\":\"/home/ftuser/zcode-agent-lab/linux-workspace\",\"repoRoot\":\"/home/ftuser/zcode-agent-lab/linux-workspace\",\"workspaceInRepoPath\":\".\",\"autoRefreshWatchPaths\":[{\"path\":\"/home/ftuser/zcode-agent-lab/linux-workspace/.git\",\"recursive\":true}],\"branchName\":null,\"trackingBranchName\":null,\"headRefType\":\"detached\",\"ahead\":0,\"behind\":0,\"isDirty\":false,\"isGitAvailable\":true,\"isRepository\":true}"
+    },
+    "gitService.getLocalBranches": {
+      "ok": true,
+      "value": "{\"headRefType\":\"detached\",\"currentBranchName\":null,\"branches\":[]}"
+    },
+    "systemService.info": {
+      "ok": true,
+      "value": "{\"homedir\":\"/home/ftuser/zcode-agent-lab/remote-probe/data/home\",\"platform\":\"linux\"}"
+    }
+  },
+  "fatal": null,
+  "stages": {
+    "resolveIdentityStart": 552,
+    "resolveIdentityDone": 823,
+    "detectDone": 1242,
+    "serverExecSpawned": 1305,
+    "handshakeDone": 1857,
+    "rpcChannelReady": 1858,
+    "fileReaddirDone": 2404,
+    "fileReadDone": 2408,
+    "gitSummaryDone": 2514,
+    "gitBranchesDone": 2562,
+    "systemInfoDone": 2563,
+    "disposed": 2564
+  },
+  "timingMs": {
+    "total": 2576
+  },
+  "summary": {
+    "ok": true,
+    "handshakeOk": true,
+    "rpcTotal": 5,
+    "rpcPassed": 5,
+    "coverage": "handshake + file readdir/read + git summary/branches + system info（stdio 会话模式）",
+    "notCovered": [
+      "产品标准 deployServer 部署路径（REMOTE_BASE=~/.zcode/server 硬编码，未测，避免写共享目录）",
+      "node-pty / terminal 命令执行",
+      "resident 常驻模式"
+    ]
+  }
+}

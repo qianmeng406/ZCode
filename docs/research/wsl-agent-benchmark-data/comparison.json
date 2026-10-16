@@ -1,0 +1,335 @@
+{
+  "commit": "253d39fc11032007f38c66b7b6cffe7e16143274",
+  "primaryRuns": {
+    "windows": "2026-10-16T05:10:52.035Z",
+    "linux": "2026-10-16T05:12:28.564Z"
+  },
+  "failures": {
+    "windows": [],
+    "linux": []
+  },
+  "sourceEquality": {
+    "trackedFiles": 17004,
+    "windowsHash": "8af3c0e01d6fa4622e219432c8818a24e264dfd24f8ca761d09b14a3ac1090cf",
+    "linuxHash": "8af3c0e01d6fa4622e219432c8818a24e264dfd24f8ca761d09b14a3ac1090cf",
+    "allEqual": true
+  },
+  "searchEquality": {
+    "rg-tracked-sources": {
+      "windows": {
+        "rawBytes": 2539,
+        "canonicalHash": "38fe022f73736f3a176006fc0fe85620cbb8b49ddf47d56e219de3f6238732c3",
+        "lines": 30,
+        "normalization": "CRLF->LF, backslash->slash, sort lines; for fixture output equality only, not general source equivalence",
+        "inputFiles": [
+          {
+            "file": ".agents/skills/ai-elements/scripts/agent.tsx",
+            "bytes": 1916,
+            "crlfCount": 0,
+            "lfNormalizedHash": "4652bca8c438d6c2714da6e13f42fe0f7a0a8ac9d99f52e02a4dd3e3efb2a2b8"
+          },
+          {
+            "file": ".agents/skills/ai-elements/scripts/artifact.tsx",
+            "bytes": 3154,
+            "crlfCount": 0,
+            "lfNormalizedHash": "6eb6b05e469c7457eaee524d8b79c1eb68f8fbbcfbbcd54b5f96c32daf2f9f28"
+          },
+          {
+            "file": ".agents/skills/ai-elements/scripts/attachments-inline.tsx",
+            "bytes": 3767,
+            "crlfCount": 0,
+            "lfNormalizedHash": "91a3ce9cfb1db246b9e6dc624dc9779e41c3a9ba73b18796df2955a342bf1b6a"
+          },
+          {
+            "file": ".agents/skills/ai-elements/scripts/attachments-list.tsx",
+            "bytes": 2524,
+            "crlfCount": 0,
+            "lfNormalizedHash": "d31b2696b7543d13b26f2c2b4884a7bcf44f07607d5c83b3c463373433603617"
+          },
+          {
+            "file": ".agents/skills/ai-elements/scripts/attachments.tsx",
+            "bytes": 2273,
+            "crlfCount": 0,
+            "lfNormalizedHash": "302c8f23a8a84fc596cee83f74901d541e425af1c375127a8a1cb77e71f44f6c"
+          },
+          {
+            "file": ".agents/skills/ai-elements/scripts/audio-player-remote.tsx",
+            "bytes": 1064,
+            "crlfCount": 0,
+            "lfNormalizedHash": "59040a9e79898a8de0fe88813bca035d7f2abed684465826f4bc322d4c52a2bb"
+          },
+          {
+            "file": ".agents/skills/ai-elements/scripts/audio-player.tsx",
+            "bytes": 2156,
+            "crlfCount": 0,
+            "lfNormalizedHash": "4260e7e1385607cc64cb5bad56862c9b674d9c872a71fcd67d8f98e2c4f24e57"
+          },
+          {
+            "file": ".agents/skills/ai-elements/scripts/chain-of-thought.tsx",
+            "bytes": 142106,
+            "crlfCount": 0,
+            "lfNormalizedHash": "bb57dc04e298197fc3c29265244d37b761a42b47c414a1cfc9347b15bca6ab1a"
+          }
+        ]
+      },
+      "linux": {
+        "rawBytes": 2539,
+        "canonicalHash": "38fe022f73736f3a176006fc0fe85620cbb8b49ddf47d56e219de3f6238732c3",
+        "lines": 30,
+        "normalization": "CRLF->LF, backslash->slash, sort lines; for fixture output equality only, not general source equivalence",
+        "inputFiles": [
+          {
+            "file": ".agents/skills/ai-elements/scripts/agent.tsx",
+            "bytes": 1916,
+            "crlfCount": 0,
+            "lfNormalizedHash": "4652bca8c438d6c2714da6e13f42fe0f7a0a8ac9d99f52e02a4dd3e3efb2a2b8"
+          },
+          {
+            "file": ".agents/skills/ai-elements/scripts/artifact.tsx",
+            "bytes": 3154,
+            "crlfCount": 0,
+            "lfNormalizedHash": "6eb6b05e469c7457eaee524d8b79c1eb68f8fbbcfbbcd54b5f96c32daf2f9f28"
+          },
+          {
+            "file": ".agents/skills/ai-elements/scripts/attachments-inline.tsx",
+            "bytes": 3767,
+            "crlfCount": 0,
+            "lfNormalizedHash": "91a3ce9cfb1db246b9e6dc624dc9779e41c3a9ba73b18796df2955a342bf1b6a"
+          },
+          {
+            "file": ".agents/skills/ai-elements/scripts/attachments-list.tsx",
+            "bytes": 2524,
+            "crlfCount": 0,
+            "lfNormalizedHash": "d31b2696b7543d13b26f2c2b4884a7bcf44f07607d5c83b3c463373433603617"
+          },
+          {
+            "file": ".agents/skills/ai-elements/scripts/attachments.tsx",
+            "bytes": 2273,
+            "crlfCount": 0,
+            "lfNormalizedHash": "302c8f23a8a84fc596cee83f74901d541e425af1c375127a8a1cb77e71f44f6c"
+          },
+          {
+            "file": ".agents/skills/ai-elements/scripts/audio-player-remote.tsx",
+            "bytes": 1064,
+            "crlfCount": 0,
+            "lfNormalizedHash": "59040a9e79898a8de0fe88813bca035d7f2abed684465826f4bc322d4c52a2bb"
+          },
+          {
+            "file": ".agents/skills/ai-elements/scripts/audio-player.tsx",
+            "bytes": 2156,
+            "crlfCount": 0,
+            "lfNormalizedHash": "4260e7e1385607cc64cb5bad56862c9b674d9c872a71fcd67d8f98e2c4f24e57"
+          },
+          {
+            "file": ".agents/skills/ai-elements/scripts/chain-of-thought.tsx",
+            "bytes": 142106,
+            "crlfCount": 0,
+            "lfNormalizedHash": "bb57dc04e298197fc3c29265244d37b761a42b47c414a1cfc9347b15bca6ab1a"
+          }
+        ]
+      },
+      "canonicalEqual": true
+    },
+    "rg-large-dirs": {
+      "windows": {
+        "rawBytes": 27539,
+        "canonicalHash": "dc01cf378333b7206e141edc1be28088ff6c77c9ac556adb6318bcbcff5c15c4",
+        "lines": 511,
+        "normalization": "CRLF->LF, backslash->slash, sort lines; for fixture output equality only, not general source equivalence"
+      },
+      "linux": {
+        "rawBytes": 27539,
+        "canonicalHash": "dc01cf378333b7206e141edc1be28088ff6c77c9ac556adb6318bcbcff5c15c4",
+        "lines": 511,
+        "normalization": "CRLF->LF, backslash->slash, sort lines; for fixture output equality only, not general source equivalence"
+      },
+      "canonicalEqual": true
+    }
+  },
+  "scriptHashes": {
+    "bench-agent-linux.mjs": "7dcd50dc347d36b79bcdc7851728c1f47d6ada9e9183315d5dae2d0106873fc7",
+    "bench-wsl-boundary.mjs": "d4e42ec43bd8ece6a6c62cddc0131f5a6b32f3f20bfb41f357cdcb931b766c2c",
+    "lib/bench-agent-linux-adapter.mjs": "0c015f98180cdc0347670ae390dca554762e5bd24adb01972d6a42c2ebbcae16",
+    "lib/bench-agent-linux-args.mjs": "8a59c08e494e165df8d1b44e9e673e56ab4ebf2cc9193efbba37d87541bafd8c",
+    "lib/bench-agent-linux-probes.mjs": "e133869838496a9e23208ff650b3fe829c71afcacaf3d88ec78c88a381818682",
+    "lib/bench-agent-linux-stats.mjs": "39fb1fe0be5fe20a10fd7692506c21b0e11bd8b1866b3ccf8f9325661e8217db"
+  },
+  "rows": [
+    {
+      "scope": "shell",
+      "name": "noop/no-profile",
+      "nWindows": 30,
+      "nLinux": 30,
+      "windowsMs": 68.39814999999993,
+      "linuxMs": 2.2158119999999926,
+      "windowsOverLinux": 30.868209938388347,
+      "windowsP95": 87.64218500000013,
+      "linuxP95": 3.4065909500000013
+    },
+    {
+      "scope": "shell",
+      "name": "noop/login",
+      "nWindows": 30,
+      "nLinux": 30,
+      "windowsMs": 460.4997000000003,
+      "linuxMs": 20.248151500000006,
+      "windowsOverLinux": 22.74280197873866,
+      "windowsP95": 763.8005649999997,
+      "linuxP95": 21.8848271
+    },
+    {
+      "scope": "shell",
+      "name": "printf-marker/no-profile",
+      "nWindows": 30,
+      "nLinux": 30,
+      "windowsMs": 54.85280000000239,
+      "linuxMs": 1.9946035000000393,
+      "windowsOverLinux": 27.500603503403713,
+      "windowsP95": 68.17317000000057,
+      "linuxP95": 2.3383546000000135
+    },
+    {
+      "scope": "shell",
+      "name": "printf-marker/login",
+      "nWindows": 30,
+      "nLinux": 30,
+      "windowsMs": 462.25414999999884,
+      "linuxMs": 19.85926049999989,
+      "windowsOverLinux": 23.276503674444545,
+      "windowsP95": 567.4677900000021,
+      "linuxP95": 20.58474854999995
+    },
+    {
+      "scope": "shell",
+      "name": "printf-pipe-grep/no-profile",
+      "nWindows": 30,
+      "nLinux": 30,
+      "windowsMs": 139.38415000000168,
+      "linuxMs": 3.681996500000082,
+      "windowsOverLinux": 37.855590031114524,
+      "windowsP95": 178.7989400000031,
+      "linuxP95": 4.057439899999975
+    },
+    {
+      "scope": "shell",
+      "name": "printf-pipe-grep/login",
+      "nWindows": 30,
+      "nLinux": 30,
+      "windowsMs": 488.0541999999987,
+      "linuxMs": 21.157960000000003,
+      "windowsOverLinux": 23.06716715600174,
+      "windowsP95": 536.1591249999982,
+      "linuxP95": 22.27052705000002
+    },
+    {
+      "scope": "workspace",
+      "name": "git-status-porcelain",
+      "nWindows": 5,
+      "nLinux": 5,
+      "windowsMs": 125.58849999999802,
+      "linuxMs": 35.59812800000009,
+      "windowsOverLinux": 3.5279523687312353,
+      "windowsP95": null,
+      "linuxP95": null
+    },
+    {
+      "scope": "workspace",
+      "name": "git-ls-files",
+      "nWindows": 5,
+      "nLinux": 5,
+      "windowsMs": 91.4181000000026,
+      "linuxMs": 7.965429999999742,
+      "windowsOverLinux": 11.476856867740418,
+      "windowsP95": null,
+      "linuxP95": null
+    },
+    {
+      "scope": "workspace",
+      "name": "rg-tracked-sources",
+      "nWindows": 5,
+      "nLinux": 5,
+      "windowsMs": 85.8440999999948,
+      "linuxMs": 6.560766999999942,
+      "windowsOverLinux": 13.084461008902704,
+      "windowsP95": null,
+      "linuxP95": null
+    },
+    {
+      "scope": "workspace",
+      "name": "rg-large-dirs",
+      "nWindows": 5,
+      "nLinux": 5,
+      "windowsMs": 95.83099999999831,
+      "linuxMs": 15.362374000000273,
+      "windowsOverLinux": 6.238033262306764,
+      "windowsP95": null,
+      "linuxP95": null
+    },
+    {
+      "scope": "adapter",
+      "name": "adapter-cold-init",
+      "nWindows": 1,
+      "nLinux": 1,
+      "windowsMs": 1139.7260000000024,
+      "linuxMs": 80.35625500000015,
+      "windowsOverLinux": 14.183413599849823,
+      "windowsP95": null,
+      "linuxP95": null
+    },
+    {
+      "scope": "adapter",
+      "name": "adapter-hot-run-noop",
+      "nWindows": 30,
+      "nLinux": 30,
+      "windowsMs": 82.87585000000036,
+      "linuxMs": 16.709651499999836,
+      "windowsOverLinux": 4.959759334298574,
+      "windowsP95": 107.46926499999826,
+      "linuxP95": 18.001040550000084
+    },
+    {
+      "scope": "adapter",
+      "name": "adapter-hot-run-printf",
+      "nWindows": 30,
+      "nLinux": 30,
+      "windowsMs": 88.01224999999977,
+      "linuxMs": 16.20220899999981,
+      "windowsOverLinux": 5.432114225905911,
+      "windowsP95": 105.22498500000329,
+      "linuxP95": 19.459761399999906
+    },
+    {
+      "scope": "task",
+      "name": "rpc-tests-21",
+      "nWindows": 3,
+      "nLinux": 3,
+      "windowsMs": 607.2081000000035,
+      "linuxMs": 512.4956789999997,
+      "windowsOverLinux": 1.1848062820447778,
+      "windowsP95": null,
+      "linuxP95": null
+    },
+    {
+      "scope": "task",
+      "name": "rpc-typecheck-no-incremental",
+      "nWindows": 3,
+      "nLinux": 3,
+      "windowsMs": 595.1465000000026,
+      "linuxMs": 601.6233000000011,
+      "windowsOverLinux": 0.98923445950315,
+      "windowsP95": null,
+      "linuxP95": null
+    },
+    {
+      "scope": "task",
+      "name": "rpc-compile-no-incremental",
+      "nWindows": 3,
+      "nLinux": 3,
+      "windowsMs": 723.6505000000034,
+      "linuxMs": 715.2504690000005,
+      "windowsOverLinux": 1.0117441810443648,
+      "windowsP95": null,
+      "linuxP95": null
+    }
+  ]
+}

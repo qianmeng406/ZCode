@@ -1,0 +1,23 @@
+{
+  "timestamp": "2026-10-16T05:13:26.781Z",
+  "workspace": "C:\\Users\\qianmengyys\\Desktop\\agent\\wsl-agent-lab\\windows-workspace",
+  "commit": "253d39fc11032007f38c66b7b6cffe7e16143274",
+  "git": "git version 2.50.0.windows.2",
+  "trackedFiles": 17004,
+  "status": "",
+  "node": "v24.14.0",
+  "platform": "win32",
+  "os": "10.0.26100",
+  "arch": "x64",
+  "cpu": "AMD Ryzen 7 H 260 w/ Radeon 780M Graphics       ",
+  "cores": 16,
+  "totalMemoryBytes": 16388194304,
+  "freeMemoryBytes": 5707268096,
+  "filesystem": {
+    "type": 0,
+    "availableBytes": 68244799488
+  },
+  "adapterBundleSha256": "fd7ae520c31b7ac96370a10a2c0162552cfc94320ddbf6c7b89d496f272063dc",
+  "typescript": "6.0.2",
+  "vitest": "4.1.4"
+}

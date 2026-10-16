@@ -1,0 +1,10 @@
+{
+  "platform": "win32",
+  "workspace": "C:/Users/qianmengyys/Desktop/agent/wsl-agent-lab/windows-workspace",
+  "ok": true,
+  "status": "completed",
+  "outputPath": "C:\\Users\\qianmengyys\\Desktop\\agent\\wsl-agent-lab\\results\\windows-background-output\\artifacts\\background-probe\\output-1792127696578-stdout.log",
+  "markers": ["first-marker", "second-marker"],
+  "note": "combined persisted stdout/stderr contains both markers after background completion",
+  "closed": true
+}

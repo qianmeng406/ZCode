@@ -1,0 +1,391 @@
+{
+  "schema": "bench-agent-linux/v1",
+  "method": "shell-native-spawn+task-file-spawn",
+  "methodCaveat": "shell-native timings are not full agent measurements",
+  "startedAt": "2026-10-16T05:10:52.035Z",
+  "finishedAt": "2026-10-16T05:12:06.350Z",
+  "platform": {
+    "platform": "win32",
+    "nodeVersion": "v24.14.0",
+    "arch": "x64"
+  },
+  "binaries": {
+    "shell": "S:/Git/usr/bin/bash.exe",
+    "node": null,
+    "git": "S:/Git/cmd/git.exe",
+    "rg": "C:/Users/qianmengyys/Desktop/agent/ZCode-fork/packages/desktop/dist/win-unpacked/resources/tools/ripgrep/rg.exe"
+  },
+  "workspace": "C:/Users/qianmengyys/Desktop/agent/wsl-agent-lab/windows-workspace",
+  "output": "C:/Users/qianmengyys/Desktop/agent/wsl-agent-lab/results/windows-final-2",
+  "samplesConfig": {
+    "short": 30,
+    "workspace": 5
+  },
+  "samples": {
+    "short": {
+      "noop": {
+        "no-profile": {
+          "n": 30,
+          "samples": [
+            72.97569999999999, 72.56590000000003, 73.92590000000001, 65.60930000000002,
+            82.14789999999999, 63.83160000000004, 85.81860000000006, 81.36300000000006,
+            88.3112000000001, 60.014299999999935, 67.71969999999999, 58.359699999999975,
+            60.49199999999985, 66.06060000000002, 67.23399999999992, 66.88319999999999,
+            67.48050000000012, 58.46640000000002, 65.10089999999991, 69.07659999999987,
+            69.48450000000003, 57.385499999999865, 83.83469999999988, 60.149599999999964, 65.9502,
+            79.67930000000001, 82.64250000000015, 83.0920000000001, 91.24389999999994,
+            86.82450000000017
+          ],
+          "firstSample": 72.97569999999999,
+          "median": 68.39814999999993,
+          "min": 57.385499999999865,
+          "max": 91.24389999999994,
+          "mean": 71.8,
+          "p95": 87.64218500000013,
+          "script": ":",
+          "stdoutHash": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+          "stdoutBytes": 0
+        },
+        "login": {
+          "n": 30,
+          "samples": [
+            721.4558999999999, 798.4461999999999, 833.7739999999994, 616.5823999999993,
+            642.1337000000003, 679.6032999999998, 681.2089000000005, 521.7487999999994,
+            470.53240000000005, 487.130799999999, 457.9897999999994, 525.3646000000008,
+            442.91739999999845, 436.27769999999873, 435.049500000001, 443.27709999999934,
+            471.8337999999985, 469.51710000000094, 446.5585999999985, 452.33510000000024,
+            437.2631000000001, 402.2453999999998, 454.6294999999991, 420.77759999999944,
+            463.0096000000012, 408.4228999999996, 467.4428000000007, 433.1505999999972,
+            424.292300000001, 443.5599000000002
+          ],
+          "firstSample": 721.4558999999999,
+          "median": 460.4997000000003,
+          "min": 402.2453999999998,
+          "max": 833.7739999999994,
+          "mean": 513,
+          "p95": 763.8005649999997,
+          "script": ":",
+          "stdoutHash": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+          "stdoutBytes": 0
+        }
+      },
+      "printf-marker": {
+        "no-profile": {
+          "n": 30,
+          "samples": [
+            51.72620000000097, 55.755799999999, 55.15649999999732, 55.41179999999804,
+            56.467500000002474, 58.10350000000108, 53.51820000000225, 54.714200000002165,
+            60.096700000001874, 55.135599999997794, 53.91229999999996, 56.886500000000524,
+            54.09280000000217, 53.771200000002864, 53.91779999999926, 54.44889999999941,
+            54.70999999999913, 54.83340000000317, 68.22780000000057, 68.81660000000193,
+            53.840000000000146, 53.535799999997835, 68.10640000000058, 54.87220000000161,
+            53.46490000000267, 54.730100000000675, 54.21350000000166, 55.681399999997666,
+            57.50210000000152, 58.54469999999856
+          ],
+          "firstSample": 51.72620000000097,
+          "median": 54.85280000000239,
+          "min": 51.72620000000097,
+          "max": 68.81660000000193,
+          "mean": 56.5,
+          "p95": 68.17317000000057,
+          "script": "printf marker",
+          "stdoutHash": "ed5b8120601641c516d02ed9dc643a59648524248d5e2af877da39ea253c723e",
+          "stdoutBytes": 6
+        },
+        "login": {
+          "n": 30,
+          "samples": [
+            428.6728000000003, 424.40260000000126, 466.9508999999998, 448.0849999999991,
+            491.7992000000013, 450.3719000000019, 443.255000000001, 465.89150000000154,
+            499.7324000000008, 568.3749000000025, 489.51970000000074, 498.3650999999991,
+            462.266599999999, 542.6131999999998, 459.3238999999994, 493.1280000000006,
+            476.02419999999984, 462.2416999999987, 422.4267, 457.4458000000013, 453.6925999999985,
+            474.3191000000006, 404.60599999999977, 439.1113000000005, 457.56769999999597,
+            427.07450000000244, 445.5653999999995, 498.4542999999976, 566.3591000000015,
+            764.7021000000022
+          ],
+          "firstSample": 428.6728000000003,
+          "median": 462.25414999999884,
+          "min": 404.60599999999977,
+          "max": 764.7021000000022,
+          "mean": 479.4,
+          "p95": 567.4677900000021,
+          "script": "printf marker",
+          "stdoutHash": "ed5b8120601641c516d02ed9dc643a59648524248d5e2af877da39ea253c723e",
+          "stdoutBytes": 6
+        }
+      },
+      "printf-pipe-grep": {
+        "no-profile": {
+          "n": 30,
+          "samples": [
+            138.21650000000227, 152.94219999999768, 172.66180000000168, 152.49350000000413,
+            180.25280000000203, 158.0023000000001, 119.2303000000029, 137.28160000000207,
+            157.00039999999717, 152.5838999999978, 120.79359999999724, 110.09840000000258,
+            153.39279999999417, 177.02200000000448, 192.92399999999907, 173.83800000000338,
+            140.5518000000011, 141.58810000000085, 162.8715000000011, 150.81560000000172,
+            131.09659999999712, 122.40820000000531, 113.22360000000481, 109.00900000000547,
+            105.00789999999688, 99.67289999999775, 98.79899999999907, 108.52369999999792,
+            101.50280000000203, 106.24620000000141
+          ],
+          "firstSample": 138.21650000000227,
+          "median": 139.38415000000168,
+          "min": 98.79899999999907,
+          "max": 192.92399999999907,
+          "mean": 138,
+          "p95": 178.7989400000031,
+          "script": "printf 'a\\nb\\nc' | grep b",
+          "stdoutHash": "0263829989b6fd954f72baaf2fc64bc2e2f01d692d4de72986ea808f6e99813f",
+          "stdoutBytes": 2
+        },
+        "login": {
+          "n": 30,
+          "samples": [
+            487.52240000000165, 515.8921000000046, 521.9979999999996, 479.8197999999975,
+            473.00139999999374, 482.2152999999962, 492.30510000000504, 511.4519, 480.94690000000264,
+            488.5859999999957, 484.2364000000016, 455.7277000000031, 484.15469999999914,
+            517.7401000000027, 475.1171000000031, 498.65320000000065, 475.6368000000002,
+            500.62149999999383, 463.60139999999956, 464.0341000000044, 472.658500000005,
+            506.5581999999995, 509.3087999999989, 547.7454999999973, 502.6186999999991,
+            496.34389999999985, 469.2600999999995, 482.3467000000019, 554.4994000000006,
+            517.3433000000005
+          ],
+          "firstSample": 487.52240000000165,
+          "median": 488.0541999999987,
+          "min": 455.7277000000031,
+          "max": 554.4994000000006,
+          "mean": 493.7,
+          "p95": 536.1591249999982,
+          "script": "printf 'a\\nb\\nc' | grep b",
+          "stdoutHash": "0263829989b6fd954f72baaf2fc64bc2e2f01d692d4de72986ea808f6e99813f",
+          "stdoutBytes": 2
+        }
+      }
+    },
+    "workspace": {
+      "git-status-porcelain": {
+        "no-profile": {
+          "n": 5,
+          "samples": [
+            125.58849999999802, 122.21159999999509, 126.74260000000504, 126.29180000000633,
+            122.61699999999837
+          ],
+          "firstSample": 125.58849999999802,
+          "median": 125.58849999999802,
+          "min": 122.21159999999509,
+          "max": 126.74260000000504,
+          "mean": 124.7,
+          "script": "'S:/Git/cmd/git.exe' status --porcelain --untracked-files=normal",
+          "stdoutHash": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+          "stdoutBytes": 0
+        }
+      },
+      "git-ls-files": {
+        "no-profile": {
+          "n": 5,
+          "samples": [
+            88.55419999999867, 93.54260000000068, 94.83789999999863, 91.4181000000026,
+            91.10439999999653
+          ],
+          "firstSample": 88.55419999999867,
+          "median": 91.4181000000026,
+          "min": 88.55419999999867,
+          "max": 94.83789999999863,
+          "mean": 91.9,
+          "script": "'S:/Git/cmd/git.exe' ls-files",
+          "stdoutHash": "c200f651dd2847b2d7ad42c4bf54c9ba96fd1fda11899d750aaaea9d2fb898ce",
+          "stdoutBytes": 1106697
+        }
+      },
+      "rg-tracked-sources": {
+        "no-profile": {
+          "n": 5,
+          "samples": [
+            87.8726999999999, 84.85399999999936, 87.08690000000206, 84.99169999999867,
+            85.8440999999948
+          ],
+          "firstSample": 87.8726999999999,
+          "median": 85.8440999999948,
+          "min": 84.85399999999936,
+          "max": 87.8726999999999,
+          "mean": 86.1,
+          "script": "'C:/Users/qianmengyys/Desktop/agent/ZCode-fork/packages/desktop/dist/win-unpacked/resources/tools/ripgrep/rg.exe' 'import|export' '.agents/skills/ai-elements/scripts/agent.tsx' '.agents/skills/ai-elements/scripts/artifact.tsx' '.agents/skills/ai-elements/scripts/attachments-inline.tsx' '.agents/skills/ai-elements/scripts/attachments-list.tsx' '.agents/skills/ai-elements/scripts/attachments.tsx' '.agents/skills/ai-elements/scripts/audio-player-remote.tsx' '.agents/skills/ai-elements/scripts/audio-player.tsx' '.agents/skills/ai-elements/scripts/chain-of-thought.tsx'",
+          "stdoutHash": "06853aa45f78243dd5f099d7b5d99a511f164d90459d427ab45c73c4478a4629",
+          "stdoutBytes": 2539,
+          "files": [
+            ".agents/skills/ai-elements/scripts/agent.tsx",
+            ".agents/skills/ai-elements/scripts/artifact.tsx",
+            ".agents/skills/ai-elements/scripts/attachments-inline.tsx",
+            ".agents/skills/ai-elements/scripts/attachments-list.tsx",
+            ".agents/skills/ai-elements/scripts/attachments.tsx",
+            ".agents/skills/ai-elements/scripts/audio-player-remote.tsx",
+            ".agents/skills/ai-elements/scripts/audio-player.tsx",
+            ".agents/skills/ai-elements/scripts/chain-of-thought.tsx"
+          ]
+        }
+      },
+      "rg-large-dirs": {
+        "no-profile": {
+          "n": 5,
+          "samples": [
+            112.42349999999715, 97.32630000000063, 92.41790000000037, 94.71600000000035,
+            95.83099999999831
+          ],
+          "firstSample": 112.42349999999715,
+          "median": 95.83099999999831,
+          "min": 92.41790000000037,
+          "max": 112.42349999999715,
+          "mean": 98.5,
+          "script": "'C:/Users/qianmengyys/Desktop/agent/ZCode-fork/packages/desktop/dist/win-unpacked/resources/tools/ripgrep/rg.exe' -l 'export' 'packages/rpc/src' 'apps/zcode-cli/packages/adapters/src' 'packages/shared/src'",
+          "stdoutHash": "f86bbb4d1a3b577bdc64ef5bfd1d8f6a21976d6121c47acd08ccca9380b13099",
+          "stdoutBytes": 27539
+        }
+      }
+    }
+  },
+  "adapter": {
+    "module": "C:/Users/qianmengyys/Desktop/agent/wsl-agent-lab/exec-adapter.mjs",
+    "imported": true,
+    "importError": null,
+    "scenarios": {
+      "adapter-cold-init": {
+        "n": 1,
+        "samples": [1139.7260000000024],
+        "firstSample": 1139.7260000000024,
+        "median": 1139.7260000000024,
+        "min": 1139.7260000000024,
+        "max": 1139.7260000000024,
+        "mean": 1139.7
+      },
+      "adapter-hot-run-noop": {
+        "n": 30,
+        "samples": [
+          97.65269999999873, 109.21349999999802, 77.99239999999554, 79.51080000000366,
+          79.72189999999682, 80.68739999999525, 84.36589999999705, 80.8689000000013,
+          80.93700000000536, 78.52550000000338, 76.93000000000029, 78.93760000000475,
+          78.94210000000021, 108.14979999999923, 93.06209999999555, 96.22720000000118,
+          77.31909999999334, 80.38220000000001, 92.7809000000052, 81.46880000000237,
+          83.1649000000034, 100.64719999999943, 106.63749999999709, 82.58679999999731,
+          85.70760000000155, 85.71020000000135, 82.52449999999953, 105.47460000000137,
+          88.40520000000106, 88.00040000000445
+        ],
+        "firstSample": 97.65269999999873,
+        "median": 82.87585000000036,
+        "min": 76.93000000000029,
+        "max": 109.21349999999802,
+        "mean": 87.4,
+        "p95": 107.46926499999826
+      },
+      "adapter-hot-run-printf": {
+        "n": 30,
+        "samples": [
+          86.85919999999896, 89.31349999999657, 107.59760000000097, 106.33860000000277,
+          87.95060000000376, 87.98530000000028, 85.46050000000105, 88.03919999999925,
+          83.71949999999924, 89.40789999999834, 89.45249999999942, 103.86390000000392,
+          91.05509999999776, 93.14240000000427, 90.40759999999864, 93.03929999999673,
+          102.07529999999679, 102.01299999999901, 89.52119999999559, 85.7815999999948,
+          81.00760000000446, 80.7010999999984, 76.82359999999608, 81.33740000000398,
+          79.98750000000291, 81.28830000000016, 78.10679999999411, 79.9893000000011,
+          91.84209999999439, 77.99980000000505
+        ],
+        "firstSample": 86.85919999999896,
+        "median": 88.01224999999977,
+        "min": 76.82359999999608,
+        "max": 107.59760000000097,
+        "mean": 88.7,
+        "p95": 105.22498500000329
+      }
+    },
+    "probes": [
+      {
+        "name": "timeout",
+        "correct": true,
+        "observed": {
+          "status": "timed_out",
+          "timedOut": true,
+          "elapsedMs": 252
+        }
+      },
+      {
+        "name": "cancel",
+        "correct": true,
+        "observed": {
+          "status": "cancelled",
+          "cancelled": true
+        }
+      },
+      {
+        "name": "background",
+        "correct": true,
+        "observed": {
+          "startStatus": "running",
+          "snapshotStatus": "running",
+          "cancelStatus": "cancelled"
+        }
+      }
+    ],
+    "closed": true
+  },
+  "taskCommands": {
+    "rpc-tests-21": {
+      "n": 3,
+      "samples": [598.5532999999996, 607.2081000000035, 619.4029999999912],
+      "firstSample": 598.5532999999996,
+      "median": 607.2081000000035,
+      "min": 598.5532999999996,
+      "max": 619.4029999999912,
+      "mean": 608.4,
+      "file": "C:\\Users\\qianmengyys\\Desktop\\agent\\wsl-agent-lab\\tools\\node-v24.14.0-win-x64\\node.exe",
+      "args": [
+        "node_modules/vitest/vitest.mjs",
+        "run",
+        "packages/rpc/test/buffer.test.ts",
+        "packages/rpc/test/serialization.test.ts",
+        "--maxWorkers=1"
+      ]
+    },
+    "rpc-typecheck-no-incremental": {
+      "n": 3,
+      "samples": [584.2514000000083, 610.1230999999971, 595.1465000000026],
+      "firstSample": 584.2514000000083,
+      "median": 595.1465000000026,
+      "min": 584.2514000000083,
+      "max": 610.1230999999971,
+      "mean": 596.5,
+      "file": "C:\\Users\\qianmengyys\\Desktop\\agent\\wsl-agent-lab\\tools\\node-v24.14.0-win-x64\\node.exe",
+      "args": [
+        "node_modules/typescript/bin/tsc",
+        "-p",
+        "packages/rpc/tsconfig.json",
+        "--composite",
+        "false",
+        "--incremental",
+        "false",
+        "--noEmit"
+      ]
+    },
+    "rpc-compile-no-incremental": {
+      "n": 3,
+      "samples": [723.6505000000034, 775.9637999999977, 627.8722000000125],
+      "firstSample": 723.6505000000034,
+      "median": 723.6505000000034,
+      "min": 627.8722000000125,
+      "max": 775.9637999999977,
+      "mean": 709.2,
+      "file": "C:\\Users\\qianmengyys\\Desktop\\agent\\wsl-agent-lab\\tools\\node-v24.14.0-win-x64\\node.exe",
+      "args": [
+        "node_modules/typescript/bin/tsc",
+        "-p",
+        "packages/rpc/tsconfig.json",
+        "--composite",
+        "false",
+        "--incremental",
+        "false",
+        "--outDir",
+        "C:\\Users\\qianmengyys\\Desktop\\agent\\wsl-agent-lab\\windows-dev-tasks\\rpc-build"
+      ]
+    }
+  },
+  "failures": [],
+  "tempDir": "C:\\Users\\qianmengyys\\Desktop\\agent\\wsl-agent-lab\\results\\windows-final-2\\.bench-agent-linux-tmp-19616-1792127452035"
+}

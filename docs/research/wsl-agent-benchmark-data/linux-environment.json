@@ -1,0 +1,23 @@
+{
+  "timestamp": "2026-10-16T05:13:27.101Z",
+  "workspace": "/home/ftuser/zcode-agent-lab/linux-workspace",
+  "commit": "253d39fc11032007f38c66b7b6cffe7e16143274",
+  "git": "git version 2.43.0",
+  "trackedFiles": 17004,
+  "status": "",
+  "node": "v24.14.0",
+  "platform": "linux",
+  "os": "6.18.33.2-microsoft-standard-WSL2",
+  "arch": "x64",
+  "cpu": "AMD Ryzen 7 H 260 w/ Radeon 780M Graphics",
+  "cores": 8,
+  "totalMemoryBytes": 10428739584,
+  "freeMemoryBytes": 9853874176,
+  "filesystem": {
+    "type": 61267,
+    "availableBytes": 1002237714432
+  },
+  "adapterBundleSha256": "fd7ae520c31b7ac96370a10a2c0162552cfc94320ddbf6c7b89d496f272063dc",
+  "typescript": "6.0.2",
+  "vitest": "4.1.4"
+}
