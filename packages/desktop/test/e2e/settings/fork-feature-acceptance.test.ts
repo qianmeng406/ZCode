@@ -5,8 +5,10 @@ import {
   TID_MODEL_PROVIDER_ADD_MODEL_BUTTON,
   TID_MODEL_UPSTREAM_FETCH_BUTTON,
   TID_TASK_SETTINGS_BUTTON,
-  sel,
 } from "@zcode/shared";
+// sel 是 e2e 的 CSS 选择器帮助函数，不属于 @zcode/shared 导出面；
+// 从 shared 引入会造成 TS2305 并连带 execute 回调参数类型失效。
+import { sel } from "../helpers/selectors.js";
 import {
   DEFAULT_WORKSPACE,
   clearAppData,
