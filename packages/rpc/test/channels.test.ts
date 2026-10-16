@@ -5,9 +5,16 @@ import {
   IServerChannel,
   getDelayedChannel,
 } from "../src/channels.js";
-import { createQueuePair, SocketProtocol, type ISocket } from "../src/protocol.js";
+import {
+  createQueuePair,
+  SocketProtocol,
+  type ISocket,
+  type IMessagePassingProtocol,
+} from "../src/protocol.js";
 import { Emitter, Event, DisposableStore } from "../src/foundation.js";
 import { VSBuffer } from "../src/buffer.js";
+import { RequestType } from "../src/channels.shared.js";
+import { BufferReader, deserialize } from "../src/serialization.js";
 
 function createPair(ctx = "test-ctx") {
   const [serverProtocol, clientProtocol] = createQueuePair();
@@ -281,6 +288,147 @@ describe("ChannelServer + ChannelClient", () => {
     await received;
     expect(values).toEqual(["first", "second"]);
     dispose();
+  });
+
+  it("should re-deliver events after unsubscribe and resubscribe", async () => {
+    const { server, client, dispose } = createPair();
+
+    const emitter = new Emitter<string>();
+    const listen = vi.fn(() => emitter.event);
+    server.registerChannel("resub", {
+      call() {
+        return Promise.resolve();
+      },
+      listen,
+    });
+    const ch = client.getChannel("resub");
+    // 复用同一个 listen 函数（同一 Event/emitter），覆盖真实重订阅路径
+    const listenFn = ch.listen("onData");
+
+    const firstListener = vi.fn();
+    const firstSub = listenFn(firstListener);
+    await vi.waitFor(() => {
+      expect(listen).toHaveBeenCalledTimes(1);
+    });
+    emitter.fire("before-unsub");
+    await vi.waitFor(() => {
+      expect(firstListener).toHaveBeenCalledWith("before-unsub");
+    });
+
+    firstSub.dispose();
+    // 确定性屏障：同一 queue 中 EventDispose 在先、barrier call 在后，
+    // 服务端响应该 call 说明 EventDispose 已被处理（onRawMessage 顺序处理帧）。
+    await ch.call("barrier");
+    // 取消订阅期间触发的事件不应投递
+    emitter.fire("during-unsub");
+
+    const secondListener = vi.fn();
+    const received = new Promise<void>((resolve) => {
+      listenFn((v) => {
+        secondListener(v);
+        if (v === "after-resub") resolve();
+      });
+    });
+    await vi.waitFor(() => {
+      expect(listen).toHaveBeenCalledTimes(2);
+    });
+
+    emitter.fire("after-resub");
+    await received;
+
+    expect(firstListener).not.toHaveBeenCalledWith("during-unsub");
+    expect(secondListener).not.toHaveBeenCalledWith("during-unsub");
+    expect(secondListener).toHaveBeenCalledWith("after-resub");
+    dispose();
+  });
+
+  it("should resubscribe same event with same arg via reused listen function", async () => {
+    const [serverProtocol, clientProtocol] = createQueuePair();
+    // 记录客户端实际发出的请求类型，用于断言 EventListen/EventDispose 次数
+    const sentTypes: number[] = [];
+    const countingClientProtocol: IMessagePassingProtocol = {
+      onMessage: clientProtocol.onMessage.bind(clientProtocol),
+      send: (buffer: VSBuffer) => {
+        try {
+          sentTypes.push(deserialize(new BufferReader(buffer))[0] as number);
+        } catch {
+          /* noop */
+        }
+        clientProtocol.send(buffer);
+      },
+    };
+    const server = new ChannelServer(serverProtocol, "resub-arg-ctx");
+    const client = new ChannelClient(countingClientProtocol);
+
+    const emitter = new Emitter<string>();
+    const listen = vi.fn(() => emitter.event);
+    server.registerChannel("resub-arg", {
+      call() {
+        return Promise.resolve();
+      },
+      listen,
+    });
+    const listenFn = client.getChannel("resub-arg").listen("onData", { id: "same" });
+
+    const listenerA = vi.fn();
+    const subA = listenFn(listenerA);
+    await vi.waitFor(() => {
+      expect(listen).toHaveBeenCalledTimes(1);
+    });
+
+    subA.dispose();
+    // 确定性屏障：同一 queue 中 EventDispose 在先、barrier call 在后，
+    // 服务端响应该 call 说明 EventDispose 已被处理（onRawMessage 顺序处理帧）。
+    const barrierCh = client.getChannel("resub-arg");
+    await barrierCh.call("barrier");
+    // unsub 期间触发的事件，重订阅后不得补投
+    emitter.fire("during-unsub");
+
+    const listenerB = vi.fn();
+    const received = new Promise<string>((resolve) => listenerB.mockImplementation(resolve));
+    listenFn(listenerB);
+    await vi.waitFor(() => {
+      expect(listen).toHaveBeenCalledTimes(2);
+    });
+
+    emitter.fire("value-b");
+    expect(await received).toBe("value-b");
+    // 服务端 listen 调用次数 == 订阅次数；arg 每次一致（动态同 arg 复用）
+    expect(listen).toHaveBeenCalledTimes(2);
+    expect(listen.mock.calls.every((c) => c[2] && c[2].id === "same")).toBe(true);
+    // 客户端发出恰好 2 次 EventListen、1 次 EventDispose（dispose 调用次数与取消次数一致）
+    expect(sentTypes.filter((t) => t === RequestType.EventListen)).toHaveLength(2);
+    expect(sentTypes.filter((t) => t === RequestType.EventDispose)).toHaveLength(1);
+    // unsub 期间的事件未投递给任一 listener
+    expect(listenerA).not.toHaveBeenCalledWith("during-unsub");
+    expect(listenerB).not.toHaveBeenCalledWith("during-unsub");
+    server.dispose();
+    client.dispose();
+  });
+
+  it("should not send EventListen when subscription cancelled before Initialize", async () => {
+    const [serverProtocol, clientProtocol] = createQueuePair();
+    const server = new ChannelServer(serverProtocol, "test-ctx", 1000, true);
+    const client = new ChannelClient(clientProtocol);
+
+    const listen = vi.fn(() => Event.None);
+    server.registerChannel("uninit", {
+      call() {
+        return Promise.resolve();
+      },
+      listen,
+    });
+
+    // 未 Initialize 前订阅并立即取消，初始化后不得再发 EventListen
+    const sub = client.getChannel("uninit").listen("onData")(() => {});
+    sub.dispose();
+    server.ready();
+    // 同一连接的调用响应证明 Initialize 及其已排队回调均已处理。
+    await client.getChannel("uninit").call("barrier");
+
+    expect(listen).not.toHaveBeenCalled();
+    server.dispose();
+    client.dispose();
   });
 
   it("should queue requests for channels registered later", async () => {

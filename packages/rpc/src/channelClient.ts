@@ -148,9 +148,22 @@ export class ChannelClient implements IChannelClient, IDisposable {
 
   private requestEvent(channelName: string, name: string, arg?: any): Event<any> {
     const id = this.lastRequestId++;
+    // 每次监听者从 0→1 视为一次订阅激活。取消订阅会使排队中（等待 Initialize）
+    // 的 doRequest 失效，防止取消后迟到的初始化回调再发 EventListen；
+    // 重新订阅则开启新激活号，允许复用同一 id 重发 EventListen。
+    let activation = 0;
     const emitter = new Emitter<any>({
       onWillAddFirstListener: () => {
+        const myActivation = ++activation;
         const doRequest = () => {
+          if (this.isDisposed || myActivation !== activation) {
+            return;
+          }
+          // handler 必须在订阅激活（发送 EventListen）时注册：取消订阅会删除
+          // handler，重新订阅必须重建，否则 EventFire 会被静默丢弃。
+          this.handlers.set(id, (response) => {
+            emitter.fire((response as { data: any }).data);
+          });
           this.activeRequests.add(emitter);
           this.sendRequest(RequestType.EventListen, id, channelName, name, arg);
         };
@@ -162,14 +175,12 @@ export class ChannelClient implements IChannelClient, IDisposable {
         }
       },
       onDidRemoveLastListener: () => {
+        // 使排队中的初始化 doRequest 失效，并撤掉 handler 与服务端订阅
+        activation++;
         this.activeRequests.delete(emitter);
         this.sendCancelOrDispose(RequestType.EventDispose, id);
         this.handlers.delete(id);
       },
-    });
-
-    this.handlers.set(id, (response) => {
-      emitter.fire((response as { data: any }).data);
     });
 
     return emitter.event;
