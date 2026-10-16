@@ -1,0 +1,1604 @@
+{
+  "schema": "wsl-connect-latency/v1",
+  "status": "passed",
+  "distro": "Ubuntu-24.04",
+  "user": "zcodewslp2",
+  "workspace": "/home/zcodewslp2/workspace",
+  "mode": "warm-idempotent",
+  "zcodeVersion": "3.15.1",
+  "finishedAt": "2026-10-16T10:02:20.787Z",
+  "iterationsRequested": 10,
+  "iterationsCompleted": 10,
+  "gapMs": 500,
+  "calibration": {
+    "command": "wsl.exe -d Ubuntu-24.04 -u zcodewslp2 --exec true",
+    "samplesMs": [
+      2176.6865,
+      161.8429000000001,
+      152.5009,
+      171.6179000000002,
+      148.67520000000013
+    ],
+    "stats": {
+      "count": 5,
+      "minMs": 148.67520000000013,
+      "medianMs": 161.8429000000001,
+      "maxMs": 2176.6865,
+      "meanMs": 562.26468
+    }
+  },
+  "aggregate": {
+    "totalMs": {
+      "count": 10,
+      "minMs": 5393.7456999999995,
+      "medianMs": 5516.646499999997,
+      "maxMs": 5803.0788999999995,
+      "meanMs": 5556.5835400000005
+    },
+    "systemRpcMs": {
+      "count": 10,
+      "minMs": 91.79980000000069,
+      "medianMs": 98.95880000000034,
+      "maxMs": 110.99489999999969,
+      "meanMs": 99.43839000000116
+    },
+    "disposeMs": {
+      "count": 10,
+      "minMs": 31.37079999999696,
+      "medianMs": 48.67014999999901,
+      "maxMs": 58.84059999999954,
+      "meanMs": 45.75692999999883
+    },
+    "detectMs": {
+      "count": 10,
+      "minMs": 555.1641999999993,
+      "medianMs": 576.5403999999999,
+      "maxMs": 650.7284,
+      "meanMs": 584.6200099999984
+    },
+    "runtimeNetworkMs": {
+      "count": 10,
+      "minMs": 0.12230000000272412,
+      "medianMs": 0.16159999999945285,
+      "maxMs": 0.38470000000052096,
+      "meanMs": 0.18193000000010215
+    },
+    "deployMs": {
+      "count": 10,
+      "minMs": 4347.347700000006,
+      "medianMs": 4462.323400000001,
+      "maxMs": 4685.362100000002,
+      "meanMs": 4497.51288
+    },
+    "launchMs": {
+      "count": 10,
+      "minMs": 60.586999999999534,
+      "medianMs": 66.06274999999914,
+      "maxMs": 75.87309999999707,
+      "meanMs": 67.47384999999903
+    },
+    "handshakeMs": {
+      "count": 10,
+      "minMs": 380.2436000000016,
+      "medianMs": 404.2573000000011,
+      "maxMs": 457.347400000006,
+      "meanMs": 406.2480600000017
+    },
+    "wrapMs": {
+      "count": 10,
+      "minMs": 0.18009999999776483,
+      "medianMs": 0.23285000000214495,
+      "maxMs": 1.0265999999992346,
+      "meanMs": 0.32023999999946684
+    },
+    "unattributedMs": {
+      "count": 10,
+      "minMs": 0.09979999999632128,
+      "medianMs": 0.11864999999761494,
+      "maxMs": 1.1876000000002023,
+      "meanMs": 0.2265699999993558
+    }
+  },
+  "perIteration": [
+    {
+      "iteration": 1,
+      "backendCalls": [
+        {
+          "method": "detect",
+          "durationMs": 650.0778,
+          "detail": ""
+        },
+        {
+          "method": "existsMany",
+          "durationMs": 192.77019999999993,
+          "detail": "~/.zcode/server/node,~/.zcode/server/zcode-server.cjs"
+        },
+        {
+          "method": "exec",
+          "durationMs": 63.6869999999999,
+          "detail": "\"$HOME\"'/.zcode/server/node' \"$HOME\"'/.zcode/server/zcode-server.cjs' --version"
+        },
+        {
+          "method": "exec",
+          "durationMs": 68.1902,
+          "detail": "\"$HOME\"'/.zcode/server/node' -e '\nconst fs = require(\"fs\");\nconst content = fs.readFileSync(process.argv[1], \"utf8\");\nconst missing = [\"skill-sync\",\"mcp-sync\",\"plugin-sync\",\"__zcode_rpc_nested_uint8array_v1\",\"exportMarketplaceSourceArchive\""
+        },
+        {
+          "method": "exec",
+          "durationMs": 62.64510000000064,
+          "detail": "set -eu\nmkdir -p \"$HOME\"'/.zcode/server'\nprintf '%b' '\\163\\145\\164\\040\\055\\145\\165\\012\\154\\157\\143\\153\\137\\144\\151\\162\\075\\042\\044\\110\\117\\115\\105\\042\\047\\057\\056\\172\\143\\157\\144\\145\\057\\163\\145\\162\\166\\145\\162\\057\\056\\144\\145\\160\\154\\157\\1"
+        },
+        {
+          "method": "existsMany",
+          "durationMs": 172.80099999999948,
+          "detail": "~/.zcode/server/node,~/.zcode/server/zcode-server.cjs"
+        },
+        {
+          "method": "exec",
+          "durationMs": 62.831999999999425,
+          "detail": "\"$HOME\"'/.zcode/server/node' \"$HOME\"'/.zcode/server/zcode-server.cjs' --version"
+        },
+        {
+          "method": "exec",
+          "durationMs": 64.45310000000063,
+          "detail": "\"$HOME\"'/.zcode/server/node' -e '\nconst fs = require(\"fs\");\nconst content = fs.readFileSync(process.argv[1], \"utf8\");\nconst missing = [\"skill-sync\",\"mcp-sync\",\"plugin-sync\",\"__zcode_rpc_nested_uint8array_v1\",\"exportMarketplaceSourceArchive\""
+        },
+        {
+          "method": "readFile",
+          "durationMs": 179.5574999999999,
+          "detail": "~/.zcode/server/.asset-components/server-bundle.json"
+        },
+        {
+          "method": "readFile",
+          "durationMs": 166.3096000000005,
+          "detail": "~/.zcode/server/.asset-components/glm.json"
+        },
+        {
+          "method": "exists",
+          "durationMs": 169.65560000000005,
+          "detail": "~/.zcode/server/build/Release/pty.node"
+        },
+        {
+          "method": "existsMany",
+          "durationMs": 225.71630000000005,
+          "detail": "~/.zcode/server/agents/glm/packages/android-emulator-plugin/.zcode-plugin/plugin.json,~/.zcode/server/agents/glm/packages/browser-use-plugin/.zcode-plugin/plugin.json,~/.zcode/server/agents/glm/packages/zcode-cua-plugin/.zcode-plugin/plugin"
+        },
+        {
+          "method": "readFile",
+          "durationMs": 182.02270000000044,
+          "detail": "~/.zcode/server/.asset-components/glm.json"
+        },
+        {
+          "method": "exists",
+          "durationMs": 177.5573999999997,
+          "detail": "~/.zcode/server/agents/glm/zcode-agent"
+        },
+        {
+          "method": "readFile",
+          "durationMs": 184.28659999999945,
+          "detail": "~/.zcode/server/agents/glm/zcode-agent"
+        },
+        {
+          "method": "exists",
+          "durationMs": 179.41540000000077,
+          "detail": "~/.zcode/server/agents/glm/zcode.cjs"
+        },
+        {
+          "method": "readFile",
+          "durationMs": 174.52269999999953,
+          "detail": "~/.zcode/server/tools/bfs/.version"
+        },
+        {
+          "method": "exists",
+          "durationMs": 171.4377999999997,
+          "detail": "~/.zcode/server/tools/bfs/bfs"
+        },
+        {
+          "method": "readFile",
+          "durationMs": 187.2547999999988,
+          "detail": "~/.zcode/server/tools/ripgrep/.version"
+        },
+        {
+          "method": "exists",
+          "durationMs": 188.55619999999908,
+          "detail": "~/.zcode/server/tools/ripgrep/rg"
+        },
+        {
+          "method": "readFile",
+          "durationMs": 172.9368000000013,
+          "detail": "~/.zcode/server/tools/ugrep/.version"
+        },
+        {
+          "method": "exists",
+          "durationMs": 190.1886999999988,
+          "detail": "~/.zcode/server/tools/ugrep/ugrep"
+        },
+        {
+          "method": "exec",
+          "durationMs": 60.3171999999995,
+          "detail": "ZCODE_SERVICE_AUTHORITY_MODE=\"desktop-attached-remote\" ZCODE_SERVER_RUNTIME_ROOT=\"$HOME/.zcode/server\" ~/.zcode/server/node ~/.zcode/server/zcode-server.cjs"
+        }
+      ],
+      "totalMs": 5803.0788999999995,
+      "phases": {
+        "detectMs": 650.7284,
+        "runtimeNetworkMs": 0.38470000000052096,
+        "deployMs": 4679.018,
+        "launchMs": 60.586999999999534,
+        "handshakeMs": 410.14660000000003,
+        "wrapMs": 1.0265999999992346,
+        "unattributedMs": 1.1876000000002023
+      },
+      "systemRpcMs": 110.99489999999969,
+      "identity": {
+        "platform": "linux",
+        "homedir": "/home/zcodewslp2"
+      },
+      "disposeMs": 54.70970000000125
+    },
+    {
+      "iteration": 2,
+      "backendCalls": [
+        {
+          "method": "detect",
+          "durationMs": 597.7312000000002,
+          "detail": ""
+        },
+        {
+          "method": "existsMany",
+          "durationMs": 176.76580000000104,
+          "detail": "~/.zcode/server/node,~/.zcode/server/zcode-server.cjs"
+        },
+        {
+          "method": "exec",
+          "durationMs": 60.16810000000078,
+          "detail": "\"$HOME\"'/.zcode/server/node' \"$HOME\"'/.zcode/server/zcode-server.cjs' --version"
+        },
+        {
+          "method": "exec",
+          "durationMs": 62.96860000000015,
+          "detail": "\"$HOME\"'/.zcode/server/node' -e '\nconst fs = require(\"fs\");\nconst content = fs.readFileSync(process.argv[1], \"utf8\");\nconst missing = [\"skill-sync\",\"mcp-sync\",\"plugin-sync\",\"__zcode_rpc_nested_uint8array_v1\",\"exportMarketplaceSourceArchive\""
+        },
+        {
+          "method": "exec",
+          "durationMs": 65.0648999999994,
+          "detail": "set -eu\nmkdir -p \"$HOME\"'/.zcode/server'\nprintf '%b' '\\163\\145\\164\\040\\055\\145\\165\\012\\154\\157\\143\\153\\137\\144\\151\\162\\075\\042\\044\\110\\117\\115\\105\\042\\047\\057\\056\\172\\143\\157\\144\\145\\057\\163\\145\\162\\166\\145\\162\\057\\056\\144\\145\\160\\154\\157\\1"
+        },
+        {
+          "method": "existsMany",
+          "durationMs": 178.89049999999952,
+          "detail": "~/.zcode/server/node,~/.zcode/server/zcode-server.cjs"
+        },
+        {
+          "method": "exec",
+          "durationMs": 61.4369999999999,
+          "detail": "\"$HOME\"'/.zcode/server/node' \"$HOME\"'/.zcode/server/zcode-server.cjs' --version"
+        },
+        {
+          "method": "exec",
+          "durationMs": 66.13879999999881,
+          "detail": "\"$HOME\"'/.zcode/server/node' -e '\nconst fs = require(\"fs\");\nconst content = fs.readFileSync(process.argv[1], \"utf8\");\nconst missing = [\"skill-sync\",\"mcp-sync\",\"plugin-sync\",\"__zcode_rpc_nested_uint8array_v1\",\"exportMarketplaceSourceArchive\""
+        },
+        {
+          "method": "readFile",
+          "durationMs": 174.2417000000005,
+          "detail": "~/.zcode/server/.asset-components/server-bundle.json"
+        },
+        {
+          "method": "readFile",
+          "durationMs": 172.0033999999996,
+          "detail": "~/.zcode/server/.asset-components/glm.json"
+        },
+        {
+          "method": "exists",
+          "durationMs": 174.51330000000053,
+          "detail": "~/.zcode/server/build/Release/pty.node"
+        },
+        {
+          "method": "existsMany",
+          "durationMs": 223.21559999999954,
+          "detail": "~/.zcode/server/agents/glm/packages/android-emulator-plugin/.zcode-plugin/plugin.json,~/.zcode/server/agents/glm/packages/browser-use-plugin/.zcode-plugin/plugin.json,~/.zcode/server/agents/glm/packages/zcode-cua-plugin/.zcode-plugin/plugin"
+        },
+        {
+          "method": "readFile",
+          "durationMs": 171.69779999999992,
+          "detail": "~/.zcode/server/.asset-components/glm.json"
+        },
+        {
+          "method": "exists",
+          "durationMs": 191.29910000000018,
+          "detail": "~/.zcode/server/agents/glm/zcode-agent"
+        },
+        {
+          "method": "readFile",
+          "durationMs": 170.66729999999916,
+          "detail": "~/.zcode/server/agents/glm/zcode-agent"
+        },
+        {
+          "method": "exists",
+          "durationMs": 183.71320000000014,
+          "detail": "~/.zcode/server/agents/glm/zcode.cjs"
+        },
+        {
+          "method": "readFile",
+          "durationMs": 197.51209999999992,
+          "detail": "~/.zcode/server/tools/bfs/.version"
+        },
+        {
+          "method": "exists",
+          "durationMs": 190.8068000000003,
+          "detail": "~/.zcode/server/tools/bfs/bfs"
+        },
+        {
+          "method": "readFile",
+          "durationMs": 196.14810000000034,
+          "detail": "~/.zcode/server/tools/ripgrep/.version"
+        },
+        {
+          "method": "exists",
+          "durationMs": 184.89620000000104,
+          "detail": "~/.zcode/server/tools/ripgrep/rg"
+        },
+        {
+          "method": "readFile",
+          "durationMs": 189.40040000000045,
+          "detail": "~/.zcode/server/tools/ugrep/.version"
+        },
+        {
+          "method": "exists",
+          "durationMs": 170.52219999999943,
+          "detail": "~/.zcode/server/tools/ugrep/ugrep"
+        },
+        {
+          "method": "exec",
+          "durationMs": 62.7510999999995,
+          "detail": "ZCODE_SERVICE_AUTHORITY_MODE=\"desktop-attached-remote\" ZCODE_SERVER_RUNTIME_ROOT=\"$HOME/.zcode/server\" ~/.zcode/server/node ~/.zcode/server/zcode-server.cjs"
+        }
+      ],
+      "totalMs": 5665.3423,
+      "phases": {
+        "detectMs": 597.8701000000001,
+        "runtimeNetworkMs": 0.14749999999912689,
+        "deployMs": 4596.106300000001,
+        "launchMs": 62.92519999999968,
+        "handshakeMs": 407.95990000000165,
+        "wrapMs": 0.22029999999904248,
+        "unattributedMs": 0.11299999999937427
+      },
+      "systemRpcMs": 94.56340000000091,
+      "identity": {
+        "platform": "linux",
+        "homedir": "/home/zcodewslp2"
+      },
+      "disposeMs": 45.56919999999991
+    },
+    {
+      "iteration": 3,
+      "backendCalls": [
+        {
+          "method": "detect",
+          "durationMs": 573.4987000000001,
+          "detail": ""
+        },
+        {
+          "method": "existsMany",
+          "durationMs": 167.45030000000042,
+          "detail": "~/.zcode/server/node,~/.zcode/server/zcode-server.cjs"
+        },
+        {
+          "method": "exec",
+          "durationMs": 64.89410000000134,
+          "detail": "\"$HOME\"'/.zcode/server/node' \"$HOME\"'/.zcode/server/zcode-server.cjs' --version"
+        },
+        {
+          "method": "exec",
+          "durationMs": 62.225900000001275,
+          "detail": "\"$HOME\"'/.zcode/server/node' -e '\nconst fs = require(\"fs\");\nconst content = fs.readFileSync(process.argv[1], \"utf8\");\nconst missing = [\"skill-sync\",\"mcp-sync\",\"plugin-sync\",\"__zcode_rpc_nested_uint8array_v1\",\"exportMarketplaceSourceArchive\""
+        },
+        {
+          "method": "exec",
+          "durationMs": 64.88860000000204,
+          "detail": "set -eu\nmkdir -p \"$HOME\"'/.zcode/server'\nprintf '%b' '\\163\\145\\164\\040\\055\\145\\165\\012\\154\\157\\143\\153\\137\\144\\151\\162\\075\\042\\044\\110\\117\\115\\105\\042\\047\\057\\056\\172\\143\\157\\144\\145\\057\\163\\145\\162\\166\\145\\162\\057\\056\\144\\145\\160\\154\\157\\1"
+        },
+        {
+          "method": "existsMany",
+          "durationMs": 173.91080000000147,
+          "detail": "~/.zcode/server/node,~/.zcode/server/zcode-server.cjs"
+        },
+        {
+          "method": "exec",
+          "durationMs": 63.81290000000081,
+          "detail": "\"$HOME\"'/.zcode/server/node' \"$HOME\"'/.zcode/server/zcode-server.cjs' --version"
+        },
+        {
+          "method": "exec",
+          "durationMs": 63.55329999999958,
+          "detail": "\"$HOME\"'/.zcode/server/node' -e '\nconst fs = require(\"fs\");\nconst content = fs.readFileSync(process.argv[1], \"utf8\");\nconst missing = [\"skill-sync\",\"mcp-sync\",\"plugin-sync\",\"__zcode_rpc_nested_uint8array_v1\",\"exportMarketplaceSourceArchive\""
+        },
+        {
+          "method": "readFile",
+          "durationMs": 169.0731999999989,
+          "detail": "~/.zcode/server/.asset-components/server-bundle.json"
+        },
+        {
+          "method": "readFile",
+          "durationMs": 171.9343000000008,
+          "detail": "~/.zcode/server/.asset-components/glm.json"
+        },
+        {
+          "method": "exists",
+          "durationMs": 186.76440000000002,
+          "detail": "~/.zcode/server/build/Release/pty.node"
+        },
+        {
+          "method": "existsMany",
+          "durationMs": 215.37610000000132,
+          "detail": "~/.zcode/server/agents/glm/packages/android-emulator-plugin/.zcode-plugin/plugin.json,~/.zcode/server/agents/glm/packages/browser-use-plugin/.zcode-plugin/plugin.json,~/.zcode/server/agents/glm/packages/zcode-cua-plugin/.zcode-plugin/plugin"
+        },
+        {
+          "method": "readFile",
+          "durationMs": 182.23449999999866,
+          "detail": "~/.zcode/server/.asset-components/glm.json"
+        },
+        {
+          "method": "exists",
+          "durationMs": 171.51959999999963,
+          "detail": "~/.zcode/server/agents/glm/zcode-agent"
+        },
+        {
+          "method": "readFile",
+          "durationMs": 173.41100000000006,
+          "detail": "~/.zcode/server/agents/glm/zcode-agent"
+        },
+        {
+          "method": "exists",
+          "durationMs": 171.15100000000166,
+          "detail": "~/.zcode/server/agents/glm/zcode.cjs"
+        },
+        {
+          "method": "readFile",
+          "durationMs": 169.82870000000185,
+          "detail": "~/.zcode/server/tools/bfs/.version"
+        },
+        {
+          "method": "exists",
+          "durationMs": 179.34249999999884,
+          "detail": "~/.zcode/server/tools/bfs/bfs"
+        },
+        {
+          "method": "readFile",
+          "durationMs": 168.8607000000011,
+          "detail": "~/.zcode/server/tools/ripgrep/.version"
+        },
+        {
+          "method": "exists",
+          "durationMs": 181.96970000000147,
+          "detail": "~/.zcode/server/tools/ripgrep/rg"
+        },
+        {
+          "method": "readFile",
+          "durationMs": 170.41689999999653,
+          "detail": "~/.zcode/server/tools/ugrep/.version"
+        },
+        {
+          "method": "exists",
+          "durationMs": 176.07330000000002,
+          "detail": "~/.zcode/server/tools/ugrep/ugrep"
+        },
+        {
+          "method": "exec",
+          "durationMs": 63.396199999999226,
+          "detail": "ZCODE_SERVICE_AUTHORITY_MODE=\"desktop-attached-remote\" ZCODE_SERVER_RUNTIME_ROOT=\"$HOME/.zcode/server\" ~/.zcode/server/node ~/.zcode/server/zcode-server.cjs"
+        }
+      ],
+      "totalMs": 5406.401900000001,
+      "phases": {
+        "detectMs": 573.7006000000001,
+        "runtimeNetworkMs": 0.1735000000007858,
+        "deployMs": 4374.484700000001,
+        "launchMs": 63.56049999999959,
+        "handshakeMs": 394.03849999999875,
+        "wrapMs": 0.31890000000203145,
+        "unattributedMs": 0.12519999999858555
+      },
+      "systemRpcMs": 99.3054000000011,
+      "identity": {
+        "platform": "linux",
+        "homedir": "/home/zcodewslp2"
+      },
+      "disposeMs": 31.37079999999696
+    },
+    {
+      "iteration": 4,
+      "backendCalls": [
+        {
+          "method": "detect",
+          "durationMs": 555.0495999999985,
+          "detail": ""
+        },
+        {
+          "method": "existsMany",
+          "durationMs": 177.88450000000012,
+          "detail": "~/.zcode/server/node,~/.zcode/server/zcode-server.cjs"
+        },
+        {
+          "method": "exec",
+          "durationMs": 65.03509999999733,
+          "detail": "\"$HOME\"'/.zcode/server/node' \"$HOME\"'/.zcode/server/zcode-server.cjs' --version"
+        },
+        {
+          "method": "exec",
+          "durationMs": 65.5112999999983,
+          "detail": "\"$HOME\"'/.zcode/server/node' -e '\nconst fs = require(\"fs\");\nconst content = fs.readFileSync(process.argv[1], \"utf8\");\nconst missing = [\"skill-sync\",\"mcp-sync\",\"plugin-sync\",\"__zcode_rpc_nested_uint8array_v1\",\"exportMarketplaceSourceArchive\""
+        },
+        {
+          "method": "exec",
+          "durationMs": 63.58299999999872,
+          "detail": "set -eu\nmkdir -p \"$HOME\"'/.zcode/server'\nprintf '%b' '\\163\\145\\164\\040\\055\\145\\165\\012\\154\\157\\143\\153\\137\\144\\151\\162\\075\\042\\044\\110\\117\\115\\105\\042\\047\\057\\056\\172\\143\\157\\144\\145\\057\\163\\145\\162\\166\\145\\162\\057\\056\\144\\145\\160\\154\\157\\1"
+        },
+        {
+          "method": "existsMany",
+          "durationMs": 218.76270000000295,
+          "detail": "~/.zcode/server/node,~/.zcode/server/zcode-server.cjs"
+        },
+        {
+          "method": "exec",
+          "durationMs": 69.5750999999982,
+          "detail": "\"$HOME\"'/.zcode/server/node' \"$HOME\"'/.zcode/server/zcode-server.cjs' --version"
+        },
+        {
+          "method": "exec",
+          "durationMs": 67.49239999999918,
+          "detail": "\"$HOME\"'/.zcode/server/node' -e '\nconst fs = require(\"fs\");\nconst content = fs.readFileSync(process.argv[1], \"utf8\");\nconst missing = [\"skill-sync\",\"mcp-sync\",\"plugin-sync\",\"__zcode_rpc_nested_uint8array_v1\",\"exportMarketplaceSourceArchive\""
+        },
+        {
+          "method": "readFile",
+          "durationMs": 189.79260000000068,
+          "detail": "~/.zcode/server/.asset-components/server-bundle.json"
+        },
+        {
+          "method": "readFile",
+          "durationMs": 184.8136999999988,
+          "detail": "~/.zcode/server/.asset-components/glm.json"
+        },
+        {
+          "method": "exists",
+          "durationMs": 186.2572,
+          "detail": "~/.zcode/server/build/Release/pty.node"
+        },
+        {
+          "method": "existsMany",
+          "durationMs": 246.38609999999971,
+          "detail": "~/.zcode/server/agents/glm/packages/android-emulator-plugin/.zcode-plugin/plugin.json,~/.zcode/server/agents/glm/packages/browser-use-plugin/.zcode-plugin/plugin.json,~/.zcode/server/agents/glm/packages/zcode-cua-plugin/.zcode-plugin/plugin"
+        },
+        {
+          "method": "readFile",
+          "durationMs": 184.98689999999988,
+          "detail": "~/.zcode/server/.asset-components/glm.json"
+        },
+        {
+          "method": "exists",
+          "durationMs": 183.59470000000147,
+          "detail": "~/.zcode/server/agents/glm/zcode-agent"
+        },
+        {
+          "method": "readFile",
+          "durationMs": 183.9327000000012,
+          "detail": "~/.zcode/server/agents/glm/zcode-agent"
+        },
+        {
+          "method": "exists",
+          "durationMs": 178.41200000000026,
+          "detail": "~/.zcode/server/agents/glm/zcode.cjs"
+        },
+        {
+          "method": "readFile",
+          "durationMs": 178.38790000000154,
+          "detail": "~/.zcode/server/tools/bfs/.version"
+        },
+        {
+          "method": "exists",
+          "durationMs": 178.70089999999982,
+          "detail": "~/.zcode/server/tools/bfs/bfs"
+        },
+        {
+          "method": "readFile",
+          "durationMs": 190.91909999999916,
+          "detail": "~/.zcode/server/tools/ripgrep/.version"
+        },
+        {
+          "method": "exists",
+          "durationMs": 181.46799999999712,
+          "detail": "~/.zcode/server/tools/ripgrep/rg"
+        },
+        {
+          "method": "readFile",
+          "durationMs": 182.69410000000062,
+          "detail": "~/.zcode/server/tools/ugrep/.version"
+        },
+        {
+          "method": "exists",
+          "durationMs": 185.047300000002,
+          "detail": "~/.zcode/server/tools/ugrep/ugrep"
+        },
+        {
+          "method": "exec",
+          "durationMs": 66.01000000000204,
+          "detail": "ZCODE_SERVICE_AUTHORITY_MODE=\"desktop-attached-remote\" ZCODE_SERVER_RUNTIME_ROOT=\"$HOME/.zcode/server\" ~/.zcode/server/node ~/.zcode/server/zcode-server.cjs"
+        }
+      ],
+      "totalMs": 5730.021499999999,
+      "phases": {
+        "detectMs": 555.1641999999993,
+        "runtimeNetworkMs": 0.12730000000010477,
+        "deployMs": 4685.362100000002,
+        "launchMs": 66.15620000000126,
+        "handshakeMs": 422.87209999999686,
+        "wrapMs": 0.23110000000087894,
+        "unattributedMs": 0.1084999999984575
+      },
+      "systemRpcMs": 108.41570000000138,
+      "identity": {
+        "platform": "linux",
+        "homedir": "/home/zcodewslp2"
+      },
+      "disposeMs": 58.84059999999954
+    },
+    {
+      "iteration": 5,
+      "backendCalls": [
+        {
+          "method": "detect",
+          "durationMs": 564.5484999999971,
+          "detail": ""
+        },
+        {
+          "method": "existsMany",
+          "durationMs": 192.32270000000062,
+          "detail": "~/.zcode/server/node,~/.zcode/server/zcode-server.cjs"
+        },
+        {
+          "method": "exec",
+          "durationMs": 61.471300000001065,
+          "detail": "\"$HOME\"'/.zcode/server/node' \"$HOME\"'/.zcode/server/zcode-server.cjs' --version"
+        },
+        {
+          "method": "exec",
+          "durationMs": 63.06629999999859,
+          "detail": "\"$HOME\"'/.zcode/server/node' -e '\nconst fs = require(\"fs\");\nconst content = fs.readFileSync(process.argv[1], \"utf8\");\nconst missing = [\"skill-sync\",\"mcp-sync\",\"plugin-sync\",\"__zcode_rpc_nested_uint8array_v1\",\"exportMarketplaceSourceArchive\""
+        },
+        {
+          "method": "exec",
+          "durationMs": 61.03470000000016,
+          "detail": "set -eu\nmkdir -p \"$HOME\"'/.zcode/server'\nprintf '%b' '\\163\\145\\164\\040\\055\\145\\165\\012\\154\\157\\143\\153\\137\\144\\151\\162\\075\\042\\044\\110\\117\\115\\105\\042\\047\\057\\056\\172\\143\\157\\144\\145\\057\\163\\145\\162\\166\\145\\162\\057\\056\\144\\145\\160\\154\\157\\1"
+        },
+        {
+          "method": "existsMany",
+          "durationMs": 171.34519999999975,
+          "detail": "~/.zcode/server/node,~/.zcode/server/zcode-server.cjs"
+        },
+        {
+          "method": "exec",
+          "durationMs": 69.40200000000186,
+          "detail": "\"$HOME\"'/.zcode/server/node' \"$HOME\"'/.zcode/server/zcode-server.cjs' --version"
+        },
+        {
+          "method": "exec",
+          "durationMs": 60.74920000000202,
+          "detail": "\"$HOME\"'/.zcode/server/node' -e '\nconst fs = require(\"fs\");\nconst content = fs.readFileSync(process.argv[1], \"utf8\");\nconst missing = [\"skill-sync\",\"mcp-sync\",\"plugin-sync\",\"__zcode_rpc_nested_uint8array_v1\",\"exportMarketplaceSourceArchive\""
+        },
+        {
+          "method": "readFile",
+          "durationMs": 168.3539000000019,
+          "detail": "~/.zcode/server/.asset-components/server-bundle.json"
+        },
+        {
+          "method": "readFile",
+          "durationMs": 170.6346999999987,
+          "detail": "~/.zcode/server/.asset-components/glm.json"
+        },
+        {
+          "method": "exists",
+          "durationMs": 172.30779999999868,
+          "detail": "~/.zcode/server/build/Release/pty.node"
+        },
+        {
+          "method": "existsMany",
+          "durationMs": 238.1867999999995,
+          "detail": "~/.zcode/server/agents/glm/packages/android-emulator-plugin/.zcode-plugin/plugin.json,~/.zcode/server/agents/glm/packages/browser-use-plugin/.zcode-plugin/plugin.json,~/.zcode/server/agents/glm/packages/zcode-cua-plugin/.zcode-plugin/plugin"
+        },
+        {
+          "method": "readFile",
+          "durationMs": 178.35800000000017,
+          "detail": "~/.zcode/server/.asset-components/glm.json"
+        },
+        {
+          "method": "exists",
+          "durationMs": 193.24790000000212,
+          "detail": "~/.zcode/server/agents/glm/zcode-agent"
+        },
+        {
+          "method": "readFile",
+          "durationMs": 166.41779999999562,
+          "detail": "~/.zcode/server/agents/glm/zcode-agent"
+        },
+        {
+          "method": "exists",
+          "durationMs": 172.005799999999,
+          "detail": "~/.zcode/server/agents/glm/zcode.cjs"
+        },
+        {
+          "method": "readFile",
+          "durationMs": 199.379399999998,
+          "detail": "~/.zcode/server/tools/bfs/.version"
+        },
+        {
+          "method": "exists",
+          "durationMs": 192.70440000000235,
+          "detail": "~/.zcode/server/tools/bfs/bfs"
+        },
+        {
+          "method": "readFile",
+          "durationMs": 181.81990000000224,
+          "detail": "~/.zcode/server/tools/ripgrep/.version"
+        },
+        {
+          "method": "exists",
+          "durationMs": 206.9219000000012,
+          "detail": "~/.zcode/server/tools/ripgrep/rg"
+        },
+        {
+          "method": "readFile",
+          "durationMs": 186.70640000000276,
+          "detail": "~/.zcode/server/tools/ugrep/.version"
+        },
+        {
+          "method": "exists",
+          "durationMs": 175.24760000000242,
+          "detail": "~/.zcode/server/tools/ugrep/ugrep"
+        },
+        {
+          "method": "exec",
+          "durationMs": 71.77520000000368,
+          "detail": "ZCODE_SERVICE_AUTHORITY_MODE=\"desktop-attached-remote\" ZCODE_SERVER_RUNTIME_ROOT=\"$HOME/.zcode/server\" ~/.zcode/server/node ~/.zcode/server/zcode-server.cjs"
+        }
+      ],
+      "totalMs": 5486.345899999997,
+      "phases": {
+        "detectMs": 564.7068999999974,
+        "runtimeNetworkMs": 0.2279000000016822,
+        "deployMs": 4463.5334,
+        "launchMs": 71.96429999999964,
+        "handshakeMs": 385.59210000000166,
+        "wrapMs": 0.22149999999965075,
+        "unattributedMs": 0.09979999999632128
+      },
+      "systemRpcMs": 98.8773000000001,
+      "identity": {
+        "platform": "linux",
+        "homedir": "/home/zcodewslp2"
+      },
+      "disposeMs": 32.78149999999732
+    },
+    {
+      "iteration": 6,
+      "backendCalls": [
+        {
+          "method": "detect",
+          "durationMs": 564.0685000000012,
+          "detail": ""
+        },
+        {
+          "method": "existsMany",
+          "durationMs": 176.7592999999979,
+          "detail": "~/.zcode/server/node,~/.zcode/server/zcode-server.cjs"
+        },
+        {
+          "method": "exec",
+          "durationMs": 67.02900000000227,
+          "detail": "\"$HOME\"'/.zcode/server/node' \"$HOME\"'/.zcode/server/zcode-server.cjs' --version"
+        },
+        {
+          "method": "exec",
+          "durationMs": 62.096700000001874,
+          "detail": "\"$HOME\"'/.zcode/server/node' -e '\nconst fs = require(\"fs\");\nconst content = fs.readFileSync(process.argv[1], \"utf8\");\nconst missing = [\"skill-sync\",\"mcp-sync\",\"plugin-sync\",\"__zcode_rpc_nested_uint8array_v1\",\"exportMarketplaceSourceArchive\""
+        },
+        {
+          "method": "exec",
+          "durationMs": 60.593699999997625,
+          "detail": "set -eu\nmkdir -p \"$HOME\"'/.zcode/server'\nprintf '%b' '\\163\\145\\164\\040\\055\\145\\165\\012\\154\\157\\143\\153\\137\\144\\151\\162\\075\\042\\044\\110\\117\\115\\105\\042\\047\\057\\056\\172\\143\\157\\144\\145\\057\\163\\145\\162\\166\\145\\162\\057\\056\\144\\145\\160\\154\\157\\1"
+        },
+        {
+          "method": "existsMany",
+          "durationMs": 171.97230000000127,
+          "detail": "~/.zcode/server/node,~/.zcode/server/zcode-server.cjs"
+        },
+        {
+          "method": "exec",
+          "durationMs": 66.806700000001,
+          "detail": "\"$HOME\"'/.zcode/server/node' \"$HOME\"'/.zcode/server/zcode-server.cjs' --version"
+        },
+        {
+          "method": "exec",
+          "durationMs": 69.08510000000388,
+          "detail": "\"$HOME\"'/.zcode/server/node' -e '\nconst fs = require(\"fs\");\nconst content = fs.readFileSync(process.argv[1], \"utf8\");\nconst missing = [\"skill-sync\",\"mcp-sync\",\"plugin-sync\",\"__zcode_rpc_nested_uint8array_v1\",\"exportMarketplaceSourceArchive\""
+        },
+        {
+          "method": "readFile",
+          "durationMs": 182.73050000000512,
+          "detail": "~/.zcode/server/.asset-components/server-bundle.json"
+        },
+        {
+          "method": "readFile",
+          "durationMs": 206.532100000004,
+          "detail": "~/.zcode/server/.asset-components/glm.json"
+        },
+        {
+          "method": "exists",
+          "durationMs": 194.86169999999402,
+          "detail": "~/.zcode/server/build/Release/pty.node"
+        },
+        {
+          "method": "existsMany",
+          "durationMs": 230.19989999999962,
+          "detail": "~/.zcode/server/agents/glm/packages/android-emulator-plugin/.zcode-plugin/plugin.json,~/.zcode/server/agents/glm/packages/browser-use-plugin/.zcode-plugin/plugin.json,~/.zcode/server/agents/glm/packages/zcode-cua-plugin/.zcode-plugin/plugin"
+        },
+        {
+          "method": "readFile",
+          "durationMs": 177.5862999999954,
+          "detail": "~/.zcode/server/.asset-components/glm.json"
+        },
+        {
+          "method": "exists",
+          "durationMs": 170.0416999999943,
+          "detail": "~/.zcode/server/agents/glm/zcode-agent"
+        },
+        {
+          "method": "readFile",
+          "durationMs": 169.53650000000198,
+          "detail": "~/.zcode/server/agents/glm/zcode-agent"
+        },
+        {
+          "method": "exists",
+          "durationMs": 170.41399999999703,
+          "detail": "~/.zcode/server/agents/glm/zcode.cjs"
+        },
+        {
+          "method": "readFile",
+          "durationMs": 170.19130000000587,
+          "detail": "~/.zcode/server/tools/bfs/.version"
+        },
+        {
+          "method": "exists",
+          "durationMs": 177.20630000000529,
+          "detail": "~/.zcode/server/tools/bfs/bfs"
+        },
+        {
+          "method": "readFile",
+          "durationMs": 167.80040000000008,
+          "detail": "~/.zcode/server/tools/ripgrep/.version"
+        },
+        {
+          "method": "exists",
+          "durationMs": 176.7809999999954,
+          "detail": "~/.zcode/server/tools/ripgrep/rg"
+        },
+        {
+          "method": "readFile",
+          "durationMs": 188.4311000000016,
+          "detail": "~/.zcode/server/tools/ugrep/.version"
+        },
+        {
+          "method": "exists",
+          "durationMs": 168.35160000000178,
+          "detail": "~/.zcode/server/tools/ugrep/ugrep"
+        },
+        {
+          "method": "exec",
+          "durationMs": 63.593300000000454,
+          "detail": "ZCODE_SERVICE_AUTHORITY_MODE=\"desktop-attached-remote\" ZCODE_SERVER_RUNTIME_ROOT=\"$HOME/.zcode/server\" ~/.zcode/server/node ~/.zcode/server/zcode-server.cjs"
+        }
+      ],
+      "totalMs": 5546.947099999998,
+      "phases": {
+        "detectMs": 564.1953999999969,
+        "runtimeNetworkMs": 0.16939999999885913,
+        "deployMs": 4461.113400000002,
+        "launchMs": 63.764799999997194,
+        "handshakeMs": 457.347400000006,
+        "wrapMs": 0.24979999999777647,
+        "unattributedMs": 0.10689999999885913
+      },
+      "systemRpcMs": 100.1166000000012,
+      "identity": {
+        "platform": "linux",
+        "homedir": "/home/zcodewslp2"
+      },
+      "disposeMs": 33.63270000000193
+    },
+    {
+      "iteration": 7,
+      "backendCalls": [
+        {
+          "method": "detect",
+          "durationMs": 595.4416000000056,
+          "detail": ""
+        },
+        {
+          "method": "existsMany",
+          "durationMs": 175.22219999999652,
+          "detail": "~/.zcode/server/node,~/.zcode/server/zcode-server.cjs"
+        },
+        {
+          "method": "exec",
+          "durationMs": 63.28609999999753,
+          "detail": "\"$HOME\"'/.zcode/server/node' \"$HOME\"'/.zcode/server/zcode-server.cjs' --version"
+        },
+        {
+          "method": "exec",
+          "durationMs": 63.502800000002026,
+          "detail": "\"$HOME\"'/.zcode/server/node' -e '\nconst fs = require(\"fs\");\nconst content = fs.readFileSync(process.argv[1], \"utf8\");\nconst missing = [\"skill-sync\",\"mcp-sync\",\"plugin-sync\",\"__zcode_rpc_nested_uint8array_v1\",\"exportMarketplaceSourceArchive\""
+        },
+        {
+          "method": "exec",
+          "durationMs": 59.885699999998906,
+          "detail": "set -eu\nmkdir -p \"$HOME\"'/.zcode/server'\nprintf '%b' '\\163\\145\\164\\040\\055\\145\\165\\012\\154\\157\\143\\153\\137\\144\\151\\162\\075\\042\\044\\110\\117\\115\\105\\042\\047\\057\\056\\172\\143\\157\\144\\145\\057\\163\\145\\162\\166\\145\\162\\057\\056\\144\\145\\160\\154\\157\\1"
+        },
+        {
+          "method": "existsMany",
+          "durationMs": 177.55779999999504,
+          "detail": "~/.zcode/server/node,~/.zcode/server/zcode-server.cjs"
+        },
+        {
+          "method": "exec",
+          "durationMs": 62.108000000000175,
+          "detail": "\"$HOME\"'/.zcode/server/node' \"$HOME\"'/.zcode/server/zcode-server.cjs' --version"
+        },
+        {
+          "method": "exec",
+          "durationMs": 63.64650000000256,
+          "detail": "\"$HOME\"'/.zcode/server/node' -e '\nconst fs = require(\"fs\");\nconst content = fs.readFileSync(process.argv[1], \"utf8\");\nconst missing = [\"skill-sync\",\"mcp-sync\",\"plugin-sync\",\"__zcode_rpc_nested_uint8array_v1\",\"exportMarketplaceSourceArchive\""
+        },
+        {
+          "method": "readFile",
+          "durationMs": 169.39229999999952,
+          "detail": "~/.zcode/server/.asset-components/server-bundle.json"
+        },
+        {
+          "method": "readFile",
+          "durationMs": 184.45160000000033,
+          "detail": "~/.zcode/server/.asset-components/glm.json"
+        },
+        {
+          "method": "exists",
+          "durationMs": 173.8246999999974,
+          "detail": "~/.zcode/server/build/Release/pty.node"
+        },
+        {
+          "method": "existsMany",
+          "durationMs": 221.37249999999767,
+          "detail": "~/.zcode/server/agents/glm/packages/android-emulator-plugin/.zcode-plugin/plugin.json,~/.zcode/server/agents/glm/packages/browser-use-plugin/.zcode-plugin/plugin.json,~/.zcode/server/agents/glm/packages/zcode-cua-plugin/.zcode-plugin/plugin"
+        },
+        {
+          "method": "readFile",
+          "durationMs": 167.00330000000395,
+          "detail": "~/.zcode/server/.asset-components/glm.json"
+        },
+        {
+          "method": "exists",
+          "durationMs": 169.35540000000037,
+          "detail": "~/.zcode/server/agents/glm/zcode-agent"
+        },
+        {
+          "method": "readFile",
+          "durationMs": 172.9102999999959,
+          "detail": "~/.zcode/server/agents/glm/zcode-agent"
+        },
+        {
+          "method": "exists",
+          "durationMs": 172.9844000000012,
+          "detail": "~/.zcode/server/agents/glm/zcode.cjs"
+        },
+        {
+          "method": "readFile",
+          "durationMs": 181.3076000000001,
+          "detail": "~/.zcode/server/tools/bfs/.version"
+        },
+        {
+          "method": "exists",
+          "durationMs": 178.42259999999806,
+          "detail": "~/.zcode/server/tools/bfs/bfs"
+        },
+        {
+          "method": "readFile",
+          "durationMs": 172.62249999999767,
+          "detail": "~/.zcode/server/tools/ripgrep/.version"
+        },
+        {
+          "method": "exists",
+          "durationMs": 173.7117999999973,
+          "detail": "~/.zcode/server/tools/ripgrep/rg"
+        },
+        {
+          "method": "readFile",
+          "durationMs": 170.26729999999952,
+          "detail": "~/.zcode/server/tools/ugrep/.version"
+        },
+        {
+          "method": "exists",
+          "durationMs": 182.30949999999575,
+          "detail": "~/.zcode/server/tools/ugrep/ugrep"
+        },
+        {
+          "method": "exec",
+          "durationMs": 75.68079999999463,
+          "detail": "ZCODE_SERVICE_AUTHORITY_MODE=\"desktop-attached-remote\" ZCODE_SERVER_RUNTIME_ROOT=\"$HOME/.zcode/server\" ~/.zcode/server/node ~/.zcode/server/zcode-server.cjs"
+        }
+      ],
+      "totalMs": 5485.672099999996,
+      "phases": {
+        "detectMs": 595.574099999998,
+        "runtimeNetworkMs": 0.14349999999831198,
+        "deployMs": 4433.465900000003,
+        "launchMs": 75.87309999999707,
+        "handshakeMs": 380.2436000000016,
+        "wrapMs": 0.23089999999501742,
+        "unattributedMs": 0.14100000000325963
+      },
+      "systemRpcMs": 91.79980000000069,
+      "identity": {
+        "platform": "linux",
+        "homedir": "/home/zcodewslp2"
+      },
+      "disposeMs": 57.63579999999638
+    },
+    {
+      "iteration": 8,
+      "backendCalls": [
+        {
+          "method": "detect",
+          "durationMs": 579.2160000000003,
+          "detail": ""
+        },
+        {
+          "method": "existsMany",
+          "durationMs": 171.65419999999722,
+          "detail": "~/.zcode/server/node,~/.zcode/server/zcode-server.cjs"
+        },
+        {
+          "method": "exec",
+          "durationMs": 62.00650000000314,
+          "detail": "\"$HOME\"'/.zcode/server/node' \"$HOME\"'/.zcode/server/zcode-server.cjs' --version"
+        },
+        {
+          "method": "exec",
+          "durationMs": 65.92669999999634,
+          "detail": "\"$HOME\"'/.zcode/server/node' -e '\nconst fs = require(\"fs\");\nconst content = fs.readFileSync(process.argv[1], \"utf8\");\nconst missing = [\"skill-sync\",\"mcp-sync\",\"plugin-sync\",\"__zcode_rpc_nested_uint8array_v1\",\"exportMarketplaceSourceArchive\""
+        },
+        {
+          "method": "exec",
+          "durationMs": 63.98890000000392,
+          "detail": "set -eu\nmkdir -p \"$HOME\"'/.zcode/server'\nprintf '%b' '\\163\\145\\164\\040\\055\\145\\165\\012\\154\\157\\143\\153\\137\\144\\151\\162\\075\\042\\044\\110\\117\\115\\105\\042\\047\\057\\056\\172\\143\\157\\144\\145\\057\\163\\145\\162\\166\\145\\162\\057\\056\\144\\145\\160\\154\\157\\1"
+        },
+        {
+          "method": "existsMany",
+          "durationMs": 174.79180000000633,
+          "detail": "~/.zcode/server/node,~/.zcode/server/zcode-server.cjs"
+        },
+        {
+          "method": "exec",
+          "durationMs": 60.19799999999668,
+          "detail": "\"$HOME\"'/.zcode/server/node' \"$HOME\"'/.zcode/server/zcode-server.cjs' --version"
+        },
+        {
+          "method": "exec",
+          "durationMs": 61.006799999995565,
+          "detail": "\"$HOME\"'/.zcode/server/node' -e '\nconst fs = require(\"fs\");\nconst content = fs.readFileSync(process.argv[1], \"utf8\");\nconst missing = [\"skill-sync\",\"mcp-sync\",\"plugin-sync\",\"__zcode_rpc_nested_uint8array_v1\",\"exportMarketplaceSourceArchive\""
+        },
+        {
+          "method": "readFile",
+          "durationMs": 174.17930000000342,
+          "detail": "~/.zcode/server/.asset-components/server-bundle.json"
+        },
+        {
+          "method": "readFile",
+          "durationMs": 178.85950000000594,
+          "detail": "~/.zcode/server/.asset-components/glm.json"
+        },
+        {
+          "method": "exists",
+          "durationMs": 177.82489999999962,
+          "detail": "~/.zcode/server/build/Release/pty.node"
+        },
+        {
+          "method": "existsMany",
+          "durationMs": 213.63259999999718,
+          "detail": "~/.zcode/server/agents/glm/packages/android-emulator-plugin/.zcode-plugin/plugin.json,~/.zcode/server/agents/glm/packages/browser-use-plugin/.zcode-plugin/plugin.json,~/.zcode/server/agents/glm/packages/zcode-cua-plugin/.zcode-plugin/plugin"
+        },
+        {
+          "method": "readFile",
+          "durationMs": 169.71830000000045,
+          "detail": "~/.zcode/server/.asset-components/glm.json"
+        },
+        {
+          "method": "exists",
+          "durationMs": 174.80889999999636,
+          "detail": "~/.zcode/server/agents/glm/zcode-agent"
+        },
+        {
+          "method": "readFile",
+          "durationMs": 190.35629999999946,
+          "detail": "~/.zcode/server/agents/glm/zcode-agent"
+        },
+        {
+          "method": "exists",
+          "durationMs": 166.42469999999594,
+          "detail": "~/.zcode/server/agents/glm/zcode.cjs"
+        },
+        {
+          "method": "readFile",
+          "durationMs": 184.65149999999994,
+          "detail": "~/.zcode/server/tools/bfs/.version"
+        },
+        {
+          "method": "exists",
+          "durationMs": 170.0720999999976,
+          "detail": "~/.zcode/server/tools/bfs/bfs"
+        },
+        {
+          "method": "readFile",
+          "durationMs": 171.2713999999978,
+          "detail": "~/.zcode/server/tools/ripgrep/.version"
+        },
+        {
+          "method": "exists",
+          "durationMs": 169.97209999999905,
+          "detail": "~/.zcode/server/tools/ripgrep/rg"
+        },
+        {
+          "method": "readFile",
+          "durationMs": 173.26290000000154,
+          "detail": "~/.zcode/server/tools/ugrep/.version"
+        },
+        {
+          "method": "exists",
+          "durationMs": 172.86579999999958,
+          "detail": "~/.zcode/server/tools/ugrep/ugrep"
+        },
+        {
+          "method": "exec",
+          "durationMs": 65.79740000000311,
+          "detail": "ZCODE_SERVICE_AUTHORITY_MODE=\"desktop-attached-remote\" ZCODE_SERVER_RUNTIME_ROOT=\"$HOME/.zcode/server\" ~/.zcode/server/node ~/.zcode/server/zcode-server.cjs"
+        }
+      ],
+      "totalMs": 5393.7456999999995,
+      "phases": {
+        "detectMs": 579.3801999999996,
+        "runtimeNetworkMs": 0.15869999999995343,
+        "deployMs": 4347.347700000006,
+        "launchMs": 65.96929999999702,
+        "handshakeMs": 400.5547000000006,
+        "wrapMs": 0.18009999999776483,
+        "unattributedMs": 0.15499999999883585
+      },
+      "systemRpcMs": 99.04030000000057,
+      "identity": {
+        "platform": "linux",
+        "homedir": "/home/zcodewslp2"
+      },
+      "disposeMs": 32.79939999999624
+    },
+    {
+      "iteration": 9,
+      "backendCalls": [
+        {
+          "method": "detect",
+          "durationMs": 595.6172000000006,
+          "detail": ""
+        },
+        {
+          "method": "existsMany",
+          "durationMs": 191.8989999999976,
+          "detail": "~/.zcode/server/node,~/.zcode/server/zcode-server.cjs"
+        },
+        {
+          "method": "exec",
+          "durationMs": 73.16579999999522,
+          "detail": "\"$HOME\"'/.zcode/server/node' \"$HOME\"'/.zcode/server/zcode-server.cjs' --version"
+        },
+        {
+          "method": "exec",
+          "durationMs": 63.15380000000005,
+          "detail": "\"$HOME\"'/.zcode/server/node' -e '\nconst fs = require(\"fs\");\nconst content = fs.readFileSync(process.argv[1], \"utf8\");\nconst missing = [\"skill-sync\",\"mcp-sync\",\"plugin-sync\",\"__zcode_rpc_nested_uint8array_v1\",\"exportMarketplaceSourceArchive\""
+        },
+        {
+          "method": "exec",
+          "durationMs": 69.71600000000035,
+          "detail": "set -eu\nmkdir -p \"$HOME\"'/.zcode/server'\nprintf '%b' '\\163\\145\\164\\040\\055\\145\\165\\012\\154\\157\\143\\153\\137\\144\\151\\162\\075\\042\\044\\110\\117\\115\\105\\042\\047\\057\\056\\172\\143\\157\\144\\145\\057\\163\\145\\162\\166\\145\\162\\057\\056\\144\\145\\160\\154\\157\\1"
+        },
+        {
+          "method": "existsMany",
+          "durationMs": 170.49840000000404,
+          "detail": "~/.zcode/server/node,~/.zcode/server/zcode-server.cjs"
+        },
+        {
+          "method": "exec",
+          "durationMs": 64.09520000000339,
+          "detail": "\"$HOME\"'/.zcode/server/node' \"$HOME\"'/.zcode/server/zcode-server.cjs' --version"
+        },
+        {
+          "method": "exec",
+          "durationMs": 62.68789999999717,
+          "detail": "\"$HOME\"'/.zcode/server/node' -e '\nconst fs = require(\"fs\");\nconst content = fs.readFileSync(process.argv[1], \"utf8\");\nconst missing = [\"skill-sync\",\"mcp-sync\",\"plugin-sync\",\"__zcode_rpc_nested_uint8array_v1\",\"exportMarketplaceSourceArchive\""
+        },
+        {
+          "method": "readFile",
+          "durationMs": 167.89360000000306,
+          "detail": "~/.zcode/server/.asset-components/server-bundle.json"
+        },
+        {
+          "method": "readFile",
+          "durationMs": 177.89570000000094,
+          "detail": "~/.zcode/server/.asset-components/glm.json"
+        },
+        {
+          "method": "exists",
+          "durationMs": 175.42549999999756,
+          "detail": "~/.zcode/server/build/Release/pty.node"
+        },
+        {
+          "method": "existsMany",
+          "durationMs": 212.72249999999622,
+          "detail": "~/.zcode/server/agents/glm/packages/android-emulator-plugin/.zcode-plugin/plugin.json,~/.zcode/server/agents/glm/packages/browser-use-plugin/.zcode-plugin/plugin.json,~/.zcode/server/agents/glm/packages/zcode-cua-plugin/.zcode-plugin/plugin"
+        },
+        {
+          "method": "readFile",
+          "durationMs": 176.01209999999992,
+          "detail": "~/.zcode/server/.asset-components/glm.json"
+        },
+        {
+          "method": "exists",
+          "durationMs": 188.5454000000027,
+          "detail": "~/.zcode/server/agents/glm/zcode-agent"
+        },
+        {
+          "method": "readFile",
+          "durationMs": 172.1149000000005,
+          "detail": "~/.zcode/server/agents/glm/zcode-agent"
+        },
+        {
+          "method": "exists",
+          "durationMs": 175.31880000000092,
+          "detail": "~/.zcode/server/agents/glm/zcode.cjs"
+        },
+        {
+          "method": "readFile",
+          "durationMs": 178.25570000000153,
+          "detail": "~/.zcode/server/tools/bfs/.version"
+        },
+        {
+          "method": "exists",
+          "durationMs": 178.39800000000105,
+          "detail": "~/.zcode/server/tools/bfs/bfs"
+        },
+        {
+          "method": "readFile",
+          "durationMs": 177.69249999999738,
+          "detail": "~/.zcode/server/tools/ripgrep/.version"
+        },
+        {
+          "method": "exists",
+          "durationMs": 178.1238000000012,
+          "detail": "~/.zcode/server/tools/ripgrep/rg"
+        },
+        {
+          "method": "readFile",
+          "durationMs": 176.06639999999607,
+          "detail": "~/.zcode/server/tools/ugrep/.version"
+        },
+        {
+          "method": "exists",
+          "durationMs": 176.5882999999958,
+          "detail": "~/.zcode/server/tools/ugrep/ugrep"
+        },
+        {
+          "method": "exec",
+          "durationMs": 72.28879999999481,
+          "detail": "ZCODE_SERVICE_AUTHORITY_MODE=\"desktop-attached-remote\" ZCODE_SERVER_RUNTIME_ROOT=\"$HOME/.zcode/server\" ~/.zcode/server/node ~/.zcode/server/zcode-server.cjs"
+        }
+      ],
+      "totalMs": 5482.786599999999,
+      "phases": {
+        "detectMs": 595.7488999999987,
+        "runtimeNetworkMs": 0.16449999999895226,
+        "deployMs": 4405.111700000001,
+        "launchMs": 72.4974000000002,
+        "handshakeMs": 408.90520000000106,
+        "wrapMs": 0.23460000000341097,
+        "unattributedMs": 0.12429999999585561
+      },
+      "systemRpcMs": 96.46990000000369,
+      "identity": {
+        "platform": "linux",
+        "homedir": "/home/zcodewslp2"
+      },
+      "disposeMs": 58.45850000000064
+    },
+    {
+      "iteration": 10,
+      "backendCalls": [
+        {
+          "method": "detect",
+          "durationMs": 569.0103000000017,
+          "detail": ""
+        },
+        {
+          "method": "existsMany",
+          "durationMs": 173.7135999999955,
+          "detail": "~/.zcode/server/node,~/.zcode/server/zcode-server.cjs"
+        },
+        {
+          "method": "exec",
+          "durationMs": 64.58899999999994,
+          "detail": "\"$HOME\"'/.zcode/server/node' \"$HOME\"'/.zcode/server/zcode-server.cjs' --version"
+        },
+        {
+          "method": "exec",
+          "durationMs": 62.185199999999895,
+          "detail": "\"$HOME\"'/.zcode/server/node' -e '\nconst fs = require(\"fs\");\nconst content = fs.readFileSync(process.argv[1], \"utf8\");\nconst missing = [\"skill-sync\",\"mcp-sync\",\"plugin-sync\",\"__zcode_rpc_nested_uint8array_v1\",\"exportMarketplaceSourceArchive\""
+        },
+        {
+          "method": "exec",
+          "durationMs": 65.17139999999927,
+          "detail": "set -eu\nmkdir -p \"$HOME\"'/.zcode/server'\nprintf '%b' '\\163\\145\\164\\040\\055\\145\\165\\012\\154\\157\\143\\153\\137\\144\\151\\162\\075\\042\\044\\110\\117\\115\\105\\042\\047\\057\\056\\172\\143\\157\\144\\145\\057\\163\\145\\162\\166\\145\\162\\057\\056\\144\\145\\160\\154\\157\\1"
+        },
+        {
+          "method": "existsMany",
+          "durationMs": 187.76480000000447,
+          "detail": "~/.zcode/server/node,~/.zcode/server/zcode-server.cjs"
+        },
+        {
+          "method": "exec",
+          "durationMs": 84.28029999999853,
+          "detail": "\"$HOME\"'/.zcode/server/node' \"$HOME\"'/.zcode/server/zcode-server.cjs' --version"
+        },
+        {
+          "method": "exec",
+          "durationMs": 62.85840000000462,
+          "detail": "\"$HOME\"'/.zcode/server/node' -e '\nconst fs = require(\"fs\");\nconst content = fs.readFileSync(process.argv[1], \"utf8\");\nconst missing = [\"skill-sync\",\"mcp-sync\",\"plugin-sync\",\"__zcode_rpc_nested_uint8array_v1\",\"exportMarketplaceSourceArchive\""
+        },
+        {
+          "method": "readFile",
+          "durationMs": 171.67930000000342,
+          "detail": "~/.zcode/server/.asset-components/server-bundle.json"
+        },
+        {
+          "method": "readFile",
+          "durationMs": 185.9745000000039,
+          "detail": "~/.zcode/server/.asset-components/glm.json"
+        },
+        {
+          "method": "exists",
+          "durationMs": 173.82130000000325,
+          "detail": "~/.zcode/server/build/Release/pty.node"
+        },
+        {
+          "method": "existsMany",
+          "durationMs": 215.93129999999655,
+          "detail": "~/.zcode/server/agents/glm/packages/android-emulator-plugin/.zcode-plugin/plugin.json,~/.zcode/server/agents/glm/packages/browser-use-plugin/.zcode-plugin/plugin.json,~/.zcode/server/agents/glm/packages/zcode-cua-plugin/.zcode-plugin/plugin"
+        },
+        {
+          "method": "readFile",
+          "durationMs": 167.42960000000312,
+          "detail": "~/.zcode/server/.asset-components/glm.json"
+        },
+        {
+          "method": "exists",
+          "durationMs": 193.3755999999994,
+          "detail": "~/.zcode/server/agents/glm/zcode-agent"
+        },
+        {
+          "method": "readFile",
+          "durationMs": 204.4227000000028,
+          "detail": "~/.zcode/server/agents/glm/zcode-agent"
+        },
+        {
+          "method": "exists",
+          "durationMs": 211.31259999999747,
+          "detail": "~/.zcode/server/agents/glm/zcode.cjs"
+        },
+        {
+          "method": "readFile",
+          "durationMs": 185.8231999999989,
+          "detail": "~/.zcode/server/tools/bfs/.version"
+        },
+        {
+          "method": "exists",
+          "durationMs": 173.45099999999366,
+          "detail": "~/.zcode/server/tools/bfs/bfs"
+        },
+        {
+          "method": "readFile",
+          "durationMs": 174.9591999999975,
+          "detail": "~/.zcode/server/tools/ripgrep/.version"
+        },
+        {
+          "method": "exists",
+          "durationMs": 169.60680000000139,
+          "detail": "~/.zcode/server/tools/ripgrep/rg"
+        },
+        {
+          "method": "readFile",
+          "durationMs": 175.93670000000566,
+          "detail": "~/.zcode/server/tools/ugrep/.version"
+        },
+        {
+          "method": "exists",
+          "durationMs": 187.30329999999958,
+          "detail": "~/.zcode/server/tools/ugrep/ugrep"
+        },
+        {
+          "method": "exec",
+          "durationMs": 71.23919999999634,
+          "detail": "ZCODE_SERVICE_AUTHORITY_MODE=\"desktop-attached-remote\" ZCODE_SERVER_RUNTIME_ROOT=\"$HOME/.zcode/server\" ~/.zcode/server/node ~/.zcode/server/zcode-server.cjs"
+        }
+      ],
+      "totalMs": 5565.493400000007,
+      "phases": {
+        "detectMs": 569.1312999999936,
+        "runtimeNetworkMs": 0.12230000000272412,
+        "deployMs": 4529.5855999999985,
+        "launchMs": 71.4406999999992,
+        "handshakeMs": 394.8205000000089,
+        "wrapMs": 0.2885999999998603,
+        "unattributedMs": 0.10440000000380678
+      },
+      "systemRpcMs": 94.8006000000023,
+      "identity": {
+        "platform": "linux",
+        "homedir": "/home/zcodewslp2"
+      },
+      "disposeMs": 51.771099999998114
+    }
+  ],
+  "execCalls": [
+    {
+      "method": "detect",
+      "detail": "",
+      "count": 10,
+      "totalMs": 5844.259400000005,
+      "maxMs": 650.0778
+    },
+    {
+      "method": "existsMany",
+      "detail": "~/.zcode/server/node,~/.zcode/server/zcode-server.cjs",
+      "count": 20,
+      "totalMs": 3594.737100000001,
+      "maxMs": 218.76270000000295
+    },
+    {
+      "method": "readFile",
+      "detail": "~/.zcode/server/.asset-components/glm.json",
+      "count": 20,
+      "totalMs": 3556.4586000000154,
+      "maxMs": 206.532100000004
+    },
+    {
+      "method": "existsMany",
+      "detail": "~/.zcode/server/agents/glm/packages/android-emulator-plugin/.zcode-plugin/plugin.json,~/.zcode/server/agents/glm/packages/browser-use-plugin/.zcode-plugin/plugin.json,~/.zcode/server/agents/glm/packages/zcode-cua-plugin/.zcode-plugin/plugin",
+      "count": 10,
+      "totalMs": 2242.7396999999874,
+      "maxMs": 246.38609999999971
+    },
+    {
+      "method": "readFile",
+      "detail": "~/.zcode/server/tools/bfs/.version",
+      "count": 10,
+      "totalMs": 1819.8601000000072,
+      "maxMs": 199.379399999998
+    },
+    {
+      "method": "exists",
+      "detail": "~/.zcode/server/agents/glm/zcode-agent",
+      "count": 10,
+      "totalMs": 1813.3456999999962,
+      "maxMs": 193.3755999999994
+    },
+    {
+      "method": "exists",
+      "detail": "~/.zcode/server/tools/ripgrep/rg",
+      "count": 10,
+      "totalMs": 1812.0074999999943,
+      "maxMs": 206.9219000000012
+    },
+    {
+      "method": "exists",
+      "detail": "~/.zcode/server/tools/bfs/bfs",
+      "count": 10,
+      "totalMs": 1790.5423999999966,
+      "maxMs": 192.70440000000235
+    },
+    {
+      "method": "readFile",
+      "detail": "~/.zcode/server/tools/ripgrep/.version",
+      "count": 10,
+      "totalMs": 1789.348599999992,
+      "maxMs": 196.14810000000034
+    },
+    {
+      "method": "readFile",
+      "detail": "~/.zcode/server/agents/glm/zcode-agent",
+      "count": 10,
+      "totalMs": 1788.0560999999961,
+      "maxMs": 204.4227000000028
+    },
+    {
+      "method": "readFile",
+      "detail": "~/.zcode/server/tools/ugrep/.version",
+      "count": 10,
+      "totalMs": 1786.119000000006,
+      "maxMs": 189.40040000000045
+    },
+    {
+      "method": "exists",
+      "detail": "~/.zcode/server/build/Release/pty.node",
+      "count": 10,
+      "totalMs": 1785.2563999999911,
+      "maxMs": 194.86169999999402
+    },
+    {
+      "method": "exists",
+      "detail": "~/.zcode/server/tools/ugrep/ugrep",
+      "count": 10,
+      "totalMs": 1784.4975999999951,
+      "maxMs": 190.1886999999988
+    },
+    {
+      "method": "exists",
+      "detail": "~/.zcode/server/agents/glm/zcode.cjs",
+      "count": 10,
+      "totalMs": 1781.1518999999944,
+      "maxMs": 211.31259999999747
+    },
+    {
+      "method": "readFile",
+      "detail": "~/.zcode/server/.asset-components/server-bundle.json",
+      "count": 10,
+      "totalMs": 1746.8939000000164,
+      "maxMs": 189.79260000000068
+    },
+    {
+      "method": "exec",
+      "detail": "\"$HOME\"'/.zcode/server/node' \"$HOME\"'/.zcode/server/zcode-server.cjs' --version",
+      "count": 20,
+      "totalMs": 1309.8791999999985,
+      "maxMs": 84.28029999999853
+    },
+    {
+      "method": "exec",
+      "detail": "\"$HOME\"'/.zcode/server/node' -e '\nconst fs = require(\"fs\");\nconst content = fs.readFileSync(process.argv[1], \"utf8\");\nconst missing = [\"skill-sync\",\"mcp-sync\",\"plugin-sync\",\"__zcode_rpc_nested_uint8array_v1\",\"exportMarketplaceSourceArchive\"",
+      "count": 20,
+      "totalMs": 1280.4990000000025,
+      "maxMs": 69.08510000000388
+    },
+    {
+      "method": "exec",
+      "detail": "ZCODE_SERVICE_AUTHORITY_MODE=\"desktop-attached-remote\" ZCODE_SERVER_RUNTIME_ROOT=\"$HOME/.zcode/server\" ~/.zcode/server/node ~/.zcode/server/zcode-server.cjs",
+      "count": 10,
+      "totalMs": 672.8491999999933,
+      "maxMs": 75.68079999999463
+    },
+    {
+      "method": "exec",
+      "detail": "set -eu\nmkdir -p \"$HOME\"'/.zcode/server'\nprintf '%b' '\\163\\145\\164\\040\\055\\145\\165\\012\\154\\157\\143\\153\\137\\144\\151\\162\\075\\042\\044\\110\\117\\115\\105\\042\\047\\057\\056\\172\\143\\157\\144\\145\\057\\163\\145\\162\\166\\145\\162\\057\\056\\144\\145\\160\\154\\157\\1",
+      "count": 10,
+      "totalMs": 636.572000000001,
+      "maxMs": 69.71600000000035
+    }
+  ],
+  "notes": [
+    "warm 幂等部署连接：运行时已安装，deploy 段是幂等核对，不是首次安装（首装样本见 first-deploy-result.json 21.18s）",
+    "n<20 只报 min/median/max/mean，不给 P95",
+    "unattributedMs 含调用前隙与 execStarted→handshaking 小隙；标记缺失的段为 null 不做估算"
+  ]
+}

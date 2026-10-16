@@ -1,0 +1,85 @@
+{
+  "status": "passed",
+  "distro": "Ubuntu-24.04",
+  "user": "zcodewslp2",
+  "workspace": "/home/zcodewslp2/workspace",
+  "zcodeVersion": "3.15.1",
+  "finishedAt": "2026-10-16T10:24:26.106Z",
+  "checks": [
+    {
+      "name": "首次 connectRemote（含标准部署）成功",
+      "status": "passed",
+      "detail": "5794ms"
+    },
+    {
+      "name": "远端 system HOME 为专属隔离用户",
+      "status": "passed",
+      "detail": "platform=linux homedir=/home/zcodewslp2"
+    },
+    {
+      "name": "RPC 文件写入后读回一致（同一 ext4 路径）",
+      "status": "passed",
+      "detail": "path=/home/zcodewslp2/workspace/.zcodeignore bytes=42"
+    },
+    {
+      "name": "真实 PTY pwd 为指定工作区",
+      "status": "passed",
+      "detail": "PWD_WSL_SMOKE_1792146259524=/home/zcodewslp2/workspace"
+    },
+    {
+      "name": "真实 PTY marker 输出",
+      "status": "passed",
+      "detail": "WSL_SMOKE_1792146259524"
+    },
+    {
+      "name": "真实 PTY 同文件改写成功",
+      "status": "passed",
+      "detail": "/home/zcodewslp2/workspace/.zcodeignore"
+    },
+    {
+      "name": "真实 PTY 自然 exit 上报",
+      "status": "passed",
+      "detail": "exit=0"
+    },
+    {
+      "name": "Git 仓库摘要与分支可读",
+      "status": "passed",
+      "detail": "repoRoot=/home/zcodewslp2/workspace/wsl-smoke-git-1792146259524 branch=master"
+    },
+    {
+      "name": "Git 未跟踪变更可见并可 stage",
+      "status": "passed",
+      "detail": "unstaged=1 staged=1"
+    },
+    {
+      "name": "首次 disposeAndWait 按 stdio 语义回收",
+      "status": "passed",
+      "detail": "26ms"
+    },
+    {
+      "name": "再连 connectRemote 成功（幂等部署）",
+      "status": "passed",
+      "detail": "5931ms"
+    },
+    {
+      "name": "再连后同一 ext4 文件内容仍在",
+      "status": "passed",
+      "detail": "wsl-smoke-pty-rewritten\n"
+    }
+  ],
+  "timings": {
+    "firstConnectMs": 5794,
+    "systemInfoMs": 108,
+    "fileWriteReadMs": 16,
+    "ptyMs": 102,
+    "gitMs": 105,
+    "firstDisposeMs": 26,
+    "reconnectMs": 5931,
+    "reconnectDisposeMs": 83
+  },
+  "resources": {
+    "uid": "1001",
+    "memoryUsedTotalMb": "",
+    "userProcessCount": "4"
+  }
+}

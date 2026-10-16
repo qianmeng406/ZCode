@@ -48,4 +48,9 @@ export interface IRemoteBackend extends IDisposable {
   existsMany?(remotePaths: string[]): Promise<boolean[]>;
   /** Read a small remote file (e.g. version string) */
   readFile(remotePath: string): Promise<string>;
+  /**
+   * 批量读取小文件（可选）：与逐个 readFile 同序，读取失败为 null，空文件为 ""。
+   * 仅用于原调用点已忽略读失败的元数据读取；未实现时调用方串行 fallback。
+   */
+  readFiles?(remotePaths: string[]): Promise<(string | null)[]>;
 }

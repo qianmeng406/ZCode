@@ -1,0 +1,46 @@
+{
+  "schema": "wsl-desktop-sync/v1",
+  "destination": "C:/Users/qianmengyys/Desktop/agent/wsl-agent-lab/phase2/desktop-workspace",
+  "files": [
+    {
+      "file": "packages/server/src/remote/backend.ts",
+      "previousSha256": "3afbe102b7e465fc42815c7b5e91c29b7fffe17a43561ea5c0fb81f706fdfaf9",
+      "sha256": "1f65527d2463e245a317a7f1662346eb55ca7cc0f33d3fe1d8c71b9176064716"
+    },
+    {
+      "file": "packages/server/src/remote/wsl-backend.ts",
+      "previousSha256": "55e73363d63e6293aba4de8820c0e0ad4e1d6a0f0220e43a0ac24df21899b09e",
+      "sha256": "6be07834b837de521fa40f9d4dd5e6b011342b47632ce2a3f85fc5cc4c6d45c5"
+    },
+    {
+      "file": "packages/server/src/remote/deploy.ts",
+      "previousSha256": "b18e85168a4002809eb7eb0c1da9a6b4b97f979974851972c8920effbb107796",
+      "sha256": "4441c7fe8685dfdab2e337ada0ee867f93e7d670cfa5933c95f870587f9c120c"
+    },
+    {
+      "file": "packages/server/src/remote/zcodeAgentDeploy.ts",
+      "previousSha256": "10363ffcc1dccc9b06c52b1d8ef4b535052e1f85ffba51d77c3187236d4ff405",
+      "sha256": "bc5f3b8b58abe5bd9ada32439100ec6aa2be227a672310180e4472d604fa4744"
+    },
+    {
+      "file": "packages/server/src/remote/zcodeAgentDevDeploy.ts",
+      "previousSha256": "ba06e645da4fb10186bf5c577673b6d6bf8014e6fb3a66b652da1989621c2fe2",
+      "sha256": "6e0c89e6edcebcc6aaef881b4e300fcdc4870c4949d32ef6f72ec4c264a25282"
+    },
+    {
+      "file": "packages/server/src/remote/runtimeToolDeploy.ts",
+      "previousSha256": "4e8e9fe618f6f1681a96074d4f7df27946caa8b77c161c595f8cd173d1347507",
+      "sha256": "87fbfaad1df4b339a2ca449ec02538e0ad89544244a68748b3e7cb89b25da042"
+    },
+    {
+      "file": "packages/server/src/remote/remoteExistsMany.ts",
+      "previousSha256": null,
+      "sha256": "cda3ca00f498255d66b2d4db9d0df9b593dbb8558f91b8ddf5d7f7d6aba0c4ea"
+    },
+    {
+      "file": "packages/server/src/remote/remoteReadFiles.ts",
+      "previousSha256": null,
+      "sha256": "31b4a1fa44cd9b10e1347fa8cf1fd65c0bbf8be63d692c0088fe1546098b62d4"
+    }
+  ]
+}

@@ -1,0 +1,120 @@
+{
+  "schema": "wsl-readbatch-checks/v1",
+  "date": "2026-10-16",
+  "sourceBaseCommit": "2971ecb7",
+  "sourceState": "Second-batch implementation remains in working tree; unrelated existing changes excluded",
+  "checks": [
+    {
+      "name": "related-regressions",
+      "command": "pnpm exec vitest run packages/server/test/remoteDeploy.test.ts packages/server/test/remoteDeployLock.test.ts packages/server/test/runtimeToolDeploy.test.ts packages/server/test/remoteExistsMany.test.ts packages/server/test/wslConnectLatency.test.ts packages/server/test/remoteReadFiles.test.ts packages/server/test/wslBackend.test.ts packages/server/test/wslReadFiles.test.ts",
+      "exitCode": 0,
+      "passed": 148,
+      "files": 8,
+      "skipped": 0,
+      "newBatchTests": 34
+    },
+    {
+      "name": "typecheck",
+      "command": "pnpm typecheck",
+      "exitCode": 0,
+      "diagnostics": 0
+    },
+    {
+      "name": "lint",
+      "command": "pnpm lint",
+      "exitCode": 0,
+      "errors": 0,
+      "warnings": 83
+    },
+    {
+      "name": "architecture",
+      "command": "pnpm architecture:check --changed",
+      "exitCode": 0,
+      "violations": 0
+    },
+    {
+      "name": "warm-latency-control-and-after",
+      "command": "node --import file:///C:/Users/qianmengyys/Desktop/agent/ZCode-fork/node_modules/tsx/dist/loader.mjs C:/Users/qianmengyys/Desktop/agent/wsl-agent-lab/phase3/run-connect-latency.mjs 10",
+      "exitCodes": [0, 0],
+      "iterationsPerGroup": 10,
+      "totalMedianMs": [5516.646499999997, 4829.572899999999],
+      "deployMedianMs": [4462.323400000001, 3726.389799999999],
+      "apiCallsPerIteration": [23, 19],
+      "phaseAccountingVerified": true,
+      "apiCountIsNotProcessCount": true
+    },
+    {
+      "name": "real-wsl-readfiles-fidelity",
+      "command": "node --import file:///C:/Users/qianmengyys/Desktop/agent/ZCode-fork/node_modules/tsx/dist/loader.mjs C:/Users/qianmengyys/Desktop/agent/wsl-agent-lab/phase3/verify-readfiles.mts",
+      "exitCode": 0,
+      "paths": 5,
+      "sameAsSingleReads": true,
+      "fallbackCalls": 0,
+      "ownedFixtureCleaned": true,
+      "redEvidence": "readfiles-real-red.json",
+      "greenEvidence": "readfiles-real-green.json"
+    },
+    {
+      "name": "standard-smoke",
+      "command": "node --import file:///C:/Users/qianmengyys/Desktop/agent/ZCode-fork/node_modules/tsx/dist/loader.mjs C:/Users/qianmengyys/Desktop/agent/wsl-agent-lab/phase2/run-smoke.mjs",
+      "exitCode": 0,
+      "passed": 12,
+      "firstConnectMs": 5794,
+      "reconnectMs": 5931
+    },
+    {
+      "name": "isolated-desktop-build",
+      "command": "NODE_ENV=production ZCODE_ENV=test node ../../node_modules/tsup/dist/cli-default.js (cwd: phase2/desktop-workspace/packages/desktop)",
+      "exitCode": 0,
+      "syncedRemoteSourceFiles": 8,
+      "sourceHashesMatchMainWorkingTree": true,
+      "hostChunkIncludesBatchProtocol": true,
+      "proof": "desktop-readbatch-build-proof.json"
+    },
+    {
+      "name": "isolated-desktop-e2e",
+      "command": "node C:/Users/qianmengyys/Desktop/agent/wsl-agent-lab/phase2/run-desktop.mjs",
+      "exitCode": 0,
+      "run": "desktop-1792146385325",
+      "passed": 1,
+      "testDurationSeconds": 106.1,
+      "result": "desktop-after-readbatch-result.json",
+      "externalPaidModelUsed": false
+    },
+    {
+      "name": "format",
+      "command": "pnpm exec oxfmt --check <13 changed code/spec/report/checks files>",
+      "exitCode": 0,
+      "files": 13
+    },
+    {
+      "name": "diff-whitespace",
+      "command": "git diff --check",
+      "exitCode": 0,
+      "notes": "Only Git LF-to-CRLF working-copy notices; no whitespace errors"
+    },
+    {
+      "name": "evidence-integrity",
+      "command": "Parse all archived latency-data JSON; verify phase accounting, API call counts, desktop lifecycle and synced source SHA256",
+      "exitCode": 0,
+      "jsonFiles": 12
+    },
+    {
+      "name": "post-desktop-cleanup-observation",
+      "command": "wsl.exe -d Ubuntu-24.04 -u zcodewslp2 -- sh -c 'ps -u zcodewslp2 -o pid,ppid,args'",
+      "exitCode": 0,
+      "clean": true,
+      "evidence": "cleanup-after-readbatch.json"
+    }
+  ],
+  "limits": [
+    "Two separate N=10 exploratory groups; no P95 claim and no long-term performance guarantee",
+    "Old after-batch observer omitted three existsMany calls; original JSON preserved and report corrected; wall-clock measurements unaffected",
+    "No pre-lock data reused after acquiring install-root lock; both checks retained",
+    "Real WSL and desktop validation use Ubuntu-24.04 and the isolated zcodewslp2 user only",
+    "WSL readFiles preserves existing text decoding behavior, including its limitations; not a general binary read API",
+    "Desktop used a free Linux-local model replay; no real external model or other distro matrix tested",
+    "Final clean process table does not establish per-close PID exit timing",
+    "No push, default-environment switch, resident process, system network change, or retired feature reintroduction"
+  ]
+}

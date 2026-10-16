@@ -1,7 +1,7 @@
 /* eslint-disable no-console -- 验收脚本以控制台输出为交付物。 */
 // WSL 连接耗时分解测量驱动（opt-in）：把标准 connectRemote 的墙钟按日志标记归因到
 // detect / runtimeNetwork / deploy / launch / handshake / wrap 六段，并记录 backend
-// observer 的 detect/exec/upload/exists/readFile 调用明细与 wsl.exe 裸往返校准。
+// observer 的单项/批量 IO 调用明细与 wsl.exe 裸往返校准。
 // 只测量、不改产品行为；observer 仅包装不改变语义。规格见 docs/research/wsl-connection-latency.spec.md。
 // 用法: npx tsx packages/server/scripts/wsl-connect-latency.ts --distro Ubuntu-24.04
 //   --user zcodewslp2 --workspace /home/zcodewslp2/workspace
@@ -33,7 +33,7 @@ const execFileAsync = promisify(execFile);
 type ObservedBackend = Awaited<ReturnType<typeof createRemoteBackend>>;
 
 interface BackendCallRecord {
-  method: "detect" | "exec" | "upload" | "exists" | "readFile";
+  method: "detect" | "exec" | "upload" | "exists" | "existsMany" | "readFile" | "readFiles";
   durationMs: number;
   detail: string;
 }
@@ -49,9 +49,17 @@ interface IterationRecord {
   error?: string;
 }
 
-/** Proxy 包装 backend：只给五个 IO 方法计时，其余成员原样转发且 this 指向原实例。 */
+/** Proxy 包装 backend：给单项/批量 IO 方法计时，其余成员原样转发且 this 指向原实例。 */
 function observeBackendCalls(backend: ObservedBackend, sink: BackendCallRecord[]): ObservedBackend {
-  const timed = new Set(["detect", "exec", "upload", "exists", "readFile"]);
+  const timed = new Set([
+    "detect",
+    "exec",
+    "upload",
+    "exists",
+    "existsMany",
+    "readFile",
+    "readFiles",
+  ]);
   return new Proxy(backend, {
     get(target, property) {
       const value = Reflect.get(target, property);
@@ -307,6 +315,7 @@ async function run(): Promise<void> {
       [
         "warm 幂等部署连接：运行时已安装，deploy 段是幂等核对，不是首次安装（首装样本见 first-deploy-result.json 21.18s）",
         "n<20 只报 min/median/max/mean，不给 P95",
+        "backendCalls 包含 existsMany/readFiles，每个批量外层调用计一次；这是 API 调用数，不是 wsl.exe 进程数（旧 after-batch 数据漏计 existsMany）",
         "unattributedMs 含调用前隙与 execStarted→handshaking 小隙；标记缺失的段为 null 不做估算",
       ],
     );

@@ -1,0 +1,15 @@
+{
+  "schema": "wsl-readfiles-real/v1",
+  "status": "passed",
+  "distro": "Ubuntu-24.04",
+  "user": "zcodewslp2",
+  "checks": {
+    "sameAsSingleReads": true,
+    "empty": true,
+    "unicodeAndTrailingNewlines": true,
+    "missing": true,
+    "fallbackCalls": 0,
+    "files": 5
+  },
+  "cleanedOwnedFixture": true
+}

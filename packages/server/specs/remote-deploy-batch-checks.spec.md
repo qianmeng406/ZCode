@@ -50,3 +50,28 @@ sequenceDiagram
 2. 真实 smoke 行为不变（文件/PTY/Git/重连仍 12/12）。
 3. 同一耗时分解驱动复测：backend 调用数与 deploy 段墙钟显著下降，六段归因仍闭合（差额全落 unattributedMs）。
 4. lint/typecheck/相关测试通过。
+
+## 第二批：运行时工具的小文件批量读取
+
+- 范围仅为 `deployRuntimeTools` 的版本文件与 binary 核对，不跨锁缓存、不删除锁前/锁后重检，也不改 Agent identity 判断。上一轮的 6.3s 是比较基线，2–3s 只是尚未验证的远期估计，不作为本批结果。
+- `IRemoteBackend` 新增可选 `readFiles(paths): Promise<(string | null)[]>`；同序返回文本，读取失败为 null，空文件为 `""`。它用于原调用点已经忽略读失败的元数据读取，不替代需要抛出原始错误的 `readFile`。
+- `remoteReadFiles` 未获批量能力时按顺序逐文件读取，每个失败单独记为 null；不让一个缺失版本文件阻断其他工具核对。
+- WSL 保留逐路径解析、UNC 优先和现有 shell 读取的文本规范化。其余路径一次 shell 执行，逐项输出 `Y:<base64>` 或 `N`。严格校验行数、状态和 base64，保留空文件、换行及分隔符内容；命令/解析异常时按原 `readFile` 逐项退化。base64 工具缺失也必须退化，不能把所有文件误判为缺失。脚本以八进制 literal 经 `printf '%b' | sh` 传输，避免 Windows→WSL 对多行脚本中嵌套引号的破坏；shell 解码沿用单项读取的 WSL 文本解码规则（不是二进制接口）。
+- 只预取已选且可解析 binary 的工具；版本相同时才批量检查 binary。仍按原顺序部署缺失/过期工具，并在安装成功后写版本。未选工具不得读取、探测或安装。
+- 预取结果只存活于本次 `deployRuntimeTools` 调用；部署安装锁仍由 `deployServer` 拥有。它不是跨组件/跨连接缓存。
+
+```mermaid
+sequenceDiagram
+    participant D as deployServer（持有安装锁）
+    participant T as deployRuntimeTools
+    participant B as WSL Backend
+    D->>T: 核对本次选中工具
+    T->>B: readFiles(选中工具的 .version)
+    B-->>T: 同序文本或 null
+    T->>B: existsMany(版本匹配的 binary)
+    B-->>T: 同序布尔值
+    T->>B: 按原工具顺序安装必要文件并写版本
+    T-->>D: 完成本次核对
+```
+
+新增验收：批量读取转义、空文本/Unicode/换行、单文件缺失、非法/截断输出退化；backend 无批量能力时串行兼容；工具全命中跳过、过期/缺 binary/读失败时部署、未选资源无 IO；真实 WSL 同驱动复测与标准 smoke。

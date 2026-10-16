@@ -1,0 +1,8 @@
+{
+  "schema": "wsl-readfiles-real/v1",
+  "status": "failed",
+  "distro": "Ubuntu-24.04",
+  "user": "zcodewslp2",
+  "error": "batch must not silently fall back\n\n5 !== 0\n",
+  "cleanedOwnedFixture": true
+}

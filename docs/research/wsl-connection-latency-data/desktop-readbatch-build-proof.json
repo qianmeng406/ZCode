@@ -1,0 +1,22 @@
+{
+  "schema": "wsl-desktop-build/v1",
+  "isolatedRoot": "C:/Users/qianmengyys/Desktop/agent/wsl-agent-lab/phase2/desktop-workspace",
+  "containsBatchProtocol": true,
+  "files": [
+    {
+      "file": "packages/desktop/out/main/index.js",
+      "sha256": "767c510ca012ecc8441e1b15591d2f53be810a6b9eae6de25f9b7506ad232fd9",
+      "size": 785134
+    },
+    {
+      "file": "packages/desktop/out/host/index.js",
+      "sha256": "16902959b5549d9be28752d313431889f7ca5883851d349ea5fecf42b324996c",
+      "size": 1576288
+    },
+    {
+      "file": "packages/desktop/out/host/chunk-XDCBVXKK.js",
+      "sha256": "df4143c9132dddd850148e548a4a1ef92a123020af5f38d4d7dab10de7ad8068",
+      "batchProtocolIncluded": true
+    }
+  ]
+}

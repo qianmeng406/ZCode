@@ -28,15 +28,15 @@ sequenceDiagram
     D->>D: Channel/Service 装配 wrap — handshake done→t1
 ```
 
-| 阶段 | 边界 |
-| --- | --- |
-| detectMs | `detecting remote env...` → `detected:` |
-| runtimeNetworkMs | `detected:` → `deploying server...` |
-| deployMs | `deploying server...` → `deploy complete` |
-| launchMs | `deploy complete`（缺省 `launching remote server...`）→ `remote server exec started` |
-| handshakeMs | `performing handshake...` → `handshake done` |
-| wrapMs | `handshake done` → connectRemote 返回 |
-| unattributedMs | 总墙钟减去已归因段（含调用前隙与 execStarted→handshaking 小隙），不得虚减 |
+| 阶段             | 边界                                                                                 |
+| ---------------- | ------------------------------------------------------------------------------------ |
+| detectMs         | `detecting remote env...` → `detected:`                                              |
+| runtimeNetworkMs | `detected:` → `deploying server...`                                                  |
+| deployMs         | `deploying server...` → `deploy complete`                                            |
+| launchMs         | `deploy complete`（缺省 `launching remote server...`）→ `remote server exec started` |
+| handshakeMs      | `performing handshake...` → `handshake done`                                         |
+| wrapMs           | `handshake done` → connectRemote 返回                                                |
+| unattributedMs   | 总墙钟减去已归因段（含调用前隙与 execStarted→handshaking 小隙），不得虚减            |
 
 标记缺失时对应段为 `null`，缺口计入 unattributed，不用估算填补。
 
@@ -46,7 +46,7 @@ sequenceDiagram
 - n≥20 才给 P95；探索轮次（n<20）只报 min/median/max/mean。第二阶段 16–18s 为低样本观察，本测量用于定位去向而非重述其分位数。
 - 每次迭代前释放上一连接（disposeAndWait + backend dispose），迭代间固定 500ms 间隔并记录。
 - 校准项：同 distro/user 的 `wsl.exe --exec true` 裸往返 5 次，用于解释单条 backend.exec 的固定跨界成本。
-- backend observer 记录 detect/exec/upload/exists/readFile 的起止与 detail；detail 里 `*TOKEN*/*SECRET*/*PASSWORD*/*CREDENTIAL*/*APIKEY*=...` 一律替换为 `<redacted>`，并截断到 240 字符。日志不写凭据。
+- backend observer 记录 detect/exec/upload/exists/existsMany/readFile/readFiles 的起止与 detail。批量调用只记外层一次（不把内部逐项或 shell 调用重复相加）；这是 API 调用次数，不是底层 wsl.exe 进程启动数。2026-10-16 第二批优化前补齐批量方法计数，旧 after-batch 数据漏计 3 次 existsMany，应保留原始数据并在报告更正，墙钟数据不受影响。detail 里 `*TOKEN*/*SECRET*/*PASSWORD*/*CREDENTIAL*/*APIKEY*=...` 一律替换为 `<redacted>`，并截断到 240 字符。日志不写凭据。
 - 失败即停但保留已测迭代；finally 只释放本轮 connection/backend。
 
 ## 驱动与产物

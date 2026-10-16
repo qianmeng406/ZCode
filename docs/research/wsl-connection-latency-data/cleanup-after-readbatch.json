@@ -1,0 +1,8 @@
+{
+  "schema": "wsl-readbatch-cleanup/v1",
+  "clean": true,
+  "observedAt": "2026-10-16T10:29:55.884Z",
+  "user": "zcodewslp2",
+  "processTable": "    PID    PPID COMMAND\n     13      12 sh -c ps -u zcodewslp2 -o pid,ppid,args\n     14      13 ps -u zcodewslp2 -o pid,ppid,args\n",
+  "scope": "Final post-WDIO observation only; no claim of per-close old-server PID timing"
+}

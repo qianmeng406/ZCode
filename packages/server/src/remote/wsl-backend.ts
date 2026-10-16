@@ -31,6 +31,10 @@ import {
   buildPosixExistsManyCommand,
   parsePosixExistsManyOutput,
 } from "@zcode/server/remote/remoteExistsMany.js";
+import {
+  buildPosixReadFilesCommand,
+  parsePosixReadFilesOutput,
+} from "@zcode/server/remote/remoteReadFiles.js";
 
 interface ResolvedWSLInfo {
   distroName: string | null;
@@ -464,6 +468,67 @@ export class WSLBackend implements IRemoteBackend {
     return normalizeWslOutput(
       await this.execSimple(`cat ${quotePosixShellArg(resolvedRemotePath)}`),
     );
+  }
+
+  // 批量读取小文件：UNC 路径保持 readFile 语义（本地直接读，读失败按 null 记录，
+  // 不偷偷改用 shell 补偿）；其余路径一次 shell，逐项输出 Y:<base64>/N 行。
+  // 命令/解析异常（含 base64 工具缺失的 T 行）时退化为逐个 readFile，批量只做加速、不改变答案。
+  // 与 existsMany 模式一致：ensureAvailable/resolveInfo 一次，disposed 错误直接抛出不吞。
+  // shell 解码文本按 normalizeWslOutput 规范化（与 readFile 相同），UNC 内容不规范化。
+  // 规格见 packages/server/specs/remote-deploy-batch-checks.spec.md（第二批）。
+  async readFiles(remotePaths: string[]): Promise<(string | null)[]> {
+    if (remotePaths.length === 0) {
+      return [];
+    }
+    await this.ensureAvailable();
+    const resolvedInfo = await this.resolveInfo();
+    const results: (string | null)[] = remotePaths.map(() => null);
+    const pendingIndexes: number[] = [];
+    const pendingPaths: string[] = [];
+    for (let index = 0; index < remotePaths.length; index += 1) {
+      const resolvedRemotePath = await this.resolveLinuxPath(remotePaths[index]!, resolvedInfo);
+      if (resolvedInfo.distroName) {
+        const accessiblePath = await accessAnyPath(
+          toWslUncCandidates(resolvedRemotePath, resolvedInfo.distroName),
+        );
+        if (accessiblePath) {
+          try {
+            results[index] = await readFile(accessiblePath, "utf8");
+          } catch {
+            results[index] = null;
+          }
+          continue;
+        }
+      }
+      pendingIndexes.push(index);
+      pendingPaths.push(resolvedRemotePath);
+    }
+    if (pendingPaths.length > 0) {
+      let texts: (string | null)[];
+      try {
+        texts = parsePosixReadFilesOutput(
+          normalizeWslOutput(await this.execSimple(buildPosixReadFilesCommand(pendingPaths))),
+          pendingPaths.length,
+        );
+      } catch {
+        // 退化逐个 readFile：每个失败单独记 null，不让一个缺失阻断其他路径。
+        for (const resultIndex of pendingIndexes) {
+          try {
+            results[resultIndex] = await this.readFile(remotePaths[resultIndex]!);
+          } catch {
+            results[resultIndex] = null;
+          }
+        }
+        return results;
+      }
+      pendingIndexes.forEach((resultIndex, pendingIndex) => {
+        const text = texts[pendingIndex]!;
+        // 单项 shell readFile 也经 decodeWslOutput；批量须保持同一文本解码规则。
+        results[resultIndex] =
+          text === null ? null : normalizeWslOutput(decodeWslOutput(Buffer.from(text, "utf8")));
+      });
+    }
+    return results;
   }
 
   dispose(): void {
