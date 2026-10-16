@@ -44,6 +44,8 @@ export interface IRemoteBackend extends IDisposable {
   exec(command: string): Promise<StdioStream>;
   /** Check if a remote file exists */
   exists(remotePath: string): Promise<boolean>;
+  /** 批量存在性探测（可选）：与逐个 exists 同序同义；未实现时调用方串行 fallback。 */
+  existsMany?(remotePaths: string[]): Promise<boolean[]>;
   /** Read a small remote file (e.g. version string) */
   readFile(remotePath: string): Promise<string>;
 }

@@ -6,6 +6,7 @@ import { cp, lstat, mkdir, mkdtemp, readdir, readFile, readlink, rm } from "node
 import { tmpdir } from "node:os";
 import { dirname, join, resolve } from "node:path";
 import type { IRemoteBackend } from "@zcode/server/remote/backend.js";
+import { remoteExistsMany } from "@zcode/server/remote/remoteExistsMany.js";
 import {
   buildRemoteExecutableReplaceCommand,
   buildRemoteMoveCommand,
@@ -179,13 +180,10 @@ async function findMissingRemoteOfficialPluginAssetPaths(params: {
   backend: IRemoteBackend;
   remoteProviderDir: string;
 }): Promise<string[]> {
-  const missingPaths: string[] = [];
-  for (const remotePath of buildRemoteAgentOfficialPluginRequiredPaths(params.remoteProviderDir)) {
-    if (!(await params.backend.exists(remotePath))) {
-      missingPaths.push(remotePath);
-    }
-  }
-  return missingPaths;
+  const requiredPaths = buildRemoteAgentOfficialPluginRequiredPaths(params.remoteProviderDir);
+  // 批量探测：一次远端往返替代逐文件 exists（此前约 60 次串行 wsl.exe 往返）。
+  const exists = await remoteExistsMany(params.backend, requiredPaths);
+  return requiredPaths.filter((_, index) => !exists[index]);
 }
 
 async function shouldSkipDevelopmentZCodeAgentDeploy(params: {
@@ -261,9 +259,7 @@ async function shouldSkipDevelopmentZCodeAgentDeploy(params: {
     return false;
   }
 
-  params.loggers.log(
-    `[zcode-agent-deploy] ${ZCODE_AGENT_PROVIDER}: 开发态 zcode.cjs 未变化，跳过`,
-  );
+  params.loggers.log(`[zcode-agent-deploy] ${ZCODE_AGENT_PROVIDER}: 开发态 zcode.cjs 未变化，跳过`);
   return true;
 }
 

@@ -12,6 +12,7 @@ import {
 } from "@zcode/server/remote/deployShared.js";
 import type { RemoteAssetInstaller } from "@zcode/server/remote/remoteAssetInstaller.js";
 import { buildWriteLiteralFileCommand } from "@zcode/server/remote/posixShell.js";
+import { remoteExistsMany } from "@zcode/server/remote/remoteExistsMany.js";
 import { deployDevelopmentZCodeAgentRuntime } from "@zcode/server/remote/zcodeAgentDevDeploy.js";
 import {
   buildRemoteAgentBundleWrapper,
@@ -135,13 +136,10 @@ async function findMissingRemoteOfficialPluginAssetPaths(
   backend: IRemoteBackend,
   remoteProviderDir: string,
 ): Promise<string[]> {
-  const missingPaths: string[] = [];
-  for (const remotePath of buildRemoteAgentOfficialPluginRequiredPaths(remoteProviderDir)) {
-    if (!(await backend.exists(remotePath))) {
-      missingPaths.push(remotePath);
-    }
-  }
-  return missingPaths;
+  const requiredPaths = buildRemoteAgentOfficialPluginRequiredPaths(remoteProviderDir);
+  // 批量探测：一次远端往返替代逐文件 exists（此前约 60 次串行 wsl.exe 往返）。
+  const exists = await remoteExistsMany(backend, requiredPaths);
+  return requiredPaths.filter((_, index) => !exists[index]);
 }
 
 /**

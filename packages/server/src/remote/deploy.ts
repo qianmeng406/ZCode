@@ -9,6 +9,7 @@ import {
   type RemoteResourcePackageSelection,
 } from "@zcode/shared";
 import type { IRemoteBackend, RemoteEnvironment } from "./backend.js";
+import { remoteExistsMany } from "./remoteExistsMany.js";
 import { deployZCodeAgentRuntime } from "./zcodeAgentDeploy.js";
 import {
   deployNodePtyPrebuilds,
@@ -494,7 +495,9 @@ async function checkServerDeployDecision(
   try {
     log("checking if deploy needed...");
     const nodePath = `${REMOTE_BASE}/node`;
-    const exists = await backend.exists(nodePath);
+    const serverPath = `${REMOTE_BASE}/zcode-server.cjs`;
+    // 批量探测 node/server 两个路径，合并为一次远端往返（语义同逐个 exists）。
+    const [exists, serverExists] = await remoteExistsMany(backend, [nodePath, serverPath]);
     log("remote node exists:", exists);
     if (!exists) {
       return {
@@ -503,8 +506,6 @@ async function checkServerDeployDecision(
       };
     }
 
-    const serverPath = `${REMOTE_BASE}/zcode-server.cjs`;
-    const serverExists = await backend.exists(serverPath);
     log("remote server exists:", serverExists);
     if (!serverExists) {
       return {

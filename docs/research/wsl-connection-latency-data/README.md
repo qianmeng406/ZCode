@@ -4,7 +4,8 @@
 
 | 文件 | 内容 |
 | --- | --- |
-| connect-latency-result.json | warm N=10 完整结果：每迭代六段归因 + 82 条 backend 调用明细（detail 已脱敏）+ wsl.exe 裸往返校准 + 聚合统计 |
+| connect-latency-result.json | **baseline**（批量核对前）warm N=10：每迭代六段归因 + 82 条 backend 调用明细（脱敏）+ wsl.exe 裸往返校准 + 聚合 |
+| connect-latency-result-after-batch.json | **after-batch**（existsMany 批量核对后）同驱动 warm N=10：调用 82→20，total median 16.58s→6.31s |
 
 来源：lab `wsl-agent-lab/phase3/connect-latency-result.json`（由 `phase3/run-connect-latency.mjs` 产出）。驱动与单测在 repo `packages/server/scripts/wsl-connect-latency*.ts`、`packages/server/test/wslConnectLatency.test.ts`。
 

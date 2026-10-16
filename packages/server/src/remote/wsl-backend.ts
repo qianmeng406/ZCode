@@ -27,6 +27,10 @@ import {
   parseWslProxyPortProbeOutput,
   replaceProxyHostname,
 } from "@zcode/server/remote/wslProxy.js";
+import {
+  buildPosixExistsManyCommand,
+  parsePosixExistsManyOutput,
+} from "@zcode/server/remote/remoteExistsMany.js";
 
 interface ResolvedWSLInfo {
   distroName: string | null;
@@ -397,6 +401,50 @@ export class WSLBackend implements IRemoteBackend {
     } catch {
       return false;
     }
+  }
+
+  // 批量存在性探测：UNC 可达短路语义与 exists 一致；剩余路径一次 shell 循环返回 Y/N 行。
+  // 输出异常时退化为逐个 exists，批量只做加速、不改变答案。
+  // 规格见 packages/server/specs/remote-deploy-batch-checks.spec.md。
+  async existsMany(remotePaths: string[]): Promise<boolean[]> {
+    if (remotePaths.length === 0) {
+      return [];
+    }
+    await this.ensureAvailable();
+    const resolvedInfo = await this.resolveInfo();
+    const results = remotePaths.map(() => false);
+    const pendingIndexes: number[] = [];
+    const pendingPaths: string[] = [];
+    for (let index = 0; index < remotePaths.length; index += 1) {
+      const resolvedRemotePath = await this.resolveLinuxPath(remotePaths[index]!, resolvedInfo);
+      if (resolvedInfo.distroName) {
+        const accessiblePath = await accessAnyPath(
+          toWslUncCandidates(resolvedRemotePath, resolvedInfo.distroName),
+        );
+        if (accessiblePath) {
+          results[index] = true;
+          continue;
+        }
+      }
+      pendingIndexes.push(index);
+      pendingPaths.push(resolvedRemotePath);
+    }
+    if (pendingPaths.length > 0) {
+      try {
+        const flags = parsePosixExistsManyOutput(
+          normalizeWslOutput(await this.execSimple(buildPosixExistsManyCommand(pendingPaths))),
+          pendingPaths.length,
+        );
+        pendingIndexes.forEach((resultIndex, pendingIndex) => {
+          results[resultIndex] = flags[pendingIndex]!;
+        });
+      } catch {
+        for (const resultIndex of pendingIndexes) {
+          results[resultIndex] = await this.exists(remotePaths[resultIndex]!);
+        }
+      }
+    }
+    return results;
   }
 
   async readFile(remotePath: string): Promise<string> {
