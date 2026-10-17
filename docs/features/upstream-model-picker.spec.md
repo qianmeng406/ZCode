@@ -15,6 +15,7 @@ The request and result are optional additions to the provider settings protocol.
 ## Acceptance
 
 - Successful OpenAI-compatible `{ data: [{ id }] }` responses produce a deduplicated picker.
+- A provider that has not yet saved its first model still fetches: the endpoint resolves from the effective provider config, not from the published model-bearing registry.
 - Empty, malformed, unauthorized, timed-out, and unavailable responses produce a safe user-facing error without exposing credentials.
 - Selecting a result fills the ID field and does not save automatically.
 - The picker is keyboard accessible and the manual input remains usable.
@@ -31,8 +32,8 @@ UI (add-model dialog)
        └─ ProviderSettingsService.fetchUpstreamModels        [packages/services, ensureReady → 委托 Agent]
             └─ zcodeAgentService.fetchUpstreamModels         [protocol request, timeout 30s]
                  └─ CLI handler (provider-upstream-models.ts)
-                      ├─ refreshProviderRegistry("provider-fetch-upstream-models")   ← Registry 是 endpoint/key 唯一事实源
-                      ├─ resolveProviderEndpoint(providerId)                          ← 只读 Registry Provider 事实
+                      ├─ refreshProviderRegistry("provider-fetch-upstream-models")   ← 刷新生效配置（含尚无模型的渠道）
+                      ├─ resolveProviderEndpoint(providerId)                          ← 只读生效 Provider 配置事实
                       ├─ GET {baseUrl}/models  (Bearer key + extra headers, 20s, 2MiB cap)
                       └─ normalize: unique non-empty ids → { models } | { models: [], error: { code } }
   ← 响应按发起代次回填：token 不匹配的 stale 结果直接丢弃，不覆盖新状态

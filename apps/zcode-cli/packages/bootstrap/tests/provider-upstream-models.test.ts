@@ -5,7 +5,12 @@ import {
   resolveProviderUpstreamEndpoint,
   type ProviderUpstreamEndpoint,
 } from "../src/zcode-protocol/provider-upstream-models.js";
-import { HttpClientPortError, type HttpClientPort, type HttpClientResponse } from "@zcode/contracts";
+import {
+  HttpClientPortError,
+  type HttpClientPort,
+  type HttpClientResponse,
+} from "@zcode/contracts";
+import type { ProviderConfig } from "@zcode/provider";
 
 const workspace = { workspacePath: "/workspace/app", workspaceKey: "/workspace/app" };
 
@@ -24,9 +29,10 @@ function stubHttpResponse(body: string, status = 200): HttpClientResponse {
   };
 }
 
-function stubHttpClient(
-  respond: () => Promise<HttpClientResponse>,
-): { port: HttpClientPort; requests: { url: string; headers?: Record<string, string> }[] } {
+function stubHttpClient(respond: () => Promise<HttpClientResponse>): {
+  port: HttpClientPort;
+  requests: { url: string; headers?: Record<string, string> }[];
+} {
   const requests: { url: string; headers?: Record<string, string> }[] = [];
   return {
     requests,
@@ -39,9 +45,11 @@ function stubHttpClient(
   };
 }
 
-function createContext(overrides: {
-  refreshProviderRegistry?: (reason: string) => Promise<void>;
-} = {}) {
+function createContext(
+  overrides: {
+    refreshProviderRegistry?: (reason: string) => Promise<void>;
+  } = {},
+) {
   return {
     deps: { refreshProviderRegistry: overrides.refreshProviderRegistry },
   } as unknown as Parameters<typeof fetchProviderUpstreamModels>[0];
@@ -57,7 +65,9 @@ describe("provider/fetchUpstreamModels handler", () => {
     };
     const { port, requests } = stubHttpClient(async () =>
       stubHttpResponse(
-        JSON.stringify({ data: [{ id: "glm-5" }, { id: "glm-5" }, { id: "glm-5-air" }, { id: " " }] }),
+        JSON.stringify({
+          data: [{ id: "glm-5" }, { id: "glm-5" }, { id: "glm-5-air" }, { id: " " }],
+        }),
       ),
     );
     const context = createContext({ refreshProviderRegistry: async () => {} });
@@ -160,6 +170,51 @@ describe("provider/fetchUpstreamModels handler", () => {
     expect(resolver("p1")?.baseUrl).toBe("https://api.example.com/v1");
     expect(resolver("missing")).toBeUndefined();
     expect(createRegistryUpstreamEndpointResolver(undefined)("p1")).toBeUndefined();
+  });
+
+  // 回归：Registry 只发布至少有一个可执行模型的 Provider，新渠道在保存第一个模型前查不到；
+  // 添加模型弹窗正是要在这个窗口里拉取上游模型，因此 endpoint 必须从生效配置解析。
+  it("渠道尚无模型、未发布进 Registry 时，仍从生效配置解析 endpoint", () => {
+    const apiKeyProvider = createRegistryProvider();
+    const resolver = createRegistryUpstreamEndpointResolver({
+      getProvider: () => undefined,
+      getSnapshot: () => ({
+        resolution: {
+          effectiveProviders: {
+            get: (id: string) => (id === "p1" ? apiKeyProvider.config : undefined),
+          },
+        },
+      }),
+    });
+    expect(resolver("p1")).toEqual({
+      apiType: "openai-chat-completions",
+      baseUrl: "https://api.example.com/v1",
+      apiKey: "sk-registry",
+      extraHeaders: { "x-extra": "v" },
+    });
+    expect(resolver("missing")).toBeUndefined();
+  });
+
+  it("未注入 Registry 快照时回落到 Provider 事实；无 api 的生效配置仍视为不可用", () => {
+    const apiKeyProvider = createRegistryProvider();
+    const withoutSnapshot = createRegistryUpstreamEndpointResolver({
+      getProvider: (id) => (id === "p1" ? apiKeyProvider : undefined),
+      getSnapshot: () => null,
+    });
+    expect(withoutSnapshot("p1")?.baseUrl).toBe("https://api.example.com/v1");
+
+    const draftOnly = createRegistryUpstreamEndpointResolver({
+      getProvider: () => undefined,
+      getSnapshot: () => ({
+        resolution: {
+          effectiveProviders: {
+            // 刚创建、尚未填写 baseUrl 的渠道：生效配置存在但没有 api。
+            get: (id: string) => (id === "p1" ? ({} as unknown as ProviderConfig) : undefined),
+          },
+        },
+      }),
+    });
+    expect(draftOnly("p1")).toBeUndefined();
   });
 });
 

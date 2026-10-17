@@ -9,7 +9,7 @@ import {
   zcodeProviderFetchUpstreamModelsParamsSchema,
   type ZCodeProviderFetchUpstreamModelsResult,
 } from "@zcode/shared";
-import type { Provider } from "@zcode/provider";
+import type { Provider, ProviderConfig } from "@zcode/provider";
 import { parseParams, type ZCodeProtocolAgentServerContext } from "./server-types.js";
 
 /** 拉取上游模型列表是一次设置页辅助请求，预算与连通性测试同级。 */
@@ -192,7 +192,17 @@ function classifyUpstreamRequestError(error: unknown): ProviderUpstreamModelsErr
 export function resolveProviderUpstreamEndpoint(
   provider: Provider | undefined,
 ): ProviderUpstreamEndpoint | undefined {
-  const config = provider?.config;
+  return resolveProviderUpstreamEndpointFromConfig(provider?.config);
+}
+
+/**
+ * 从生效 Provider 配置提取上游 endpoint。
+ * 与 Registry Provider 的区别：生效配置包含尚未保存第一个模型、因而还没发布进 Registry
+ * 的渠道；添加模型弹窗正是在这一步需要拉取上游模型，不能要求模型先存在。
+ */
+export function resolveProviderUpstreamEndpointFromConfig(
+  config: ProviderConfig | undefined,
+): ProviderUpstreamEndpoint | undefined {
   const api = config?.api;
   if (!config || !api?.baseUrl || !api.type) return undefined;
   if (config.access?.type === "zhipu-account") return undefined;
@@ -207,12 +217,33 @@ export function resolveProviderUpstreamEndpoint(
 }
 
 /**
+ * endpoint 解析所需的 Registry 只读面。getSnapshot 提供生效配置（含未发布渠道），
+ * getProvider 提供已发布 Provider；两者都缺席时 handler 按 provider-unavailable 降级。
+ */
+export interface ProviderUpstreamRegistryAccess {
+  getProvider(providerId: string): Provider | undefined;
+  getSnapshot?(): {
+    readonly resolution: {
+      readonly effectiveProviders: { get(providerId: string): ProviderConfig | undefined };
+    };
+  } | null;
+}
+
+/**
  * 以进程 Registry Service 为唯一 endpoint 事实源构造只读 resolver。
  * registryService 缺席（未注入）时整体返回 undefined，handler 按 provider-unavailable 降级。
  */
 export function createRegistryUpstreamEndpointResolver(
-  registryService: { getProvider(providerId: string): Provider | undefined } | undefined,
+  registryService: ProviderUpstreamRegistryAccess | undefined,
 ): ProviderUpstreamEndpointResolver {
-  return (providerId) =>
-    registryService ? resolveProviderUpstreamEndpoint(registryService.getProvider(providerId)) : undefined;
+  return (providerId) => {
+    if (!registryService) return undefined;
+    // Registry 只发布至少有一个可执行模型的 Provider（resolver 的 validModels 过滤），
+    // 新渠道在保存第一个模型前查不到 endpoint。这里优先读生效配置，覆盖该窗口；
+    // 生效配置仍是 baseUrl/key/headers 的唯一事实源，不另建配置读取路径。
+    const config = registryService.getSnapshot?.()?.resolution.effectiveProviders.get(providerId);
+    if (config) return resolveProviderUpstreamEndpointFromConfig(config);
+    // 未注入快照（旧调用点/测试替身）时保持原有 Provider 事实路径。
+    return resolveProviderUpstreamEndpoint(registryService.getProvider(providerId));
+  };
 }
