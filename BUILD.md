@@ -5,12 +5,12 @@
 
 ## 1. 产物清单
 
-| 产物                          | 入口                                        | 输出位置                                                                                             |
-| ----------------------------- | ------------------------------------------- | ---------------------------------------------------------------------------------------------------- |
-| Windows 桌面安装包（正式）    | `pnpm bundle:desktop`                       | `packages/desktop/dist*/ZCode-<版本>-win-x64.exe`                                                    |
-| Windows 桌面安装包（预览）    | 同上 + `ZCODE_PREVIEW_IDENTITY=1`           | `packages/desktop/dist*/ZCode Preview-<版本>-...exe`                                                 |
-| 远端运行时资源树（随包用）    | `pnpm prepare:local-remote-assets`          | `packages/desktop/dist-remote-assets-local/`                                                         |
-| 远端 server bundle            | `pnpm --filter @zcode/server build`         | `packages/server/dist/remote/zcode-server.cjs`                                                       |
+| 产物                       | 入口                                | 输出位置                                             |
+| -------------------------- | ----------------------------------- | ---------------------------------------------------- |
+| Windows 桌面安装包（正式） | `pnpm bundle:desktop`               | `packages/desktop/dist*/ZCode-<版本>-win-x64.exe`    |
+| Windows 桌面安装包（预览） | 同上 + `ZCODE_PREVIEW_IDENTITY=1`   | `packages/desktop/dist*/ZCode Preview-<版本>-...exe` |
+| 远端运行时资源树（随包用） | `pnpm prepare:local-remote-assets`  | `packages/desktop/dist-remote-assets-local/`         |
+| 远端 server bundle         | `pnpm --filter @zcode/server build` | `packages/server/dist/remote/zcode-server.cjs`       |
 
 版本号统一取根目录 `package.json` 的 `version`（当前 `3.14.3`），
 与远端资源树 `dist-remote-assets-local/releases/<version>/` 的目录名**必须一致**——
@@ -211,6 +211,8 @@ electron-builder 写 `packages/desktop/dist*/win-unpacked/` 时会覆盖 `ZCode 
    直接用 `tsx` 跑各自的测试目录，例如
    `npx tsx --test packages/provider/test/*.test.ts`、`npx tsx --test packages/ui/test/*.test.ts`
    （UI 包测试需 `--tsconfig packages/ui/tsconfig.json` 才能解析 `@/` 别名）。
+   > `pnpm fmt:check` 在 vendored `docs/electron` 等目录存在存量漂移；发布前至少确认
+   > 本次改动文件通过格式检查（门禁见 [docs/git-gate.md](docs/git-gate.md)）。
 2. **产物存在且体积达标**：两个 `.exe` 都在，均 < 500 MiB。
 3. **构建身份正确**：`ZCode-*.exe` 与 `ZCode Preview-*.exe` 同时产出，不互相覆盖。
 4. **asar 内容抽查**（按坑 1 的方式查）：
