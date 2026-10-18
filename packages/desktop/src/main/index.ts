@@ -140,7 +140,11 @@ import {
   updateZCodeStdioTapDevMenuState,
 } from "./desktopApplicationMenu.js";
 import { applyAppIcon } from "./desktopWindowChrome.js";
-import { resolveWindowsAppUserModelIdForFlavor } from "../../scripts/desktop-product-identity.mjs";
+import {
+  resolveDesktopProductIdentity,
+  resolveWindowsAppUserModelIdForFlavor,
+} from "../../scripts/desktop-product-identity.mjs";
+import { repairWindowsStaleShortcuts } from "./desktopWindowsStaleShortcutRepair.js";
 import type { DesktopWindowSize } from "./desktopWindowSize.js";
 import { maybeWarnArchitectureMismatch } from "./desktopArchitectureGuard.js";
 import { maybeBlockStartupForForceUpdate } from "./forceUpdateGuard.js";
@@ -2187,6 +2191,26 @@ app.whenReady().then(async () => {
     app.setAppUserModelId(
       resolveWindowsAppUserModelIdForFlavor(ZCODE_PRODUCT_FLAVOR, { isPackaged: app.isPackaged }),
     );
+    // 快捷方式自愈（构建目录被删除后任务栏/开始菜单图标失效的老问题）：AUMID 就位后
+    // 后台执行，不阻塞启动；结果只进日志，失败一律吞掉（repair 内部已兜底返回 null）。
+    void repairWindowsStaleShortcuts({
+      appData: app.getPath("appData"),
+      home: app.getPath("home"),
+      publicDir: process.env.PUBLIC ?? "",
+      productName: resolveDesktopProductIdentity(process.env).productName,
+      currentExecutablePath: process.execPath,
+      isPackaged: app.isPackaged,
+    })
+      .then((result) => {
+        if (result && (result.repaired.length > 0 || result.removed.length > 0)) {
+          logger.info("[shortcut-repair] 已修复指向失效目标的本应用快捷方式", result);
+        }
+      })
+      .catch((error) => {
+        logger.warn("[shortcut-repair] 快捷方式自愈失败", {
+          error: error instanceof Error ? error.message : String(error),
+        });
+      });
   }
 
   applyAppIcon(iconPath);
