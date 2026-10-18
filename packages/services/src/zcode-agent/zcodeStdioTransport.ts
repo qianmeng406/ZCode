@@ -27,7 +27,15 @@ interface ZCodeStdioTransportOptions {
 const STDIO_EOF_EXIT_WAIT_MS = 1_800;
 const DISPOSE_STDERR_DRAIN_MS = 3_250;
 const E2E_COVERAGE_STDIO_EOF_EXIT_WAIT_MS = 5_000;
-const PROCESS_TREE_FORCE_AFTER_MS = 2_000;
+// Windows 绝对 deadline 的三个阶段项之和必须覆盖终止器真正会走的阶段：
+//   force 余量 + taskkill 上限 + 退出观察宽限 + force 前的身份复核
+// 复核预算（与 processTreeTerminator 的 WINDOWS_FORCE_IDENTITY_RECHECK_BUDGET_MS 同值）
+// 原先没有计入：慢机上一次 CIM/PowerShell 查询可达 1s，复核会吃掉整段余量，强杀落到
+// deadline 之后被误判为残留（实测：快照 957ms + 温和 taskkill 530ms + 复核 1556ms +
+// 强杀 460ms ≈ 3.5s，而原 deadline 只有 3.25s）。这里把复核计入，并从 force 余量里
+// 等额让出，保证总和仍是 3.25s、继续落在 Host 3.5s service phase 内。
+const PROCESS_TREE_WINDOWS_FORCE_IDENTITY_RECHECK_MS = 750;
+const PROCESS_TREE_FORCE_AFTER_MS = 1_250;
 const PROCESS_TREE_WINDOWS_TASKKILL_TIMEOUT_MS = 1_000;
 const PROCESS_TREE_WINDOWS_EXIT_OBSERVATION_GRACE_MS = 250;
 const processTreeLogger = createServiceLogger("zcode-agent-process-tree");
@@ -143,6 +151,7 @@ export class ZCodeStdioTransport implements ZCodeProtocolTransport {
       process.platform === "win32"
         ? cleanupStartedAtMs +
           forceBudgetMs +
+          PROCESS_TREE_WINDOWS_FORCE_IDENTITY_RECHECK_MS +
           PROCESS_TREE_WINDOWS_TASKKILL_TIMEOUT_MS +
           PROCESS_TREE_WINDOWS_EXIT_OBSERVATION_GRACE_MS
         : undefined;
@@ -164,7 +173,17 @@ export class ZCodeStdioTransport implements ZCodeProtocolTransport {
       const remainingCleanupMs =
         windowsCleanupDeadlineAtMs === undefined
           ? configuredEofWaitMs
-          : Math.max(windowsCleanupDeadlineAtMs - Date.now(), 0);
+          : // EOF 优雅窗口只允许用掉「绝对 deadline 扣掉 force 阶段保留预算」之后的余量。
+            // 否则慢机上快照 + EOF 就会耗尽全部预算，强杀与其后的存活确认落到 deadline
+            // 之后，被误判为残留（实测该路径总需 ~3.5s，而预算 3.25s）。
+            Math.max(
+              windowsCleanupDeadlineAtMs -
+                Date.now() -
+                (PROCESS_TREE_WINDOWS_FORCE_IDENTITY_RECHECK_MS +
+                  PROCESS_TREE_WINDOWS_TASKKILL_TIMEOUT_MS +
+                  PROCESS_TREE_WINDOWS_EXIT_OBSERVATION_GRACE_MS),
+              0,
+            );
       await this.waitForChildExit(Math.min(configuredEofWaitMs, remainingCleanupMs));
     }
     // app 关闭时 host 必须等进程树的 SIGTERM/SIGKILL 兜底跑完；
