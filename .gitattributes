@@ -8,6 +8,9 @@
 *.mjs text eol=lf
 *.sh  text eol=lf
 
+# 补丁按字节应用：工作区若被 autocrlf 转成 CRLF，pnpm 打出的产物与 patch 目标 blob 哈希不一致。
+patches/** -text
+
 # E2E PDF fixture 含规范 xref 尾空格，必须按二进制处理，避免 diff --check 误报。
 packages/desktop/test/e2e/fixtures/fs/**/*.pdf binary
 

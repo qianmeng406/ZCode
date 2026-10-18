@@ -1,5 +1,7 @@
 import { readFile, readdir, stat, writeFile } from "node:fs/promises";
 import { join, relative } from "node:path";
+import { parse as parseYaml } from "yaml";
+
 import { collectNpmNotices, hashBytes } from "./third-party-npm.mjs";
 import {
   noticesFileName,
@@ -23,7 +25,6 @@ export async function generateThirdPartyNotices(root = repositoryRoot) {
     if (hashBytes(await readInput(runtime.file)) !== runtime.sha256)
       throw new Error(`Changed Node ${runtime.version} license`);
   }
-  const pkg = await readJson("package.json");
   await readInput("pnpm-lock.yaml");
   await readInput("pnpm-workspace.yaml");
   await readInput("third-party/native-search/sources.json");
@@ -108,8 +109,11 @@ export async function generateThirdPartyNotices(root = repositoryRoot) {
     "Apache-2.0 licensed components",
     "Apache License, Version 2.0",
   );
+  // pnpm 10 只读取 pnpm-workspace.yaml 的 patchedDependencies；package.json 的
+  // `pnpm` 字段已被移除，继续读它会让补丁声明在声明文件里静默消失。
+  const workspaceConfig = parseYaml((await readInput("pnpm-workspace.yaml")).toString("utf8"));
   const patches = [];
-  for (const [name, file] of Object.entries(pkg.pnpm?.patchedDependencies ?? {})) {
+  for (const [name, file] of Object.entries(workspaceConfig?.patchedDependencies ?? {})) {
     patches.push({ package: name, file, sha256: hashBytes(await readInput(file)) });
   }
   const native = await readNativeSearchNotices(root, { verify: true });
