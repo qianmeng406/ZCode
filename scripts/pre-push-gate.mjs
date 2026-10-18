@@ -2,14 +2,13 @@
 /**
  * pre-push 门禁缓存：同一「推送范围 + 工具链环境」已经完整通过时跳过重复门禁。
  *
- * 背景：`.husky/pre-push` 每次都跑 `verify:pre-push`（oxlint + architecture:check +
- * affected 单测）。affected 会按推送范围展开，改动触及共享入口时几乎等于全仓测试，
- * 在 Windows 挂载盘上一次要 20–30 分钟；而重试、补文档提交这类场景会把同一批提交
- * 反复从头跑一遍。
+ * 背景：`.husky/pre-push` 每次都跑 `verify:pre-push`（scripts/git-gate/run-pre-push.mjs：
+ * 文件策略 + 改动文件 lint/fmt + architecture:check + 强相关单测）。即便只跑强相关集，
+ * 在 Windows 挂载盘上仍要数分钟；重试、补文档提交这类场景不该把同一批提交反复从头跑。
  *
  * 边界（有意保守）：
  * - 只缓存**完整通过**的结果；失败一律不写、并清掉同键旧记录。
- * - 键 = 推送范围（远端 sha..本地 sha）+ node/pnpm 版本 + 平台 + 缓存格式版本。
+ * - 键 = 推送范围（远端 sha..本地 sha）+ scope + node/pnpm 版本 + 平台 + 缓存格式版本。
  * - 工作区有未提交的 tracked 改动时不使用缓存（affected 单测读的是工作区内容）。
  * - 无法从 stdin 确定推送范围时不使用缓存（例如手工执行 hook）。
  * - 只写在 `.git/` 下的本地目录，不入库、不共享。
@@ -23,7 +22,7 @@ import { join } from "node:path";
 import { pathToFileURL } from "node:url";
 
 /** 缓存语义变更时递增，避免旧记录被误用。 */
-export const CACHE_FORMAT_VERSION = 1;
+export const CACHE_FORMAT_VERSION = 2;
 
 const GATE_ARGS = ["run", "verify:pre-push"];
 
@@ -56,19 +55,21 @@ export function parsePrePushInput(stdin) {
   return entries;
 }
 
-/** 推送范围与工具链环境的稳定指纹。 */
+/** 推送范围、门禁范围与工具链环境的稳定指纹。 */
 export function computeCacheKey({
   baseSha,
   headSha,
   nodeVersion,
   pnpmVersion,
   platform,
+  scope = "strong",
   cacheFormatVersion = CACHE_FORMAT_VERSION,
 }) {
   const material = [
     `v${cacheFormatVersion}`,
     `base=${baseSha}`,
     `head=${headSha}`,
+    `scope=${scope}`,
     `node=${nodeVersion}`,
     `pnpm=${pnpmVersion}`,
     `platform=${platform}`,
@@ -156,6 +157,7 @@ export async function runPrePushGate({
   const cacheDir = env.ZCODE_PREPUSH_CACHE_DIR || join(cwd, ".git", "zcode-prepush-cache");
   const entries = parsePrePushInput(env.ZCODE_PRE_PUSH_STDIN ?? "");
   const disabled = env.ZCODE_PREPUSH_NO_CACHE === "1";
+  const scope = env.ZCODE_GATE_SCOPE?.trim() || "strong";
 
   const head = entries.length > 0 ? entries[entries.length - 1] : undefined;
   const key = head
@@ -165,6 +167,7 @@ export async function runPrePushGate({
         nodeVersion: process.version,
         pnpmVersion: env.npm_config_user_agent ?? "unknown",
         platform: process.platform,
+        scope,
       })
     : undefined;
 
@@ -195,6 +198,7 @@ export async function runPrePushGate({
       cacheFormatVersion: CACHE_FORMAT_VERSION,
       baseSha: head.baseSha,
       headSha: head.localSha,
+      scope,
       nodeVersion: process.version,
       pnpmVersion: env.npm_config_user_agent ?? "unknown",
       platform: process.platform,

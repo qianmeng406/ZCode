@@ -1,0 +1,10 @@
+#!/usr/bin/env sh
+
+# 提交信息层：校验 Conventional Commits 标题（type(scope): subject，≤100 字符）。
+# 放行 Merge / Revert / fixup! / squash! / amend!。
+node_bin=$(command -v node 2>/dev/null || command -v node.exe 2>/dev/null || true)
+if [ -z "$node_bin" ]; then
+  echo "git-gate: 未找到 node / node.exe，请先准备 Node.js。" >&2
+  exit 127
+fi
+"$node_bin" scripts/git-gate/commit-msg.mjs "$1"

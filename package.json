@@ -34,9 +34,12 @@
     "test:e2e:container:plugins": "bash scripts/test-desktop-e2e-container.sh plugins-verified",
     "test:coverage": "vitest run --coverage --exclude \"packages/desktop/test/e2e/**/*.test.ts\"",
     "test:unit": "node scripts/run-unit-tests.mjs",
-    "test:unit:affected": "node scripts/run-affected-unit-tests.mjs",
+    "test:unit:affected": "node scripts/git-gate/run-pre-push.mjs --tests-only",
     "test:docker:web-app-gateway": "node scripts/test-web-app-gateway-reset.mjs",
-    "verify:pre-push": "pnpm run lint && pnpm run architecture:check -- --changed && pnpm run test:unit:affected",
+    "verify:pre-push": "node scripts/git-gate/run-pre-push.mjs",
+    "gate:pre-commit": "node scripts/git-gate/run-pre-commit.mjs",
+    "gate:commit-msg": "node scripts/git-gate/commit-msg.mjs",
+    "gate:tests": "node scripts/git-gate/run-pre-push.mjs --tests-only",
     "build": "pnpm -r build",
     "build:desktop-agent:bytecode": "node scripts/build-desktop-agent-bytecode.mjs",
     "build:docs": "pnpm --filter @zcode/dev-docs build",
@@ -78,6 +81,7 @@
     "architecture:context": "node scripts/architecture/architecture-check.mjs context",
     "test:architecture": "node --test scripts/test/architecture-governance.test.mjs",
     "test:pre-push-gate": "node --test scripts/test/pre-push-gate.test.mjs",
+    "test:git-gate": "node --test scripts/test/git-gate-changed.test.mjs scripts/test/git-gate-relevance.test.mjs scripts/test/git-gate-policy.test.mjs scripts/test/git-gate-commit-msg.test.mjs",
     "pack:remote-cdn": "node scripts/pack-remote-assets-cdn.mjs"
   },
   "dependencies": {
@@ -98,7 +102,6 @@
     "husky": "^9.1.7",
     "istanbul-lib-instrument": "6.0.3",
     "knip": "^6.0.6",
-    "lint-staged": "^17.0.8",
     "oxfmt": "^0.41.0",
     "oxlint": "^1.57.0",
     "postject": "1.0.0-alpha.6",
@@ -115,31 +118,5 @@
   "engines": {
     "node": ">=24.0.0"
   },
-  "packageManager": "pnpm@10.33.2",
-  "pnpm": {
-    "overrides": {
-      "react": "19.2.7",
-      "react-dom": "19.2.7"
-    },
-    "patchedDependencies": {
-      "@ai-sdk/anthropic@3.0.81": "patches/@ai-sdk__anthropic@3.0.81.patch",
-      "@ai-sdk/openai-compatible@2.0.60": "patches/@ai-sdk__openai-compatible@2.0.60.patch",
-      "@arms/rum-electron@0.0.3": "patches/@arms__rum-electron@0.0.3.patch",
-      "@radix-ui/react-dismissable-layer@1.1.11": "patches/@radix-ui__react-dismissable-layer@1.1.11.patch",
-      "@radix-ui/react-dropdown-menu@2.1.16": "patches/@radix-ui__react-dropdown-menu@2.1.16.patch",
-      "@radix-ui/react-focus-scope@1.1.7": "patches/@radix-ui__react-focus-scope@1.1.7.patch",
-      "@radix-ui/react-navigation-menu@1.2.14": "patches/@radix-ui__react-navigation-menu@1.2.14.patch",
-      "@radix-ui/react-popper@1.2.8": "patches/@radix-ui__react-popper@1.2.8.patch",
-      "@radix-ui/react-radio-group@1.3.8": "patches/@radix-ui__react-radio-group@1.3.8.patch",
-      "@radix-ui/react-scroll-area@1.2.10": "patches/@radix-ui__react-scroll-area@1.2.10.patch",
-      "@radix-ui/react-select@2.2.6": "patches/@radix-ui__react-select@2.2.6.patch",
-      "@radix-ui/react-slider@1.3.6": "patches/@radix-ui__react-slider@1.3.6.patch",
-      "@radix-ui/react-slot@1.2.3": "patches/@radix-ui__react-slot@1.2.3.patch",
-      "@radix-ui/react-slot@1.2.4": "patches/@radix-ui__react-slot@1.2.4.patch",
-      "@radix-ui/react-switch@1.2.6": "patches/@radix-ui__react-switch@1.2.6.patch",
-      "@radix-ui/react-toast@1.2.15": "patches/@radix-ui__react-toast@1.2.15.patch",
-      "vitest@4.1.7": "patches/vitest@4.1.7.patch",
-      "wdio-electron-service@9.2.1": "patches/wdio-electron-service@9.2.1.patch"
-    }
-  }
+  "packageManager": "pnpm@10.33.2"
 }

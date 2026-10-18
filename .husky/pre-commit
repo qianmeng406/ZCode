@@ -1,0 +1,14 @@
+#!/usr/bin/env sh
+
+# 快速层（秒级）：只检查本次暂存的文件。
+# - 文件策略与高置信密钥初筛（.env / 私钥 / 明显泄露的 token）
+# - oxlint（暂存文件）
+# - oxfmt --check（暂存文件）
+# 单测、架构检查、类型检查在 pre-push 与 CI 执行，避免每次提交都跑全仓。
+# 兼容 Windows Git Bash（node）与 WSL git（只能找到 node.exe）。
+node_bin=$(command -v node 2>/dev/null || command -v node.exe 2>/dev/null || true)
+if [ -z "$node_bin" ]; then
+  echo "git-gate: 未找到 node / node.exe，请先准备 Node.js。" >&2
+  exit 127
+fi
+"$node_bin" scripts/git-gate/run-pre-commit.mjs

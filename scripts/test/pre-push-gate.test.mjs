@@ -77,6 +77,7 @@ test("computeCacheKey 对推送范围与工具链环境敏感且稳定", () => {
     { nodeVersion: "v25.0.0" },
     { pnpmVersion: "pnpm/9.0.0" },
     { platform: "linux" },
+    { scope: "full" },
     { cacheFormatVersion: CACHE_FORMAT_VERSION + 1 },
   ];
   for (const variant of variants) {
@@ -184,6 +185,39 @@ test("门禁通过后同一推送范围命中缓存，工作区改动或强制�
       0,
     );
     assert.equal(gateCalls, 3, "强制开关下重跑");
+  } finally {
+    rmSync(cacheDir, { recursive: true, force: true });
+  }
+});
+
+test("不同 ZCODE_GATE_SCOPE 互不复用通过记录", async () => {
+  const cacheDir = makeCacheDir();
+  try {
+    const env = makeEnv({ ZCODE_PREPUSH_CACHE_DIR: cacheDir });
+    let gateCalls = 0;
+    const spawnGate = () => {
+      gateCalls += 1;
+      return 0;
+    };
+
+    await runPrePushGate({ env, cwd: cacheDir, gitStatusPorcelain: () => CLEAN, spawnGate });
+    assert.equal(gateCalls, 1);
+
+    await runPrePushGate({
+      env: { ...env, ZCODE_GATE_SCOPE: "full" },
+      cwd: cacheDir,
+      gitStatusPorcelain: () => CLEAN,
+      spawnGate,
+    });
+    assert.equal(gateCalls, 2, "scope 变化后键不同，必须重跑");
+
+    await runPrePushGate({
+      env: { ...env, ZCODE_GATE_SCOPE: "full" },
+      cwd: cacheDir,
+      gitStatusPorcelain: () => CLEAN,
+      spawnGate,
+    });
+    assert.equal(gateCalls, 2, "同一 scope 再次命中");
   } finally {
     rmSync(cacheDir, { recursive: true, force: true });
   }

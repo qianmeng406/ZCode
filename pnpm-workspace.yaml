@@ -9,8 +9,7 @@ supportedArchitectures:
     - current
     - darwin
     - linux
-    - win32
-  cpu:
+    - win32  cpu:
     - current
     - x64
     - arm64
@@ -49,3 +48,8 @@ patchedDependencies:
   "@radix-ui/react-toast@1.2.15": patches/@radix-ui__react-toast@1.2.15.patch
   "vitest@4.1.7": patches/vitest@4.1.7.patch
   "wdio-electron-service@9.2.1": patches/wdio-electron-service@9.2.1.patch
+# pnpm 10 只读取 pnpm-workspace.yaml 里的 overrides；原先放在 package.json 的
+# `pnpm.overrides` 会被静默忽略。
+overrides:
+  react: 19.2.7
+  react-dom: 19.2.7
