@@ -182,6 +182,7 @@ test("选择器包含改动测试、直接 import、#imports 与同名测试，�
         'import test from "node:test";\nimport x from "../src/foo.js";',
       ),
       candidate("packages/ui/test/alertDialogStore.test.ts"),
+      candidate("packages/services/test/deleted.test.ts", 'import { old } from "../src/old.js";'),
       candidate("packages/services/test/unrelated.test.ts", 'import { x } from "@zcode/shared";'),
     ];
     const result = selectRelatedTests({
@@ -193,16 +194,17 @@ test("选择器包含改动测试、直接 import、#imports 与同名测试，�
 
     assert.equal(result.full, false);
     assert.deepEqual(result.selected, [
+      "packages/services/test/deleted.test.ts",
       "packages/services/test/foo.test.ts",
       "packages/services/test/hash.test.ts",
       "packages/services/test/node.test.ts",
       "packages/ui/test/alertDialogStore.test.ts",
     ]);
     assert.deepEqual(result.node, ["packages/services/test/node.test.ts"]);
-    assert.deepEqual(
-      result.uncovered,
-      ["packages/services/src/old.ts"],
-      "删除的文件若无人 import 会列为未覆盖",
+    assert.deepEqual(result.uncovered, [], "删除的文件不进入未覆盖统计");
+    assert.ok(
+      result.selected.includes("packages/services/test/deleted.test.ts"),
+      "删除源码时，import 它的测试仍会被选中（暴露导入断裂）",
     );
 
     const withChangedTest = selectRelatedTests({

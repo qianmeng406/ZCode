@@ -32,6 +32,9 @@ const VITEST_TEST_GLOBS = [
   ":(glob)packages/services/src/gen-ui/**/*.test.ts",
   "packages/shared/src/node/genUiPaths.test.ts",
   "scripts/assert-safe-cua-helper-zip.test.mjs",
+  // 门禁自身的 node:test 回归；改 scripts/ 下的实现时会被直接 import 命中。
+  ":(glob)scripts/test/**/*.test.mjs",
+  ":(glob)scripts/*.test.mjs",
 ];
 const ALIASES = [
   ["@/", "packages/ui/src/"],
@@ -463,7 +466,9 @@ export function selectRelatedTests({
     selected: selectedPaths,
     vitest: selectedPaths.filter((path) => byPath.get(path)?.runner !== "node"),
     node: selectedPaths.filter((path) => byPath.get(path)?.runner === "node"),
-    uncovered: sources
+    // 删除的文件不参与「未覆盖」统计：它们已经不存在，没有测试可跑。
+    uncovered: changed
+      .filter((source) => isCodeSourcePath(source))
       .filter((source) => !attributed.has(source) && !skippedSources.has(source))
       .sort(),
     changedTests: changedTests.sort(),

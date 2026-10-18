@@ -95,6 +95,20 @@ function runVitestSelection(root, files) {
   return result.status ?? 1;
 }
 
+/** scripts/ 下的 node:test 文件（门禁自身回归）直接用 node --test 运行。 */
+function runScriptNodeTests(root, files) {
+  const startedAt = Date.now();
+  const result = spawnSync(process.execPath, ["--test", ...files], { cwd: root, stdio: "inherit" });
+  if (result.error) {
+    console.error(`[git-gate] node --test 启动失败：${result.error.message}`);
+    return 1;
+  }
+  console.log(
+    `[git-gate] node --test ${files.length} 个文件完成（${elapsedLabel(startedAt)}，exit ${result.status ?? 1}）`,
+  );
+  return result.status ?? 1;
+}
+
 function packageJsonDependencySectionChanged(root, base, head) {
   const before = JSON.parse(readFileAtRevision(root, base, "package.json") ?? "null");
   const after = JSON.parse(readFileAtRevision(root, head, "package.json") ?? "null");
@@ -261,11 +275,19 @@ export async function runGate(argv = process.argv.slice(2)) {
   if (selection.vitest.length > 0) {
     status = runVitestSelection(root, selection.vitest);
   }
-  const nodeResult = runForkNodeTests(root, selection.node);
-  if (nodeResult.ran === 0 && selection.node.length > 0) {
-    console.log("[git-gate] 选中的 node:test 文件未被发现，跳过。");
+  // node:test 分两类：packages/ 下需要逐包 tsx 解析（fork runner），
+  // scripts/ 下是纯 JS，直接用 node --test。空集合必须跳过：
+  // runForkNodeTests 收到空数组会退化成「跑全部」。
+  const scriptNodeTests = selection.node.filter((file) => file.startsWith("scripts/"));
+  const packageNodeTests = selection.node.filter((file) => !file.startsWith("scripts/"));
+  if (scriptNodeTests.length > 0 && runScriptNodeTests(root, scriptNodeTests) !== 0) status = 1;
+  if (packageNodeTests.length > 0) {
+    const nodeResult = runForkNodeTests(root, packageNodeTests);
+    if (nodeResult.ran === 0) {
+      console.log("[git-gate] 选中的 node:test 文件未被发现，跳过。");
+    }
+    if (nodeResult.status !== 0) status = 1;
   }
-  if (nodeResult.status !== 0) status = 1;
   return status;
 }
 
