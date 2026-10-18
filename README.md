@@ -1,4 +1,4 @@
-# Myzcode
+# ZCode（个人定制分支）
 
 > **本仓库是基于官方 ZCode 开源项目二次开发的定制分支（fork），不是官方发行版。**
 >
@@ -8,7 +8,7 @@
   <img src="public/logo/icons/1024x1024.png" alt="ZCode" width="128" height="128" />
 </div>
 
-Myzcode 在官方 ZCode 的基础上做面向个人使用的二次开发，扩展了模型审查与若干交互能力。
+本定制分支在官方 ZCode 的基础上做面向个人使用的二次开发，扩展了模型审查、会话执行环境与若干交互能力。（本仓库原名 `Myzcode`，2026-10-13 迁移到 [qianmeng406/ZCode](https://github.com/qianmeng406/ZCode) 后该名称已废弃；旧仓库仅保留历史，不再作为合并对象或发布目标。）
 
 | 项目         | 说明                                                                                         |
 | ------------ | -------------------------------------------------------------------------------------------- |
@@ -24,6 +24,7 @@ Myzcode 在官方 ZCode 的基础上做面向个人使用的二次开发，扩�
 - **本定制版的上游基线**：本仓库基于官方 [v3.15.1 对应提交 `aac47556`](https://github.com/zai-org/ZCode/commit/aac4755666d09fdcd70272fcf063c077a639015f)，根目录 `package.json` 版本为 `3.15.1`。定制功能以提交序列套用在官方基线之上（迁移提交与后续功能提交）；后续跟进官方新版本的流程见 [docs/upstream-sync.md](docs/upstream-sync.md)。
 - **查看官方文档**：[中文 README](https://github.com/zai-org/ZCode/blob/main/README.md)、[英文 README](https://github.com/zai-org/ZCode/blob/main/README.en.md)、[UI Plugin 开发说明](https://github.com/zai-org/ZCode/blob/aac4755666d09fdcd70272fcf063c077a639015f/UI_PLUGIN.md)。官方新版中的功能、目录和命令不一定存在于本定制版，请以当前检出的源码与 `package.json` 为准。
 
+- 2026-10-18：新增**会话执行环境（本机 Linux / WSL）**——可在单个聊天会话上启用本机 WSL 的 Linux 执行环境，该会话的命令在 Linux 中运行，而聊天、模型配置、历史与其他会话不变（见下文「新增功能」）；同时统一仓库换行策略（`.gitattributes` 加 `* text=auto`，消除上万条行尾假改动），并补齐官方 v3.15.1 基线的同步记录与随访步骤（[docs/upstream-sync.md](docs/upstream-sync.md)）。注意：**官方 `main` 自 2026-10-11 起的变动尚未复核**——本次整理时本机无法连接 github.com，基线仍按上次成功核对记录。
 - 2026-10-16：新增三项会话体验功能：**上游模型拉取**（添加模型弹窗从供应商 `/models` 端点拉取模型 ID 下拉选择）、**上下文卡片压缩按钮**（一键触发 `/compact`）、**Composer 主轮指标胶囊**（输入框下方常驻显示首 token 耗时、生成速度与输出 token，仅统计主轮请求）；重新产出 `ZCode Preview` 安装包。
 - 2026-10-15：新增 **Beta 模式**（提示词融合模式测试版本），随后调整为独立工作模式（移除极简模式入口，Beta 权限为完全访问）并重新产出 `ZCode Preview` 安装包（`dist-new/`，含独立模式调整；运行中的旧实例不受影响）。
 - 2026-10-13：把旧 Myzcode 定制功能迁移到本仓库，基线官方 v3.15.1。
@@ -46,6 +47,7 @@ Myzcode 在官方 ZCode 的基础上做面向个人使用的二次开发，扩�
 - **Composer 主轮指标胶囊**：输入框下方常驻显示最近一轮主请求（main_turn）的首 token 耗时、生成速度（tok/s）与输出 token 数；子代理、压缩、标题生成等非主请求不影响指标，缺失事实显示 `--` 占位而不估算。规格见 [docs/features/](docs/features/)。
 - **提示词优化器**：输入区新增提示词优化入口，可指定优化所用模型。
 - **远端资源随包分发 + SSH 常驻工作区**：远端工作区（SSH/WSL）所需的 server bundle、node 运行时、agent 运行时与搜索工具**随安装包分发**（安装目录 `resources/remote-assets`），部署时由桌面端直接读取本地文件再 SFTP 上传，**全程不访问任何 CDN**；「远端服务器下载」模式缺省走 ZCode 官方 CDN（拉官方产物，不含本定制版远端改动），自建 CDN 发布树保留为可选覆盖。同时支持 SSH 远程工作区**断开不终止任务、重连接回同一运行时**。
+- **会话执行环境（本机 Linux / WSL）**：在会话工具栏为**单个聊天会话**启用本机 WSL 的 Linux 执行环境；该会话的 Bash/文件命令经宿主反向请求交给 WSL 中的执行服务运行，项目文件仍以路径映射访问**同一份原文件**（不复制、不同步、不迁移会话历史与模型凭据）。准备过程可取消、失败不提交且不改变原会话；已启用 Linux 的会话在恢复时若环境不可用会**明确阻止执行**，不偷偷回落到本机。首版边界：不承诺任务级加速（逐命令对照与口径见验收报告），不是容器级安全沙箱。规格见 [会话执行环境规格](docs/research/session-linux-execution.spec.md)。
 
 ### 二、与官方版的差异边界（明确不做的事）
 

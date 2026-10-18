@@ -3,7 +3,15 @@
   "schemaVersion": 1,
   "fork": {
     "repository": "https://github.com/qianmeng406/ZCode",
-    "note": "定制功能以提交序列套用在官方基线之上，源自旧仓库 qianmeng406/Myzcode 的定制 72ac0508（基线 v3.14.3）迁移，其后叠加后续功能提交"
+    "remote": "zcodefork",
+    "mainlineRef": "zcodefork/main",
+    "note": "定制功能以提交序列套用在官方基线之上，源自旧仓库 qianmeng406/Myzcode 的定制 72ac0508（基线 v3.14.3）迁移，其后叠加后续功能提交。定制主线是远端 zcodefork/main；origin/main 是官方只读上游，两者不得混淆（本地新建 main 时必须 --track zcodefork/main）。"
+  },
+  "legacyRepo": {
+    "repository": "https://github.com/qianmeng406/Myzcode",
+    "remote": "myzcode",
+    "status": "abandoned",
+    "note": "v3.14.3 基线的旧线：2026-10-13 迁移完成后即被 qianmeng406/ZCode 取代（本地跟踪引用停在 e5a9eb37 / 2026-10-13，此后无更新，匿名不可读）。已废弃——不再作为合并对象，也不再作为发布目标；保留远端只为读取历史。"
   },
   "upstream": {
     "repository": "https://github.com/zai-org/ZCode",
@@ -21,6 +29,7 @@
   "retiredFeatures": [
     "companion/mobile 自建移动端远控",
     "项目开发模式（workflow）与阶段侧栏",
-    "Command Code 渠道与网关额度子系统"
+    "Command Code 渠道与网关额度子系统",
+    "ACP 运行时与内置 Agent CLI（仅保留旧会话读取/恢复兼容）"
   ]
 }
