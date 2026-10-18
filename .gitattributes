@@ -1,3 +1,9 @@
+# 仓库统一以 LF 入库。此前 core.autocrlf 曾把整仓检出为 CRLF，导致工作区与索引
+# 全体行尾不一致（git status 长期显示上万条「已修改」）。text=auto 让 git 在入库时
+# 归一化为 LF、比较时按归一化内容判断，工作区行尾不再污染 diff。
+# 下方更具体的规则（-text / eol=lf / binary）优先级更高，按字节保存的文件不受影响。
+* text=auto
+
 # 保持脚本文件 LF 换行，避免 Windows CRLF 导致 shebang 解析失败
 *.mjs text eol=lf
 *.sh  text eol=lf
