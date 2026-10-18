@@ -488,6 +488,10 @@ describe("desktopRuntimeEnv buildHostProcessEnv", () => {
   it("只把 Agent OTLP 配置定向注入 host，并剔除外部身份字段", async () => {
     const { buildHostProcessEnv } = await import("../src/main/desktopRuntimeEnv.js");
 
+    // 宿主机可能预置 tool-env passthrough（例如本机根证书配置）；本用例断言的是
+    // “未提供 passthrough 时不生成”，先移除环境变量避免宿主环境污染断言。
+    delete process.env.ZCODE_TOOL_ENV_PASSTHROUGH_JSON;
+
     const env = buildHostProcessEnv({
       OTEL_EXPORTER_OTLP_TRACES_ENDPOINT: "https://arms.example.com/v1/traces",
       OTEL_EXPORTER_OTLP_TRACES_HEADERS: "Authorization=secret",
