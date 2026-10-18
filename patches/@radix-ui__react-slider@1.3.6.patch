@@ -1,0 +1,62 @@
+diff --git a/dist/index.js b/dist/index.js
+index f5429ee..2e7f48e 100644
+--- a/dist/index.js
++++ b/dist/index.js
+@@ -202,7 +202,7 @@ var SliderHorizontal = React.forwardRef(
+       ...sliderProps
+     } = props;
+     const [slider, setSlider] = React.useState(null);
+-    const composedRefs = (0, import_react_compose_refs.useComposedRefs)(forwardedRef, (node) => setSlider(node));
++    const composedRefs = (0, import_react_compose_refs.useComposedRefs)(forwardedRef, setSlider);
+     const rectRef = React.useRef(void 0);
+     const direction = (0, import_react_direction.useDirection)(dir);
+     const isDirectionLTR = direction === "ltr";
+@@ -430,7 +430,7 @@ var SliderThumb = React.forwardRef(
+   (props, forwardedRef) => {
+     const getItems = useCollection(props.__scopeSlider);
+     const [thumb, setThumb] = React.useState(null);
+-    const composedRefs = (0, import_react_compose_refs.useComposedRefs)(forwardedRef, (node) => setThumb(node));
++    const composedRefs = (0, import_react_compose_refs.useComposedRefs)(forwardedRef, setThumb);
+     const index = React.useMemo(
+       () => thumb ? getItems().findIndex((item) => item.ref.current === thumb) : -1,
+       [getItems, thumb]
+@@ -444,7 +444,7 @@ var SliderThumbImpl = React.forwardRef(
+     const context = useSliderContext(THUMB_NAME, __scopeSlider);
+     const orientation = useSliderOrientationContext(THUMB_NAME, __scopeSlider);
+     const [thumb, setThumb] = React.useState(null);
+-    const composedRefs = (0, import_react_compose_refs.useComposedRefs)(forwardedRef, (node) => setThumb(node));
++    const composedRefs = (0, import_react_compose_refs.useComposedRefs)(forwardedRef, setThumb);
+     const isFormControl = thumb ? context.form || !!thumb.closest("form") : true;
+     const size = (0, import_react_use_size.useSize)(thumb);
+     const value = context.values[index];
+diff --git a/dist/index.mjs b/dist/index.mjs
+index 3968447..330f545 100644
+--- a/dist/index.mjs
++++ b/dist/index.mjs
+@@ -159,7 +159,7 @@ var SliderHorizontal = React.forwardRef(
+       ...sliderProps
+     } = props;
+     const [slider, setSlider] = React.useState(null);
+-    const composedRefs = useComposedRefs(forwardedRef, (node) => setSlider(node));
++    const composedRefs = useComposedRefs(forwardedRef, setSlider);
+     const rectRef = React.useRef(void 0);
+     const direction = useDirection(dir);
+     const isDirectionLTR = direction === "ltr";
+@@ -387,7 +387,7 @@ var SliderThumb = React.forwardRef(
+   (props, forwardedRef) => {
+     const getItems = useCollection(props.__scopeSlider);
+     const [thumb, setThumb] = React.useState(null);
+-    const composedRefs = useComposedRefs(forwardedRef, (node) => setThumb(node));
++    const composedRefs = useComposedRefs(forwardedRef, setThumb);
+     const index = React.useMemo(
+       () => thumb ? getItems().findIndex((item) => item.ref.current === thumb) : -1,
+       [getItems, thumb]
+@@ -401,7 +401,7 @@ var SliderThumbImpl = React.forwardRef(
+     const context = useSliderContext(THUMB_NAME, __scopeSlider);
+     const orientation = useSliderOrientationContext(THUMB_NAME, __scopeSlider);
+     const [thumb, setThumb] = React.useState(null);
+-    const composedRefs = useComposedRefs(forwardedRef, (node) => setThumb(node));
++    const composedRefs = useComposedRefs(forwardedRef, setThumb);
+     const isFormControl = thumb ? context.form || !!thumb.closest("form") : true;
+     const size = useSize(thumb);
+     const value = context.values[index];

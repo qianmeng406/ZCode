@@ -1,0 +1,26 @@
+diff --git a/dist/index.js b/dist/index.js
+index c91ae91..6aed069 100644
+--- a/dist/index.js
++++ b/dist/index.js
+@@ -58,7 +58,7 @@ var FocusScope = React.forwardRef((props, forwardedRef) => {
+   const onMountAutoFocus = (0, import_react_use_callback_ref.useCallbackRef)(onMountAutoFocusProp);
+   const onUnmountAutoFocus = (0, import_react_use_callback_ref.useCallbackRef)(onUnmountAutoFocusProp);
+   const lastFocusedElementRef = React.useRef(null);
+-  const composedRefs = (0, import_react_compose_refs.useComposedRefs)(forwardedRef, (node) => setContainer(node));
++  const composedRefs = (0, import_react_compose_refs.useComposedRefs)(forwardedRef, setContainer);
+   const focusScope = React.useRef({
+     paused: false,
+     pause() {
+diff --git a/dist/index.mjs b/dist/index.mjs
+index e39d5c9..1703b79 100644
+--- a/dist/index.mjs
++++ b/dist/index.mjs
+@@ -22,7 +22,7 @@ var FocusScope = React.forwardRef((props, forwardedRef) => {
+   const onMountAutoFocus = useCallbackRef(onMountAutoFocusProp);
+   const onUnmountAutoFocus = useCallbackRef(onUnmountAutoFocusProp);
+   const lastFocusedElementRef = React.useRef(null);
+-  const composedRefs = useComposedRefs(forwardedRef, (node) => setContainer(node));
++  const composedRefs = useComposedRefs(forwardedRef, setContainer);
+   const focusScope = React.useRef({
+     paused: false,
+     pause() {

@@ -1,0 +1,26 @@
+diff --git a/dist/index.js b/dist/index.js
+index 89b40c4..a6ff1f4 100644
+--- a/dist/index.js
++++ b/dist/index.js
+@@ -356,7 +356,7 @@ var ToastImpl = React.forwardRef(
+     } = props;
+     const context = useToastProviderContext(TOAST_NAME, __scopeToast);
+     const [node, setNode] = React.useState(null);
+-    const composedRefs = (0, import_react_compose_refs.useComposedRefs)(forwardedRef, (node2) => setNode(node2));
++    const composedRefs = (0, import_react_compose_refs.useComposedRefs)(forwardedRef, setNode);
+     const pointerStartRef = React.useRef(null);
+     const swipeDeltaRef = React.useRef(null);
+     const duration = durationProp || context.duration;
+diff --git a/dist/index.mjs b/dist/index.mjs
+index cca1a95..4eb15f8 100644
+--- a/dist/index.mjs
++++ b/dist/index.mjs
+@@ -307,7 +307,7 @@ var ToastImpl = React.forwardRef(
+     } = props;
+     const context = useToastProviderContext(TOAST_NAME, __scopeToast);
+     const [node, setNode] = React.useState(null);
+-    const composedRefs = useComposedRefs(forwardedRef, (node2) => setNode(node2));
++    const composedRefs = useComposedRefs(forwardedRef, setNode);
+     const pointerStartRef = React.useRef(null);
+     const swipeDeltaRef = React.useRef(null);
+     const duration = durationProp || context.duration;

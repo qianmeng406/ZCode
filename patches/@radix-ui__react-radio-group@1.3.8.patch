@@ -1,0 +1,26 @@
+diff --git a/dist/index.js b/dist/index.js
+index deae029..1257e58 100644
+--- a/dist/index.js
++++ b/dist/index.js
+@@ -79,7 +79,7 @@ var Radio = React.forwardRef(
+       ...radioProps
+     } = props;
+     const [button, setButton] = React.useState(null);
+-    const composedRefs = (0, import_react_compose_refs.useComposedRefs)(forwardedRef, (node) => setButton(node));
++    const composedRefs = (0, import_react_compose_refs.useComposedRefs)(forwardedRef, setButton);
+     const hasConsumerStoppedPropagationRef = React.useRef(false);
+     const isFormControl = button ? form || !!button.closest("form") : true;
+     return /* @__PURE__ */ (0, import_jsx_runtime.jsxs)(RadioProvider, { scope: __scopeRadio, checked, disabled, children: [
+diff --git a/dist/index.mjs b/dist/index.mjs
+index 46bb67f..48bfe66 100644
+--- a/dist/index.mjs
++++ b/dist/index.mjs
+@@ -38,7 +38,7 @@ var Radio = React.forwardRef(
+       ...radioProps
+     } = props;
+     const [button, setButton] = React.useState(null);
+-    const composedRefs = useComposedRefs(forwardedRef, (node) => setButton(node));
++    const composedRefs = useComposedRefs(forwardedRef, setButton);
+     const hasConsumerStoppedPropagationRef = React.useRef(false);
+     const isFormControl = button ? form || !!button.closest("form") : true;
+     return /* @__PURE__ */ jsxs(RadioProvider, { scope: __scopeRadio, checked, disabled, children: [

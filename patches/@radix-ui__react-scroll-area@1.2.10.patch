@@ -1,0 +1,62 @@
+diff --git a/dist/index.js b/dist/index.js
+index 6e0a40d..c35b8f3 100644
+--- a/dist/index.js
++++ b/dist/index.js
+@@ -89,7 +89,7 @@ var ScrollArea = React2.forwardRef(
+     const [cornerHeight, setCornerHeight] = React2.useState(0);
+     const [scrollbarXEnabled, setScrollbarXEnabled] = React2.useState(false);
+     const [scrollbarYEnabled, setScrollbarYEnabled] = React2.useState(false);
+-    const composedRefs = (0, import_react_compose_refs.useComposedRefs)(forwardedRef, (node) => setScrollArea(node));
++    const composedRefs = (0, import_react_compose_refs.useComposedRefs)(forwardedRef, setScrollArea);
+     const direction = (0, import_react_direction.useDirection)(dir);
+     return /* @__PURE__ */ (0, import_jsx_runtime.jsx)(
+       ScrollAreaProvider,
+@@ -499,7 +499,7 @@ var ScrollAreaScrollbarImpl = React2.forwardRef((props, forwardedRef) => {
+   } = props;
+   const context = useScrollAreaContext(SCROLLBAR_NAME, __scopeScrollArea);
+   const [scrollbar, setScrollbar] = React2.useState(null);
+-  const composeRefs = (0, import_react_compose_refs.useComposedRefs)(forwardedRef, (node) => setScrollbar(node));
++  const composeRefs = (0, import_react_compose_refs.useComposedRefs)(forwardedRef, setScrollbar);
+   const rectRef = React2.useRef(null);
+   const prevWebkitUserSelectRef = React2.useRef("");
+   const viewport = context.viewport;
+@@ -585,7 +585,7 @@ var ScrollAreaThumbImpl = React2.forwardRef(
+     const { onThumbPositionChange } = scrollbarContext;
+     const composedRef = (0, import_react_compose_refs.useComposedRefs)(
+       forwardedRef,
+-      (node) => scrollbarContext.onThumbChange(node)
++      scrollbarContext.onThumbChange
+     );
+     const removeUnlinkedScrollListenerRef = React2.useRef(void 0);
+     const debounceScrollEnd = useDebounceCallback(() => {
+diff --git a/dist/index.mjs b/dist/index.mjs
+index fac521d..cf40beb 100644
+--- a/dist/index.mjs
++++ b/dist/index.mjs
+@@ -44,7 +44,7 @@ var ScrollArea = React2.forwardRef(
+     const [cornerHeight, setCornerHeight] = React2.useState(0);
+     const [scrollbarXEnabled, setScrollbarXEnabled] = React2.useState(false);
+     const [scrollbarYEnabled, setScrollbarYEnabled] = React2.useState(false);
+-    const composedRefs = useComposedRefs(forwardedRef, (node) => setScrollArea(node));
++    const composedRefs = useComposedRefs(forwardedRef, setScrollArea);
+     const direction = useDirection(dir);
+     return /* @__PURE__ */ jsx(
+       ScrollAreaProvider,
+@@ -454,7 +454,7 @@ var ScrollAreaScrollbarImpl = React2.forwardRef((props, forwardedRef) => {
+   } = props;
+   const context = useScrollAreaContext(SCROLLBAR_NAME, __scopeScrollArea);
+   const [scrollbar, setScrollbar] = React2.useState(null);
+-  const composeRefs = useComposedRefs(forwardedRef, (node) => setScrollbar(node));
++  const composeRefs = useComposedRefs(forwardedRef, setScrollbar);
+   const rectRef = React2.useRef(null);
+   const prevWebkitUserSelectRef = React2.useRef("");
+   const viewport = context.viewport;
+@@ -540,7 +540,7 @@ var ScrollAreaThumbImpl = React2.forwardRef(
+     const { onThumbPositionChange } = scrollbarContext;
+     const composedRef = useComposedRefs(
+       forwardedRef,
+-      (node) => scrollbarContext.onThumbChange(node)
++      scrollbarContext.onThumbChange
+     );
+     const removeUnlinkedScrollListenerRef = React2.useRef(void 0);
+     const debounceScrollEnd = useDebounceCallback(() => {
