@@ -221,7 +221,7 @@ test("选择器包含改动测试、直接 import、#imports 与同名测试，�
   }
 });
 
-test("枢纽文件只新增行时跳过 import 归因，含删除行时升级全量", () => {
+test("枢纽文件只新增行时跳过 import 归因，含删除行时选中全部直接 import 测试", () => {
   const root = makeFixture();
   try {
     const index = buildRepoIndex(root);
@@ -243,15 +243,15 @@ test("枢纽文件只新增行时跳过 import 归因，含删除行时升级全
       { source: "packages/services/src/hub.ts", importers: 3 },
     ]);
 
-    const escalated = selectRelatedTests({
+    const expanded = selectRelatedTests({
       index,
       changedFiles: ["packages/services/src/hub.ts"],
       candidates,
       hubThreshold: 2,
     });
-    assert.equal(escalated.full, true);
-    assert.equal(escalated.escalations[0].importers, 3);
-    assert.equal(escalated.selected.length, candidates.length);
+    assert.equal(expanded.full, false);
+    assert.equal(expanded.hubExpanded[0].importers, 3);
+    assert.deepEqual(expanded.selected, candidates.map((entry) => entry.path).sort());
   } finally {
     rmSync(root, { recursive: true, force: true });
   }

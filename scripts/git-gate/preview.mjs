@@ -52,9 +52,9 @@ if (!range) {
       `[git-gate] 枢纽文件跳过 import 归因：${entry.source}（${entry.importers} 个测试）`,
     );
   }
-  for (const entry of result.escalations) {
+  for (const entry of result.hubExpanded) {
     console.log(
-      `[git-gate] 枢纽文件含删除行，需全量：${entry.source}（${entry.importers} 个测试）`,
+      `[git-gate] 枢纽文件含删除行，选中全部直接 import 测试：${entry.source}（${entry.importers} 个）`,
     );
   }
   for (const file of result.selected) console.log(`  + ${file}`);

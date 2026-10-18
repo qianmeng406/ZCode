@@ -212,13 +212,16 @@ export async function runGate(argv = process.argv.slice(2)) {
     globalImpact.push({ file: "package.json", reason: "依赖段变更" });
   }
 
-  let scope = options.scope;
-  if (scope !== "full" && globalImpact.length > 0) {
-    for (const entry of globalImpact) {
-      console.log(`[git-gate] 升级为全量：${entry.file} — ${entry.reason}`);
-    }
-    scope = "full";
+  // 本地门禁不因全局配置文件自动跑全量：全量的权威裁决放在 CI（unit-full）。
+  // 这里只提示影响面，避免一次 lockfile/配置改动把本地推送拖成十几分钟。
+  for (const entry of globalImpact) {
+    console.log(
+      `[git-gate] 全局影响文件：${entry.file}（${entry.reason}）；` +
+        "本地仍只跑强相关测试，全量由 CI 的 unit-full 覆盖。",
+    );
   }
+
+  let scope = options.scope;
 
   const index = buildRepoIndex(root);
   const candidates = listCandidateTests({ cwd: root, root });
@@ -232,12 +235,6 @@ export async function runGate(argv = process.argv.slice(2)) {
   });
 
   if (selection.full) {
-    for (const entry of selection.escalations) {
-      console.log(
-        `[git-gate] 升级为全量：${entry.source} — 被 ${entry.importers} 个测试直接 import，` +
-          "且本次变更删除了行，import 者可能全部受影响",
-      );
-    }
     if (options.dryRun) {
       console.log(`[git-gate] --dry-run：范围会升级为全量（${selection.scanned} 个测试文件）。`);
       return 0;
@@ -249,6 +246,11 @@ export async function runGate(argv = process.argv.slice(2)) {
   for (const entry of selection.hubSkipped) {
     console.log(
       `[git-gate] 枢纽文件跳过 import 归因（只新增行）：${entry.source}（${entry.importers} 个测试）`,
+    );
+  }
+  for (const entry of selection.hubExpanded) {
+    console.log(
+      `[git-gate] 枢纽文件含删除行：${entry.source}（${entry.importers} 个直接 import 的测试已全部选中）`,
     );
   }
   console.log(

@@ -326,11 +326,12 @@ export function listCandidateTests({ cwd, root }) {
  * barrel 或 i18n 资源）如果按 import 归因会把选择集放大到近全仓。对这类文件：
  * - 变更只新增行 → 不做 import 归因（真正的改动在它 re-export 的目标模块里，
  *   那些模块自己的 import 者仍会被选中），并在报告里列出；
- * - 变更含删除行 → 返回 full（删导出可能让所有 import 者断裂，必须跑全量）。
+ * - 变更含删除行 → 不做全量升级，而是把它的全部直接 import 测试加入选择集
+ *   （删除导出可能让这些测试断裂，但数量仍有上界；全量留给显式 scope 或 CI）。
  *
  * @returns {{full: boolean, selected: string[], vitest: string[], node: string[],
  *   uncovered: string[], changedTests: string[], hubSkipped: {source: string, importers: number}[],
- *   escalations: {source: string, importers: number}[], scanned: number}}
+ *   hubExpanded: {source: string, importers: number}[], scanned: number}}
  */
 export function selectRelatedTests({
   index,
@@ -362,7 +363,7 @@ export function selectRelatedTests({
       uncovered: [],
       changedTests: changedTests.sort(),
       hubSkipped: [],
-      escalations: [],
+      hubExpanded: [],
       scanned: candidates.length,
     };
   }
@@ -395,26 +396,8 @@ export function selectRelatedTests({
     .map((source) => ({ source, importers: importers.get(source)?.size ?? 0 }))
     .filter((entry) => entry.importers > hubThreshold);
   const hubSkipped = hubs.filter((entry) => additionsOnly.has(entry.source));
-  const escalations = hubs.filter((entry) => !additionsOnly.has(entry.source));
-  if (escalations.length > 0) {
-    return {
-      full: true,
-      selected: candidates.map((candidate) => candidate.path).sort(),
-      vitest: candidates
-        .filter((c) => c.runner === "vitest")
-        .map((c) => c.path)
-        .sort(),
-      node: candidates
-        .filter((c) => c.runner === "node")
-        .map((c) => c.path)
-        .sort(),
-      uncovered: [],
-      changedTests: changedTests.sort(),
-      hubSkipped: [],
-      escalations,
-      scanned: candidates.length,
-    };
-  }
+  // 含删除行的枢纽文件不升级全量：其全部直接 import 测试会在下面的归因循环里被选中。
+  const hubExpanded = hubs.filter((entry) => !additionsOnly.has(entry.source));
   const skippedSources = new Set(hubSkipped.map((entry) => entry.source));
 
   const selected = new Set(changedTests.filter((file) => byPath.has(file)));
@@ -473,7 +456,7 @@ export function selectRelatedTests({
       .sort(),
     changedTests: changedTests.sort(),
     hubSkipped,
-    escalations: [],
+    hubExpanded,
     scanned: candidates.length,
   };
 }

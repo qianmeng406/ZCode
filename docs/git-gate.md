@@ -44,14 +44,14 @@ rm -rf .git/zcode-prepush-cache     # 清空缓存
 被超过 **100** 个测试直接 import 的文件视为枢纽文件：
 
 - 变更**只新增行** → 跳过它的 import 归因（真正的改动在它 re-export 的目标模块里，那些模块的 import 者仍会被选中），报告中列出被跳过的文件与测试数；
-- 变更**含删除行** → 自动升级为全量单测（删除导出可能让所有 import 者断裂）。
+- 变更**含删除行** → 把这个枢纽文件的全部直接 import 测试加入选择集（删除导出可能让这些测试断裂）。数量有上界，仍远小于全量；不会自动升级全量。
 
-### 自动升级为全量
+### 全局影响文件
 
-以下改动会打印原因并升级为 `pnpm test:unit`：
+`pnpm-lock.yaml`、`pnpm-workspace.yaml`、`vitest.config.ts`、`vitest.setup.ts`、`tsconfig.base.json`，以及 `package.json` 的依赖段（`dependencies` / `devDependencies` / `peerDependencies` / `optionalDependencies` / overrides）发生变化时：
 
-- `pnpm-lock.yaml`、`pnpm-workspace.yaml`、`vitest.config.ts`、`vitest.setup.ts`、`tsconfig.base.json`；
-- `package.json` 的依赖段（`dependencies` / `devDependencies` / `peerDependencies` / `optionalDependencies` / overrides）发生变化（只改 scripts 不升级）。
+- 本地 pre-push **只打印提示，仍跑强相关测试**，不会把一次依赖/配置改动拖成十几分钟的全量；
+- 全量回归由 CI 的 `unit-full`（手动 / 每周）承担；需要本地强跑时显式使用 `ZCODE_GATE_SCOPE=full`。
 
 ### 显式放大范围
 
