@@ -507,6 +507,15 @@ export function setRipgrepTimeoutMsForTests(timeoutMs: number | undefined): () =
   };
 }
 
+export {
+  WslFileSystemAdapter,
+  createWslFileSystemAdapter,
+  isPosixAbsoluteGuestPath,
+  toWslUncPath,
+  toWindowsDrivePath,
+  type WslFileSystemAdapterOptions,
+} from "./wsl-file-system-adapter.js";
+
 async function searchTextWithRipgrep(
   request: FileSystemSearchTextRequest,
   signal?: AbortSignal,

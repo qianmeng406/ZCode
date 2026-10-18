@@ -417,7 +417,7 @@ export async function createZCodeApp(options: ZCodeAppOptions): Promise<ZCodeApp
             workingDirectory,
           })));
     const ownsMcpPort = options.mcpPort === undefined && mcpPort !== undefined;
-    const executionPort =
+    const localExecutionPort =
       options.executionPort ??
       createNodeExecutionAdapter({
         onToolExecResource: options.onToolExecResource,
@@ -429,11 +429,22 @@ export async function createZCodeApp(options: ZCodeAppOptions): Promise<ZCodeApp
         outputRootDir: join(storageRoot, "cli", "exec"),
         processEnv: options.env ?? process.env,
       });
-    const ownsExecutionPort = options.executionPort === undefined;
+    const localFileSystemPort = options.fileSystemPort ?? createNodeFileSystemAdapter();
+    // 会话级执行端口绑定（session-linux-execution）：协议入口注入时，本会话的
+    // ExecutionPort / FileSystemPort 用绑定的稳定门面；本地端口回填到绑定作为「本地目标」
+    // 的真实端口，会话内切换环境只替换门面内部端口，不重建 App。
+    const sessionExecutionPortBinding = options.sessionExecutionPortBinding;
+    sessionExecutionPortBinding?.attachLocalPorts({
+      executionPort: localExecutionPort,
+      fileSystemPort: localFileSystemPort,
+    });
+    const executionPort = sessionExecutionPortBinding?.executionPort ?? localExecutionPort;
+    const ownsExecutionPort =
+      options.executionPort === undefined && sessionExecutionPortBinding === undefined;
     const pdfDocumentPort =
       options.pdfDocumentPort ?? createPopplerPdfDocumentAdapter({ executionPort });
     // browser-use 控制端口：仅当宿主（desktop）注入时可用，无本地 fallback（纯 CLI 无浏览器底座）。
-    const fileSystemPort = options.fileSystemPort ?? createNodeFileSystemAdapter();
+    const fileSystemPort = sessionExecutionPortBinding?.fileSystemPort ?? localFileSystemPort;
     const httpClientPort =
       options.httpClientPort ??
       createNodeWebFetchHttpClientAdapter({
@@ -1216,6 +1227,9 @@ export async function createZCodeApp(options: ZCodeAppOptions): Promise<ZCodeApp
         return { kind: "chunked" };
       },
       ...sessionFacade,
+      // 会话级执行端口绑定（协议入口注入时有值）：CLI session owner 提交环境切换后
+      // 经此切换本会话真实执行/文件端口，不重建 App（spec「装配本会话新 App/端口」）。
+      ...(sessionExecutionPortBinding === undefined ? {} : { sessionExecutionPortBinding }),
       close: async () => {
         try {
           await closeSession?.();

@@ -81,7 +81,11 @@ function shouldUseDevelopmentAgentBundle(): boolean {
   }
 
   // Vitest 里仓库真实 dist 可能存在；默认关闭，避免普通部署测试误走开发态分支。
-  return !process.env.VITEST;
+  // 测试可用 ZCODE_REMOTE_DEV_AGENT_BUNDLE 显式打开（同时仍要求 ZCODE_RUNTIME_ENV=development）。
+  if (process.env.VITEST) {
+    return Boolean(process.env[DEV_AGENT_BUNDLE_ENV]?.trim());
+  }
+  return true;
 }
 
 function resolveDevelopmentAgentBundle(): {
@@ -90,6 +94,21 @@ function resolveDevelopmentAgentBundle(): {
 } | null {
   if (!shouldUseDevelopmentAgentBundle()) {
     return null;
+  }
+  // 测试注入：显式指定 dev bundle 路径时，以该路径所在仓库为 repoRoot（不经 findUpward）。
+  // 仅当注入值形如路径（含分隔符或 .cjs 后缀）才按路径处理；历史测试把该变量当布尔开关
+  // （"1"）用，开关式必须回退 findUpward，否则开发态分支不可达、整组开发态部署测试回归。
+  const injected = process.env[DEV_AGENT_BUNDLE_ENV]?.trim();
+  if (process.env.VITEST && injected) {
+    const looksLikePath =
+      injected.includes("/") || injected.includes("\\") || injected.endsWith(".cjs");
+    if (looksLikePath) {
+      const localBundlePath = resolve(injected);
+      if (!existsSync(localBundlePath)) {
+        return null;
+      }
+      return { repoRoot: dirname(dirname(dirname(dirname(localBundlePath)))), localBundlePath };
+    }
   }
   const found = findUpward(DEV_AGENT_BUNDLE_RELATIVE_PATH);
   return found ? { repoRoot: found.rootDir, localBundlePath: found.path } : null;
@@ -157,6 +176,27 @@ async function hashLocalPath(
 
   hash.update(`file:${relativePath}:${fileStat.mode & 0o777}:${fileStat.size}\n`);
   hash.update(await readFile(filePath));
+}
+
+/**
+ * 枚举本地开发态官方插件缺失的必需资产（REMOTE_AGENT_OFFICIAL_PLUGIN_REQUIRED_RELATIVE_PATHS）。
+ * dev 资产多为 .gitignore 的构建产物：缺失属可自愈状态（落回生产资产部署），不是硬失败。
+ */
+export function findMissingDevelopmentOfficialPluginAssetPaths(repoRoot: string): string[] {
+  const missing: string[] = [];
+  for (const requiredRelativePath of REMOTE_AGENT_OFFICIAL_PLUGIN_REQUIRED_RELATIVE_PATHS) {
+    const absolutePath = join(
+      repoRoot,
+      "apps",
+      "zcode-cli",
+      "packages",
+      ...requiredRelativePath.split("/"),
+    );
+    if (!existsSync(absolutePath)) {
+      missing.push(requiredRelativePath);
+    }
+  }
+  return missing;
 }
 
 function assertDevelopmentOfficialPluginRequiredAssets(
@@ -376,14 +416,40 @@ export async function deployDevelopmentZCodeAgentRuntime(
 
   const remoteBundlePath = `${params.remoteProviderDir}/${REMOTE_DEV_AGENT_BUNDLE_NAME}`;
   const remoteDevVersionFile = `${params.remoteProviderDir}/${REMOTE_DEV_AGENT_VERSION_FILE_NAME}`;
+  // 开发态官方插件依赖 .gitignore 的构建产物（如 browser-use-plugin/scripts/browser-client.mjs）。
+  // 未打包运行或 fresh clone 时这些 dev 资产常缺：dev 部署不能整体硬失败，否则 prepare 报
+  // generic「preparation failed」。这里探测必需资产，缺失时 logWarn 并返回 false，让调用方
+  // 落回标准生产资产部署（manifest/components 路径）。
+  const missingDevAssetPaths = findMissingDevelopmentOfficialPluginAssetPaths(
+    developmentBundle.repoRoot,
+  );
+  if (missingDevAssetPaths.length > 0) {
+    loggers.logWarn(
+      `[zcode-agent-deploy] dev: 本地开发态官方插件缺少必需资产，落回标准生产资产部署。` +
+        `缺失: ${missingDevAssetPaths.join(", ")}。` +
+        `如需 dev 插件资产，请在仓库内运行各官方插件构建（例如 pnpm --filter @zcode/browser-use-plugin build）。`,
+    );
+    return false;
+  }
   const devVersion = await computeDevelopmentAgentAssetsSha256({
     localBundlePath: developmentBundle.localBundlePath,
     repoRoot: developmentBundle.repoRoot,
   });
-  const missingOfficialPluginAssetPaths = await findMissingRemoteOfficialPluginAssetPaths({
-    backend,
-    remoteProviderDir: params.remoteProviderDir,
-  });
+  let missingOfficialPluginAssetPaths: string[];
+  try {
+    missingOfficialPluginAssetPaths = await findMissingRemoteOfficialPluginAssetPaths({
+      backend,
+      remoteProviderDir: params.remoteProviderDir,
+    });
+  } catch (error) {
+    // 与生产部署同口径：探测瞬时失败按缺失处理并留下原因，触发幂等重部署。
+    loggers.logWarn(
+      `[zcode-agent-deploy] dev: 远端插件资产探测失败，按缺失处理并触发重部署: ${String(error)}`,
+    );
+    missingOfficialPluginAssetPaths = buildRemoteAgentOfficialPluginRequiredPaths(
+      params.remoteProviderDir,
+    );
+  }
 
   if (
     await shouldSkipDevelopmentZCodeAgentDeploy({

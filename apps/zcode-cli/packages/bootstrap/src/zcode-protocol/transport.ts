@@ -276,14 +276,28 @@ export class ZCodeProtocolNdjsonConnection {
     // （Oracle 式把关可达数分钟），内联会让期间所有普通请求排队饿死——第一个熬到
     // 客户端默认 180s 超时的请求会触发 stale-client 淘汰，连带杀掉在飞的审查。
     // 旁路后它与普通请求并发，靠自身 deadline + cancel 通道收口。
-    return (
+    if (
       "id" in message &&
       "method" in message &&
       (message.method === zcodeProtocolMethods.sessionStop ||
         message.method === zcodeProtocolMethods.workspaceCancelGenerateText ||
         MCP_APP_CONCURRENT_METHODS.has(message.method) ||
         message.method === zcodeProtocolMethods.workspaceGenerateText)
-    );
+    ) {
+      return true;
+    }
+    // 会话级执行环境「取消准备」必须旁路串行队列：它要中止的正是排在它前面的
+    // setExecutionEnvironment（prepare 含 WSL 部署，实测 26s 级）。若排队，取消只能在
+    // prepare 完成之后才进入 server，退化为空操作（真实实例实测 cancel RPC 26s 才返回）。
+    // 只旁路这一个 operation：prepare/run/poll 等执行面操作仍走串行队列，保持顺序语义。
+    if (
+      "method" in message &&
+      message.method === zcodeProtocolMethods.interactionSessionExecution
+    ) {
+      const params = (message as { params?: { operation?: unknown } }).params;
+      return params?.operation === "cancelExecutionEnvironmentPreparation";
+    }
+    return false;
   }
 
   private async handleMessage(message: ZCodeProtocolMessage): Promise<void> {

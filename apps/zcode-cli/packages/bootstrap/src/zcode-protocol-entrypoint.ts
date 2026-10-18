@@ -19,6 +19,7 @@ import type { McpPort, ModelSelection } from "@zcode/contracts";
 import type { PresentationSurface } from "@zcode/core";
 import type { RunZCodeProtocolAgentOptions, ZCodeAppOptions } from "./app/types.js";
 import { createZCodeApp } from "./app/create-app.js";
+import { injectSessionExecutionPort } from "./zcode-protocol/session-execution-port-inject.js";
 import {
   createNodeReplBrowserBroker,
   type NodeReplBrowserBroker,
@@ -274,9 +275,27 @@ export async function runZCodeProtocolAgent(
       activeProviderRegistryRuntime.runtime.registryService,
     );
     options.lifecycle?.signal.throwIfAborted();
+    // createZCodeApp 回调先于 server 变量初始化可被调用？不会：协议请求到达前 server 已构造完成。
+    // 这里用惰性引用让注入器在首个 session 创建时拿到 requestClient。
+    // requestClient 是私有的，走 officialMcpAuthRequestContext 公开收口。
+    type RequestClientFn = ZCodeProtocolAgentServer["officialMcpAuthRequestContext"]["requestClient"];
+    const serverReference: { requestClient: RequestClientFn } = {
+      get requestClient(): RequestClientFn {
+        return (serverForCleanup as ZCodeProtocolAgentServer).officialMcpAuthRequestContext
+          .requestClient;
+      },
+    };
     const server = (serverForCleanup = new ZCodeProtocolAgentServer({
       createZCodeApp: (appOptions = {}) =>
-        createZCodeApp({
+        injectSessionExecutionPort(appOptions, serverReference).then(
+          (sessionExecutionPorts) =>
+            createZCodeApp({
+              // 会话级执行端口绑定：本会话的 ExecutionPort / FileSystemPort 用绑定的稳定
+              // 门面（WSL 会话创建期即路由到本机 Linux；未配置/local 转发本地端口）。
+              // 会话内切换环境由 CLI session owner 切换绑定内部端口，不重建 App。
+              ...(sessionExecutionPorts
+                ? { sessionExecutionPortBinding: sessionExecutionPorts.binding }
+                : {}),
           ...applyProtocolProviderRegistry(
             applyProtocolPresentationSurface(appOptions, presentationSurface),
             activeProviderRegistryRuntime.runtime.registryService,
@@ -309,7 +328,8 @@ export async function runZCodeProtocolAgent(
           sourceTitle: "electron",
           onToolExecResource: (params) =>
             connection.send({ method: zcodeProtocolNotifications.toolExecResource, params }),
-        }),
+            }),
+        ),
       cwd: options.cwd,
       env: options.env,
       loggerFactory,

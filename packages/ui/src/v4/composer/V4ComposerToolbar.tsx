@@ -16,6 +16,7 @@
  * 三件套不能全部门控在 config!==null 上——草稿态会整体不渲染。
  */
 import { memo, useCallback, useEffect, useMemo, useRef, useState } from "react";
+import type { ReactNode } from "react";
 import { AlarmClockIcon } from "lucide-react";
 import { cn } from "@/components/lib/utils.js";
 import {
@@ -425,6 +426,12 @@ export interface V4ComposerToolbarProps {
   onSendCompressionCommand?: (command: string) => void;
   /** 快照投影的 compact 进行中（control.activeWorks）；运行中禁用压缩入口，防重复派发。 */
   compactRunning?: boolean;
+  /**
+   * 会话级执行环境入口（session-linux-execution）：由 SessionPane 组装（触发按钮的
+   * 平台/远程/草稿可见性在 pane 判定），工具条只负责在模型控件簇尾部展示。
+   * 环境切换语义（含草稿创建/promote）全部闭合在 SessionPane，工具条不承载状态。
+   */
+  sessionExecutionEnvironmentSlot?: ReactNode;
 }
 
 /** 模型 / 思考深度 / context usage 簇（渲染在发送键左侧，与旧 UI 同位）。 */
@@ -454,6 +461,7 @@ function V4ComposerModelControlsImpl({
   onSendCompressionCommand,
   compactRunning,
   onRecoverCustomModelSelection,
+  sessionExecutionEnvironmentSlot,
 }: V4ComposerToolbarProps) {
   const { intl, locale } = useZCodeIntl();
   const { openCodingPlanUpgrade } = useCodingPlanUpgradeDialog();
@@ -1191,6 +1199,7 @@ function V4ComposerModelControlsImpl({
           restoreFocusSelector={V4_COMPOSER_INPUT_SELECTOR}
         />
       ) : null}
+      {sessionExecutionEnvironmentSlot}
     </>
   );
 }

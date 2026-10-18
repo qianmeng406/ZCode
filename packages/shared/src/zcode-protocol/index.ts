@@ -36,6 +36,33 @@ import { accountProviderUnavailableReasonSchema } from "../account-provider-stat
 import { bashOutputDisplaySchema } from "../bash-output-display.js";
 import { zcodeAutomationBotDeliveryTargetSchema } from "../bots.js";
 import { executionOutputPreviewSchema } from "../execution-output-preview.js";
+import {
+  executionWireBackgroundOutputResultSchema,
+  executionWireBackgroundSnapshotSchema,
+  executionWireBackgroundStartResultSchema,
+  executionWireResultSchema,
+} from "../sessionExecutionWire.js";
+import {
+  sessionExecutionBashBackgroundLifecycleParamsSchema,
+  sessionExecutionBashBackgroundLifecycleResultSchema,
+  sessionExecutionCancelBackgroundTaskParamsSchema,
+  sessionExecutionCancelParamsSchema,
+  sessionExecutionControlCancelParamsSchema,
+  sessionExecutionControlGetParamsSchema,
+  sessionExecutionControlSetParamsSchema,
+  sessionExecutionGetBackgroundTaskParamsSchema,
+  sessionExecutionPollParamsSchema,
+  sessionExecutionPollResultSchema,
+  sessionExecutionPrepareParamsSchema,
+  sessionExecutionPrepareResultSchema,
+  sessionExecutionReadBackgroundParamsSchema,
+  sessionExecutionReleaseParamsSchema,
+  sessionExecutionReleaseSessionParamsSchema,
+  sessionExecutionRunParamsSchema,
+  sessionExecutionStartParamsSchema,
+  sessionExecutionOperationErrorSchema,
+} from "../sessionExecutionOperations.js";
+import { sessionExecutionStateSchema } from "../sessionExecutionEnvironment.js";
 import { completeModelPropertiesDataSchema } from "../model-config.js";
 import { modelExecutionSchema } from "../model-execution.js";
 import { modelSelectionSchema } from "../model-selection.js";
@@ -2867,6 +2894,121 @@ export type ZCodeBrowserExecuteParams = z.infer<typeof zcodeBrowserExecuteParams
 export const zcodeBrowserExecuteResultSchema = browserCommandResultSchema;
 export type ZCodeBrowserExecuteResult = z.infer<typeof zcodeBrowserExecuteResultSchema>;
 
+// ── 会话级执行环境反向 RPC（interaction/sessionExecution）──
+// Agent（CLI session owner）→ host。params 只带 sessionId 与一个 typed channel 操作；
+// 宿主按 sessionExecutionExecutor(params, workspace, signal?) 回调。结果统一封套：
+// ok:true 时回显 operation 并带对应载荷；旧代/断连/无 executor 一律 ok:false 可枚举
+// 错误码（sessionExecutionOperationErrorSchema），绝不回落本地执行。
+export const zcodeSessionExecutionOkResultSchema = z.discriminatedUnion("operation", [
+  z
+    .object({
+      ok: z.literal(true),
+      operation: z.literal("prepare"),
+      prepare: sessionExecutionPrepareResultSchema,
+    })
+    .strict(),
+  z.object({ ok: z.literal(true), operation: z.literal("release") }).strict(),
+  z.object({ ok: z.literal(true), operation: z.literal("releaseSession") }).strict(),
+  z
+    .object({ ok: z.literal(true), operation: z.literal("run"), result: executionWireResultSchema })
+    .strict(),
+  z
+    .object({
+      ok: z.literal(true),
+      operation: z.literal("start"),
+      task: executionWireBackgroundStartResultSchema,
+    })
+    .strict(),
+  z
+    .object({
+      ok: z.literal(true),
+      operation: z.literal("poll"),
+      poll: sessionExecutionPollResultSchema,
+    })
+    .strict(),
+  z
+    .object({
+      ok: z.literal(true),
+      operation: z.literal("cancel"),
+      snapshot: executionWireBackgroundSnapshotSchema.optional(),
+    })
+    .strict(),
+  z
+    .object({
+      ok: z.literal(true),
+      operation: z.literal("readBackground"),
+      output: executionWireBackgroundOutputResultSchema,
+    })
+    .strict(),
+  z
+    .object({
+      ok: z.literal(true),
+      operation: z.literal("getBackgroundTask"),
+      snapshot: executionWireBackgroundSnapshotSchema.optional(),
+    })
+    .strict(),
+  z
+    .object({
+      ok: z.literal(true),
+      operation: z.literal("cancelBackgroundTask"),
+      snapshot: executionWireBackgroundSnapshotSchema.optional(),
+    })
+    .strict(),
+  z
+    .object({
+      ok: z.literal(true),
+      operation: z.literal("bashBackgroundLifecycle"),
+      lifecycle: sessionExecutionBashBackgroundLifecycleResultSchema,
+    })
+    .strict(),
+  z
+    .object({
+      ok: z.literal(true),
+      operation: z.literal("getExecutionEnvironment"),
+      state: sessionExecutionStateSchema,
+    })
+    .strict(),
+  z
+    .object({
+      ok: z.literal(true),
+      operation: z.literal("setExecutionEnvironment"),
+      state: sessionExecutionStateSchema,
+    })
+    .strict(),
+  z
+    .object({
+      ok: z.literal(true),
+      operation: z.literal("cancelExecutionEnvironmentPreparation"),
+      state: sessionExecutionStateSchema,
+    })
+    .strict(),
+]);
+export type ZCodeSessionExecutionOkResult = z.infer<typeof zcodeSessionExecutionOkResultSchema>;
+
+export const zcodeSessionExecutionResultSchema = z.union([
+  zcodeSessionExecutionOkResultSchema,
+  sessionExecutionOperationErrorSchema,
+]);
+export type ZCodeSessionExecutionResult = z.infer<typeof zcodeSessionExecutionResultSchema>;
+
+export const zcodeSessionExecutionParamsSchema = z.discriminatedUnion("operation", [
+  sessionExecutionPrepareParamsSchema,
+  sessionExecutionReleaseParamsSchema,
+  sessionExecutionReleaseSessionParamsSchema,
+  sessionExecutionRunParamsSchema,
+  sessionExecutionStartParamsSchema,
+  sessionExecutionPollParamsSchema,
+  sessionExecutionCancelParamsSchema,
+  sessionExecutionReadBackgroundParamsSchema,
+  sessionExecutionGetBackgroundTaskParamsSchema,
+  sessionExecutionCancelBackgroundTaskParamsSchema,
+  sessionExecutionBashBackgroundLifecycleParamsSchema,
+  sessionExecutionControlGetParamsSchema,
+  sessionExecutionControlSetParamsSchema,
+  sessionExecutionControlCancelParamsSchema,
+]);
+export type ZCodeSessionExecutionParams = z.infer<typeof zcodeSessionExecutionParamsSchema>;
+
 export const zcodeUserInputOptionSchema = z
   .object({
     value: nonEmptyString,
@@ -4371,6 +4513,9 @@ export const zcodeProtocolMethods = {
   // browser-use 反向请求由 agent 发起，host 转给 main 中的 CDP executor。
   interactionBrowserList: "interaction/browserList",
   interactionBrowserExecute: "interaction/browserExecute",
+  // 会话级执行环境（session-linux-execution）：agent 经宿主把 typed channel
+  // 操作（prepare/start/poll/cancel/...）转给 window Host 的执行连接池。
+  interactionSessionExecution: "interaction/sessionExecution",
 } as const;
 
 export type ZCodeProtocolMethod = (typeof zcodeProtocolMethods)[keyof typeof zcodeProtocolMethods];
@@ -4463,6 +4608,10 @@ export const zcodeProtocolSessionMethodContracts = {
   [zcodeProtocolMethods.interactionBrowserExecute]: {
     params: zcodeBrowserExecuteParamsSchema,
     result: zcodeBrowserExecuteResultSchema,
+  },
+  [zcodeProtocolMethods.interactionSessionExecution]: {
+    params: zcodeSessionExecutionParamsSchema,
+    result: zcodeSessionExecutionResultSchema,
   },
 } as const satisfies Partial<
   Record<ZCodeProtocolMethod, { params: z.ZodTypeAny; result: z.ZodTypeAny }>

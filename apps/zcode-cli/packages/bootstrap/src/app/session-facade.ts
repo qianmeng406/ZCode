@@ -317,7 +317,9 @@ export function createSessionFacade(deps: CreateSessionFacadeDeps): SessionFacad
           beginShutdown: () => deps.runtime.beginShutdown(),
           closeBrowserSession: () => deps.runtime.closeBrowserSession(),
           closeExecution:
-            deps.ownsExecutionPort && deps.executionPort.close
+            // 拥有的端口直接关闭；借用的（routed/borrowed）端口 close() 只释放本会话 lease，
+            // 不影响共享工作区进程的其他会话（spec「injected ExecutionPort 是借用端口」）。
+            deps.executionPort.close
               ? () => deps.executionPort.close?.()
               : undefined,
           closeMcp: deps.ownsMcpPort && deps.mcpPort ? () => deps.mcpPort?.close() : undefined,

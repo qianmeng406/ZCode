@@ -3,6 +3,8 @@ import type {
   SessionDebugSnapshot,
   ZCodeSessionContentProfile,
 } from "@zcode/shared";
+import type { SessionExecutionEnvironment } from "@zcode/shared";
+import type { ZCodeAgentExecutionEnvironmentResult } from "./sessionExecutionBridge.js";
 /* eslint-disable max-lines -- ZCode agent service 接口集中声明 protocol/session/workspace 方法，拆分会增加 service descriptor 迁移成本。 */
 import type { Event, IDisposable } from "@zcode/rpc";
 import { ServiceChannels } from "@zcode/shared";
@@ -871,6 +873,21 @@ export interface IZCodeAgentService {
     params: ZCodeAgentSessionTarget & { expectedPersistence?: "deferred" | "immediate" },
   ): Promise<boolean>;
   setModel(params: ZCodeAgentSetModelParams): Promise<ZCodeSessionStateSnapshot>;
+  /** 会话级执行环境：读取当前配置投影（idle/preparing）。 */
+  getExecutionEnvironment(
+    params: ZCodeAgentSessionTarget,
+  ): Promise<ZCodeAgentExecutionEnvironmentResult>;
+  /**
+   * 会话级执行环境切换（session-linux-execution）。CLI 侧 admission：无运行 turn、
+   * 无排队/待接收输入、无阻塞交互、无存活后台执行才允许；准备失败保留原环境。
+   */
+  setExecutionEnvironment(
+    params: ZCodeAgentSessionTarget & { environment: SessionExecutionEnvironment },
+  ): Promise<ZCodeAgentExecutionEnvironmentResult>;
+  /** 取消进行中的环境准备；不提交新配置，原环境保持不变。 */
+  cancelExecutionEnvironmentPreparation(
+    params: ZCodeAgentSessionTarget,
+  ): Promise<ZCodeAgentExecutionEnvironmentResult>;
   setThoughtLevel(params: ZCodeAgentSetThoughtLevelParams): Promise<ZCodeSessionStateSnapshot>;
   setMode(params: ZCodeAgentSetModeParams): Promise<ZCodeSessionStateSnapshot>;
   respondProviderRuntimeHeaders(

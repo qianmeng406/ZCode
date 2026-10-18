@@ -3,6 +3,13 @@ import {
   allowRequestVerificationHeaders,
   requestVerificationInteractionAvailable,
 } from "@zcode/shared";
+import {
+  sessionExecutionEnvironmentSchema,
+  sessionExecutionStateSchema,
+  zcodeSessionExecutionParamsSchema,
+  zcodeSessionExecutionResultSchema,
+  type ZCodeSessionExecutionResult,
+} from "@zcode/shared";
 import { zcodeMcpUiSamplingResultSchema } from "@zcode/shared";
 import { MCP_APPS_SAMPLING_TRANSPORT_TIMEOUT_MS } from "@zcode/shared/mcp-apps";
 import {
@@ -377,6 +384,7 @@ import {
   collectBrowserAmbientContext,
   type BrowserAmbientContextExecutor,
 } from "./zcodeAgentBrowserAmbientContext.js";
+import type { SessionExecutionExecutor } from "./sessionExecutionBridge.js";
 import {
   createCuaOperationTurnTracker,
   type CuaOperationWorkspaceTarget,
@@ -976,7 +984,10 @@ function createRuntimeUnavailableError(params: ZCodeAgentWorkspaceTarget): Error
   return error;
 }
 
-interface CreateZCodeAgentServiceOptions extends Omit<
+// 导出供 node.ts 等装配层引用单个 option 字段（如 sessionExecutionExecutor 透传）。
+// 注意 TS6 起 Parameters<typeof createZCodeAgentService>[0] 对 optional 参数仍是 T|undefined，
+// 不能用该方式索引字段；请直接用本类型。
+export interface CreateZCodeAgentServiceOptions extends Omit<
   ZCodeAgentProcessManagerOptions,
   "idleTimeoutMs"
 > {
@@ -1029,6 +1040,13 @@ interface CreateZCodeAgentServiceOptions extends Omit<
    * browser 命令返回 backend_unavailable，不影响其它功能。
    */
   browserControlExecutor?: BrowserAmbientContextExecutor;
+  /**
+   * 会话级执行环境桥（session-linux-execution）：把 agent 的 interaction/sessionExecution
+   * 反向请求转发到 window Host 的执行连接池（部署 WSL 执行端、lease/generation 鉴权）。
+   * desktop host 装配时注入；缺省（纯 CLI/无 Host 执行面）所有操作 fail closed 返回
+   * backend_unavailable，绝不回落本地执行。
+   */
+  sessionExecutionExecutor?: SessionExecutionExecutor;
   channelReplyExecutor?: (request: ChannelReplyHostRequest) => Promise<ChannelReplyResult>;
   topicResourceExecutor?: (
     request: ZCodeTopicResourceReadParams &
@@ -1354,6 +1372,45 @@ export function createZCodeAgentService(
   // 此缓存只去重已交付的账号快照，不表示 Worker 的 Registry 已应用该版本。
   const accountConfigReceivedRevisionByClient = new WeakMap<ZCodeProtocolClient, string>();
   const sessionTraceIdBySessionKey = new Map<string, TraceId>();
+  // 会话级执行环境（session-linux-execution）借用 lease 记账：
+  // executor prepare 成功时登记；client onClose / service dispose 时 releaseSession，
+  // 避免 Host 执行端 lease 在进程崩溃路径（App.close 不会执行）上泄漏。
+  const sessionExecutionLeasesBySessionKey = new Map<
+    string,
+    { workspaceKey: string; leaseId: string; generation: number }
+  >();
+
+  function rememberSessionExecutionLease(
+    sessionId: string,
+    lease: { workspaceKey: string; leaseId: string; generation: number },
+  ): void {
+    sessionExecutionLeasesBySessionKey.set(sessionId, lease);
+  }
+
+  function releaseSessionExecutionLeases(sessionId: string): void {
+    const lease = sessionExecutionLeasesBySessionKey.get(sessionId);
+    if (!lease) return;
+    sessionExecutionLeasesBySessionKey.delete(sessionId);
+    const executor = options?.sessionExecutionExecutor;
+    if (!executor) return;
+    // 尽力而为：释放失败不影响其它会话，Host 的 generation 失效机制兜底拒绝旧代执行。
+    void executor(
+      {
+        operation: "releaseSession",
+        sessionId,
+      },
+      {
+        workspaceKey: lease.workspaceKey,
+        workspacePath: "",
+      },
+    ).catch(() => undefined);
+  }
+
+  function releaseAllSessionExecutionLeases(): void {
+    for (const sessionId of sessionExecutionLeasesBySessionKey.keys()) {
+      releaseSessionExecutionLeases(sessionId);
+    }
+  }
   const accountRequestAuthService = options?.accountRequestAuthService;
   const accountProviderConfigSource = options?.accountProviderConfigSource;
   const modelSelectionReadinessSource = options?.modelSelectionReadinessSource;
@@ -2809,6 +2866,71 @@ export function createZCodeAgentService(
           return;
         }
 
+        // 会话级执行环境（session-linux-execution）：纯 RPC 中继到宿主 executor。
+        // 与 browser 桥同一模式——executor 缺省 fail closed 返回 backend_unavailable，
+        // 绝不回落本地执行；执行/读取/取消一律由宿主按 sessionId+lease+generation 鉴权。
+        if (request.method === zcodeProtocolMethods.interactionSessionExecution) {
+          const parsed = zcodeSessionExecutionParamsSchema.safeParse(request.params);
+          if (!parsed.success) {
+            void client.respondError(request.id, {
+              code: -32602,
+              message: "Invalid interaction/sessionExecution params",
+              data: parsed.error.flatten(),
+            });
+            return;
+          }
+          const executor = options?.sessionExecutionExecutor;
+          if (!executor) {
+            void client.respond(request.id, {
+              ok: false,
+              code: "backend_unavailable",
+              message: "session execution backend not available",
+            } satisfies ZCodeSessionExecutionResult);
+            return;
+          }
+          void (async () => {
+            try {
+              // ZCodeProtocolRequest 不携带 AbortSignal；取消经宿主 executor 自身的
+              // cancel/cancelBackgroundTask 操作表达，不走 signal 传播。
+              const result = await executor(parsed.data, {
+                workspaceKey: resolveWorkspaceKey(workspace),
+                workspacePath: workspace.workspacePath,
+                ...(workspace.workspaceIdentity
+                  ? { workspaceIdentity: workspace.workspaceIdentity }
+                  : {}),
+              });
+              // 记账成功 prepare 的 lease：client 死亡/进程退出时统一 releaseSession，
+              // 否则 Host 执行端 lease 会泄漏（App.close 不会跑在进程崩溃路径上）。
+              if (result.ok && result.operation === "prepare" && result.prepare) {
+                rememberSessionExecutionLease(parsed.data.sessionId, {
+                  workspaceKey: resolveWorkspaceKey(workspace),
+                  leaseId: result.prepare.lease.leaseId,
+                  generation: result.prepare.lease.generation,
+                });
+              }
+              const validated = zcodeSessionExecutionResultSchema.safeParse(result);
+              if (!validated.success) {
+                // executor 返回的载荷必须过同一 wire 校验；宿主实现错误不能让 agent 侧
+                // 消费未校验数据（严格 wire 校验是 spec 验收项）。
+                void client.respond(request.id, {
+                  ok: false,
+                  code: "internal",
+                  message: "sessionExecution executor returned invalid result",
+                } satisfies ZCodeSessionExecutionResult);
+                return;
+              }
+              void client.respond(request.id, validated.data);
+            } catch (error: unknown) {
+              void client.respond(request.id, {
+                ok: false,
+                code: "internal",
+                message: error instanceof Error ? error.message : String(error),
+              } satisfies ZCodeSessionExecutionResult);
+            }
+          })();
+          return;
+        }
+
         if (request.method === zcodeProtocolMethods.automationCreate) {
           const parsed = zcodeAutomationCreateParamsSchema.safeParse(request.params);
           if (!parsed.success) {
@@ -3144,6 +3266,9 @@ export function createZCodeAgentService(
       }),
       client.onClose(() => {
         invalidateWorkspaceClient(resolveWorkspaceKey(workspace), client);
+        // 执行环境 lease 与 client 生命周期绑定：连接死掉（进程退出/崩溃）时
+        // 立即通知 Host 释放该 workspace 借用的 lease，不等 App.close（崩溃不会跑）。
+        releaseAllSessionExecutionLeases();
       }),
     ];
     clientDisposables.set(client, disposables);
@@ -5601,6 +5726,87 @@ export function createZCodeAgentService(
       }
     },
 
+    // ── 会话级执行环境（session-linux-execution）──
+    // 方法名与 spec/UI 对齐：get/set/cancel 三个控制面方法。CLI 侧 sessionExecution
+    // 协议方法返回严格 ZCodeSessionExecutionResult 封套；ok:false 转成异常上抛，
+    // 让 UI 按可枚举 code 分流（backend_unavailable / busy 拒绝 / lease_rejected 等）。
+
+    async getExecutionEnvironment(params) {
+      const client = await getClient(params);
+      const result = await client.request(
+        zcodeProtocolMethods.interactionSessionExecution,
+        {
+          operation: "getExecutionEnvironment" as const,
+          sessionId: params.sessionId,
+        },
+        zcodeSessionExecutionResultSchema,
+      );
+      if (!result.ok) {
+        throw new Error(`getExecutionEnvironment failed: ${result.code} ${result.message}`);
+      }
+      if (result.operation !== "getExecutionEnvironment") {
+        throw new Error("getExecutionEnvironment received mismatched operation result");
+      }
+      return { state: sessionExecutionStateSchema.parse(result.state) };
+    },
+
+    async setExecutionEnvironment(params) {
+      const client = await getClient(params);
+      const environment = sessionExecutionEnvironmentSchema.parse(params.environment);
+      const startedAt = Date.now();
+      logger.info(undefined, "开始请求 interaction/sessionExecution setExecutionEnvironment", {
+        environmentKind: environment.kind,
+        sessionId: params.sessionId,
+        workspaceKey: resolveWorkspaceKey(params),
+        workspacePath: params.workspacePath,
+      });
+      const result = await client.request(
+        zcodeProtocolMethods.interactionSessionExecution,
+        {
+          operation: "setExecutionEnvironment" as const,
+          sessionId: params.sessionId,
+          environment,
+        },
+        zcodeSessionExecutionResultSchema,
+      );
+      if (!result.ok) {
+        logger.warn(undefined, "sessionExecution 环境切换被拒绝", {
+          code: result.code,
+          durationMs: Date.now() - startedAt,
+          sessionId: params.sessionId,
+          workspaceKey: resolveWorkspaceKey(params),
+        });
+        throw new Error(`setExecutionEnvironment failed: ${result.code} ${result.message}`);
+      }
+      if (result.operation !== "setExecutionEnvironment") {
+        throw new Error("setExecutionEnvironment received mismatched operation result");
+      }
+      return { state: sessionExecutionStateSchema.parse(result.state) };
+    },
+
+    async cancelExecutionEnvironmentPreparation(params) {
+      const client = await getClient(params);
+      const result = await client.request(
+        zcodeProtocolMethods.interactionSessionExecution,
+        {
+          operation: "cancelExecutionEnvironmentPreparation" as const,
+          sessionId: params.sessionId,
+        },
+        zcodeSessionExecutionResultSchema,
+      );
+      if (!result.ok) {
+        throw new Error(
+          `cancelExecutionEnvironmentPreparation failed: ${result.code} ${result.message}`,
+        );
+      }
+      if (result.operation !== "cancelExecutionEnvironmentPreparation") {
+        throw new Error(
+          "cancelExecutionEnvironmentPreparation received mismatched operation result",
+        );
+      }
+      return { state: sessionExecutionStateSchema.parse(result.state) };
+    },
+
     async setThoughtLevel(params: ZCodeAgentSetThoughtLevelParams) {
       const client = await getClient(params);
       const snapshot = await client.request(
@@ -6774,6 +6980,9 @@ export function createZCodeAgentService(
     },
 
     async disposeAllAndWait(): Promise<void> {
+      // 服务收口先于进程树销毁通知 Host 释放全部借用执行 lease；
+      // 通知是 fire-and-forget，不阻塞 dispose。
+      releaseAllSessionExecutionLeases();
       await Promise.all([
         processManager.disposeAllAndWait(),
         pluginProcessManager.disposeAllAndWait(),

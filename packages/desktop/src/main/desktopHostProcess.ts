@@ -45,6 +45,8 @@ import {
   buildHostProcessEnv,
   hostModulePath,
   resolveBundledGlmBinaryPath,
+  resolveRemoteAssetDirs,
+  type RemoteAssetDirs,
 } from "./desktopRuntimeEnv.js";
 import { ingestHostNetworkCapture } from "./resourceManagerNetwork.js";
 import { buildHostE2ECoverageEnv } from "./e2eCoverage.js";
@@ -89,6 +91,8 @@ export interface HostInitMessage {
   zcodeBuiltinProviderConfigFilePath: string;
   /** Main 提前异步采集并过滤的本机 runtime 环境；只允许传给 InitLocal。 */
   runtimeProcessEnvPatch?: Record<string, string>;
+  /** Main 解析部署资源布局；Host 仅按需准备会话 Linux 执行运行时。 */
+  sessionExecutionRemoteAssets?: RemoteAssetDirs;
 }
 
 export interface SpawnHostProcessOptions {
@@ -739,15 +743,24 @@ export function spawnHostProcess(
     }
   });
 
+  let sessionExecutionRemoteAssets = initMessage.sessionExecutionRemoteAssets;
+  if (process.platform === "win32" && !sessionExecutionRemoteAssets) {
+    try {
+      sessionExecutionRemoteAssets = resolveRemoteAssetDirs({}, dependencies.hostProcessLocalEnv);
+    } catch {
+      // 可选执行环境的资源配置失败不应阻止默认本机会话启动。
+      dependencies.logger.warn("session Linux runtime assets unavailable");
+    }
+  }
   const shouldAttachRealtimeHost = options?.taskRealtime != null;
-  const hostInitMessage: HostInitMessage = shouldAttachRealtimeHost
-    ? {
-        ...initMessage,
-        databaseStartupId: databaseStartupRelay.startupId,
-        hostId,
-        deliveryKind: options?.taskRealtime?.deliveryKind,
-      }
-    : { ...initMessage, databaseStartupId: databaseStartupRelay.startupId };
+  const hostInitMessage: HostInitMessage = {
+    ...initMessage,
+    ...(sessionExecutionRemoteAssets ? { sessionExecutionRemoteAssets } : {}),
+    databaseStartupId: databaseStartupRelay.startupId,
+    ...(shouldAttachRealtimeHost
+      ? { hostId, deliveryKind: options?.taskRealtime?.deliveryKind }
+      : {}),
+  };
 
   if (options?.attachInitialServicePort === false) {
     child.postMessage(hostInitMessage);

@@ -174,10 +174,21 @@ export async function deployZCodeAgentRuntime(
   const remoteBinaryPath = `${remoteProviderDir}/${binaryName}`;
   const remoteBundlePath = `${remoteProviderDir}/${REMOTE_AGENT_BUNDLE_NAME}`;
   const remoteOfficialPluginDir = buildRemoteAgentOfficialPluginDir(remoteProviderDir);
-  const missingOfficialPluginAssetPaths = await findMissingRemoteOfficialPluginAssetPaths(
-    backend,
-    remoteProviderDir,
-  );
+  let missingOfficialPluginAssetPaths: string[];
+  try {
+    missingOfficialPluginAssetPaths = await findMissingRemoteOfficialPluginAssetPaths(
+      backend,
+      remoteProviderDir,
+    );
+  } catch (error) {
+    // 远端资产探测是可恢复的准备步骤（wsl/wslpath/UNC 瞬时抖动）：按“全部缺失”保守处理，
+    // 触发幂等重部署而不是让 prepare 整体失败；失败原因必须留下日志（spec：明确失败原因）。
+    loggers.logWarn(
+      `[zcode-agent-deploy] ${provider}: 远端插件资产探测失败，按缺失处理并触发重部署: ${String(error)}`,
+    );
+    missingOfficialPluginAssetPaths =
+      buildRemoteAgentOfficialPluginRequiredPaths(remoteProviderDir);
+  }
 
   if (
     await deployDevelopmentZCodeAgentRuntime(

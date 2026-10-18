@@ -107,6 +107,7 @@ import type { ModelProviderSourceTitle } from "../model-config.js";
 import type { ZCodeInstalledPluginData } from "../plugins.js";
 import type { SessionTranscriptMessage } from "../session-transcript.js";
 import type { NodeReplBrowserBroker } from "./node-repl-browser-broker.js";
+import type { SessionExecutionPortBinding } from "./session-execution-port-binding.js";
 import type { ProviderRegistryModelSource } from "./provider-registry-model-runtime.js";
 import type { WorkspaceHookReviewCommandResult } from "./workspace-hook-review-controller.js";
 export type { ZCodeModelOption } from "@zcode/shared";
@@ -140,6 +141,13 @@ export interface ZCodeAppOptions {
   version?: string;
   traceContext?: TraceContext;
   runtimeConfig?: ZCodeAppRuntimeConfigInput;
+  /**
+   * 会话级执行端口绑定（session-linux-execution）。协议入口按会话注入；App 把本地
+   * 解析出的执行/文件端口回填到绑定，并用绑定的稳定门面作为本会话的 ExecutionPort /
+   * FileSystemPort，使会话内环境切换无需重建 App 即可生效。缺省（普通 CLI/测试）不注入，
+   * 行为完全不变。
+   */
+  sessionExecutionPortBinding?: SessionExecutionPortBinding;
   /**
    * stdio 协议模式的 agent 进程由 Electron host 拉起，模型服务需要看到 electron 来源。
    * 普通 CLI 不传，继续使用 cli 默认值。
@@ -317,6 +325,11 @@ export interface ZCodeApp {
   readonly sessionId: SessionId;
   readonly traceId: string;
   readonly runtime: AgentRuntime;
+  /**
+   * 本会话的执行端口绑定（session-linux-execution）。仅协议入口注入的会话存在；
+   * CLI session owner 在环境切换提交后据此切换真实端口，不重建 App。
+   */
+  readonly sessionExecutionPortBinding?: SessionExecutionPortBinding;
   respondWorkspaceHookReview(
     input: RespondWorkspaceHookReviewInput,
   ): Promise<WorkspaceHookReviewCommandResult>;

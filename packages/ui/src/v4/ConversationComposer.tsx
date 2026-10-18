@@ -540,6 +540,11 @@ export interface ConversationComposerProps {
   appSlashCommands?: readonly AppSlashCommand[];
   /** 把 composer 的 drop 路由暴露给整个对话 pane / 桌面草稿标题栏。 */
   onDropTargetControllerChange?: (controller: ConversationDropTargetController | null) => void;
+  /**
+   * 会话级执行环境入口（session-linux-execution）。内容由 SessionPane 组装，
+   * composer 原样转发给工具条模型控件簇尾部；不在 composer 内承载状态。
+   */
+  sessionExecutionEnvironmentSlot?: ReactNode;
 }
 
 function formatAttachmentLineCount(attachment: ChatComposerAttachment, locale: string): string {
@@ -608,6 +613,7 @@ function ConversationComposerImpl({
   suppressGoalCommands = false,
   appSlashCommands,
   onDropTargetControllerChange,
+  sessionExecutionEnvironmentSlot,
 }: ConversationComposerProps) {
   const { intl, locale } = useZCodeIntl();
   const services = useOptionalServices();
@@ -2487,6 +2493,7 @@ function ConversationComposerImpl({
             onSwitchContextProfile={onSwitchContextProfile}
             onRecoverCustomModelSelection={onRecoverCustomModelSelection}
             onSendCompressionCommand={onSendCompressionCommand}
+            sessionExecutionEnvironmentSlot={sessionExecutionEnvironmentSlot}
           />
         </span>
         {!showStopControl && !pending ? (

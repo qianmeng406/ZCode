@@ -12,6 +12,7 @@ import {
   createZCodeAgentConnectionScope,
   type ServiceCollection,
 } from "@zcode/services";
+import { createSessionLinuxExecutionChannel } from "./sessionLinuxExecution/sessionLinuxExecutionChannel.js";
 
 /**
  * Wrap process.stdin/stdout as an ISocket for RPC communication.
@@ -60,15 +61,36 @@ export function wrapStdio(): ISocket {
   };
 }
 
+export interface CreateStdioServerOptions {
+  /** 反向 client 回调（desktop-attached 模式下用于 topic resource relay）。 */
+  onReverseClientReady?: (client: ChannelClient) => void;
+  /**
+   * 会话级 Linux 执行 channel：显式启用时挂载到本 stdio 的 ChannelServer 上。
+   * 该 channel 不是 ServiceCollection 资源，dispose 由返回句柄交给 entry lifecycle barrier。
+   */
+  sessionLinuxExecution?: {
+    log?: (...args: unknown[]) => void;
+  };
+}
+
 export function createStdioServer(
   services: ServiceCollection,
-  onReverseClientReady?: (client: ChannelClient) => void,
+  options: CreateStdioServerOptions = {},
 ) {
   const socket = wrapStdio();
   const protocol = new SocketProtocol(socket);
   const channelServer = new ChannelServer(protocol, "stdio");
-  const reverseClient = onReverseClientReady ? new ChannelClient(protocol) : undefined;
-  if (reverseClient) onReverseClientReady?.(reverseClient);
+  const reverseClient = options.onReverseClientReady ? new ChannelClient(protocol) : undefined;
+  if (reverseClient) options.onReverseClientReady?.(reverseClient);
+  // 会话级 Linux 执行端：标准 typed channel，复用本 stdio，不新建 wsl.exe / 文本协议。
+  const sessionLinuxExecution = options.sessionLinuxExecution
+    ? createSessionLinuxExecutionChannel({
+        log: options.sessionLinuxExecution.log,
+      })
+    : undefined;
+  if (sessionLinuxExecution) {
+    channelServer.registerChannel(sessionLinuxExecution.channelName, sessionLinuxExecution.channel);
+  }
   const agentService = services.getOptional(IZCodeAgentService);
   const connectionScope = agentService
     ? createZCodeAgentConnectionScope(agentService, {
@@ -95,9 +117,15 @@ export function createStdioServer(
     reverseClient?.dispose();
     stopPromise = (async () => {
       try {
-        await connectionScope?.dispose();
+        // lifecycle barrier：channel 不是 ServiceCollection 资源，必须显式回收
+        // （终止全部 execution / 释放 per-lease adapter）。
+        await sessionLinuxExecution?.dispose();
       } finally {
-        socket.dispose();
+        try {
+          await connectionScope?.dispose();
+        } finally {
+          socket.dispose();
+        }
       }
     })();
     return stopPromise;

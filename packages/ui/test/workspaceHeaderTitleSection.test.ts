@@ -94,6 +94,8 @@ vi.mock("@/hooks/useGlobalTaskList.js", () => ({
 
 vi.mock("@/hooks/usePlatform.js", () => ({
   usePlatform: () => ({}),
+  // Header 的会话执行环境入口通过 useOptionalPlatform 读 platform（缺省 null 时不渲染入口）。
+  useOptionalPlatform: () => null,
 }));
 
 vi.mock("@/hooks/useWorkspaceServices.js", () => ({

@@ -136,6 +136,8 @@ import { flushHostE2ECoverage } from "./e2eCoverage.js";
 import { runHostShutdownPhases, type HostShutdownResult } from "./hostShutdownPhases.js";
 import { initializeHostApiNetworkTransportOwner } from "./hostInitialization.js";
 import { createHostUncaughtExceptionHandler } from "./hostUncaughtExceptionGuard.js";
+import { createSessionLinuxExecutionManager } from "./sessionLinuxExecutionManager.js";
+import { connectSessionLinux } from "./sessionLinuxConnection.js";
 import {
   recordCronRunOutcomeBestEffort,
   startManualClaimHeartbeat,
@@ -1608,6 +1610,7 @@ let databaseStartup: ReturnType<typeof createHostDatabaseStartup> | undefined;
 const pendingStartupAttachments = new Map<string, () => void>();
 let activeServices: ServiceCollection | null = null;
 let activeHostApiNetworkTransport: HostApiNetworkTransport | null = null;
+let sessionLinuxExecutionManager: ReturnType<typeof createSessionLinuxExecutionManager> | undefined;
 /** 本地 host services 的资源遥测订阅；远端连接的订阅由各自的 connection handle 持有。 */
 let activeLocalResourceTelemetry: IDisposable | null = null;
 // 资源管理器采样只在 main 请求时执行一次，Host 不维护任何周期定时器。
@@ -2262,6 +2265,8 @@ async function disposeHostResources(reason: string): Promise<HostShutdownResult>
 
     const servicesToDispose = activeServices;
     activeServices = null;
+    const sessionLinuxManagerToDispose = sessionLinuxExecutionManager;
+    sessionLinuxExecutionManager = undefined;
     // Registry 是全部远端 connection 的唯一 owner；释放失败不能阻塞本地服务继续收口。
     const shutdownResult = await runHostShutdownPhases(
       [
@@ -2276,6 +2281,17 @@ async function disposeHostResources(reason: string): Promise<HostShutdownResult>
                 name: "service-dispose",
                 run: () => disposeServiceResourcesAndWait(servicesToDispose),
                 timeoutMs: 3_500,
+              },
+            ]
+          : []),
+        // 会话 Linux 执行资源排在 service-dispose 之后：服务收口期间的 lease 释放仍需连接存活；
+        // 随后有界 kill 前后台执行并断开，不依赖连接池 registry 的清理。
+        ...(sessionLinuxManagerToDispose
+          ? [
+              {
+                name: "session-linux-execution-dispose",
+                run: () => sessionLinuxManagerToDispose.disposeAndWait(5_000),
+                timeoutMs: 6_000,
               },
             ]
           : []),
@@ -2336,6 +2352,15 @@ function disposeHostResourcesBestEffort(reason: string): void {
       activeServices = null;
       activeHostApiNetworkTransport = null;
     }
+  }
+
+  const sessionLinuxManagerBestEffort = sessionLinuxExecutionManager;
+  sessionLinuxExecutionManager = undefined;
+  if (sessionLinuxManagerBestEffort) {
+    // best-effort 路径不阻塞退出；执行进程清理失败只记录，不再启动新连接。
+    void sessionLinuxManagerBestEffort.disposeAndWait().catch((error) => {
+      logger.warn("failed to dispose session Linux execution manager", error);
+    });
   }
 
   if (activeSessionRealtimePort) {
@@ -2950,6 +2975,25 @@ parentPort.on("message", async (e: Electron.MessageEvent) => {
           transport: hostApiNetworkTransport,
           log: (message, details) => logger.warn(message, details),
           establishOwner: () => {
+            const linuxExecutionManager =
+              process.platform === "win32"
+                ? createSessionLinuxExecutionManager({
+                    connect: async (target, options) => {
+                      if (!msg.sessionExecutionRemoteAssets) {
+                        throw new Error("Session Linux runtime assets unavailable");
+                      }
+                      return connectSessionLinux(target, {
+                        ...options,
+                        assets: msg.sessionExecutionRemoteAssets,
+                        remoteAssetNetwork: {
+                          fetch: requireActiveHostApiNetworkTransport().fetch,
+                        },
+                        remoteRuntimeNetwork: await resolveDesktopRemoteRuntimeNetwork(target),
+                      });
+                    },
+                  })
+                : undefined;
+            sessionLinuxExecutionManager = linuxExecutionManager;
             const initializedServices = createLocalServices({
               parentPort,
               settingService,
@@ -3004,6 +3048,12 @@ parentPort.on("message", async (e: Electron.MessageEvent) => {
               // browser-use：agent 的 interaction/browserExecute 经 zcodeAgentService 转到这个 executor，
               // 再经 parentPort 到 main 的 WebContentsView+CDP 执行。
               browserControlExecutor: browserControlMainBridge,
+              // 会话级 Linux 执行桥：interaction/sessionExecution 反向 RPC 转到本机 WSL 执行端。
+              // 非 Windows 不注入；缺省即 fail-closed backend_unavailable，绝不回落本地执行。
+              sessionExecutionExecutor: linuxExecutionManager
+                ? (params, workspace, signal) =>
+                    linuxExecutionManager.execute(params, workspace, signal)
+                : undefined,
               // CUA 顶部提示属于物理 Windows 桌面投影；非 Windows 和远端 authority 都不得上报。
               cuaOperationStateReporter:
                 process.platform === "win32" ? cuaOperationStateReporter : undefined,

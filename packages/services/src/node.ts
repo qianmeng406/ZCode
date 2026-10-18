@@ -1174,6 +1174,10 @@ export function createLocalServices(options: {
     getDeviceMid?: () => string | undefined;
     runtimeSurface?: "desktop_local_host" | "remote_workspace_host";
   };
+  /** 会话 Linux 执行桥仅由本机 Desktop Host 注入，不改变工作区服务路由。 */
+  sessionExecutionExecutor?: NonNullable<
+    Parameters<typeof createZCodeAgentService>[0]
+  >["sessionExecutionExecutor"];
   /** browser-use 执行桥（host→main WebContentsView+CDP）；desktop host 注入，缺省则 browser 不可用。 */
   browserControlExecutor?: {
     list(input: {
@@ -2027,6 +2031,7 @@ export function createLocalServices(options: {
     spawnFallbackCwd: options?.zcodeAgentSpawnFallbackCwd,
     // browser-use：host→main 执行桥透传给 agent service 的 onRequest browserExecute 路由。
     browserControlExecutor: options?.browserControlExecutor,
+    sessionExecutionExecutor: options?.sessionExecutionExecutor,
     // 机器人凭据只归属于授权 Host；远端独立服务不能借用本机配置扩大读取范围。
     channelReplyExecutor: async (value) => {
       const request = channelReplyHostRequestSchema.parse(value);

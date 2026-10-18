@@ -99,14 +99,18 @@ async function main() {
       `${SERVICE_AUTHORITY_MODE_ENV}=${authorityModeParseResult.invalidRawValue} 非法，按默认本机 Environment 权威模式启动`,
     );
   }
-  const stdioServer = createStdioServer(
-    services,
-    authorityModeParseResult.mode === "desktop-attached-remote"
-      ? (client) => {
-          topicResourceChannel = client.getChannel(TOPIC_RESOURCE_RELAY_CHANNEL);
-        }
-      : undefined,
-  );
+  const stdioServer = createStdioServer(services, {
+    // desktop-attached 模式下复用 stdio 反向频道转发 topic resource。
+    onReverseClientReady:
+      authorityModeParseResult.mode === "desktop-attached-remote"
+        ? (client) => {
+            topicResourceChannel = client.getChannel(TOPIC_RESOURCE_RELAY_CHANNEL);
+          }
+        : undefined,
+    // 会话级本机 Linux（WSL）执行端：与本 stdio 同生命周期，stdin EOF 时由
+    // createStdioServer 内部的 lifecycle barrier 终止全部 execution 并释放资源。
+    sessionLinuxExecution: { log },
+  });
   registerStdioProcessLifecycle({
     stdin: process.stdin,
     signalSource: process,

@@ -359,3 +359,8 @@ export {
   isRequestSecurityFailure,
 } from "./request-security-edition/policy.js";
 export * from "./request-security-edition/verification-policy.js";
+
+// 会话级执行环境（session-linux-execution）：schema、wire 契约与归一化工具。
+export * from "./sessionExecutionEnvironment.js";
+export * from "./sessionExecutionWire.js";
+export * from "./sessionExecutionOperations.js";

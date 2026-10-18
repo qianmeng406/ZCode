@@ -285,5 +285,17 @@ export interface ExecutionPort {
   /** 只读已登记的后台 Bash，固定读取文件尾部 8 KiB。 */
   readBackgroundBashOutput?(taskId: string, sessionId: string): Promise<BackgroundBashOutputResult>;
   cancelBackgroundTask?(taskId: string): Promise<BackgroundExecutionSnapshot | undefined>;
+  /**
+   * 宿主路径 → 当前执行环境路径（可选能力，只在执行环境与宿主不同平台时提供）。
+   *
+   * - 未实现：执行环境即宿主（本机默认），调用方按原值使用；
+   * - 返回字符串：可在该执行环境使用的等价路径；
+   * - 返回 null：该路径不可映射（网络盘、未挂载盘等），调用方必须显式失败，
+   *   不得把宿主路径交给执行环境，也不得做字符串猜测。
+   *
+   * 会话级 Linux 借用端口用执行端 `wslpath` 做权威映射（与 cwd 映射同源）；
+   * hook 命令/环境变量里的插件与项目路径靠它落到 Linux 可访问路径。
+   */
+  translateHostPath?(path: string): Promise<string | null>;
   close?(): Promise<void>;
 }

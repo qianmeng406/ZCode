@@ -1795,6 +1795,49 @@ const enUS: Record<string, string> = {
   "appHeader.reloadSessionSuccess": "Session reloaded",
   "appHeader.reloadSessionFailed": "Could not reload session",
   "appHeader.workspaceSessionActionLoading": "Applying session changes...",
+  "sessionExecutionEnvironment.menu.label": "Execution environment (local Linux)",
+  "sessionExecutionEnvironment.toolbar.label": "Linux env",
+  "sessionExecutionEnvironment.dialog.title": "Session execution environment",
+  "sessionExecutionEnvironment.dialog.description":
+    "Choose where Agent commands run for this session. History, model, and permissions stay unchanged; other sessions can use a different environment.",
+  "sessionExecutionEnvironment.current.label": "Current environment",
+  "sessionExecutionEnvironment.current.default": "Local default (Windows)",
+  "sessionExecutionEnvironment.distro.label": "WSL distribution",
+  "sessionExecutionEnvironment.distro.placeholder": "Select a distribution",
+  "sessionExecutionEnvironment.distro.loading": "Loading distributions…",
+  "sessionExecutionEnvironment.distro.unavailable": "WSL unavailable",
+  "sessionExecutionEnvironment.distro.unavailableHint":
+    "Could not list WSL distributions. WSL may not be installed or not ready.",
+  "sessionExecutionEnvironment.distro.defaultTag": "default",
+  "sessionExecutionEnvironment.user.label": "Linux user",
+  "sessionExecutionEnvironment.user.placeholder":
+    "An existing user in this distribution, for example ubuntu",
+  "sessionExecutionEnvironment.error.distroRequired": "Select a WSL distribution",
+  "sessionExecutionEnvironment.error.userRequired":
+    "Enter a Linux user name that already exists in this distribution",
+  "sessionExecutionEnvironment.error.invalidUser": "User name contains invalid characters",
+  "sessionExecutionEnvironment.hint.title": "Before you continue",
+  "sessionExecutionEnvironment.hint.mountedFiles":
+    "Project files stay on the Windows drive and are accessed through the /mnt/... mount — one copy of the files, no sync; I/O across the mount may be slower than native ext4.",
+  "sessionExecutionEnvironment.hint.nativeDeps":
+    "Mixing Windows and Linux native dependencies (such as platform binaries in node_modules) can conflict; existing dependencies are never overwritten automatically.",
+  "sessionExecutionEnvironment.hint.noSandbox":
+    "Local WSL execution does not provide container-level isolation; installing tools or dependencies requires an explicit command and the existing permission flow.",
+  "sessionExecutionEnvironment.prepare.running": "Preparing the Linux execution environment…",
+  "sessionExecutionEnvironment.prepare.cancelling": "Cancelling preparation…",
+  "sessionExecutionEnvironment.prepare.succeeded":
+    "Agent commands in this session will now run in the selected Linux environment.",
+  "sessionExecutionEnvironment.prepare.failed": "Preparation failed",
+  "sessionExecutionEnvironment.prepare.failedKeptOriginal":
+    "The original environment is kept and session behavior is unchanged; you can retry or close.",
+  "sessionExecutionEnvironment.action.cancelPrepare": "Cancel preparation",
+  "sessionExecutionEnvironment.action.retry": "Retry",
+  "sessionExecutionEnvironment.action.apply": "Apply to this session",
+  "sessionExecutionEnvironment.action.explicitRequiredHint":
+    "Select a distribution and enter a Linux user that already exists in it",
+  "sessionExecutionEnvironment.action.useDefault": "Back to local default",
+  "sessionExecutionEnvironment.scopeNote":
+    "Affects Agent command execution in this session only; files, Git, and the built-in terminal stay on local Windows.",
   "appHeader.copyLogPath": "Copy log path",
   "appHeader.goToProviderConfig": "Go to config",
   "appHeader.goToProviderConfigPrefix": "Go to",

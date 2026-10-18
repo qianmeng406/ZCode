@@ -1,5 +1,6 @@
 /* eslint-disable max-lines -- ZCode Protocol 的 session/workspace 方法共享同一个 server context 与 snapshot helpers，迁移期先集中维护。 */
 import { observeSessionDebug } from "./session-debug.js";
+import { isSessionExecutionPreparationInFlight } from "./session-execution.js";
 import {
   TASK_LIST_SESSION_TYPES,
   isTaskListSessionType,
@@ -1964,6 +1965,19 @@ export async function sendPrompt(context: ZCodeProtocolAgentServerContext, rawPa
       workspacePath: record.workspace.workspacePath,
     });
     throw new ProtocolRequestError(-32010, "A prompt is already running for this session");
+  }
+  // 会话级执行环境切换 admission 锁（session-linux-execution spec「切换 admission」）：
+  // 准备期间提交新输入会与端口装配交错，锁在 prepare 开始前建立、提交/失败后释放。
+  if (isSessionExecutionPreparationInFlight(params.sessionId)) {
+    context.logger?.warn("ZCode Protocol session/send rejected: execution environment switch in progress", {
+      inputId: params.inputId,
+      sessionId: params.sessionId,
+      workspacePath: record.workspace.workspacePath,
+    });
+    throw new ProtocolRequestError(
+      -32010,
+      "An execution environment switch is in progress for this session; try again after it completes",
+    );
   }
   if (record.restoreWarning) {
     throw new ProtocolRequestError(-32031, record.restoreWarning.message, {

@@ -530,6 +530,10 @@ export const hostInitLocalMessageSchema = z.object({
   runtimeProcessEnvPatch: z
     .record(z.string().regex(/^[A-Za-z_][A-Za-z0-9_]*$/), z.string())
     .optional(),
+  // 会话级 Linux 执行环境（session-linux-execution）：local Host 部署 WSL 执行端时
+  // 需要 Main 侧 resolveRemoteAssetDirs() 的资产目录。只用于 Host 部署配置，
+  // 不是会话业务状态，也不进 session 配置持久化。
+  sessionExecutionRemoteAssets: remoteAssetDirsSchema.optional(),
 });
 
 export const windowHostRemoteWorkspaceDescriptorSchema = z

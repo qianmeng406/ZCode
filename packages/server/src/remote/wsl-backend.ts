@@ -420,18 +420,23 @@ export class WSLBackend implements IRemoteBackend {
     const pendingIndexes: number[] = [];
     const pendingPaths: string[] = [];
     for (let index = 0; index < remotePaths.length; index += 1) {
-      const resolvedRemotePath = await this.resolveLinuxPath(remotePaths[index]!, resolvedInfo);
-      if (resolvedInfo.distroName) {
-        const accessiblePath = await accessAnyPath(
-          toWslUncCandidates(resolvedRemotePath, resolvedInfo.distroName),
-        );
-        if (accessiblePath) {
-          results[index] = true;
-          continue;
+      try {
+        const resolvedRemotePath = await this.resolveLinuxPath(remotePaths[index]!, resolvedInfo);
+        if (resolvedInfo.distroName) {
+          const accessiblePath = await accessAnyPath(
+            toWslUncCandidates(resolvedRemotePath, resolvedInfo.distroName),
+          );
+          if (accessiblePath) {
+            results[index] = true;
+            continue;
+          }
         }
+        pendingIndexes.push(index);
+        pendingPaths.push(resolvedRemotePath);
+      } catch {
+        // 单路径 resolve/UNC 探测瞬时失败不拖垮整批：退回该路径的 exists（自身吞错保答案）。
+        results[index] = await this.exists(remotePaths[index]!);
       }
-      pendingIndexes.push(index);
-      pendingPaths.push(resolvedRemotePath);
     }
     if (pendingPaths.length > 0) {
       try {

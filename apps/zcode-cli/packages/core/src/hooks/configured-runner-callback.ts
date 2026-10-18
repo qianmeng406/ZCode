@@ -12,6 +12,8 @@ import {
   createCompatibleHookStdin,
   createPluginEnvOverlay,
   expandPluginVariables,
+  resolveHookPathEnvironment,
+  resolveHookPathTranslate,
 } from "./configured-runner-input.js";
 import type { ConfiguredHookRunnerOptions, HookCallback, HookCallbackResult } from "./types.js";
 
@@ -23,10 +25,21 @@ export function createConfiguredHookCallback(
   hookIndex: number,
   execution: { maxOutputBytes: number; timeoutMs: number },
 ): HookCallback {
+  // 宿主路径翻译：Linux 借用端口会提供它，hook 命令/环境/stdin 里的插件与项目路径
+  // 必须先落到执行环境（否则 Windows 路径进 Linux shell，见 resolveHookPathEnvironment 注释）。
+  const translateHostPath = resolveHookPathTranslate(options.executionPort);
   switch (hook.type) {
     case "command":
       return async (input, context) => {
-        const stdin = await createCompatibleHookStdin(input);
+        const pathEnv = await resolveHookPathEnvironment({
+          plugin: hook.plugin,
+          input,
+          workingDirectory: options.getWorkingDirectory(),
+          translate: translateHostPath,
+        });
+        const stdin = await createCompatibleHookStdin(pathEnv.input, {
+          translate: translateHostPath,
+        });
         try {
           const result = await options.executionPort.run(
             {
@@ -34,14 +47,18 @@ export function createConfiguredHookCallback(
                 mode: "shell",
                 command: expandPluginVariables(
                   hook.command,
-                  hook.plugin,
-                  input,
+                  pathEnv.plugin,
+                  pathEnv.input,
                   options.getWorkingDirectory(),
                 ),
                 shell: hook.shell,
               },
-              cwd: input.cwd || options.getWorkingDirectory(),
-              env: createPluginEnvOverlay(hook.plugin, input, options.getWorkingDirectory()),
+              cwd: pathEnv.input.cwd || options.getWorkingDirectory(),
+              env: createPluginEnvOverlay(
+                pathEnv.plugin,
+                pathEnv.input,
+                options.getWorkingDirectory(),
+              ),
               stdin: stdin.value,
               timeoutMs: execution.timeoutMs,
               outputLimit: {
@@ -69,7 +86,15 @@ export function createConfiguredHookCallback(
       };
     case "process":
       return async (input, context) => {
-        const stdin = await createCompatibleHookStdin(input);
+        const pathEnv = await resolveHookPathEnvironment({
+          plugin: hook.plugin,
+          input,
+          workingDirectory: options.getWorkingDirectory(),
+          translate: translateHostPath,
+        });
+        const stdin = await createCompatibleHookStdin(pathEnv.input, {
+          translate: translateHostPath,
+        });
         try {
           const result = await options.executionPort.run(
             {
@@ -77,16 +102,25 @@ export function createConfiguredHookCallback(
                 mode: "argv",
                 file: expandPluginVariables(
                   hook.command,
-                  hook.plugin,
-                  input,
+                  pathEnv.plugin,
+                  pathEnv.input,
                   options.getWorkingDirectory(),
                 ),
                 args: (hook.args ?? []).map((arg) =>
-                  expandPluginVariables(arg, hook.plugin, input, options.getWorkingDirectory()),
+                  expandPluginVariables(
+                    arg,
+                    pathEnv.plugin,
+                    pathEnv.input,
+                    options.getWorkingDirectory(),
+                  ),
                 ),
               },
-              cwd: input.cwd || options.getWorkingDirectory(),
-              env: createPluginEnvOverlay(hook.plugin, input, options.getWorkingDirectory()),
+              cwd: pathEnv.input.cwd || options.getWorkingDirectory(),
+              env: createPluginEnvOverlay(
+                pathEnv.plugin,
+                pathEnv.input,
+                options.getWorkingDirectory(),
+              ),
               stdin: stdin.value,
               timeoutMs: execution.timeoutMs,
               outputLimit: {

@@ -21,6 +21,15 @@ function isWindowsDesktopUserAgent(): boolean {
 }
 
 /**
+ * 通用 Windows 桌面 UA 判定（session-linux-execution 等仅 Windows 本机可用的能力复用）。
+ * 与 CUA 的 supportsLocalWindowsCuaEntry 不同：这里不带 capability 联判，
+ * 调用方自行叠加 IPlatformService 能力（如 listWSLDistros）与本地 workspace 条件。
+ */
+export function isWindowsDesktopUserAgentGlobal(): boolean {
+  return isWindowsDesktopUserAgent();
+}
+
+/**
  * CUA 权限 UI 的真实平台能力门。
  *
  * 仅看 UA 会把 macOS Safari/Web 误判成 desktop，打开一个无法执行任何本机 IPC 的权限弹窗。

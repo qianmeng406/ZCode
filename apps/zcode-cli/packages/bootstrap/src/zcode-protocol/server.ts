@@ -57,6 +57,11 @@ import {
   stopSession,
   subscribeSession,
 } from "./server-operations.js";
+import {
+  cancelSessionExecutionEnvironmentPreparation,
+  getSessionExecutionEnvironment,
+  handleSessionExecutionOperation,
+} from "./session-execution.js";
 import { listChildProcesses } from "./process-child-processes.js";
 import { ProtocolRuntimeResources } from "./runtime-resources.js";
 import {
@@ -670,6 +675,8 @@ export class ZCodeProtocolAgentServer {
         return await setMode(this.context, request.params);
       case zcodeProtocolMethods.sessionClose:
         return await closeSession(this.context, request.params);
+      case zcodeProtocolMethods.interactionSessionExecution:
+        return await handleSessionExecutionOperation(this.context, request.params);
       case zcodeProtocolMethods.workspaceReadPresentation:
         return await readWorkspacePresentation(this.context, request.params);
       case zcodeProtocolMethods.workspaceHookTrustGrant: {

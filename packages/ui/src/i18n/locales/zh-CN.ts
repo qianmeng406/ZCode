@@ -1656,6 +1656,46 @@ const zhCN: Record<string, string> = {
   "appHeader.reloadSessionSuccess": "会话已重载",
   "appHeader.reloadSessionFailed": "重载会话失败",
   "appHeader.workspaceSessionActionLoading": "正在应用会话变更...",
+  "sessionExecutionEnvironment.menu.label": "执行环境（本机 Linux）",
+  "sessionExecutionEnvironment.toolbar.label": "Linux 环境",
+  "sessionExecutionEnvironment.dialog.title": "会话执行环境",
+  "sessionExecutionEnvironment.dialog.description":
+    "为本会话选择 Agent 命令的执行环境。会话历史、模型与权限保持不变，不同会话可以使用不同环境。",
+  "sessionExecutionEnvironment.current.label": "当前环境",
+  "sessionExecutionEnvironment.current.default": "本机默认（Windows）",
+  "sessionExecutionEnvironment.distro.label": "WSL 发行版",
+  "sessionExecutionEnvironment.distro.placeholder": "选择发行版",
+  "sessionExecutionEnvironment.distro.loading": "正在读取发行版…",
+  "sessionExecutionEnvironment.distro.unavailable": "WSL 不可用",
+  "sessionExecutionEnvironment.distro.unavailableHint":
+    "无法读取 WSL 发行版列表，可能 WSL 未安装或未就绪。",
+  "sessionExecutionEnvironment.distro.defaultTag": "默认",
+  "sessionExecutionEnvironment.user.label": "Linux 用户",
+  "sessionExecutionEnvironment.user.placeholder": "发行版内已存在的用户名，例如 ubuntu",
+  "sessionExecutionEnvironment.error.distroRequired": "请选择 WSL 发行版",
+  "sessionExecutionEnvironment.error.userRequired": "请填写发行版内已存在的 Linux 用户名",
+  "sessionExecutionEnvironment.error.invalidUser": "用户名包含非法字符",
+  "sessionExecutionEnvironment.hint.title": "使用须知",
+  "sessionExecutionEnvironment.hint.mountedFiles":
+    "项目文件仍通过 Windows 挂载盘（/mnt/...）访问，同一份文件，不复制不同步；跨盘 I/O 性能可能低于 Linux 原生 ext4。",
+  "sessionExecutionEnvironment.hint.nativeDeps":
+    "Windows 与 Linux 原生依赖（如 node_modules 平台二进制）混用可能冲突；不会自动覆盖已安装的依赖。",
+  "sessionExecutionEnvironment.hint.noSandbox":
+    "本机 WSL 执行不提供容器级安全隔离；安装工具或依赖需要显式命令并经原有权限确认。",
+  "sessionExecutionEnvironment.prepare.running": "正在准备 Linux 执行环境…",
+  "sessionExecutionEnvironment.prepare.cancelling": "正在取消准备…",
+  "sessionExecutionEnvironment.prepare.succeeded": "本会话后续 Agent 命令将在所选 Linux 环境执行。",
+  "sessionExecutionEnvironment.prepare.failed": "准备失败",
+  "sessionExecutionEnvironment.prepare.failedKeptOriginal":
+    "已保留原执行环境，会话行为不变；可重试或关闭。",
+  "sessionExecutionEnvironment.action.cancelPrepare": "取消准备",
+  "sessionExecutionEnvironment.action.retry": "重试",
+  "sessionExecutionEnvironment.action.apply": "应用到此会话",
+  "sessionExecutionEnvironment.action.explicitRequiredHint":
+    "需先选择发行版并填写发行版内已存在的 Linux 用户",
+  "sessionExecutionEnvironment.action.useDefault": "回到本机默认",
+  "sessionExecutionEnvironment.scopeNote":
+    "仅影响本会话 Agent 命令执行；文件、Git 与内置终端仍在本机 Windows 侧。",
   "appHeader.copyLogPath": "复制日志路径",
   "appHeader.copyClaudeJsonlPath": "复制JSONL路径",
   "appHeader.copySessionId": "复制会话 ID",

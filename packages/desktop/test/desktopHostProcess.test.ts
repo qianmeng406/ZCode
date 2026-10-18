@@ -1,6 +1,7 @@
 import { EventEmitter } from "node:events";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { HostMessageTypes, HostResponseTypes } from "@zcode/shared";
+import * as desktopRuntimeEnv from "../src/main/desktopRuntimeEnv.js";
 import {
   disposeHostProcess,
   disposeHostProcessAndWait,
@@ -23,6 +24,7 @@ const electronMock = vi.hoisted(() => ({
 
 afterEach(() => {
   vi.unstubAllEnvs();
+  vi.restoreAllMocks();
   electronMock.isPackaged = false;
 });
 
@@ -68,6 +70,51 @@ describe("desktopHostProcess loadWindow", () => {
     expect(window.loadURL).not.toHaveBeenCalled();
     expect(window.loadFile).toHaveBeenCalledOnce();
   });
+});
+
+describe("desktopHostProcess session Linux runtime assets", () => {
+  function startHost(sessionExecutionRemoteAssets?: desktopRuntimeEnv.RemoteAssetDirs) {
+    const child = new MockUtilityProcess();
+    electronMock.fork.mockReturnValue(child);
+    const logger = { info: vi.fn(), warn: vi.fn() };
+    spawnHostProcess(
+      { id: 7, webContents: { id: 11, postMessage: vi.fn() } } as never,
+      "local-window",
+      {
+        type: HostMessageTypes.InitLocal,
+        zcodeBuiltinProviderConfigFilePath: "/isolated/builtin.json",
+        ...(sessionExecutionRemoteAssets ? { sessionExecutionRemoteAssets } : {}),
+      },
+      {
+        hostProcessLocalEnv: {},
+        logger,
+        broadcastHub: { register: vi.fn(), unregister: vi.fn() } as never,
+        windowHostProcessMap: new Map(),
+        hostRunningTaskCountMap: new Map(),
+      },
+    );
+    return { init: child.postMessage.mock.calls[0]![0], logger };
+  }
+
+  it("preserves explicitly supplied assets without resolving another deployment source", () => {
+    const resolver = vi.spyOn(desktopRuntimeEnv, "resolveRemoteAssetDirs");
+    const assets = { mockCdnDir: "/isolated/assets", remoteCacheDir: "/isolated/cache" };
+    expect(startHost(assets).init.sessionExecutionRemoteAssets).toEqual(assets);
+    expect(resolver).not.toHaveBeenCalled();
+  });
+
+  it.skipIf(process.platform !== "win32")(
+    "keeps default Host startup available if optional assets cannot resolve",
+    () => {
+      vi.spyOn(desktopRuntimeEnv, "resolveRemoteAssetDirs").mockImplementation(() => {
+        throw new Error("invalid optional deployment source");
+      });
+      const { init, logger } = startHost();
+      expect(init.type).toBe(HostMessageTypes.InitLocal);
+      expect(init.sessionExecutionRemoteAssets).toBeUndefined();
+      expect(logger.warn).toHaveBeenCalledWith("session Linux runtime assets unavailable");
+    },
+  );
 });
 
 describe("desktopHostProcess CUA operation state routing", () => {

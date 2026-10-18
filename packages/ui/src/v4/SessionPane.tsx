@@ -65,6 +65,10 @@ import type {
 } from "@zcode/services";
 import { useCodingPlanBillingDiscountFromService } from "@/CodingPlanBillingDiscount.js";
 import { toast } from "@/components/ui/toast.js";
+import { Button } from "@/components/ui/button.js";
+import { isWindowsDesktopUserAgentGlobal } from "@/lib/cuaPlatform.js";
+import { useSessionExecutionEnvironment } from "@/hooks/useSessionExecutionEnvironment.js";
+import { SessionExecutionEnvironmentDialog } from "@/SessionExecutionEnvironmentDialog.js";
 import { cn } from "@/components/lib/utils.js";
 import { useZCodeIntl } from "@/i18n/IntlProvider.js";
 import { DEFAULT_CODE_PREVIEW_SETTINGS } from "@/lib/codePreviewSettings.js";
@@ -2934,6 +2938,74 @@ export function SessionPane({
     async () => undefined,
   );
   const effectiveSessionId = sessionId ?? prewarmSessionId;
+
+  // ── 会话级本机 Linux（WSL）执行环境（session-linux-execution）──
+  // 仅 Windows 本地 desktop workspace 提供；远程 workspace 与手机远控不叠加绑定。
+  // 草稿态：优先复用 prewarm 会话（effectiveSessionId）；无 prewarm 时经既有
+  // createSession（无 firstInput，不产生消息、不调模型）正常创建并 promote，
+  // 首次发送不再重复建 session（promote 后 draftMode=false 走既有发送路径）。
+  const isWindowsLocalWorkspaceForExecution =
+    isDesktop && isWindowsDesktopUserAgentGlobal() && !remoteSessionId && !compactForRemoteControl;
+  const [executionEnvironmentOpen, setExecutionEnvironmentOpen] = useState(false);
+  const [executionEnvironmentBusy, setExecutionEnvironmentBusy] = useState(false);
+  const sessionExecutionEnvironment = useSessionExecutionEnvironment({
+    workspacePath,
+    workspaceIdentity,
+    sessionId: effectiveSessionId,
+    service: baseWorkspaceServices.zcodeAgentService,
+    enabled:
+      isWindowsLocalWorkspaceForExecution &&
+      Boolean(effectiveSessionId) &&
+      (sessionId !== null || prewarmBinding !== null),
+  });
+
+  const handleOpenExecutionEnvironment = useCallback(async () => {
+    // 已绑定会话或已有 prewarm 载体：直接打开（hook 用 effectiveSessionId）。
+    if (sessionId !== null || prewarmBindingRef.current) {
+      setExecutionEnvironmentOpen(true);
+      return;
+    }
+    // 无 prewarm：显式创建正式 session（无 firstInput），promote 为已选会话。
+    setExecutionEnvironmentBusy(true);
+    try {
+      const dispatch = dispatchCommandRef.current;
+      if (!dispatch) {
+        logger.warn("[session-execution-environment] 命令通道未就绪，跳过空草稿 createSession");
+        return;
+      }
+      const createAck = await dispatch("createSession", { workspaceId: workspaceKey }, null);
+      if (createAck.status !== "accepted" || createAck.result?.type !== "createSession") {
+        logger.warn("[session-execution-environment] 空草稿 createSession 被拒", {
+          status: createAck.status,
+          reasonCode: createAck.reasonCode ?? null,
+        });
+        return;
+      }
+      handleDraftSessionCreated(createAck.result.sessionId, null);
+      setExecutionEnvironmentOpen(true);
+    } finally {
+      setExecutionEnvironmentBusy(false);
+    }
+    // handleDraftSessionCreated / dispatchCommandRef 是稳定引用；workspaceKey 覆盖身份。
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- 依赖经 ref 闭合，避免按钮引用逐渲染抖动
+  }, [sessionId, workspaceKey]);
+
+  const executionEnvironmentSlot = isWindowsLocalWorkspaceForExecution ? (
+    <Button
+      type="button"
+      variant="ghost"
+      size="sm"
+      className="h-7 px-2 text-ui-sm text-foreground-subtle"
+      disabled={executionEnvironmentBusy}
+      onClick={() => {
+        void handleOpenExecutionEnvironment();
+      }}
+      data-testid="session-execution-environment-trigger"
+    >
+      {intl.formatMessage({ id: "sessionExecutionEnvironment.toolbar.label" })}
+    </Button>
+  ) : null;
+
   const showModelChangeNotice = useCallback(
     (sourceModel: ModelSelectionSource | null, targetModel: ModelSelectionSource) => {
       // Bug 原因：草稿尚未形成实际会话，模型选择本身已经在 composer 中可见；
@@ -5375,6 +5447,7 @@ export function SessionPane({
       suppressGoalCommands={selectionSideChat}
       appSlashCommands={appSlashCommands}
       onDropTargetControllerChange={handleDropTargetControllerChange}
+      sessionExecutionEnvironmentSlot={executionEnvironmentSlot}
     />
   );
   const pendingGuideProjection = snapshot ? projectPendingGuideQueue(snapshot.queue) : null;
@@ -5511,6 +5584,15 @@ export function SessionPane({
         />
       ) : null}
       {composerNode}
+      <SessionExecutionEnvironmentDialog
+        open={executionEnvironmentOpen}
+        onOpenChange={setExecutionEnvironmentOpen}
+        sessionId={effectiveSessionId}
+        isRemoteWorkspace={Boolean(remoteSessionId) || compactForRemoteControl}
+        isWindowsLocalWorkspace={isWindowsLocalWorkspaceForExecution}
+        platform={platform ?? { listWSLDistros: () => Promise.resolve([]) }}
+        environment={sessionExecutionEnvironment}
+      />
       {/* 办公模式显示主动任务推荐；编程模式保留原有小型场景入口。 */}
       {isDraft && (!isOfficeMode || sharedSettings?.proactiveSuggestionsEnabled === true) ? (
         <ConversationDraftSuggestedPromptsContainer
