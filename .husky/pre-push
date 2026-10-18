@@ -14,4 +14,7 @@ fi
 # shellcheck disable=SC2046
 unset $(git rev-parse --local-env-vars)
 # 修复原因：强制 mise 会阻止已用其他方式准备好 Node/pnpm 的开发者推送；沿用当前环境。
-ZCODE_PRE_PUSH_STDIN="$pre_push_stdin" pnpm run verify:pre-push
+# 门禁由 scripts/pre-push-gate.mjs 包装：它会在「同一推送范围 + 同一工具链环境已完整
+# 通过」时跳过重复门禁（只缓存通过结果，失败绝不缓存；工作区有未提交改动、无法确定
+# 推送范围或 ZCODE_PREPUSH_NO_CACHE=1 时一律照跑完整门禁）。
+ZCODE_PRE_PUSH_STDIN="$pre_push_stdin" node scripts/pre-push-gate.mjs

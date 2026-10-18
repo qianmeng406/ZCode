@@ -77,6 +77,7 @@
     "architecture:baseline:update": "node scripts/architecture/architecture-check.mjs baseline:update",
     "architecture:context": "node scripts/architecture/architecture-check.mjs context",
     "test:architecture": "node --test scripts/test/architecture-governance.test.mjs",
+    "test:pre-push-gate": "node --test scripts/test/pre-push-gate.test.mjs",
     "pack:remote-cdn": "node scripts/pack-remote-assets-cdn.mjs"
   },
   "dependencies": {
