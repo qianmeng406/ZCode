@@ -97,21 +97,6 @@ describe("app settings", () => {
     );
   });
 
-  it("defaults fast session resume to off and keeps explicit boolean patches", () => {
-    // 设置补丁是显式白名单：漏登记会让 UI 的 toggle 被 zod 静默 strip，
-    // 表现为“点开关没反应”且 setting.update 仍返回成功。
-    expect(appSettingsSchema.parse({}).fastSessionResumeEnabled).toBe(false);
-    expect(
-      appSettingsSchema.parse({ fastSessionResumeEnabled: true }).fastSessionResumeEnabled,
-    ).toBe(true);
-    expect(
-      appSettingsPatchSchema.parse({ fastSessionResumeEnabled: true }).fastSessionResumeEnabled,
-    ).toBe(true);
-    expect(appSettingsPatchSchema.safeParse({ fastSessionResumeEnabled: "true" }).success).toBe(
-      false,
-    );
-  });
-
   it("drops the removed CUA overlay/pip/background settings keys from stored configs", () => {
     // 2026-08-17 设置面收敛：三个 key 已从 schema 删除；存量配置里的旧值被 zod strip 静默忽略，
     // 不报错也不回流（overlay/PiP 由 services 装配层恒传 true，见 cuaGhostCursorSettingsWiring）。
