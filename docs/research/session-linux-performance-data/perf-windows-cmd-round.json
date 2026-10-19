@@ -1,0 +1,51 @@
+{
+  "label": "windows-cmd",
+  "generatedAt": "2026-10-18T18:28:19+0800",
+  "platform": "Windows-10-10.0.26100-SP0",
+  "python": "3.10.0",
+  "shellRequested": "cmd",
+  "shellArgv": ["cmd.exe", "/c"],
+  "dialect": "cmd",
+  "cwd": "C:\\Users\\qianmengyys\\Desktop\\agent\\wsl-agent-lab\\session-linux-validation\\perf-project",
+  "coldFirstCommandMs": 79.97,
+  "cases": {
+    "hotShortEcho": {
+      "n": 30,
+      "meanMs": 14.2,
+      "p50Ms": 13.69,
+      "p95Ms": 19.58,
+      "minMs": 12.25,
+      "maxMs": 19.72
+    },
+    "dirListing": {
+      "n": 30,
+      "meanMs": 12.14,
+      "p50Ms": 12.04,
+      "p95Ms": 13.01,
+      "minMs": 11.23,
+      "maxMs": 13.13
+    },
+    "cjkRead": {
+      "n": 30,
+      "meanMs": 11.3,
+      "p50Ms": 11.25,
+      "p95Ms": 11.98,
+      "minMs": 10.65,
+      "maxMs": 12.04
+    },
+    "consecutiveRounds5x": {
+      "n": 20,
+      "meanMs": 12.81,
+      "p50Ms": 12.67,
+      "p95Ms": 13.75,
+      "minMs": 12.03,
+      "maxMs": 13.86
+    }
+  },
+  "fileDense100xWriteReadDelete": {
+    "n": 5,
+    "medianMs": 58.69,
+    "minMs": 53.12,
+    "maxMs": 64.01
+  }
+}

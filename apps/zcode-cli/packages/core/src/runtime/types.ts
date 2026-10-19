@@ -109,7 +109,7 @@ import type {
   OutputStylePromptConfig,
 } from "./deps.js";
 import type { AgentProfile } from "../subagent/profile.js";
-import type { ContextProfile } from "@zcode/shared";
+import type { ContextProfile, SessionExecutionEnvironment } from "@zcode/shared";
 import type { RuntimeTaskRegistry } from "../runtime-task/registry.js";
 import type { BashTimeoutPolicy } from "../tool/bash-timeout-policy.js";
 import type { PresentationSurface } from "../context/types.js";
@@ -126,6 +126,11 @@ export interface AgentRuntimeConfig {
   remoteSessionId?: string;
   bashTimeoutPolicy?: BashTimeoutPolicy;
   presentationSurface?: PresentationSurface;
+  /**
+   * 当前会话实际生效的执行环境（实时读取，不是持久化快照）。
+   * 仅 WSL 激活时返回 wsl；local/未注入时返回 undefined。
+   */
+  getSessionExecutionEnvironment?: () => SessionExecutionEnvironment | undefined;
   /** Execution Host's output root, independent of the working repository. */
   genUiOutputRoot?: string;
   mode?: CollaborationMode;

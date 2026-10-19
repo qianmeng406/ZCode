@@ -101,6 +101,7 @@ export async function injectSessionExecutionPort(
     lease,
     capabilities: prepared.prepare.capabilities,
     distro: target.distro,
+    user: target.user,
   });
   return { binding };
 }

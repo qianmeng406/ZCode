@@ -16,6 +16,7 @@ import { buildCliPrefixSection } from "./sections/cli-prefix.js";
 import { buildIdentitySection } from "./sections/identity.js";
 import { buildWorkflowActorIdentitySection } from "./sections/workflow-actor.js";
 import { buildEnvInfoSection, buildGitSystemContextSection } from "./sections/env-info.js";
+import { buildSessionExecutionSection } from "./sections/session-execution.js";
 import { buildSkillsSection } from "./sections/skills.js";
 import { buildRequestUserContextSection } from "./sections/request-user-context.js";
 import { buildCurrentDateSection } from "./sections/current-date.js";
@@ -96,6 +97,9 @@ export class ContextBuilder {
    */
   build(): ContextBuildResult {
     const sections: ContextSection[] = [];
+    // 执行环境是实时状态：切换后下一轮 build 直接读取当前 binding，
+    // 不依赖持久化快照。local/未注入时为 undefined，提示词与改动前一致。
+    const sessionExecutionEnvironment = this.config.getSessionExecutionEnvironment?.();
     const activeOutputStyle = this.config.outputStyle?.prompt.trim()
       ? this.config.outputStyle
       : undefined;
@@ -164,7 +168,9 @@ export class ContextBuilder {
       // 极简模式只保留环境（工作目录 / 平台）：desktop context、Dynamic Behavior、
       // session guidance、memory、output style、context management、git 段全部不发。
       // 但该模式是自动执行权限，护栏段必须留在场——否则模型手里一条防线都没有。
-      sections.push(buildEnvInfoSection(this.config.envInfo, this.config.model));
+      sections.push(
+        buildEnvInfoSection(this.config.envInfo, this.config.model, sessionExecutionEnvironment),
+      );
       sections.push(buildMinimalGuardrailsSection());
     } else if (!hasCustomSystemPrompt) {
       if (!isWorkflowActor && this.config.presentationSurface === "zcode_desktop") {
@@ -205,7 +211,9 @@ export class ContextBuilder {
           sections.push(memorySection);
         }
       }
-      sections.push(buildEnvInfoSection(this.config.envInfo, this.config.model));
+      sections.push(
+        buildEnvInfoSection(this.config.envInfo, this.config.model, sessionExecutionEnvironment),
+      );
 
       // Output Style
       const outputStyleSection = buildOutputStyleSection(activeOutputStyle);
@@ -215,15 +223,22 @@ export class ContextBuilder {
 
       // Context Management
       sections.push(
-        useFusionSections
-          ? buildFusionContextManagementSection()
-          : buildContextManagementSection(),
+        useFusionSections ? buildFusionContextManagementSection() : buildContextManagementSection(),
       );
 
       const gitSystemContextSection = buildGitSystemContextSection(this.config.envInfo);
       if (gitSystemContextSection) {
         sections.push(gitSystemContextSection);
       }
+    }
+
+    // 执行环境路由：只在 WSL binding 真正生效时注入；local/未注入时完全缺席。
+    // 极简档位与工作流子代理使用紧凑版，避免挤占体积预算。
+    const sessionExecutionSection = buildSessionExecutionSection(sessionExecutionEnvironment, {
+      compact: isMinimalProfile || isWorkflowActor,
+    });
+    if (sessionExecutionSection) {
+      sections.push(sessionExecutionSection);
     }
 
     // 4. Skills appear as a meta user system-reminder, matching provider block layout.

@@ -23,7 +23,7 @@
 // 一并释放（尽力而为），失败由 Host 的 generation 失效兜底。
 
 import type { ExecutionPort, FileSystemPort } from "@zcode/contracts";
-import type { SessionExecutionLease } from "@zcode/shared";
+import type { SessionExecutionEnvironment, SessionExecutionLease } from "@zcode/shared";
 import { createWslFileSystemAdapter } from "@zcode/adapters/fs";
 import { createSessionExecutionRoutingPort } from "./session-execution-routing-port.js";
 
@@ -32,6 +32,7 @@ export interface SessionExecutionBorrowedWsl {
   lease: SessionExecutionLease;
   capabilities: { bashBackgroundLifecycle: boolean; embeddedSearchNative: boolean };
   distro: string;
+  user: string;
 }
 
 export interface SessionExecutionLocalPorts {
@@ -56,6 +57,11 @@ export interface SessionExecutionPortBinding {
   activateLocal(): Promise<void>;
   /** 当前是否处于 WSL 借用目标。 */
   isWslActive(): boolean;
+  /**
+   * 当前真正生效的执行环境（提示词层据此决定是否注入环境路由段）。
+   * 未激活 WSL 时返回 undefined/local；与持久化配置不同步时以这里为准。
+   */
+  getActiveEnvironment(): SessionExecutionEnvironment | undefined;
 }
 
 export interface SessionExecutionPortBindingOptions {
@@ -79,6 +85,7 @@ export function createSessionExecutionPortBinding(
   let localFileSystemPort: FileSystemPort | undefined;
   let wslExecutionPort: ExecutionPort | undefined;
   let wslFileSystemPort: FileSystemPort | undefined;
+  let activeEnvironment: SessionExecutionEnvironment | undefined;
 
   const requireExecution = (): ExecutionPort => {
     const port = wslExecutionPort ?? localExecutionPort;
@@ -94,6 +101,7 @@ export function createSessionExecutionPortBinding(
     const port = wslExecutionPort;
     wslExecutionPort = undefined;
     wslFileSystemPort = undefined;
+    activeEnvironment = undefined;
     if (port?.close) await port.close().catch(() => undefined);
   };
 
@@ -177,6 +185,7 @@ export function createSessionExecutionPortBinding(
         },
       });
       wslFileSystemPort = createWslFileSystemPort(target.distro);
+      activeEnvironment = { kind: "wsl", distro: target.distro, user: target.user };
       // 释放上一借用 lease：Host manager 的 release 只按请求携带的 lease 释放端口，
       // 仅当它就是会话当前 lease 时才清槽——因此释放旧代不会误删新 prepare 的 lease
       // （manager 侧已按 lease 身份收窄；见 sessionLinuxExecutionManager.release 分支）。
@@ -189,6 +198,9 @@ export function createSessionExecutionPortBinding(
     },
     isWslActive() {
       return wslExecutionPort !== undefined;
+    },
+    getActiveEnvironment() {
+      return activeEnvironment;
     },
   };
 }

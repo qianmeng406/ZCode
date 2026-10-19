@@ -1,0 +1,111 @@
+{
+  "generatedAt": "2026-10-16T16:12:57.024Z",
+  "project": "C:\\Users\\qianmengyys\\Desktop\\agent\\wsl-agent-lab\\session-linux-validation\\perf-project",
+  "note": "Windows 项目经 WSL /mnt/c 挂载访问；不承诺 ext4 性能",
+  "paths": {
+    "wslChannel": {
+      "hotShortEcho": {
+        "n": 30,
+        "meanMs": 7.01,
+        "p50Ms": 6.78,
+        "p95Ms": 9.72,
+        "minMs": 5.72,
+        "maxMs": 11.24
+      },
+      "dirListing": {
+        "n": 30,
+        "meanMs": 25.24,
+        "p50Ms": 22.29,
+        "p95Ms": 39.54,
+        "minMs": 19,
+        "maxMs": 55.49
+      },
+      "fileReadCjk": {
+        "n": 30,
+        "meanMs": 12.17,
+        "p50Ms": 12.13,
+        "p95Ms": 15.7,
+        "minMs": 9.34,
+        "maxMs": 17.17
+      },
+      "consecutiveRounds5x": {
+        "n": 20,
+        "meanMs": 60.8,
+        "p50Ms": 58.46,
+        "p95Ms": 90.26,
+        "minMs": 47.09,
+        "maxMs": 90.26
+      }
+    },
+    "windowsLocal": {
+      "hotShortEcho": {
+        "n": 30,
+        "meanMs": 36.27,
+        "p50Ms": 35.93,
+        "p95Ms": 40.54,
+        "minMs": 31.38,
+        "maxMs": 47.26
+      },
+      "dirListing": {
+        "n": 30,
+        "meanMs": 39.46,
+        "p50Ms": 39.51,
+        "p95Ms": 44.17,
+        "minMs": 32.38,
+        "maxMs": 65.71
+      },
+      "fileReadCjk": {
+        "n": 30,
+        "meanMs": 37.51,
+        "p50Ms": 36.45,
+        "p95Ms": 45.81,
+        "minMs": 31.99,
+        "maxMs": 50.69
+      },
+      "consecutiveRounds5x": {
+        "n": 20,
+        "meanMs": 193.34,
+        "p50Ms": 192.67,
+        "p95Ms": 219.03,
+        "minMs": 180.05,
+        "maxMs": 219.03
+      }
+    },
+    "wslExePerCall": {
+      "hotShortEcho": {
+        "n": 30,
+        "meanMs": 178.66,
+        "p50Ms": 178.74,
+        "p95Ms": 201.41,
+        "minMs": 157.55,
+        "maxMs": 202.87
+      },
+      "dirListing": {
+        "n": 30,
+        "meanMs": 185.04,
+        "p50Ms": 186.7,
+        "p95Ms": 201.94,
+        "minMs": 158.93,
+        "maxMs": 226.07
+      },
+      "fileReadCjk": {
+        "n": 30,
+        "meanMs": 220.4,
+        "p50Ms": 204.51,
+        "p95Ms": 423.12,
+        "minMs": 185.79,
+        "maxMs": 510.06
+      },
+      "consecutiveRounds5x": {
+        "n": 20,
+        "meanMs": 1114.05,
+        "p50Ms": 1046.95,
+        "p95Ms": 2250.8,
+        "minMs": 966.7,
+        "maxMs": 2250.8
+      }
+    }
+  },
+  "connectMs": 14152.9,
+  "firstPrepareMs": 218.6
+}

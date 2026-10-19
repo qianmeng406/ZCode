@@ -321,6 +321,10 @@ export async function createZCodeApp(options: ZCodeAppOptions): Promise<ZCodeApp
     // 创建时冻结一次。冷恢复会重建 App，天然拿到新 catalog；已有 Session 不热加载新 Plugin。
     const pluginReferenceCatalog = buildPluginReferenceCatalog(pluginOutcome.plugins);
     runtimeConfig.pluginReferenceCatalog = pluginReferenceCatalog;
+    // 提示词层读取当前生效的执行绑定（实时），而不是持久化配置：
+    // 切换中/失败/取消时 binding 未变，提示词保持不变；提交后由 runtime 通知重建 prefix。
+    runtimeConfig.getSessionExecutionEnvironment = () =>
+      options.sessionExecutionPortBinding?.getActiveEnvironment();
     let runtime: AgentRuntime | undefined;
     const workspaceHookRuntimeSecurity = createWorkspaceHookRuntimeSecurity({
       appVersion,

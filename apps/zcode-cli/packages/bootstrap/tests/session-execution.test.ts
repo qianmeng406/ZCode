@@ -37,6 +37,7 @@ function createContext(
             runtime: {
               hasActiveOrQueuedTurnWork: vi.fn(() => options.busyTurn ?? false),
               hasRunningBackgroundTasks: vi.fn(() => options.runningBackground ?? false),
+              notifySessionExecutionEnvironmentChanged: vi.fn(),
             },
             ...(options.sessionExecutionPortBinding
               ? { sessionExecutionPortBinding: options.sessionExecutionPortBinding }
@@ -184,8 +185,16 @@ describe("session-execution 控制面", () => {
       lease: { leaseId: "lease-w", generation: 2 },
       capabilities: { bashBackgroundLifecycle: true, embeddedSearchNative: true },
       distro: "Ubuntu-24.04",
+      user: "me",
     });
     expect(binding.activateLocal).not.toHaveBeenCalled();
+    // 提交后立刻让 runtime 重建 context prefix：提示词路由段无需等冷启动。
+    const runtime = (
+      context.sessions.get("sess-1") as unknown as {
+        app: { runtime: { notifySessionExecutionEnvironmentChanged: ReturnType<typeof vi.fn> } };
+      }
+    ).app.runtime;
+    expect(runtime.notifySessionExecutionEnvironmentChanged).toHaveBeenCalledTimes(1);
 
     // WSL→本地：无 prepare，绑定 activateLocal（释放借用 lease），保留原会话。
     const requestClient2 = vi.fn(async (_m: string, params: { operation: string }) => ({
@@ -205,6 +214,12 @@ describe("session-execution 控制面", () => {
     });
     expect(binding2.activateWsl).not.toHaveBeenCalled();
     expect(binding2.activateLocal).toHaveBeenCalledTimes(1);
+    const runtime2 = (
+      context2.sessions.get("sess-1") as unknown as {
+        app: { runtime: { notifySessionExecutionEnvironmentChanged: ReturnType<typeof vi.fn> } };
+      }
+    ).app.runtime;
+    expect(runtime2.notifySessionExecutionEnvironmentChanged).toHaveBeenCalledTimes(1);
   });
 
   it("取消后迟到的 prepare 成功不提交配置（spec「准备取消不提交」）", async () => {
@@ -217,7 +232,13 @@ describe("session-execution 控制面", () => {
       }
       return Promise.resolve({ ok: true, operation: params.operation, releasedLeases: 0 });
     });
-    const context = createContext(requestClient);
+    const cancelBinding = {
+      activateWsl: vi.fn(),
+      activateLocal: vi.fn(async () => undefined),
+    };
+    const context = createContext(requestClient, {
+      sessionExecutionPortBinding: cancelBinding,
+    });
     const pending = handleSessionExecutionOperation(context, {
       operation: "setExecutionEnvironment",
       sessionId: "sess-1",
@@ -228,7 +249,10 @@ describe("session-execution 控制面", () => {
       operation: "cancelExecutionEnvironmentPreparation",
       sessionId: "sess-1",
     });
-    expect(cancelled).toMatchObject({ ok: true, operation: "cancelExecutionEnvironmentPreparation" });
+    expect(cancelled).toMatchObject({
+      ok: true,
+      operation: "cancelExecutionEnvironmentPreparation",
+    });
     // 迟到的 prepare 成功：被取消的 set 必须拒绝且不落库
     resolvePrepare({
       ok: true,
@@ -246,6 +270,15 @@ describe("session-execution 控制面", () => {
     const save = (context.deps as { sessionStore: { saveSessionEntry: ReturnType<typeof vi.fn> } })
       .sessionStore.saveSessionEntry;
     expect(save).not.toHaveBeenCalled();
+    // 取消不提交：绑定不切换、提示词也不重建，保持切换前状态。
+    expect(cancelBinding.activateWsl).not.toHaveBeenCalled();
+    expect(cancelBinding.activateLocal).not.toHaveBeenCalled();
+    const cancelRuntime = (
+      context.sessions.get("sess-1") as unknown as {
+        app: { runtime: { notifySessionExecutionEnvironmentChanged: ReturnType<typeof vi.fn> } };
+      }
+    ).app.runtime;
+    expect(cancelRuntime.notifySessionExecutionEnvironmentChanged).not.toHaveBeenCalled();
     // 迟到的 lease 被回收（release 操作转发到 Host）
     const ops = requestClient.mock.calls.map(
       (c: unknown[]) => (c[1] as { operation: string }).operation,
@@ -260,7 +293,13 @@ describe("session-execution 控制面", () => {
       }
       return { ok: true, operation: "release", releasedLeases: 1 };
     });
-    const context = createContext(requestClient);
+    const failedBinding = {
+      activateWsl: vi.fn(),
+      activateLocal: vi.fn(async () => undefined),
+    };
+    const context = createContext(requestClient, {
+      sessionExecutionPortBinding: failedBinding,
+    });
     await expect(
       handleSessionExecutionOperation(context, {
         operation: "setExecutionEnvironment",
@@ -271,6 +310,15 @@ describe("session-execution 控制面", () => {
     const save = (context.deps as { sessionStore: { saveSessionEntry: ReturnType<typeof vi.fn> } })
       .sessionStore.saveSessionEntry;
     expect(save).not.toHaveBeenCalled();
+    // prepare 失败：不切绑定、不重建提示词，保持原环境。
+    expect(failedBinding.activateWsl).not.toHaveBeenCalled();
+    expect(failedBinding.activateLocal).not.toHaveBeenCalled();
+    const failedRuntime = (
+      context.sessions.get("sess-1") as unknown as {
+        app: { runtime: { notifySessionExecutionEnvironmentChanged: ReturnType<typeof vi.fn> } };
+      }
+    ).app.runtime;
+    expect(failedRuntime.notifySessionExecutionEnvironmentChanged).not.toHaveBeenCalled();
     const ops = requestClient.mock.calls.map(
       (c: unknown[]) => (c[1] as { operation: string }).operation,
     );

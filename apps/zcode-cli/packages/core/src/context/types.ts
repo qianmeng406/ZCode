@@ -13,6 +13,7 @@ import type {
 } from "@zcode/contracts";
 import type { AutoCompactPolicyConfig } from "../compact/index.js";
 import type { AgentProfile } from "../subagent/profile.js";
+import type { SessionExecutionEnvironment } from "@zcode/shared";
 
 export type {
   EnvInfo,
@@ -32,6 +33,7 @@ export type ContextSource =
   | "cli_prefix" // CLI / 产品身份前缀
   | "identity" // Agent 基础描述
   | "env_info" // 环境信息 (cwd, platform, git repo boolean)
+  | "session_execution" // 会话执行环境路由（仅 WSL 激活时存在）
   | "system_context" // git snapshot context
   | "skills" // 可用 skills
   | "tools" // 工具定义
@@ -118,6 +120,11 @@ export interface ContextBuilderConfig {
   agentProfiles?: readonly AgentProfile[];
   embeddedSearchEnabled?: boolean;
   skillMetadataBudget?: number;
+  /**
+   * 当前会话实际生效的执行环境（实时读取）。仅 WSL 激活时返回 wsl；
+   * local/未注入时返回 undefined，提示词与改动前完全一致。
+   */
+  getSessionExecutionEnvironment?: () => SessionExecutionEnvironment | undefined;
   customSystemPrompt?: string;
   /**
    * 动态工作流子代理（workflow child）的身份输入。在场即走 builder 的第三条路径：

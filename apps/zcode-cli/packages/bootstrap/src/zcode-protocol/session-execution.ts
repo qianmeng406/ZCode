@@ -271,10 +271,14 @@ async function runSessionExecutionEnvironmentSwitch(
           lease: preparedLease,
           capabilities: preparedCapabilities,
           distro: target.distro,
+          user: target.user,
         });
       } else {
         await binding.activateLocal().catch(() => undefined);
       }
+      // 提示词层只认当前生效的绑定：切换提交后立即让下一轮请求重建 context prefix，
+      // 让环境路由段出现/更新/消失，而不是等下一次冷启动。
+      record.app.runtime.notifySessionExecutionEnvironmentChanged();
     }
     return {
       ok: true,

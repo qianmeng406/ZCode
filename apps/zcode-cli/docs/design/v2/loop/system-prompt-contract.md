@@ -82,11 +82,17 @@ boundary is:
    slash skill invocation, and guidance for actually exposed built-in tools.
 4. Optional `# Memory` when a memory summary is loaded.
 5. `# Environment` for current cwd/platform/shell/OS/model/git-repo boolean.
-6. Optional active `# Output Style` when a non-empty output style is configured.
-7. `# Context management` for long-context summary/continuation behavior,
+6. Optional `# Session Execution Environment` when the session's active execution
+   binding is WSL Linux. It states command routing (Bash/background/hooks/subagents
+   in Linux; MCP/Browser/Computer Use on Windows; Windows-only commands need the
+   local environment) and measured `/mnt/c` performance guidance. Local or
+   unconfigured sessions must not emit this source at all. Minimal, workflow-child
+   and subagent prompts use a compact variant.
+7. Optional active `# Output Style` when a non-empty output style is configured.
+8. `# Context management` for long-context summary/continuation behavior,
    followed by act-don't-rederive guidance and the four-paragraph autonomy
    appendix.
-8. Optional `gitStatus:` snapshot when the cwd is a git repository.
+9. Optional `gitStatus:` snapshot when the cwd is a git repository.
 
 The output-style section is assembled exactly as
 `# Output Style: <name>\n<prompt>`, with no blank line between its heading and

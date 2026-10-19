@@ -10,13 +10,13 @@
 
 本定制分支在官方 ZCode 的基础上做面向个人使用的二次开发，扩展了模型审查、会话执行环境与若干交互能力。（原名 `Myzcode`。）
 
-| 项目         | 说明                                                                                         |
-| ------------ | -------------------------------------------------------------------------------------------- |
-| 上游项目     | [zai-org/ZCode](https://github.com/zai-org/ZCode)（Apache-2.0）                              |
-| 本仓库       | [qianmeng406/ZCode](https://github.com/qianmeng406/ZCode)                                    |
-| 定制主线分支 | `main`（默认分支，包含全部定制内容与修复）                                                    |
-| 桌面端       | 基于官方 ZCode 桌面版二次构建（Preview 构建身份，产物名 `ZCode Preview`）                    |
-| 许可证       | Apache-2.0（继承上游，见 [LICENSE](LICENSE)、[NOTICE.md](NOTICE.md)）                        |
+| 项目         | 说明                                                                      |
+| ------------ | ------------------------------------------------------------------------- |
+| 上游项目     | [zai-org/ZCode](https://github.com/zai-org/ZCode)（Apache-2.0）           |
+| 本仓库       | [qianmeng406/ZCode](https://github.com/qianmeng406/ZCode)                 |
+| 定制主线分支 | `main`（默认分支，包含全部定制内容与修复）                                |
+| 桌面端       | 基于官方 ZCode 桌面版二次构建（Preview 构建身份，产物名 `ZCode Preview`） |
+| 许可证       | Apache-2.0（继承上游，见 [LICENSE](LICENSE)、[NOTICE.md](NOTICE.md)）     |
 
 ## 上游基线
 
@@ -40,7 +40,7 @@
 - **Composer 主轮指标胶囊**：输入框下方常驻显示最近一轮主请求（main_turn）的首 token 耗时、生成速度（tok/s）与输出 token 数；子代理、压缩、标题生成等非主请求不影响指标，缺失事实显示 `--` 占位而不估算。规格见 [docs/features/](docs/features/)。
 - **提示词优化器**：输入区新增提示词优化入口，可指定优化所用模型。
 - **远端资源随包分发 + SSH 常驻工作区**：远端工作区（SSH/WSL）所需的 server bundle、node 运行时、agent 运行时与搜索工具**随安装包分发**（安装目录 `resources/remote-assets`），部署时由桌面端直接读取本地文件再 SFTP 上传，**全程不访问任何 CDN**；「远端服务器下载」模式缺省走 ZCode 官方 CDN（拉官方产物，不含本定制版远端改动），自建 CDN 发布树保留为可选覆盖。同时支持 SSH 远程工作区**断开不终止任务、重连接回同一运行时**。
-- **会话执行环境（本机 Linux / WSL）**：可为**单个聊天会话**启用本机 WSL 的 Linux 执行环境——该会话的命令在 Linux 中运行，项目文件仍映射到**同一份原文件**（不复制、不同步），聊天、模型配置、历史与其他会话保持不变。准备失败不改变原会话；已启用 Linux 的会话在环境不可用时**明确阻止执行**，不静默回落到本机。它是执行环境而非安全沙箱，也不承诺任务级加速。规格见 [会话执行环境规格](docs/research/session-linux-execution.spec.md)。
+- **会话执行环境（本机 Linux / WSL）**：可为**单个聊天会话**启用本机 WSL 的 Linux 执行环境——该会话的命令在 Linux 中运行，项目文件仍映射到**同一份原文件**（不复制、不同步），聊天、模型配置、历史与其他会话保持不变。准备失败不改变原会话；已启用 Linux 的会话在环境不可用时**明确阻止执行**，不静默回落到本机。它是执行环境而非安全沙箱，也不承诺任务级加速。启用后系统提示词会按当前生效的执行环境动态声明命令路由与 `/mnt/c` 实测性能建议；切回本机默认后该段自动移除。规格见 [会话执行环境规格](docs/research/session-linux-execution.spec.md)。
 
 ### 二、与官方版的差异边界（明确不做的事）
 
@@ -267,18 +267,18 @@ node dist/zcode/debug/zcode/bin/zcode.mjs --web \
 
 以下为本定制仓库的主要目录；`本定制版新增` 表示相对上游 v3.15.1 基线新增，不是官方最新源码树的完整目录清单。
 
-| 目录                                                 | 职责                                                             |
-| ---------------------------------------------------- | ---------------------------------------------------------------- |
-| `packages/desktop`                                   | Electron Main、Host、Renderer 与桌面打包                         |
-| `packages/web`                                       | Web 客户端                                                       |
-| `packages/server`                                    | HTTP / WebSocket 服务与远程连接                                  |
-| `packages/zcode-server-cli`                          | 独立 Server 启动与进程管理                                       |
-| `packages/ui`                                        | 共享 React 组件、hooks 与 Zustand 状态                           |
-| `packages/services`                                  | 业务服务与持久化                                                 |
-| `packages/shared`、`packages/rpc`、`packages/client` | 共享协议和类型、RPC 框架、Agent 客户端 SDK                       |
-| `packages/provider`、`packages/provider-node`        | Provider 公共能力与 Node 实现                                    |
-| `apps/zcode-cli`                                     | Agent CLI、TUI、运行时与工具                                     |
-| `scripts`、`config`、`third-party`                   | 构建维护脚本、内置配置与第三方声明材料                           |
+| 目录                                                 | 职责                                       |
+| ---------------------------------------------------- | ------------------------------------------ |
+| `packages/desktop`                                   | Electron Main、Host、Renderer 与桌面打包   |
+| `packages/web`                                       | Web 客户端                                 |
+| `packages/server`                                    | HTTP / WebSocket 服务与远程连接            |
+| `packages/zcode-server-cli`                          | 独立 Server 启动与进程管理                 |
+| `packages/ui`                                        | 共享 React 组件、hooks 与 Zustand 状态     |
+| `packages/services`                                  | 业务服务与持久化                           |
+| `packages/shared`、`packages/rpc`、`packages/client` | 共享协议和类型、RPC 框架、Agent 客户端 SDK |
+| `packages/provider`、`packages/provider-node`        | Provider 公共能力与 Node 实现              |
+| `apps/zcode-cli`                                     | Agent CLI、TUI、运行时与工具               |
+| `scripts`、`config`、`third-party`                   | 构建维护脚本、内置配置与第三方声明材料     |
 
 ## 二次开发声明
 

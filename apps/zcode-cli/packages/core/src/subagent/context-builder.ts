@@ -1,4 +1,5 @@
 import type { Model, ModelInputMessage } from "@zcode/contracts";
+import type { SessionExecutionEnvironment } from "@zcode/shared";
 import { ContextBuilder } from "../context/builder.js";
 import {
   buildContextMetaUserBody,
@@ -12,6 +13,7 @@ import { buildCliPrefixSection } from "../context/sections/cli-prefix.js";
 import { buildCurrentDateSection } from "../context/sections/current-date.js";
 import { buildRequestUserContextSection } from "../context/sections/request-user-context.js";
 import { buildSkillsSection } from "../context/sections/skills.js";
+import { buildSessionExecutionSection } from "../context/sections/session-execution.js";
 import { estimateTokens } from "../context/utils.js";
 import { buildSubagentCommonNotes, buildSubagentEnvironmentContext } from "./system-prompt.js";
 
@@ -23,6 +25,7 @@ export interface SubagentContextBuilderConfig {
   skillMetadataBudget?: number;
   skills?: ContextBuilderConfig["skills"];
   userInstructions?: ContextBuilderConfig["userInstructions"];
+  getSessionExecutionEnvironment?: () => SessionExecutionEnvironment | undefined;
 }
 
 const EPHEMERAL_CACHE_CONTROL = { type: "ephemeral" as const };
@@ -110,6 +113,7 @@ export function createSubagentContextBuilder(
 
 function buildSubagentContextSections(config: SubagentContextBuilderConfig): ContextSection[] {
   const sections: ContextSection[] = [buildCliPrefixSection()];
+  const sessionExecutionEnvironment = config.getSessionExecutionEnvironment?.();
   const agentPrompt = config.agentPrompt.trimEnd();
   if (agentPrompt) {
     sections.push(
@@ -140,9 +144,18 @@ function buildSubagentContextSections(config: SubagentContextBuilderConfig): Con
         agentPrompt: config.agentPrompt,
         envInfo: config.envInfo,
         model: config.model,
+        sessionExecutionEnvironment,
       })}`,
     }),
   );
+  // 子代理与主代理共享同一执行绑定；WSL 激活时给紧凑路由提示，
+  // local/未注入时该段不存在（与主提示词一致）。
+  const sessionExecutionSection = buildSessionExecutionSection(sessionExecutionEnvironment, {
+    compact: true,
+  });
+  if (sessionExecutionSection) {
+    sections.push(sessionExecutionSection);
+  }
 
   const requestUserContextSection = buildRequestUserContextSection({
     userInstructions: config.userInstructions,
@@ -197,5 +210,6 @@ function toBaseContextBuilderConfig(config: SubagentContextBuilderConfig): Conte
     currentDate: config.currentDate,
     skillMetadataBudget: config.skillMetadataBudget,
     skills: config.skills,
+    getSessionExecutionEnvironment: config.getSessionExecutionEnvironment,
   };
 }

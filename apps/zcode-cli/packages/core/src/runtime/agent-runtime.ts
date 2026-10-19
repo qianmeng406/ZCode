@@ -378,6 +378,14 @@ export class AgentRuntime {
     }
   }
 
+  /**
+   * 会话执行环境切换后调用：让下一轮请求重建 context prefix，
+   * 使环境路由提示词按当前生效的 binding 出现/更新/消失。
+   */
+  notifySessionExecutionEnvironmentChanged(): void {
+    this.contextProjectionRevision += 1;
+  }
+
   beginShutdown(): void {
     // ExecutionPort.close() 会把后台 Bash 收口为 cancelled；若允许
     // teardown terminal event 再唤醒模型，并与随后关闭的 session store 竞态。
@@ -391,6 +399,8 @@ export class AgentRuntime {
 export interface AgentRuntime {
   lastPermissionGrantId?: string;
   beginShutdown(): void;
+  /** 执行环境切换后使下一轮请求重建 context prefix（提示词路由段随之切换）。 */
+  notifySessionExecutionEnvironmentChanged(): void;
   closeBrowserSession(): Promise<void>;
   updateConfig(
     patch: Pick<AgentRuntimeConfig, "mode" | "planEnabled" | "language" | "outputStyle">,

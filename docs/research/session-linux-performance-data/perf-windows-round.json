@@ -1,0 +1,51 @@
+{
+  "label": "windows-gitbash",
+  "generatedAt": "2026-10-18T18:28:20+0800",
+  "platform": "Windows-10-10.0.26100-SP0",
+  "python": "3.10.0",
+  "shellRequested": "bash",
+  "shellArgv": ["S:\\Git\\bin\\bash.exe", "-c"],
+  "dialect": "posix",
+  "cwd": "C:\\Users\\qianmengyys\\Desktop\\agent\\wsl-agent-lab\\session-linux-validation\\perf-project",
+  "coldFirstCommandMs": 79.8,
+  "cases": {
+    "hotShortEcho": {
+      "n": 30,
+      "meanMs": 65.02,
+      "p50Ms": 59.52,
+      "p95Ms": 79.83,
+      "minMs": 55.76,
+      "maxMs": 85.46
+    },
+    "dirListing": {
+      "n": 30,
+      "meanMs": 92.57,
+      "p50Ms": 88.99,
+      "p95Ms": 112.24,
+      "minMs": 78.54,
+      "maxMs": 115.31
+    },
+    "cjkRead": {
+      "n": 30,
+      "meanMs": 90.06,
+      "p50Ms": 84.19,
+      "p95Ms": 124.76,
+      "minMs": 78.51,
+      "maxMs": 141.45
+    },
+    "consecutiveRounds5x": {
+      "n": 20,
+      "meanMs": 59.9,
+      "p50Ms": 58.52,
+      "p95Ms": 69.7,
+      "minMs": 55.05,
+      "maxMs": 71.66
+    }
+  },
+  "fileDense100xWriteReadDelete": {
+    "n": 5,
+    "medianMs": 59.3,
+    "minMs": 58.23,
+    "maxMs": 65.84
+  }
+}

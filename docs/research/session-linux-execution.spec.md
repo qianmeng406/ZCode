@@ -52,6 +52,24 @@ Bash/FileSystemPort 读取同一文件并维持 stale-write/revision 语义。�
 
 宿主路径翻译（可选能力 `ExecutionPort.translateHostPath`）：控制端已有的宿主路径值（hook 命令与环境里的插件根/数据目录、项目目录、hook stdin 的 transcript 路径）在交给 Linux 执行前必须翻译成执行环境路径，权威来源与 cwd 映射同源（执行端 `wslpath`），不做字符串猜测；已是执行环境绝对路径的值不二次翻译；不可映射（网络盘/未挂载盘等）时显式失败并报出变量名与路径，禁止把宿主路径原样下发。本机目标下该能力返回原值（执行环境即宿主）。现场缺陷：官方插件 hook 命令 `python3 "${CLAUDE_PLUGIN_ROOT}/hooks/x.py"` 的 Windows 路径被原样交给 WSL shell，`C:\...` 被当相对路径拼到 cwd，脚本打不开退非零码、hook 被当作拦阻，Linux 会话每条 prompt 都被拦下。
 
+## 提示词契约
+
+执行环境是会话级实时状态；提示词层唯一事实来源是**当前生效的执行端口绑定**，不是持久化配置。注入判定：
+
+| 状态                            | 是否注入 `session_execution`                                           |
+| ------------------------------- | ---------------------------------------------------------------------- |
+| 未注入绑定 / `local` / 从未配置 | 否，提示词与未启用该功能时一致                                         |
+| WSL prepare 成功且绑定已激活    | 是；default/fusion/custom 用完整段，minimal/workflow/subagent 用紧凑段 |
+| 创建/恢复时 prepare 失败        | 不进入构建，保持 fail-closed                                           |
+| 切换准备中 / 取消 / 失败        | 绑定未提交，保持切换前内容                                             |
+| WSL → 本地                      | 下一轮重建后移除                                                       |
+| WSL A → WSL B                   | 下一轮重建后更新 distro/user                                           |
+
+切换提交后必须让 runtime 使下一轮请求重建 context prefix，提示词才能随环境出现/更新/消失；不能在消息历史里追加重复段。`# Environment` 在 WSL 时声明 `Shell: bash (POSIX, WSL)` 与 `Command execution: WSL <distro> (user <user>)`，`Platform` 仍保留控制端 host 事实，不把整个 runtime 冒充 Linux。
+
+性能建议只使用 `/mnt/c` 映射下的实测数据，数字与限制见
+[session-linux-performance-guidance.md](session-linux-performance-guidance.md)；不得套用 ext4 基准结论。
+
 ## UI
 
 会话内提供环境选项与准备对话框，展示发行版/用户/路径/运行时检查、进度、取消、失败重试、已准备工具。其他平台/远程会话隐藏或明确不可用。保留现有权限模式，不因选择 Linux 获得更大权限。工具安装入口显示明确命令、位置与权限，经正常用户输入/审批链执行；释放不删项目或依赖。

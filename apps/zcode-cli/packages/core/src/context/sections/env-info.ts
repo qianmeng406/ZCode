@@ -4,6 +4,7 @@
 
 import type { ContextSection, EnvInfo } from "../types.js";
 import type { Model } from "@zcode/contracts";
+import type { SessionExecutionEnvironment } from "@zcode/shared";
 import { estimateTokens } from "../utils.js";
 
 const ENVIRONMENT_HEADING = "# Environment";
@@ -11,6 +12,8 @@ const WORKING_DIRECTORY_LABEL = "Primary working directory";
 const IS_GIT_REPOSITORY_LABEL = "Is a git repository";
 const PLATFORM_LABEL = "Platform";
 const SHELL_LABEL = "Shell";
+const COMMAND_EXECUTION_LABEL = "Command execution";
+const WSL_POSIX_SHELL = "bash (POSIX, WSL)";
 const OS_VERSION_LABEL = "OS Version";
 // const NODE_VERSION_LABEL = "Node version";
 // const OPERATING_SYSTEM_LABEL = "Operating system";
@@ -29,8 +32,12 @@ const CLEAN_GIT_STATUS = "(clean)";
 const DIRTY_GIT_STATUS = "(dirty)";
 const UNKNOWN_GIT_STATUS = "(unknown)";
 
-export function buildEnvInfoSection(envInfo: EnvInfo, model?: Model): ContextSection {
-  const content = buildEnvInfoContent(envInfo, model);
+export function buildEnvInfoSection(
+  envInfo: EnvInfo,
+  model?: Model,
+  sessionExecutionEnvironment?: SessionExecutionEnvironment,
+): ContextSection {
+  const content = buildEnvInfoContent(envInfo, model, sessionExecutionEnvironment);
 
   return {
     name: "Environment Info",
@@ -63,15 +70,22 @@ export function buildGitSystemContextSection(envInfo: EnvInfo): ContextSection |
   };
 }
 
-function buildEnvInfoContent(info: EnvInfo, model?: Model): string {
+function buildEnvInfoContent(
+  info: EnvInfo,
+  model?: Model,
+  sessionExecutionEnvironment?: SessionExecutionEnvironment,
+): string {
   const hasGitRepository = isEnvInfoGitRepository(info);
+  const wsl = sessionExecutionEnvironment?.kind === "wsl" ? sessionExecutionEnvironment : undefined;
   const lines: string[] = [
     ENVIRONMENT_HEADING,
     "You have been invoked in the following environment:",
     `- ${WORKING_DIRECTORY_LABEL}: ${info.cwd}`,
     `- ${IS_GIT_REPOSITORY_LABEL}: ${hasGitRepository ? YES_LABEL : NO_LABEL}`,
+    // Platform 始终是控制端 host 的事实；WSL 只切换命令执行，不把整个 runtime 冒充 Linux。
     `- ${PLATFORM_LABEL}: ${info.platform}`,
-    `- ${SHELL_LABEL}: ${info.shell}`,
+    `- ${SHELL_LABEL}: ${wsl ? WSL_POSIX_SHELL : info.shell}`,
+    ...(wsl ? [`- ${COMMAND_EXECUTION_LABEL}: WSL ${wsl.distro} (user ${wsl.user})`] : []),
     `- ${OS_VERSION_LABEL}: ${info.osVersion}`,
     // 旧环境快照可能携带历史模型字段；渲染只读取本步骤实际执行的 Model。
     ...(model

@@ -1,0 +1,51 @@
+{
+  "label": "linux-preview",
+  "generatedAt": "2026-10-18T18:28:15+0800",
+  "platform": "Linux-6.18.33.2-microsoft-standard-WSL2-x86_64-with-glibc2.39",
+  "python": "3.12.3",
+  "shellRequested": "posix",
+  "shellArgv": ["/bin/bash", "-c"],
+  "dialect": "posix",
+  "cwd": "/mnt/c/Users/qianmengyys/Desktop/agent/wsl-agent-lab/session-linux-validation/perf-project",
+  "coldFirstCommandMs": 2.66,
+  "cases": {
+    "hotShortEcho": {
+      "n": 30,
+      "meanMs": 2.36,
+      "p50Ms": 2.22,
+      "p95Ms": 3.3,
+      "minMs": 1.57,
+      "maxMs": 3.69
+    },
+    "dirListing": {
+      "n": 30,
+      "meanMs": 12.15,
+      "p50Ms": 12.01,
+      "p95Ms": 13.52,
+      "minMs": 11.15,
+      "maxMs": 14.8
+    },
+    "cjkRead": {
+      "n": 30,
+      "meanMs": 5.4,
+      "p50Ms": 5.41,
+      "p95Ms": 6.18,
+      "minMs": 4.24,
+      "maxMs": 6.31
+    },
+    "consecutiveRounds5x": {
+      "n": 20,
+      "meanMs": 2.52,
+      "p50Ms": 2.45,
+      "p95Ms": 3.2,
+      "minMs": 1.97,
+      "maxMs": 3.25
+    }
+  },
+  "fileDense100xWriteReadDelete": {
+    "n": 5,
+    "medianMs": 598.28,
+    "minMs": 577.29,
+    "maxMs": 633.2
+  }
+}

@@ -1,10 +1,12 @@
 import type { EnvInfo, Model } from "@zcode/contracts";
+import type { SessionExecutionEnvironment } from "@zcode/shared";
 import { isEnvInfoGitRepository } from "../context/sections/env-info.js";
 
 export interface SubagentEnvironmentContextOptions {
   agentPrompt: string;
   envInfo: EnvInfo;
   model?: Model;
+  sessionExecutionEnvironment?: SessionExecutionEnvironment;
 }
 
 export function buildSubagentCommonNotes(): string {
@@ -21,7 +23,8 @@ export function buildSubagentCommonNotes(): string {
 export function buildSubagentEnvironmentContext(
   options: SubagentEnvironmentContextOptions,
 ): string {
-  const { envInfo, model } = options;
+  const { envInfo, model, sessionExecutionEnvironment } = options;
+  const wsl = sessionExecutionEnvironment?.kind === "wsl" ? sessionExecutionEnvironment : undefined;
   const modelLine = model
     ? [`You are powered by the model named ${model.providerId}/${model.modelId}.`]
     : [];
@@ -32,7 +35,8 @@ export function buildSubagentEnvironmentContext(
     `Working directory: ${envInfo.cwd}`,
     `Is directory a git repo: ${isEnvInfoGitRepository(envInfo) ? "Yes" : "No"}`,
     `Platform: ${envInfo.platform}`,
-    `Shell: ${envInfo.shell}`,
+    `Shell: ${wsl ? "bash (POSIX, WSL)" : envInfo.shell}`,
+    ...(wsl ? [`Command execution: WSL ${wsl.distro} (user ${wsl.user})`] : []),
     `OS Version: ${envInfo.osVersion}`,
     "</env>",
     ...modelLine,

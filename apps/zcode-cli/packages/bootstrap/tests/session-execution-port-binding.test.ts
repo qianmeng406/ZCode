@@ -81,6 +81,7 @@ function setup(options: { wslStdout?: string; wslFailed?: boolean; rejectRun?: b
 describe("会话执行端口绑定", () => {
   it("本地目标：门面转发到本地端口，可选能力按本地实现呈现在场", async () => {
     const { binding, local } = setup();
+    expect(binding.getActiveEnvironment()).toBeUndefined();
     expect(typeof binding.executionPort.run).toBe("function");
     // 本地 NodeExecutionAdapter 有 runBashWithBackgroundLifecycle → 门面必须呈现
     expect(typeof binding.executionPort.runBashWithBackgroundLifecycle).toBe("function");
@@ -96,6 +97,7 @@ describe("会话执行端口绑定", () => {
       lease: { leaseId: "lease-2", generation: 3 },
       capabilities: { bashBackgroundLifecycle: true, embeddedSearchNative: true },
       distro: "Ubuntu-24.04",
+      user: "me",
     });
     // 门面身份稳定：切换不换对象（工具层构造期捕获的引用继续有效）
     expect(binding.executionPort).toBe(facadeBefore);
@@ -118,6 +120,7 @@ describe("会话执行端口绑定", () => {
       lease: { leaseId: "lease-2", generation: 0 },
       capabilities: { bashBackgroundLifecycle: false, embeddedSearchNative: false },
       distro: "Ubuntu-24.04",
+      user: "me",
     });
     await binding.fileSystemPort.readTextFile({ path: "/home/me/a.txt" } as never);
     expect(wslFs.readTextFile).toHaveBeenCalledWith({ path: "/home/me/a.txt" });
@@ -134,10 +137,17 @@ describe("会话执行端口绑定", () => {
       lease: { leaseId: "lease-9", generation: 1 },
       capabilities: { bashBackgroundLifecycle: false, embeddedSearchNative: false },
       distro: "Ubuntu-24.04",
+      user: "me",
     });
     expect(binding.isWslActive()).toBe(true);
+    expect(binding.getActiveEnvironment()).toEqual({
+      kind: "wsl",
+      distro: "Ubuntu-24.04",
+      user: "me",
+    });
     await binding.activateLocal();
     expect(binding.isWslActive()).toBe(false);
+    expect(binding.getActiveEnvironment()).toBeUndefined();
     expect(send).toHaveBeenCalledWith({
       operation: "release",
       sessionId: "sess-1",
@@ -155,6 +165,7 @@ describe("会话执行端口绑定", () => {
       lease: { leaseId: "lease-close", generation: 0 },
       capabilities: { bashBackgroundLifecycle: false, embeddedSearchNative: false },
       distro: "Ubuntu-24.04",
+      user: "me",
     });
     await binding.executionPort.close?.();
     expect(send).toHaveBeenCalledWith({
@@ -191,6 +202,7 @@ describe("宿主路径翻译", () => {
       lease: { leaseId: "lease-tr", generation: 0 },
       capabilities: { bashBackgroundLifecycle: false, embeddedSearchNative: false },
       distro: "Ubuntu-24.04",
+      user: "me",
     });
 
     const windowsPath = "C:\\Users\\me\\.zcode\\plugins\\p";
@@ -213,6 +225,7 @@ describe("宿主路径翻译", () => {
       lease: { leaseId: "lease-a", generation: 0 },
       capabilities: { bashBackgroundLifecycle: false, embeddedSearchNative: false },
       distro: "Ubuntu-24.04",
+      user: "me",
     });
     await expect(
       nonAbsolute.binding.executionPort.translateHostPath?.("\\\\net\\share\\p"),
@@ -223,6 +236,7 @@ describe("宿主路径翻译", () => {
       lease: { leaseId: "lease-b", generation: 0 },
       capabilities: { bashBackgroundLifecycle: false, embeddedSearchNative: false },
       distro: "Ubuntu-24.04",
+      user: "me",
     });
     await expect(
       throwing.binding.executionPort.translateHostPath?.("Z:\\missing\\p"),
