@@ -10310,6 +10310,81 @@ describe("ProductProjection main-turn metrics", () => {
         outputTokens: 50,
         timeToFirstTokenMs: 320,
         generationDurationMs: 2_000,
+        inputTokens: 20,
+        requestCount: 2,
+        // lastRequest 覆盖而非累计：保留最后一个 step 的单请求事实。
+        lastRequest: {
+          outputTokens: 30,
+          timeToFirstTokenMs: 200,
+          generationDurationMs: 1_200,
+        },
+      }),
+    );
+  });
+
+  it("轮指标累计 usage 明细（推理/缓存），会话累计同步累加请求数与生成时长", () => {
+    const log = new EventLog();
+    log.push(SessionEventType.SessionCreated, { mode: "default", contextWindow: 200_000 });
+    log.push(
+      SessionEventType.TurnStarted,
+      { turnNumber: 1, input: "usage", inputId: "cmd-1", messageId: "user-1" },
+      { turnId: "turn-1" },
+    );
+    log.push(
+      SessionEventType.ModelComplete,
+      {
+        content: "a",
+        stopReason: "tool_use",
+        querySource: "main_turn",
+        usage: {
+          inputTokens: 10,
+          outputTokens: 20,
+          reasoningTokens: 5,
+          cacheReadTokens: 100,
+          cacheWriteTokens: 3,
+        },
+        timings: { startedAt: 1_000, firstTokenAt: 1_300, generationDurationMs: 700 },
+      },
+      { turnId: "turn-1", timestampMs: 1_700 },
+    );
+    log.push(
+      SessionEventType.ModelComplete,
+      {
+        content: "b",
+        stopReason: "end_turn",
+        querySource: "main_turn",
+        usage: {
+          inputTokens: 10,
+          outputTokens: 30,
+          reasoningTokens: 7,
+          cacheReadTokens: 200,
+          cacheWriteTokens: 4,
+        },
+        timings: { startedAt: 2_000, firstTokenAt: 2_100, generationDurationMs: 900 },
+      },
+      { turnId: "turn-1", timestampMs: 2_900 },
+    );
+    const snapshot = runAll(log.events).projection.getSnapshot();
+    const header = snapshot.rows.window.find((row) => row.kind === "turnHeader");
+    expect(header).toEqual(
+      expect.objectContaining({
+        outputTokens: 50,
+        inputTokens: 20,
+        reasoningTokens: 12,
+        cacheReadTokens: 300,
+        cacheWriteTokens: 7,
+        requestCount: 2,
+        generationDurationMs: 1_600,
+      }),
+    );
+    expect(snapshot.usage.cumulative).toEqual(
+      expect.objectContaining({
+        inputTokens: 20,
+        outputTokens: 50,
+        cacheReadTokens: 300,
+        cacheWriteTokens: 7,
+        generationDurationMs: 1_600,
+        requestCount: 2,
       }),
     );
   });
@@ -10353,6 +10428,15 @@ describe("ProductProjection main-turn metrics", () => {
         outputTokens: 20,
         timeToFirstTokenMs: 500,
         generationDurationMs: 900,
+        requestCount: 1,
+      }),
+    );
+    // 会话累计同源同过滤：4 个 sidecar 的 999 token / 9_999ms 不得进入。
+    expect(snapshot.usage.cumulative).toEqual(
+      expect.objectContaining({
+        outputTokens: 20,
+        generationDurationMs: 900,
+        requestCount: 1,
       }),
     );
   });

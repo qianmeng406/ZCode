@@ -4853,23 +4853,15 @@ export class ProductProjection {
           : {};
       if (isMainTurn || "fileChanges" in fileChanges) {
         // main_turn 严格过滤：非主轮（compact/标题/子代理/workflow）从不更新轮指标，
-        // 避免 sidecar 请求覆盖主轮事实。TTFT 只认本 turn 第一个 main ModelComplete 的
-        // firstTokenAt − startedAt（与 usage-observability 同口径）；generation 时长按
-        // 同 turn 内逐请求求和。缺失值不写数字占位，UI 按字段缺席渲染不可用。
-        const turnMetrics = isMainTurn
-          ? this.mainTurnMetricsForHeader(headerRow, event, payload)
-          : {};
+        // 避免 sidecar 请求覆盖主轮事实。单 Turn 的 token/时长必须在权威事件投影中累计：
+        // Renderer 观察 running 快照的时机不可靠（continuous 可合并、replayable 可能首帧即终态）。
+        const turnMetrics = isMainTurn ? this.mainTurnMetricsForHeader(headerRow, payload) : {};
         deltas.push({
           op: "row.upserted",
           row: {
             ...headerRow,
             ...fileChanges,
             ...turnMetrics,
-            // Bug 根因：Renderer 观察 running 快照的时机不可靠，continuous 可合并更新，
-            // replayable 也可能首次恢复即终态。单 Turn token 必须在权威事件投影中累计。
-            ...(isMainTurn
-              ? { outputTokens: (headerRow.outputTokens ?? 0) + (usage.outputTokens ?? 0) }
-              : {}),
           },
         });
       }
@@ -4903,6 +4895,16 @@ export class ProductProjection {
             outputTokens: cumulative.outputTokens + (usage.outputTokens ?? 0),
             cacheReadTokens: cumulative.cacheReadTokens + (usage.cacheReadTokens ?? 0),
             cacheWriteTokens: cumulative.cacheWriteTokens + (usage.cacheWriteTokens ?? 0),
+            // 会话累计速度的分母与请求数：与上面四个 token 累计同源同生命周期，
+            // 只统计 main_turn（本段在非主轮 early return 之后）。
+            ...(payload.timings?.generationDurationMs !== undefined
+              ? {
+                  generationDurationMs:
+                    (cumulative.generationDurationMs ?? 0) +
+                    Math.max(0, payload.timings.generationDurationMs),
+                }
+              : {}),
+            requestCount: (cumulative.requestCount ?? 0) + 1,
           },
         },
       },
@@ -5495,26 +5497,81 @@ export class ProductProjection {
    *
    * - TTFT：本 turn 第一个携带 timings 的 main ModelComplete 提供
    *   firstTokenAt − startedAt；后续 step 不覆盖（speed 聚合多个 step，但 TTFT 只有一个起点）。
-   * - generationDurationMs：sum(每个 main step 的 generationDurationMs)。
+   * - 其余字段同轮累计：output/input/reasoning/cache 读写 token、generationDurationMs、
+   *   requestCount；lastRequest 每次覆盖，保留单请求事实供 UI 展示单请求速度。
    * - 字段缺席 = 无可靠事实（旧事件 / 非流式），不写 0 冒充，由 UI 渲染不可用。
    */
   private mainTurnMetricsForHeader(
     headerRow: TurnHeaderRow,
-    event: SessionEvent,
     payload: ModelCompletePayload,
-  ): Partial<Pick<TurnHeaderRow, "timeToFirstTokenMs" | "generationDurationMs">> {
+  ): Partial<
+    Pick<
+      TurnHeaderRow,
+      | "timeToFirstTokenMs"
+      | "generationDurationMs"
+      | "outputTokens"
+      | "inputTokens"
+      | "reasoningTokens"
+      | "cacheReadTokens"
+      | "cacheWriteTokens"
+      | "requestCount"
+      | "lastRequest"
+    >
+  > {
+    const usage = payload.usage as ModelUsage;
     const timings = payload.timings;
-    if (!timings) return {};
-    const patch: Partial<Pick<TurnHeaderRow, "timeToFirstTokenMs" | "generationDurationMs">> = {};
-    if (
-      headerRow.timeToFirstTokenMs === undefined &&
-      timings.firstTokenAt !== undefined &&
+    const patch: Partial<
+      Pick<
+        TurnHeaderRow,
+        | "timeToFirstTokenMs"
+        | "generationDurationMs"
+        | "outputTokens"
+        | "inputTokens"
+        | "reasoningTokens"
+        | "cacheReadTokens"
+        | "cacheWriteTokens"
+        | "requestCount"
+        | "lastRequest"
+      >
+    > = { requestCount: (headerRow.requestCount ?? 0) + 1 };
+    // 缺席字段保持缺席：全轮都没有 usage 时不能把 0 写成"真实用量"。
+    const accumulate = (current: number | undefined, delta: number | undefined) =>
+      delta === undefined ? undefined : (current ?? 0) + delta;
+    const outputTokens = accumulate(headerRow.outputTokens, usage.outputTokens);
+    if (outputTokens !== undefined) patch.outputTokens = outputTokens;
+    const inputTokens = accumulate(headerRow.inputTokens, usage.inputTokens);
+    if (inputTokens !== undefined) patch.inputTokens = inputTokens;
+    const reasoningTokens = accumulate(headerRow.reasoningTokens, usage.reasoningTokens);
+    if (reasoningTokens !== undefined) patch.reasoningTokens = reasoningTokens;
+    const cacheReadTokens = accumulate(headerRow.cacheReadTokens, usage.cacheReadTokens);
+    if (cacheReadTokens !== undefined) patch.cacheReadTokens = cacheReadTokens;
+    const cacheWriteTokens = accumulate(headerRow.cacheWriteTokens, usage.cacheWriteTokens);
+    if (cacheWriteTokens !== undefined) patch.cacheWriteTokens = cacheWriteTokens;
+
+    const requestTtftMs =
+      timings?.firstTokenAt !== undefined &&
       timings.startedAt !== undefined &&
       timings.firstTokenAt >= timings.startedAt
+        ? timings.firstTokenAt - timings.startedAt
+        : undefined;
+    if (
+      requestTtftMs !== undefined ||
+      usage.outputTokens !== undefined ||
+      timings?.generationDurationMs !== undefined
     ) {
-      patch.timeToFirstTokenMs = timings.firstTokenAt - timings.startedAt;
+      patch.lastRequest = {
+        ...(usage.outputTokens !== undefined ? { outputTokens: usage.outputTokens } : {}),
+        ...(requestTtftMs !== undefined ? { timeToFirstTokenMs: requestTtftMs } : {}),
+        ...(timings?.generationDurationMs !== undefined && timings.generationDurationMs >= 0
+          ? { generationDurationMs: timings.generationDurationMs }
+          : {}),
+      };
     }
-    if (timings.generationDurationMs !== undefined && timings.generationDurationMs >= 0) {
+
+    if (headerRow.timeToFirstTokenMs === undefined && requestTtftMs !== undefined) {
+      patch.timeToFirstTokenMs = requestTtftMs;
+    }
+    if (timings?.generationDurationMs !== undefined && timings.generationDurationMs >= 0) {
       patch.generationDurationMs =
         (headerRow.generationDurationMs ?? 0) + timings.generationDurationMs;
     }

@@ -85,6 +85,49 @@ describe("ComposerTurnMetricsCapsule", () => {
       outputTokens: "50",
     });
   });
+
+  it("lists turn, latest-request and session facts inline without a second panel", () => {
+    const { container } = renderCapsule({
+      outputTokens: 1_234,
+      timeToFirstTokenMs: 320,
+      generationDurationMs: 2_000,
+      reasoningTokens: 200,
+      inputTokens: 5_000,
+      cacheReadTokens: 4_000,
+      cacheWriteTokens: 10,
+      requestCount: 3,
+      lastRequest: { outputTokens: 100, timeToFirstTokenMs: 200, generationDurationMs: 1_000 },
+      session: {
+        inputTokens: 9_000,
+        outputTokens: 1_200,
+        cacheReadTokens: 8_000,
+        cacheWriteTokens: 100,
+        generationDurationMs: 20_000,
+        requestCount: 30,
+      },
+    });
+    expect(item(container, "reasoning-tokens")?.textContent).toContain("200");
+    // 可见输出 = 1_234 − 200。
+    expect(item(container, "visible-output")?.textContent).toContain("1,034");
+    expect(item(container, "generation-duration")?.textContent).toContain("2.0s");
+    expect(item(container, "request-count")?.textContent).toContain("3");
+    expect(item(container, "input-tokens")?.textContent).toContain("5,000");
+    expect(item(container, "last-request-tokens-per-second")?.textContent).toContain("100");
+    expect(item(container, "session-output-tokens")?.textContent).toContain("1,200");
+    expect(item(container, "session-request-count")?.textContent).toContain("30");
+  });
+
+  it("omits detail segments whose fact is absent instead of printing zero", () => {
+    const { container } = renderCapsule({ outputTokens: 10, generationDurationMs: 1_000 });
+    expect(item(container, "reasoning-tokens")).toBeNull();
+    expect(item(container, "cache-write")).toBeNull();
+    expect(item(container, "session-output-tokens")).toBeNull();
+  });
+
+  it("formats long generation durations as minutes and seconds", () => {
+    const { container } = renderCapsule({ outputTokens: 14_974, generationDurationMs: 157_000 });
+    expect(item(container, "generation-duration")?.textContent).toContain("2m37s");
+  });
 });
 
 describe("deriveComposerTurnMetricsFact", () => {
@@ -124,5 +167,46 @@ describe("deriveComposerTurnMetricsFact", () => {
   it("returns null when no turn header carries facts", () => {
     expect(deriveComposerTurnMetricsFact([userRow, { kind: "turnHeader" }])).toBeNull();
     expect(deriveComposerTurnMetricsFact(undefined)).toBeNull();
+  });
+
+  it("carries turn usage details and session cumulative facts", () => {
+    const withDetails = {
+      kind: "turnHeader",
+      outputTokens: 120,
+      reasoningTokens: 40,
+      inputTokens: 900,
+      cacheReadTokens: 800,
+      cacheWriteTokens: 10,
+      requestCount: 3,
+      lastRequest: { outputTokens: 30, timeToFirstTokenMs: 200, generationDurationMs: 1_000 },
+    };
+    expect(
+      deriveComposerTurnMetricsFact([withDetails], {
+        cumulative: {
+          inputTokens: 9_000,
+          outputTokens: 1_200,
+          cacheReadTokens: 8_000,
+          cacheWriteTokens: 100,
+          generationDurationMs: 20_000,
+          requestCount: 30,
+        },
+      }),
+    ).toEqual({
+      outputTokens: 120,
+      reasoningTokens: 40,
+      inputTokens: 900,
+      cacheReadTokens: 800,
+      cacheWriteTokens: 10,
+      requestCount: 3,
+      lastRequest: { outputTokens: 30, timeToFirstTokenMs: 200, generationDurationMs: 1_000 },
+      session: {
+        inputTokens: 9_000,
+        outputTokens: 1_200,
+        cacheReadTokens: 8_000,
+        cacheWriteTokens: 100,
+        generationDurationMs: 20_000,
+        requestCount: 30,
+      },
+    });
   });
 });

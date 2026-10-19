@@ -503,7 +503,7 @@ export const TID_CHAT_CONTEXT_USAGE_TRIGGER = "chat-context-usage-trigger";
 export const TID_CHAT_CONTEXT_COMPACT_BUTTON = "chat-context-compact-button";
 /** Composer 输入框下方 main-turn 指标胶囊容器 */
 export const TID_COMPOSER_TURN_METRICS = "composer-turn-metrics";
-/** 指标胶囊分段（动态后缀为 ttft / tokens-per-second / output-tokens） */
+/** 指标胶囊分段（动态后缀为 ttft / tokens-per-second / output-tokens 等） */
 export const TID_COMPOSER_TURN_METRICS_ITEM = "composer-turn-metrics-item";
 /** 添加模型弹窗「拉取上游模型」按钮 */
 export const TID_MODEL_UPSTREAM_FETCH_BUTTON = "model-upstream-fetch-button";

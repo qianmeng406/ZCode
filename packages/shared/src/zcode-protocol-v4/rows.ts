@@ -92,6 +92,23 @@ export const turnHeaderRowSchema = z.object({
   // 主轮 model request 墙钟总和（sum(ModelComplete.timings.generationDurationMs)）。
   // speed 由 UI 按 outputTokens / generationDurationMs 推导；CLI 不落导数避免双写口径漂移。
   generationDurationMs: z.number().nonnegative().optional(),
+  // 以下为同轮 usage 明细的累计值：与 outputTokens 同源、同过滤（仅 main_turn），
+  // 任一字段全轮缺席时不写 0，UI 按字段缺席渲染不可用。
+  inputTokens: z.number().int().nonnegative().optional(),
+  reasoningTokens: z.number().int().nonnegative().optional(),
+  cacheReadTokens: z.number().int().nonnegative().optional(),
+  cacheWriteTokens: z.number().int().nonnegative().optional(),
+  // 本 turn 已完成的 main model request 数；speed 的分母口径由此可复核。
+  requestCount: z.number().int().nonnegative().optional(),
+  // 最近一次 main model request 的单请求事实（每次覆盖，不累计）。
+  // 单请求 tps 由 UI 按 outputTokens / generationDurationMs 推导。
+  lastRequest: z
+    .object({
+      outputTokens: z.number().int().nonnegative().optional(),
+      timeToFirstTokenMs: z.number().nonnegative().optional(),
+      generationDurationMs: z.number().nonnegative().optional(),
+    })
+    .optional(),
   // CLI 从运行时事件聚合的真实耗时；optional 兼容旧快照及普通 turn。
   modelDurationMs: z.number().nonnegative().optional(),
   toolDurationMs: z.number().nonnegative().optional(),
