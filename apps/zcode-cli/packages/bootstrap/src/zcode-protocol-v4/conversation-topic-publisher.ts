@@ -326,16 +326,6 @@ export class ConversationTopicPublisher {
   }
 
   /**
-   * 种子补齐等“只改快照头、不产生 delta”的状态变更：标记所有订阅在下次 flush
-   * 收全量快照。调用方负责随后触发一次 flush（gateway 复用 hydration 的 resync 调度）。
-   */
-  requestResync(): void {
-    for (const subscription of this.subscriptions.values()) {
-      subscription.resyncRequired = true;
-    }
-  }
-
-  /**
    * 下发用快照：rows 只带尾部窗口（snapshotTailWindowRows），
    * totalCount/firstRowId 保留全序口径——客户端以 `window[0].rowId === firstRowId`
    * 判定已到顶，更早历史经 rows/range 游标拉取。投影内部快照保持全量

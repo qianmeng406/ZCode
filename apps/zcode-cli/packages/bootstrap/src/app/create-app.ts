@@ -325,9 +325,6 @@ export async function createZCodeApp(options: ZCodeAppOptions): Promise<ZCodeApp
     // 切换中/失败/取消时 binding 未变，提示词保持不变；提交后由 runtime 通知重建 prefix。
     runtimeConfig.getSessionExecutionEnvironment = () =>
       options.sessionExecutionPortBinding?.getActiveEnvironment();
-    // 冷恢复提速开关在 resume 时读取一次（App 每个 session 一个，冷恢复会重建 App），
-    // 因此热切换只影响之后的打开/恢复，不改写进行中的 resume。
-    runtimeConfig.fastSessionResumeEnabled = options.fastSessionResumeEnabled === true;
     let runtime: AgentRuntime | undefined;
     const workspaceHookRuntimeSecurity = createWorkspaceHookRuntimeSecurity({
       appVersion,

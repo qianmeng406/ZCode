@@ -72,9 +72,6 @@ export async function resumeFromStore(
   }
 
   const traceContext = options?.traceContext ?? this.rootTraceContext;
-  // 快速恢复：只把“与首帧内容无关、但下一轮输入前必须完成”的工作推迟到首帧后。
-  // messages 读取、分支裁剪、compact 修复、checkpoint/rewind 恢复仍保持在关键路径上。
-  const fastResume = this.config.fastSessionResumeEnabled === true;
   const persistedSession = await this.sessionStore.getSession(this.sessionId);
   if (!persistedSession || persistedSession.time.archived !== undefined) {
     throw createCoreError(CoreErrorType.SessionNotFound, `Session not found: ${this.sessionId}`, {
@@ -138,11 +135,6 @@ export async function resumeFromStore(
   this.messageHistory = new MessageHistoryImpl();
   this.contextBuilder = null;
   this.contextInitialized = false;
-  // 单飞 promise 与上一轮 resume 的延迟任务不能跨 resume 复用：
-  // 旧 promise 完成时会把 contextInitialized 置真，指向已废弃的 context 状态。
-  this.contextInitializationPromise = undefined;
-  this.deferredResumeSettlement = undefined;
-  this.preserveMessageHistoryOnInit = undefined;
   this.lastEmittedLocalDate = undefined;
   // 执行状态必须先于 context / MCP 初始化确定：极简档位会跳过 MCP 启动并过滤工具，
   // 先按 invocation 默认 build 初始化再回填持久化档位，会让本次恢复的上下文与工具缓存
@@ -173,23 +165,17 @@ export async function resumeFromStore(
   }
   // cold resume 的历史 hydration 会先清空 runtime-local read-state；必须在
   // Context 初始化前完成，确保随后单次加载的 MEMORY.md 状态与 provider 所见内容一致。
-  // 快速恢复：这两步合并进首帧后的 settlement，顺序不变（file state → context）。
-  let readFileStateHydration:
-    | Awaited<ReturnType<typeof hydrateReadFileStateFromSession>>
-    | undefined;
-  if (!fastResume) {
-    readFileStateHydration = await hydrateReadFileStateFromSession({
-      branchCutAfterMessageId,
-      messages,
-      readFileState: this.readFileState,
-      rewindCreatedMessageId,
-      rewindKeptMessageIds,
-      rewindTargetMessageId,
-      workingDirectory: this.workingDirectory,
-      workspaceRoot: this.workspaceRoot,
-    });
-    await this.ensureContextInitialized(traceContext);
-  }
+  const readFileStateHydration = await hydrateReadFileStateFromSession({
+    branchCutAfterMessageId,
+    messages,
+    readFileState: this.readFileState,
+    rewindCreatedMessageId,
+    rewindKeptMessageIds,
+    rewindTargetMessageId,
+    workingDirectory: this.workingDirectory,
+    workspaceRoot: this.workspaceRoot,
+  });
+  await this.ensureContextInitialized(traceContext);
   const recoveredCompactTimelineCount = await this.recoverInterruptedCompactTimelines(
     messages,
     traceContext,
@@ -203,11 +189,6 @@ export async function resumeFromStore(
     rewindKeptMessageIds,
     rewindTargetMessageId,
   });
-  if (fastResume) {
-    // 历史已先于 context 初始化落位：此后任何入口（包括不等 settlement 的
-    // control-only turn / goal 提醒 / skill 目录）触发初始化都必须走 prefix 合并。
-    this.preserveMessageHistoryOnInit = true;
-  }
   announceSessionShellEnvironmentNoticeAfterResume(this, {
     persistedEnvInfo,
     restore: shellRestore,
@@ -242,10 +223,7 @@ export async function resumeFromStore(
   await restoreWorkspaceFileRewindEntries(this, traceContext);
   // onDemand 会话的工具面随记录恢复（launch.md「On demand: activation」）：entry 在场，或历史里
   // 有过 `/workflow` / 十个工具的调用。要在首轮之前完成，所以放在 resume 里而不是等下一次 turn。
-  // 快速恢复：契约是“首轮前”，并入 settlement 由首轮 turn 前收敛。
-  if (!fastResume) {
-    await restoreDynamicWorkflowActivationOnResume.call(this, messages);
-  }
+  await restoreDynamicWorkflowActivationOnResume.call(this, messages);
 
   await restorePermissionGrantMarker(this, traceContext);
 
@@ -283,56 +261,15 @@ export async function resumeFromStore(
     traceContext,
   );
   await this.appendEvent(resumedEvent, traceContext);
-  if (fastResume) {
-    // 首帧后补做；首轮 turn 在 context 分支前 await 该 promise（见 turn.ts）。
-    const settlement = (async () => {
-      // 顺序与关闭路径一致：file state → context → dwf → session-start hooks。
-      readFileStateHydration = await hydrateReadFileStateFromSession({
-        branchCutAfterMessageId,
-        messages,
-        readFileState: this.readFileState,
-        rewindCreatedMessageId,
-        rewindKeptMessageIds,
-        rewindTargetMessageId,
-        workingDirectory: this.workingDirectory,
-        workspaceRoot: this.workspaceRoot,
-      });
-      await this.ensureContextInitialized(traceContext, undefined, {
-        preserveMessageHistory: true,
-      });
-      await restoreDynamicWorkflowActivationOnResume.call(this, messages);
-      const sessionStartHookResult = await this.runSessionStartHooks(
-        "resume",
-        traceContext,
-        options?.abortSignal,
-      );
-      this.injectHookAdditionalContextIntoMessageHistory(
-        HookEventName.SessionStart,
-        sessionStartHookResult.additionalContexts,
-      );
-    })();
-    this.deferredResumeSettlement = settlement;
-    // 没有后续 turn 的会话不产生 unhandled rejection；真实的失败由首轮 turn await 抛出。
-    void settlement.catch((error) => {
-      this.logger?.warn("Fast resume settlement failed", {
-        ...traceContextToLogContext(traceContext),
-        error: error instanceof Error ? error.message : String(error),
-        event: "session.resume.fast_settlement_failed",
-        module: "core.runtime",
-        sessionId: this.sessionId,
-      });
-    });
-  } else {
-    const sessionStartHookResult = await this.runSessionStartHooks(
-      "resume",
-      traceContext,
-      options?.abortSignal,
-    );
-    this.injectHookAdditionalContextIntoMessageHistory(
-      HookEventName.SessionStart,
-      sessionStartHookResult.additionalContexts,
-    );
-  }
+  const sessionStartHookResult = await this.runSessionStartHooks(
+    "resume",
+    traceContext,
+    options?.abortSignal,
+  );
+  this.injectHookAdditionalContextIntoMessageHistory(
+    HookEventName.SessionStart,
+    sessionStartHookResult.additionalContexts,
+  );
 
   if (messages.length > 0 && activeMessages.length === 0) {
     this.logger?.warn("Session resume produced zero active messages", {
@@ -377,11 +314,9 @@ export async function resumeFromStore(
     messageCount: hydration.messageCount,
     module: "core.runtime",
     partCount: hydration.partCount,
-    // 快速恢复在首帧后才回填 read-state，同步日志/返回报 0（诊断字段）。
-    readFileStateRestoredCount: readFileStateHydration?.restoredCount ?? 0,
-    readFileStateSkippedRangeReadCount: readFileStateHydration?.skippedRangeReadCount ?? 0,
-    readFileStateSkippedUnreadableEditCount:
-      readFileStateHydration?.skippedUnreadableEditCount ?? 0,
+    readFileStateRestoredCount: readFileStateHydration.restoredCount,
+    readFileStateSkippedRangeReadCount: readFileStateHydration.skippedRangeReadCount,
+    readFileStateSkippedUnreadableEditCount: readFileStateHydration.skippedUnreadableEditCount,
     recoveredCompactTimelineCount,
     resumedTodoCount: resumedTodos.length,
     resumedTargetStatus: resumedTarget?.status,
@@ -395,11 +330,9 @@ export async function resumeFromStore(
     // 中断 compact 恢复会写回 timeline part；bootstrap 不能继续把恢复前
     // messages 交给 V4，否则首帧会短暂复活 started/retrying 状态。
     persistedMessagesReloadRequired: recoveredCompactTimelineCount > 0,
-    // 快速恢复在首帧后才回填 read-state，同步日志/返回报 0（诊断字段）。
-    readFileStateRestoredCount: readFileStateHydration?.restoredCount ?? 0,
-    readFileStateSkippedRangeReadCount: readFileStateHydration?.skippedRangeReadCount ?? 0,
-    readFileStateSkippedUnreadableEditCount:
-      readFileStateHydration?.skippedUnreadableEditCount ?? 0,
+    readFileStateRestoredCount: readFileStateHydration.restoredCount,
+    readFileStateSkippedRangeReadCount: readFileStateHydration.skippedRangeReadCount,
+    readFileStateSkippedUnreadableEditCount: readFileStateHydration.skippedUnreadableEditCount,
     traceId: traceContext.traceId,
   };
 }

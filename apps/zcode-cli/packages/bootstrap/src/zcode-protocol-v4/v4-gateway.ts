@@ -181,17 +181,6 @@ interface PersistedEventsLoadResult {
   sourceEventSeq?: number;
   /** 与本次历史事件使用同一容量的种子；null 表示已查询但没有历史水位。 */
   usageSeed?: SessionUsageSeed | null;
-  /** 快速恢复：首帧只覆盖尾部轮次的 file-change 摘要，需在首帧后补一次全量重建。 */
-  deferredFullHydration?: boolean;
-}
-
-/**
- * 快速恢复：首帧后才补算的冷恢复种子。只影响快照 header（usage）与 subagent 清单，
- * 不参与 rows 归约；补齐后由 gateway 触发一次快照 resync。
- */
-export interface DeferredColdResumeSeeds {
-  usageSeed?: SessionUsageSeed | null;
-  subagentsSeed?: SessionSubagentsSeed;
 }
 
 export type V4GatewayErrorContext = Record<string, unknown>;
@@ -452,15 +441,7 @@ export interface V4GatewayHost {
   loadPersistedEvents?(
     sessionId: string,
     persistedMessages?: MessageWithParts[],
-    options?: { fastResume?: boolean },
   ): Promise<PersistedEventsLoadResult>;
-  /** 冷恢复提速开关的当前快照；未实现按 false（行为与未开启一致）。 */
-  isFastSessionResumeEnabled?(): boolean;
-  /** 快速恢复开启时，首帧后补算 usage/subagent 种子；未实现则不做延迟补种。 */
-  loadDeferredColdResumeSeeds?(
-    sessionId: string,
-    persistedMessages?: MessageWithParts[],
-  ): Promise<DeferredColdResumeSeeds>;
   /** 仅用于低频生命周期和恢复裁决；高频 event/stream trace 禁止走生产日志。 */
   onDebug?(message: string): void;
   onError?(scope: string, error: unknown, context?: V4GatewayErrorContext): void;
@@ -1495,9 +1476,6 @@ export class ConversationV4Gateway {
           ),
           sessionRuntimeState: isLiveConversation ? "warm" : "cold",
           snapshotRowCount: publisher.getSnapshot().rows.window.length,
-          // 只在开关确实开启时附加；关闭/旧 Host 时 ACK 与改造前逐字段一致，
-          // 避免旧客户端在 version skew 下被 strict schema 拒绝。
-          ...(this.host.isFastSessionResumeEnabled?.() === true ? { fastResume: true } : {}),
         },
       };
     } catch (error) {
@@ -2993,7 +2971,6 @@ export class ConversationV4Gateway {
     sessionId: string,
     persistedMessages?: MessageWithParts[],
     forceRebuild = false,
-    forceFullResume = false,
   ): Promise<ConversationTopicPublisher> {
     const existing = this.publishers.get(sessionId);
     // 已 hydrate 过的 live publisher：直接复用（避免重复重建 / 双计）。
@@ -3012,7 +2989,6 @@ export class ConversationV4Gateway {
       buffer,
       persistedMessages,
       forceRebuild,
-      forceFullResume,
     ).finally(() => {
       if (this.hydrationBuffers.get(sessionId) === buffer) {
         this.hydrationBuffers.delete(sessionId);
@@ -3030,7 +3006,6 @@ export class ConversationV4Gateway {
     buffer: HydrationBuffer,
     persistedMessages?: MessageWithParts[],
     forceRebuild = false,
-    forceFullResume = false,
   ): Promise<ConversationTopicPublisher> {
     const existingAtStart = this.publishers.get(sessionId);
     const liveSessionAtStart = this.host.sessionExists(sessionId);
@@ -3040,23 +3015,18 @@ export class ConversationV4Gateway {
         `existingPublisherAtStart=${String(existingAtStart !== undefined)} ` +
         `persistedMessages=${String(persistedMessages?.length ?? 0)}`,
     );
-    // 一次 hydrate 内固定开关快照：中途热切换不改变本次首帧的工作范围。
-    // forceFullResume 只用于首帧后的后台补全，必须走完整路径。
-    const fastResume = !forceFullResume && this.host.isFastSessionResumeEnabled?.() === true;
     const loaded: PersistedEventsLoadResult = this.host.loadPersistedEvents
-      ? await this.host
-          .loadPersistedEvents(sessionId, persistedMessages, { fastResume })
-          .catch((error) => {
-            this.host.onError?.("v4.hydrate", error, {
-              durationMs: Math.max(0, Math.round(performance.now() - hydrationStartedAt)),
-              existingPublisherAtStart: existingAtStart !== undefined,
-              liveSessionAtStart,
-              phase: "loadPersistedEvents",
-              persistedMessages: persistedMessages?.length ?? 0,
-              sessionId,
-            });
-            return { events: [] as SessionEvent[], synthesized: false, sourceEventSeq: 0 };
-          })
+      ? await this.host.loadPersistedEvents(sessionId, persistedMessages).catch((error) => {
+          this.host.onError?.("v4.hydrate", error, {
+            durationMs: Math.max(0, Math.round(performance.now() - hydrationStartedAt)),
+            existingPublisherAtStart: existingAtStart !== undefined,
+            liveSessionAtStart,
+            phase: "loadPersistedEvents",
+            persistedMessages: persistedMessages?.length ?? 0,
+            sessionId,
+          });
+          return { events: [] as SessionEvent[], synthesized: false, sourceEventSeq: 0 };
+        })
       : { events: [] as SessionEvent[], synthesized: false, sourceEventSeq: 0 };
 
     this.host.onDebug?.(
@@ -3088,19 +3058,12 @@ export class ConversationV4Gateway {
       if (loaded.sharedContextImport) {
         latestPublisher.seedSharedContextImport(loaded.sharedContextImport);
       }
-      if (!fastResume) {
-        await this.seedPublisherUsage(
-          sessionId,
-          latestPublisher,
-          persistedMessages,
-          loaded.usageSeed,
-        );
-      } else {
-        this.scheduleDeferredColdResumeSeeds(sessionId, latestPublisher, persistedMessages);
-      }
-      if (fastResume && loaded.deferredFullHydration) {
-        this.scheduleDeferredFullHydration(sessionId, latestPublisher);
-      }
+      await this.seedPublisherUsage(
+        sessionId,
+        latestPublisher,
+        persistedMessages,
+        loaded.usageSeed,
+      );
       this.hydratedSessions.add(sessionId);
       this.publishCurrentSummaryToIndex(sessionId);
       return latestPublisher;
@@ -3208,7 +3171,7 @@ export class ConversationV4Gateway {
     // （reconcileResumedRuntimeSettings），而合成/持久化事件里可能没有 ModelSelected——
     // 种子只填事件未触碰的字段，日志有值时以日志为准（冷恢复口径）。
     this.seedPublisherConfig(sessionId, publisher);
-    if (loaded.usageSeed === undefined && !fastResume) {
+    if (loaded.usageSeed === undefined) {
       await this.seedPublisherUsage(sessionId, publisher, persistedMessages);
     }
     for (const [routeKey, state] of this.flushStates) {
@@ -3233,97 +3196,7 @@ export class ConversationV4Gateway {
     }
     this.hydratedSessions.add(sessionId);
     this.publishCurrentSummaryToIndex(sessionId);
-    if (fastResume) {
-      this.scheduleDeferredColdResumeSeeds(sessionId, publisher, persistedMessages);
-      if (loaded.deferredFullHydration) {
-        this.scheduleDeferredFullHydration(sessionId, publisher);
-      }
-    }
     return publisher;
-  }
-
-  /**
-   * 快速恢复的第二步：首帧只算了尾部轮次的 file-change 摘要，这里在后台用完整路径
-   * 重建一次投影并复用现有 resync 机制把完整历史推给订阅者。不传 persistedMessages，
-   * 让重建读取此刻最新的持久消息，避免覆盖首帧后新落库的内容。
-   */
-  private scheduleDeferredFullHydration(
-    sessionId: string,
-    publisher: ConversationTopicPublisher,
-    attempt = 0,
-  ): void {
-    const timer = setTimeout(
-      () => {
-        if (this.disposed) return;
-        if (this.publishers.get(sessionId) !== publisher) return;
-        // hydratePublisher 的健康 publisher 短路只认 hydratedSessions；显式清掉本次标记
-        // 才能让 forceRebuild 真正重读完整事件（其他订阅者仍复用同一 publisher 实例）。
-        this.hydratedSessions.delete(sessionId);
-        void this.hydratePublisher(sessionId, undefined, true, true).catch((error) => {
-          // 后台补全失败不阻塞已发出的首帧；重试一次后仍失败则保留尾部摘要并记录终态。
-          if (attempt === 0 && !this.disposed && this.publishers.get(sessionId) === publisher) {
-            this.host.onError?.("v4.deferredFullHydration.retry", error, { attempt, sessionId });
-            this.scheduleDeferredFullHydration(sessionId, publisher, attempt + 1);
-            return;
-          }
-          this.host.onError?.("v4.deferredFullHydration.failed", error, { attempt, sessionId });
-        });
-      },
-      attempt === 0 ? 0 : 250,
-    );
-    timer.unref?.();
-  }
-
-  /**
-   * 快速恢复：首帧已发后再补算 usage/subagent 种子。结果只改快照 header，
-   * 因此补种成功后主动标记 resync 并复用 hydration 的 flush 调度把新快照推给订阅者。
-   * 任何失败都降级为“该面板稍后随下一帧更新”，不影响已发出的首帧。
-   */
-  private scheduleDeferredColdResumeSeeds(
-    sessionId: string,
-    publisher: ConversationTopicPublisher,
-    persistedMessages?: MessageWithParts[],
-  ): void {
-    const load = this.host.loadDeferredColdResumeSeeds;
-    if (!load) return;
-    void load
-      .call(this.host, sessionId, persistedMessages)
-      .then((seeds) => {
-        if (this.disposed) return;
-        // hydrate 可能已被更新的一轮替换；旧 publisher 不再接收种子。
-        if (this.publishers.get(sessionId) !== publisher) return;
-        if (seeds.subagentsSeed) publisher.seedSubagents(seeds.subagentsSeed);
-        if (seeds.usageSeed) publisher.seedUsage(seeds.usageSeed);
-        publisher.requestResync();
-        this.flushSessionSnapshots(sessionId, publisher);
-      })
-      .catch((error) => {
-        this.host.onError?.("v4.deferredColdResumeSeeds", error, { sessionId });
-      });
-  }
-
-  /** 让已订阅该 session 的连接尽快收到下一份快照（hydration seed 补齐路径）。 */
-  private flushSessionSnapshots(sessionId: string, publisher: ConversationTopicPublisher): void {
-    for (const [routeKey, state] of this.flushStates) {
-      if (state.sessionId !== sessionId) continue;
-      if (!publisher.hasSubscription(state.subscriptionId, state.connectionId)) continue;
-      if (state.timer) {
-        clearTimeout(state.timer);
-        state.timer = null;
-      }
-      if (this.pausedConnections.has(state.connectionId)) continue;
-      const reservation = publisher.reserveFlush(state.subscriptionId);
-      if (!reservation) continue;
-      try {
-        this.emitReservation(reservation);
-      } catch (error) {
-        this.host.onError?.("v4.deferredColdResumeSeeds.flush", error, {
-          phase: "deferredColdResumeSeeds",
-          sessionId,
-        });
-        this.scheduleFlush(routeKey, state, publisher);
-      }
-    }
   }
 
   /**

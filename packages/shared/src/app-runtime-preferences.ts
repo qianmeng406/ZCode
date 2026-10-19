@@ -7,7 +7,6 @@ export const appRuntimePreferencesChangedBroadcastPayloadSchema = z
   .object({
     askUserQuestionAutoResolutionEnabled: z.boolean(),
     modelIoFullRetentionEnabled: z.boolean().default(false),
-    fastSessionResumeEnabled: z.boolean().default(false),
   })
   .strict();
 

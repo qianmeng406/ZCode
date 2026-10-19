@@ -2776,9 +2776,6 @@ const enUS: Record<string, string> = {
   "settings.modelIoFullRetention": "Keep complete model I/O",
   "settings.modelIoFullRetentionDescription":
     "Keep complete model requests and responses without compression, size limits, or automatic deletion.",
-  "settings.fastSessionResume": "Fast session restore",
-  "settings.fastSessionResumeDescription":
-    "Show message content first when opening a historical session, and finish non-blocking work such as context rebuild, skill discovery, and session-start hooks in the background. Off keeps the current behavior.",
   "settings.performanceMode": "Performance mode",
   "settings.performanceModeDescription": "Simplify rendered output to improve performance.",
   "settings.taskAutoArchive": "Auto-archive old tasks",

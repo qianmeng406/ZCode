@@ -251,11 +251,7 @@ export interface AgentRuntimeCoreMethods {
   getToolExecutor(): ToolExecutor;
   subscribeEvents(sink: SessionEventSink): () => void;
   getContextBuilder(): ContextBuilder;
-  ensureContextInitialized(
-    traceContext: TraceContext,
-    model?: Model,
-    options?: { preserveMessageHistory?: boolean },
-  ): Promise<void>;
+  ensureContextInitialized(traceContext: TraceContext, model?: Model): Promise<void>;
   getSkillCatalog(traceContext: TraceContext): Promise<SkillLoadOutcome>;
   createContextBuilderFromSnapshot(
     snapshot: ContextSourceSnapshot,

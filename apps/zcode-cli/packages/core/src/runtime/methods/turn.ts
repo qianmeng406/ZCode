@@ -233,9 +233,6 @@ export async function executeTurnCommand(
         throw coreError;
       }
       let phaseStartedAt = startTurnPhase("context_initialization");
-      // 快速恢复把 context/history 准备推迟到首帧后；任何依赖它们的路径
-      // （常规 turn、手动 compact、rewind）都必须先等它收敛，失败则本轮失败。
-      await this.deferredResumeSettlement;
       if (this.contextInitialized) {
         // 每个后续 model step 都按该步骤实际持有的 Model 重新投影 Context；
         // Session Selection 只决定未来创建哪个 Model，不能充当执行事实。

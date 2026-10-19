@@ -85,19 +85,16 @@ describe("useSettings AskUserQuestion runtime preference", () => {
     expect(zcodeAgentService.syncAppRuntimePreferences).toHaveBeenCalledWith({
       askUserQuestionAutoResolutionEnabled: false,
       modelIoFullRetentionEnabled: false,
-      fastSessionResumeEnabled: false,
     });
     expect(botsService.syncAppRuntimePreferences).toHaveBeenCalledWith({
       askUserQuestionAutoResolutionEnabled: false,
       modelIoFullRetentionEnabled: false,
-      fastSessionResumeEnabled: false,
     });
     expect(broadcastService.send).toHaveBeenCalledWith({
       channel: APP_RUNTIME_PREFERENCES_CHANGED_BROADCAST_CHANNEL,
       payload: {
         askUserQuestionAutoResolutionEnabled: false,
         modelIoFullRetentionEnabled: false,
-        fastSessionResumeEnabled: false,
       },
     });
     expect(zcodeAgentService.syncAppRuntimePreferences.mock.invocationCallOrder[0]).toBeLessThan(
@@ -125,32 +122,6 @@ describe("useSettings AskUserQuestion runtime preference", () => {
     const preferences = {
       askUserQuestionAutoResolutionEnabled: true,
       modelIoFullRetentionEnabled: true,
-      fastSessionResumeEnabled: false,
-    };
-    expect(zcodeAgentService.syncAppRuntimePreferences).toHaveBeenCalledWith(preferences);
-    expect(botsService.syncAppRuntimePreferences).toHaveBeenCalledWith(preferences);
-    expect(broadcastService.send).toHaveBeenCalledWith({
-      channel: APP_RUNTIME_PREFERENCES_CHANGED_BROADCAST_CHANNEL,
-      payload: preferences,
-    });
-
-    hook.unmount();
-  });
-
-  it("persists and synchronizes the fast session resume switch", async () => {
-    const { useSettings } = await import("@/hooks/useSettingService.js");
-    const hook = renderHook(() => useSettings());
-    await waitFor(() => expect(hook.result.current.loading).toBe(false));
-
-    await act(async () => {
-      await hook.result.current.update({ fastSessionResumeEnabled: true });
-    });
-
-    expect(settingService.update).toHaveBeenCalledWith({ fastSessionResumeEnabled: true });
-    const preferences = {
-      askUserQuestionAutoResolutionEnabled: true,
-      modelIoFullRetentionEnabled: false,
-      fastSessionResumeEnabled: true,
     };
     expect(zcodeAgentService.syncAppRuntimePreferences).toHaveBeenCalledWith(preferences);
     expect(botsService.syncAppRuntimePreferences).toHaveBeenCalledWith(preferences);

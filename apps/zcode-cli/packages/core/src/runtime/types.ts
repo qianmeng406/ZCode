@@ -131,8 +131,6 @@ export interface AgentRuntimeConfig {
    * 仅 WSL 激活时返回 wsl；local/未注入时返回 undefined。
    */
   getSessionExecutionEnvironment?: () => SessionExecutionEnvironment | undefined;
-  /** 快速恢复：resume 时把与首帧无关的初始化推迟到后台，由首轮 turn 前收敛。 */
-  fastSessionResumeEnabled?: boolean;
   /** Execution Host's output root, independent of the working repository. */
   genUiOutputRoot?: string;
   mode?: CollaborationMode;

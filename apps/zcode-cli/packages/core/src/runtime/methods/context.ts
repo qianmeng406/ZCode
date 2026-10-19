@@ -2,7 +2,6 @@ import { join } from "node:path";
 import { resolveContextProfile } from "@zcode/shared";
 
 import {
-  countContextPrefixMessages,
   traceContextToLogContext,
   createContextBuilder,
   createSubagentContextBuilder,
@@ -42,72 +41,50 @@ export async function ensureContextInitialized(
   this: AgentRuntimeInternal,
   traceContext: TraceContext,
   model?: Model,
-  options: { preserveMessageHistory?: boolean } = {},
 ): Promise<void> {
   if (this.contextInitialized) return;
-  // 单飞：快速恢复的后台补做与 turn 的惰性初始化可能并发进入，双跑会用旧的
-  // init() 清空已 hydrate 的会话历史；失败后清空，下一次调用重试。
-  if (this.contextInitializationPromise) return this.contextInitializationPromise;
-  let operation: Promise<void>;
-  operation = (async () => {
-    const shellDisplayName = getContextSourceShellDisplayName(this);
-    const snapshot = this.contextSourcePort
-      ? await this.contextSourcePort.resolveContextSources(
-          {
-            workingDirectory: this.workingDirectory,
-            currentDate: this.config.currentDate,
-            effectiveShellDisplayName: shellDisplayName,
-            envInfo: this.config.envInfo,
-            userInstructions: this.config.userInstructions
-              ? {
-                  ...this.config.userInstructions,
-                  workingDirectory:
-                    this.config.userInstructions.workingDirectory ?? this.workingDirectory,
-                }
-              : undefined,
-            projectContext: this.config.projectContext,
-            trace: traceContext,
-          },
-          { signal: undefined },
-        )
-      : this.createConfigOnlyContextSnapshot(this.workingDirectory);
 
-    this.workingDirectory = snapshot.workingDirectory;
-    // Bash cd 之后 workingDirectory 会变化，但 workspaceRoot 仍表示会话初始工作区边界。
-    this.workspaceRoot = snapshot.workingDirectory;
-    this.contextSourceSnapshot = snapshot;
-    this.startMcpStartup(traceContext);
-    this.skillLoadOutcome = await this.discoverSkillsForContext(traceContext);
-    this.memoryRoot = await this.loadProjectMemoryRoot(traceContext);
-    this.memoryIndexContent = await loadProjectMemoryIndexContent(
-      this,
-      this.memoryRoot,
-      ACTIVE_PROJECT_MEMORY_RETRIEVAL_BRANCH,
-    );
-    await ensureGenUiOutputDirectory(this);
-    this.contextBuilder = this.createContextBuilderFromSnapshot(snapshot, this.memoryRoot, {
-      memoryIndexContent: this.memoryIndexContent,
-      model,
-    });
-    // 快速恢复：只要历史已先 hydrate（不论哪个入口先触发初始化），都必须合并 prefix。
-    // runtime 标记兜住未 await settlement 的入口；显式 options 仍可覆盖。
-    const preserveMessageHistory =
-      options.preserveMessageHistory ?? this.preserveMessageHistoryOnInit === true;
-    if (preserveMessageHistory) {
-      // 不能用 init() 清空（见 initializeMessageHistoryFromContext 的清空语义）。
-      installContextPrefixPreservingHistory(this, this.contextBuilder, traceContext);
-    } else {
-      this.initializeMessageHistoryFromContext(this.contextBuilder, traceContext);
-    }
-    this.preserveMessageHistoryOnInit = undefined;
-    this.contextInitialized = true;
-  })().finally(() => {
-    if (this.contextInitializationPromise === operation) {
-      this.contextInitializationPromise = undefined;
-    }
+  const shellDisplayName = getContextSourceShellDisplayName(this);
+  const snapshot = this.contextSourcePort
+    ? await this.contextSourcePort.resolveContextSources(
+        {
+          workingDirectory: this.workingDirectory,
+          currentDate: this.config.currentDate,
+          effectiveShellDisplayName: shellDisplayName,
+          envInfo: this.config.envInfo,
+          userInstructions: this.config.userInstructions
+            ? {
+                ...this.config.userInstructions,
+                workingDirectory:
+                  this.config.userInstructions.workingDirectory ?? this.workingDirectory,
+              }
+            : undefined,
+          projectContext: this.config.projectContext,
+          trace: traceContext,
+        },
+        { signal: undefined },
+      )
+    : this.createConfigOnlyContextSnapshot(this.workingDirectory);
+
+  this.workingDirectory = snapshot.workingDirectory;
+  // Bash cd 之后 workingDirectory 会变化，但 workspaceRoot 仍表示会话初始工作区边界。
+  this.workspaceRoot = snapshot.workingDirectory;
+  this.contextSourceSnapshot = snapshot;
+  this.startMcpStartup(traceContext);
+  this.skillLoadOutcome = await this.discoverSkillsForContext(traceContext);
+  this.memoryRoot = await this.loadProjectMemoryRoot(traceContext);
+  this.memoryIndexContent = await loadProjectMemoryIndexContent(
+    this,
+    this.memoryRoot,
+    ACTIVE_PROJECT_MEMORY_RETRIEVAL_BRANCH,
+  );
+  await ensureGenUiOutputDirectory(this);
+  this.contextBuilder = this.createContextBuilderFromSnapshot(snapshot, this.memoryRoot, {
+    memoryIndexContent: this.memoryIndexContent,
+    model,
   });
-  this.contextInitializationPromise = operation;
-  return operation;
+  this.initializeMessageHistoryFromContext(this.contextBuilder, traceContext);
+  this.contextInitialized = true;
 }
 
 export async function getSkillCatalog(
@@ -332,36 +309,8 @@ export function initializeMessageHistoryFromContext(
   this.messageHistory.init(buildContextHistoryEntries(contextResult));
   // 首个 prefix 安装即认为它反映了当前派生版本，请求准备边界不再重复重建。
   this.contextPrefixRevision = this.contextProjectionRevision;
-  logContextBuilt(this, contextResult, traceContext);
-}
 
-/**
- * 快速恢复：会话历史先于 context 初始化 hydrate。这里只替换 prefix 段并保留既有
- * 会话消息（与 rebuildContextPrefix 的合并语义一致），避免 init() 清空刚恢复的历史。
- */
-function installContextPrefixPreservingHistory(
-  runtime: AgentRuntimeInternal,
-  contextBuilder: ContextBuilder,
-  traceContext: TraceContext,
-): void {
-  const contextResult = contextBuilder.build();
-  runtime.latestContextBuildResult = contextResult;
-  const canonicalEntries = runtime.messageHistory.borrowReadOnlyRuntimeEntries();
-  const conversationEntries = canonicalEntries.slice(countContextPrefixMessages(canonicalEntries));
-  runtime.messageHistory.replaceMessages([
-    ...buildContextHistoryEntries(contextResult),
-    ...conversationEntries,
-  ]);
-  runtime.contextPrefixRevision = runtime.contextProjectionRevision;
-  logContextBuilt(runtime, contextResult, traceContext);
-}
-
-function logContextBuilt(
-  runtime: AgentRuntimeInternal,
-  contextResult: ReturnType<ContextBuilder["build"]>,
-  traceContext: TraceContext,
-): void {
-  runtime.logger?.debug("Context built", {
+  this.logger?.debug("Context built", {
     ...traceContextToLogContext(traceContext),
     event: "context.built",
     module: "core.runtime",

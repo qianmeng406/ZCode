@@ -1969,14 +1969,11 @@ export async function sendPrompt(context: ZCodeProtocolAgentServerContext, rawPa
   // 会话级执行环境切换 admission 锁（session-linux-execution spec「切换 admission」）：
   // 准备期间提交新输入会与端口装配交错，锁在 prepare 开始前建立、提交/失败后释放。
   if (isSessionExecutionPreparationInFlight(params.sessionId)) {
-    context.logger?.warn(
-      "ZCode Protocol session/send rejected: execution environment switch in progress",
-      {
-        inputId: params.inputId,
-        sessionId: params.sessionId,
-        workspacePath: record.workspace.workspacePath,
-      },
-    );
+    context.logger?.warn("ZCode Protocol session/send rejected: execution environment switch in progress", {
+      inputId: params.inputId,
+      sessionId: params.sessionId,
+      workspacePath: record.workspace.workspacePath,
+    });
     throw new ProtocolRequestError(
       -32010,
       "An execution environment switch is in progress for this session; try again after it completes",
@@ -3588,7 +3585,6 @@ async function createRecord(
     traceContext,
     version: context.deps.version,
     modelIoFullRetentionEnabled: context.appRuntimePreferences.modelIoFullRetentionEnabled,
-    fastSessionResumeEnabled: context.appRuntimePreferences.fastSessionResumeEnabled === true,
   });
   const now = Date.now();
   const record: ZCodeProtocolSessionRecord = {

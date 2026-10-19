@@ -17,7 +17,6 @@ import {
 } from "@zcode/shared";
 import { createExternalTurnFaultError } from "@zcode/core";
 import {
-  PROTOCOL_V4_LIMITS,
   V4_NOTIFICATIONS,
   conversationInputIntentSchema,
   type AttachmentRef,
@@ -39,20 +38,6 @@ import {
   loadPersistedConversationMaterialization,
   mergeColdConversationEvents,
 } from "../zcode-protocol-v4/cold-event-merge.js";
-
-/**
- * 快速恢复首帧的 file-change 摘要窗口（按消息数）。
- *
- * 设计假设：常规 transcript 中每条可见消息至少产出一个 row，因此
- * `snapshotTailWindowRows`（60）行尾窗通常只涉及 ≤60 条消息；这里按 5× 余量取 300。
- * 若极端投影（单条消息占大量行，或大量消息不产 row）让尾窗跨过 300 条消息，
- * 首帧仍完整呈现正文，只有较早轮次的 fileChanges 摘要会延迟到后台全量重建后出现。
- * 模块加载时断言窗口大于尾窗行数，避免未来调大尾窗后常量失去意义。
- */
-const FAST_RESUME_FILE_CHANGE_TAIL_MESSAGES = PROTOCOL_V4_LIMITS.snapshotTailWindowRows * 5;
-if (FAST_RESUME_FILE_CHANGE_TAIL_MESSAGES <= PROTOCOL_V4_LIMITS.snapshotTailWindowRows) {
-  throw new Error("Fast resume file-change window must cover the snapshot tail window");
-}
 import { lookupGlobalCreateSessionCommand } from "../zcode-protocol-v4/create-session-command-fact.js";
 import type {
   V4CommandCoreHost,
@@ -2043,8 +2028,7 @@ export function createConversationV4Gateway(
     // 冷订阅不再在 eventStore / transcript 之间 XOR。message/part
     // 是已完成正文权威，session_entry 只补 legacy goal，内存事件只补
     // 未持久 in-flight 和 queue/permission/control 等 ephemeral 状态。
-    loadPersistedEvents: async (sessionId, persistedMessages, options) => {
-      const fastResume = options?.fastResume === true;
+    loadPersistedEvents: async (sessionId, persistedMessages) => {
       // dwf workflow actor / subagent 这类 detached live child 没有自己的
       // bootstrap record（事件经 ingestDetachedLiveSession 走父 record 的 sink 路由）。
       // context.sessions.get 取不到 record 时不能直接返回 synthesized:false——
@@ -2119,15 +2103,9 @@ export function createConversationV4Gateway(
       // transcript 为正文权威时会压掉该事件，而 transcript 本身没有文件摘要字段。
       // workspace checkpoint + artifact 才是跨进程持久事实，这里按 user messageId
       // 重建摘要，再交给 transcript hydration 合成同构 ModelComplete。
-      // 快速恢复：首帧只需要尾窗覆盖的轮次，先只算最近 N 条消息；其余由 gateway
-      // 在首帧后触发一次 forceFull 重建补齐（见 scheduleDeferredFullHydration）。
-      const allMessageIds = source.messages.map((message) => String(message.info.id));
-      const messageIdsForFirstFrame = fastResume
-        ? allMessageIds.slice(-FAST_RESUME_FILE_CHANGE_TAIL_MESSAGES)
-        : allMessageIds;
       const fileChangeSummariesByMessageId = await buildColdFileChangeSummaries({
         events: source.memoryEvents,
-        messageIds: messageIdsForFirstFrame,
+        messageIds: source.messages.map((message) => String(message.info.id)),
         readArtifact: async (snapshotRef) =>
           (await record.app.readToolResultArtifact(snapshotRef)).content,
         onArtifactError: (messageId, error) =>
@@ -2142,15 +2120,11 @@ export function createConversationV4Gateway(
       // 冷恢复 transcript 不保存模型能力，旧 hydration 自行填 20 万；
       // provider registry 已在 resume 前同步完成，应按恢复/退避后的当前模型精确取值。
       const contextWindow = resolveSessionModelContextWindow(context, record);
-      // 快速恢复：usage/subagent 种子只影响快照 header 与可选面板，不参与 rows 归约，
-      // 推迟到首帧后再算（由 gateway 调 loadDeferredColdResumeSeeds 补齐）。
-      const usageSeed = fastResume
-        ? undefined
-        : sessionUsageSeedFromRuntimeContextUsage(
-            await readSessionContextUsage(context, sessionId, source.messages),
-            contextWindow,
-            await readMainTurnUsageCumulative(context, sessionId),
-          );
+      const usageSeed = sessionUsageSeedFromRuntimeContextUsage(
+        await readSessionContextUsage(context, sessionId, source.messages),
+        contextWindow,
+        await readMainTurnUsageCumulative(context, sessionId),
+      );
       const merged = mergeColdConversationEvents({
         contextWindow,
         fileChangeSummariesByMessageId,
@@ -2182,87 +2156,25 @@ export function createConversationV4Gateway(
       // transcript 可恢复 Agent row，却不能证明 child session 已经落库。
       // 这里在 gateway 的 raw-event buffer 补回前生成校验种子，既排除旧幽灵引用，
       // 又避免异步查询覆盖 seed 之后新到达的 live spawn/stop。
-      const subagents = fastResume
-        ? undefined
-        : await listSessionSubagents(context, { sessionId, endedLimit: 1 }, persistedMessages);
+      const subagents = await listSessionSubagents(
+        context,
+        { sessionId, endedLimit: 1 },
+        persistedMessages,
+      );
       return {
         events: merged.events,
         // 与合成事件共用本次查询结果；不在后续回填阶段重新读取另一份容量。
-        ...(usageSeed !== undefined ? { usageSeed } : {}),
+        usageSeed,
         // gateway 旧字段名仍叫 synthesized；这里表示投影已由 durable
         // transcript 重物化，需替换 ingest 抢先建的 cold publisher。
         synthesized: merged.usedDurableTranscript,
-        ...(subagents
-          ? {
-              subagentsSeed: {
-                revision: subagents.revision,
-                childSessionIds: subagents.childSessionIds,
-                running: subagents.running,
-              },
-            }
-          : {}),
+        subagentsSeed: {
+          revision: subagents.revision,
+          childSessionIds: subagents.childSessionIds,
+          running: subagents.running,
+        },
         ...(source.sharedContextImport ? { sharedContextImport: source.sharedContextImport } : {}),
         sourceEventSeq,
-        // 首帧刻意只算了尾部轮次的 file-change 摘要；告知 gateway 后台补一次全量。
-        ...(fastResume && messageIdsForFirstFrame.length < allMessageIds.length
-          ? { deferredFullHydration: true }
-          : {}),
-      };
-    },
-    // 快速恢复：开关是 App 全局偏好，由协议热下发写入 context；缺省 false。
-    isFastSessionResumeEnabled: () =>
-      context.appRuntimePreferences.fastSessionResumeEnabled === true,
-    // 首帧后的补种：只读 persistedMessages，不重复读取全量 message（与首帧共用同一快照）。
-    // usage 与 subagents 互不依赖，失败也互不连坐。
-    loadDeferredColdResumeSeeds: async (sessionId, persistedMessages) => {
-      const record = context.sessions.get(sessionId);
-      if (!record) return {};
-      const contextWindow = resolveSessionModelContextWindow(context, record);
-      const [usageResult, subagentsResult] = await Promise.allSettled([
-        readSessionContextUsage(context, sessionId, persistedMessages).then(async (usage) =>
-          sessionUsageSeedFromRuntimeContextUsage(
-            usage,
-            contextWindow,
-            await readMainTurnUsageCumulative(context, sessionId),
-          ),
-        ),
-        listSessionSubagents(context, { sessionId, endedLimit: 1 }, persistedMessages),
-      ]);
-      if (usageResult.status === "rejected") {
-        context.logger?.warn("v4 deferred usage seed failed", {
-          error:
-            usageResult.reason instanceof Error
-              ? usageResult.reason.message
-              : String(usageResult.reason),
-          event: "zcode_protocol.v4.deferred_usage_seed_failed",
-          module: "bootstrap.zcode_protocol",
-          sessionId,
-        });
-      }
-      if (subagentsResult.status === "rejected") {
-        context.logger?.warn("v4 deferred subagent seed failed", {
-          error:
-            subagentsResult.reason instanceof Error
-              ? subagentsResult.reason.message
-              : String(subagentsResult.reason),
-          event: "zcode_protocol.v4.deferred_subagent_seed_failed",
-          module: "bootstrap.zcode_protocol",
-          sessionId,
-        });
-      }
-      const usageSeed = usageResult.status === "fulfilled" ? usageResult.value : undefined;
-      const subagents = subagentsResult.status === "fulfilled" ? subagentsResult.value : undefined;
-      return {
-        ...(usageSeed !== undefined ? { usageSeed } : {}),
-        ...(subagents
-          ? {
-              subagentsSeed: {
-                revision: subagents.revision,
-                childSessionIds: subagents.childSessionIds,
-                running: subagents.running,
-              },
-            }
-          : {}),
       };
     },
     onError: (scope, error, errorContext) =>
