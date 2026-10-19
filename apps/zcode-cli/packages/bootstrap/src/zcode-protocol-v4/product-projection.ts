@@ -684,6 +684,34 @@ export class ProductProjection {
       outputTokens: seed.cumulative?.outputTokens ?? current.cumulative.outputTokens,
       cacheReadTokens: seed.cumulative?.cacheReadTokens ?? current.cumulative.cacheReadTokens,
       cacheWriteTokens: seed.cumulative?.cacheWriteTokens ?? current.cumulative.cacheWriteTokens,
+      // 会话级时长/请求数/TTFT 采样：seed 缺席时保留现值，不用 0 覆盖已有累计。
+      ...(seed.cumulative?.generationDurationMs !== undefined ||
+      current.cumulative.generationDurationMs !== undefined
+        ? {
+            generationDurationMs:
+              seed.cumulative?.generationDurationMs ?? current.cumulative.generationDurationMs,
+          }
+        : {}),
+      ...(seed.cumulative?.requestCount !== undefined ||
+      current.cumulative.requestCount !== undefined
+        ? { requestCount: seed.cumulative?.requestCount ?? current.cumulative.requestCount }
+        : {}),
+      ...(seed.cumulative?.timeToFirstTokenTotalMs !== undefined ||
+      current.cumulative.timeToFirstTokenTotalMs !== undefined
+        ? {
+            timeToFirstTokenTotalMs:
+              seed.cumulative?.timeToFirstTokenTotalMs ??
+              current.cumulative.timeToFirstTokenTotalMs,
+          }
+        : {}),
+      ...(seed.cumulative?.timeToFirstTokenSamples !== undefined ||
+      current.cumulative.timeToFirstTokenSamples !== undefined
+        ? {
+            timeToFirstTokenSamples:
+              seed.cumulative?.timeToFirstTokenSamples ??
+              current.cumulative.timeToFirstTokenSamples,
+          }
+        : {}),
     };
     if (this.contextWindowState.touchedByEvent) {
       // 同类守卫：显式 ModelSelected.contextWindow（含 null）是日志权威容量，
@@ -4871,6 +4899,16 @@ export class ProductProjection {
     this.contextWindowState.usedTokens = usedTokens;
     const maxTokens = payload.contextWindow ?? this.contextWindowState.maxTokens;
     const cumulative = this.snapshot.usage.cumulative;
+    // 会话级累计：token 与时长同源同过滤（本段在非主轮 early return 之后），
+    // 供 Composer 展示"会话平均首 token / 平均速度 / 总输入输出 / 缓存命中率"。
+    // 平均首 token 只采样携带 timings 的请求，故分子分母单独累计，不复用 requestCount。
+    const sessionTimings = payload.timings;
+    const sessionRequestTtftMs =
+      sessionTimings?.firstTokenAt !== undefined &&
+      sessionTimings.startedAt !== undefined &&
+      sessionTimings.firstTokenAt >= sessionTimings.startedAt
+        ? sessionTimings.firstTokenAt - sessionTimings.startedAt
+        : undefined;
     deltas.push({
       op: "state.updated",
       patch: {
@@ -4895,6 +4933,21 @@ export class ProductProjection {
             outputTokens: cumulative.outputTokens + (usage.outputTokens ?? 0),
             cacheReadTokens: cumulative.cacheReadTokens + (usage.cacheReadTokens ?? 0),
             cacheWriteTokens: cumulative.cacheWriteTokens + (usage.cacheWriteTokens ?? 0),
+            requestCount: (cumulative.requestCount ?? 0) + 1,
+            ...(sessionTimings?.generationDurationMs !== undefined &&
+            sessionTimings.generationDurationMs >= 0
+              ? {
+                  generationDurationMs:
+                    (cumulative.generationDurationMs ?? 0) + sessionTimings.generationDurationMs,
+                }
+              : {}),
+            ...(sessionRequestTtftMs !== undefined
+              ? {
+                  timeToFirstTokenTotalMs:
+                    (cumulative.timeToFirstTokenTotalMs ?? 0) + sessionRequestTtftMs,
+                  timeToFirstTokenSamples: (cumulative.timeToFirstTokenSamples ?? 0) + 1,
+                }
+              : {}),
           },
         },
       },
@@ -5488,7 +5541,7 @@ export class ProductProjection {
    * - TTFT：本 turn 第一个携带 timings 的 main ModelComplete 提供
    *   firstTokenAt − startedAt；后续 step 不覆盖（speed 聚合多个 step，但 TTFT 只有一个起点）。
    * - 其余字段同轮累计：output/input/reasoning/cache 读写 token、generationDurationMs、
-   *   requestCount；lastRequest 每次覆盖，保留单请求事实供 UI 展示单请求速度。
+   *   requestCount；lastRequest 每次覆盖，保留单请求事实供 UI 展示单请求速度与缓存命中率。
    * - 字段缺席 = 无可靠事实（旧事件 / 非流式），不写 0 冒充，由 UI 渲染不可用。
    */
   private mainTurnMetricsForHeader(
@@ -5555,6 +5608,9 @@ export class ProductProjection {
         ...(timings?.generationDurationMs !== undefined && timings.generationDurationMs >= 0
           ? { generationDurationMs: timings.generationDurationMs }
           : {}),
+        // 单请求缓存命中率 = cacheRead / input；input 缺席时不写，UI 渲染不可用。
+        ...(usage.inputTokens !== undefined ? { inputTokens: usage.inputTokens } : {}),
+        ...(usage.cacheReadTokens !== undefined ? { cacheReadTokens: usage.cacheReadTokens } : {}),
       };
     }
 

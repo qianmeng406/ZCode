@@ -1,15 +1,15 @@
 /**
- * Composer 输入框下方的 main-turn 指标卡片。
+ * Composer 输入框下方的会话指标卡片（单行）。
  *
- * 事实源：v4 ConversationSnapshot 最近一个 turnHeader 行的轮指标字段
- * （output / input / reasoning / cache token、TTFT、generationDurationMs、requestCount、
- * lastRequest），全部由 CLI 投影从权威 ModelComplete.usage/timings 聚合而来。
- * 本组件只做格式化与呈现：不维护第二份轮次状态、不做浏览器时钟估算、
- * 不用字符数冒充 token。
+ * 事实源：v4 ConversationSnapshot。
+ * - 前半段是**会话级**累计：`usage.cumulative` 的 token / 请求数 / 生成时长 / TTFT 采样，
+ *   由 CLI 投影在权威 ModelComplete 处累加（仅 main_turn）；
+ * - 后半段是**单请求**事实：最近一个带 `lastRequest` 的 turnHeader。
+ * 本组件只做格式化与呈现：不维护第二份状态、不做浏览器时钟估算、不用字符数冒充 token。
  *
- * 排版：三行结构——核心三项（首 token / 速度 / 输出）为第一行；本轮明细为第二行；
- * 上一请求仅在轮内请求数 > 1 时作为第三行出现（单请求时它与本轮完全重复）。
- * 缺失的明细项直接不渲染，不做二级面板。
+ * 排版：一行八段——会话五项（平均首 token / 平均速度 / 总输入 / 总输出 / 缓存命中率），
+ * 竖线后接上次请求三项（首 token / 速度 / 缓存命中率）。会话五项恒定渲染，缺值 `--`；
+ * 会话只有一次请求时上次请求与前半段完全重复，直接隐藏。
  */
 import { memo, useCallback, useMemo } from "react";
 import { useZCodeIntl } from "@/i18n/IntlProvider.js";
@@ -20,34 +20,44 @@ export interface ComposerLastRequestMetrics {
   outputTokens?: number;
   timeToFirstTokenMs?: number;
   generationDurationMs?: number;
+  inputTokens?: number;
+  cacheReadTokens?: number;
+}
+
+/** snapshot.usage.cumulative 中本卡片用到的字段（全部是会话级累计）。 */
+export interface ComposerSessionUsage {
+  inputTokens?: number;
+  outputTokens?: number;
+  cacheReadTokens?: number;
+  generationDurationMs?: number;
+  requestCount?: number;
+  timeToFirstTokenTotalMs?: number;
+  timeToFirstTokenSamples?: number;
 }
 
 export interface ComposerTurnMetricsFact {
-  outputTokens?: number;
-  timeToFirstTokenMs?: number;
-  /** sum(main step generationDurationMs)；speed 的分母。 */
-  generationDurationMs?: number;
-  inputTokens?: number;
-  reasoningTokens?: number;
-  cacheReadTokens?: number;
-  cacheWriteTokens?: number;
-  requestCount?: number;
+  /** 会话级累计；缺席表示快照还没带会话用量（旧 CLI / 冷开首帧）。 */
+  session?: ComposerSessionUsage;
   /** 最近一次 main model request 的单请求事实（覆盖，不累计）。 */
   lastRequest?: ComposerLastRequestMetrics;
 }
 
 export interface TurnMetricsDisplay {
-  timeToFirstToken: string | null;
-  tokensPerSecond: string | null;
+  averageTimeToFirstToken: string | null;
+  averageTokensPerSecond: string | null;
+  inputTokens: string | null;
   outputTokens: string | null;
+  cacheHitRate: string | null;
+  /** 总输入/总输出切到紧凑单位时保留精确值，供悬浮查看，避免"对不上账"。 */
+  inputTokensExact: string | null;
+  outputTokensExact: string | null;
 }
 
 const UNAVAILABLE_PLACEHOLDER = "--";
 /** tok/s 保留 1 位小数；低于 0.05 显示为 0.0，避免负数/NaN 泄漏。 */
 const TOKENS_PER_SECOND_FRACTION_DIGITS = 1;
-/** 窄屏（@container < 480px）隐藏 tok/s 分段，TTFT 与输出 token 仍是核心事实。
- *  注意：Tailwind 任意变体类名不能含空格（DOM class 按空白切分），必须用下划线写法。 */
-const NARROW_HIDE_SPEED_CONTAINER_QUERY = "@max-[480px]/composer:hidden";
+/** 十万以上的 token 累计切到紧凑单位（10万 / 1.47亿 / 147M），否则九位数会把单行挤爆。 */
+const COMPACT_TOKEN_THRESHOLD = 100_000;
 
 function formatDurationMs(ms: number, locale: string): string {
   const numberFormat = new Intl.NumberFormat(locale, { maximumFractionDigits: 0 });
@@ -71,6 +81,19 @@ function formatCount(value: number, locale: string): string {
   return new Intl.NumberFormat(locale, { maximumFractionDigits: 0 }).format(value);
 }
 
+/**
+ * token 累计的单位自适应：十万以下保留完整千分位（7,290 比 7.29K 更好核对），
+ * 十万以上切紧凑单位（zh 万/亿、en K/M/B），3 位有效数字。
+ * 精确值由调用方通过 title 保留，悬浮仍可看到完整数字。
+ */
+function formatTokenCount(value: number, locale: string): string {
+  if (value < COMPACT_TOKEN_THRESHOLD) return formatCount(value, locale);
+  return new Intl.NumberFormat(locale, {
+    notation: "compact",
+    maximumSignificantDigits: 3,
+  }).format(value);
+}
+
 /** speed = outputTokens / generationDurationMs；分母缺失或为 0 时不展示导数。 */
 function formatTokensPerSecond(
   outputTokens: number | undefined,
@@ -90,22 +113,96 @@ function formatTokensPerSecond(
   }).format((outputTokens * 1000) / generationDurationMs);
 }
 
-export function formatComposerTurnMetrics(
-  fact: ComposerTurnMetricsFact,
+/**
+ * 缓存命中率 = cacheRead / input（input 已包含缓存读/写，见 token-usage.md）。
+ * 上游偶发 cacheRead > input 的脏数据，夹到 100% 而不是显示 137% 这种不可能值。
+ */
+function formatCacheHitRate(
+  cacheReadTokens: number | undefined,
+  inputTokens: number | undefined,
+  locale: string,
+): string | null {
+  if (
+    cacheReadTokens === undefined ||
+    cacheReadTokens < 0 ||
+    inputTokens === undefined ||
+    inputTokens <= 0
+  ) {
+    return null;
+  }
+  return new Intl.NumberFormat(locale, {
+    style: "percent",
+    maximumFractionDigits: 0,
+  }).format(Math.min(1, cacheReadTokens / inputTokens));
+}
+
+/**
+ * 会话平均首 token = TTFT 总和 / 有效采样数。
+ * 两个字段都缺席时返回 undefined：宁可显示不可用，也不拿某个请求的耗时冒充会话均值。
+ */
+function resolveAverageTtftMs(session: ComposerSessionUsage | undefined): number | undefined {
+  const total = session?.timeToFirstTokenTotalMs;
+  const samples = session?.timeToFirstTokenSamples;
+  if (total === undefined || samples === undefined || samples <= 0) return undefined;
+  return total / samples;
+}
+
+/** 会话是否已有可用累计：旧快照只有 token 字段、没有 requestCount。 */
+function hasSessionUsage(session: ComposerSessionUsage | undefined): boolean {
+  if (!session) return false;
+  return (
+    (session.requestCount ?? 0) > 0 ||
+    (session.inputTokens ?? 0) > 0 ||
+    (session.outputTokens ?? 0) > 0
+  );
+}
+
+export function formatComposerSessionUsage(
+  session: ComposerSessionUsage | undefined,
   locale: string,
 ): TurnMetricsDisplay {
-  const numberFormat = new Intl.NumberFormat(locale, { maximumFractionDigits: 0 });
+  if (!session || !hasSessionUsage(session)) {
+    return {
+      averageTimeToFirstToken: null,
+      averageTokensPerSecond: null,
+      inputTokens: null,
+      outputTokens: null,
+      cacheHitRate: null,
+      inputTokensExact: null,
+      outputTokensExact: null,
+    };
+  }
+  const averageTtftMs = resolveAverageTtftMs(session);
+  const inputTokens =
+    session.inputTokens !== undefined && session.inputTokens > 0
+      ? formatTokenCount(session.inputTokens, locale)
+      : null;
+  const outputTokens =
+    session.outputTokens !== undefined && session.outputTokens > 0
+      ? formatTokenCount(session.outputTokens, locale)
+      : null;
   return {
-    timeToFirstToken:
-      typeof fact.timeToFirstTokenMs === "number" && fact.timeToFirstTokenMs >= 0
-        ? formatDurationMs(fact.timeToFirstTokenMs, locale)
+    averageTimeToFirstToken:
+      averageTtftMs !== undefined && averageTtftMs >= 0
+        ? formatDurationMs(averageTtftMs, locale)
         : null,
-    // speed = sum(outputTokens) / sum(generationDurationMs)，多 model step 同轮聚合口径；
+    // speed = sum(outputTokens) / sum(generationDurationMs)，跨请求同口径聚合；
     // 分母缺失或为 0 时不展示导数，宁可显示不可用也不估算。
-    tokensPerSecond: formatTokensPerSecond(fact.outputTokens, fact.generationDurationMs, locale),
-    outputTokens:
-      typeof fact.outputTokens === "number" && fact.outputTokens > 0
-        ? numberFormat.format(fact.outputTokens)
+    averageTokensPerSecond: formatTokensPerSecond(
+      session.outputTokens,
+      session.generationDurationMs,
+      locale,
+    ),
+    inputTokens,
+    outputTokens,
+    cacheHitRate: formatCacheHitRate(session.cacheReadTokens, session.inputTokens, locale),
+    inputTokensExact:
+      session.inputTokens !== undefined && session.inputTokens >= COMPACT_TOKEN_THRESHOLD
+        ? formatCount(session.inputTokens, locale)
+        : null,
+    outputTokensExact:
+      session.outputTokens !== undefined && session.outputTokens >= COMPACT_TOKEN_THRESHOLD
+        ? formatCount(session.outputTokens, locale)
         : null,
   };
 }
@@ -116,15 +213,17 @@ interface MetricItem {
   label: string;
   value: string;
   suffix?: string;
-  className?: string;
+  /** 紧凑显示时的精确值（原生悬浮提示），用于核对完整数字。 */
+  title?: string;
 }
 
 function TurnMetricsItem({ item }: { item: MetricItem }) {
   return (
     <span
       data-testid={testId(TID_COMPOSER_TURN_METRICS_ITEM, item.key)}
+      title={item.title}
       // shrink-0：分段内容 nowrap，被 flex 压缩时会溢出到相邻分段造成文字重叠。
-      className={cn("inline-flex shrink-0 items-baseline gap-1 whitespace-nowrap", item.className)}
+      className="inline-flex shrink-0 items-baseline gap-1 whitespace-nowrap"
     >
       <span className="text-ui-xs text-foreground-subtle">{item.label}</span>
       {/* 等宽数字：数值变化不抖动卡片宽度。 */}
@@ -144,70 +243,53 @@ export const ComposerTurnMetricsCapsule = memo(function ComposerTurnMetricsCapsu
   className?: string;
 }) {
   const { intl, locale } = useZCodeIntl();
-  const display = useMemo(() => formatComposerTurnMetrics(fact ?? {}, locale), [fact, locale]);
   // 稳定引用：明细 useMemo 依赖它，不能每次渲染新建函数。
   const label = useCallback(
     (id: string) => intl.formatMessage({ id: `chat.composer.turnMetrics.${id}` }),
     [intl],
   );
 
-  const detailItems = useMemo<MetricItem[]>(() => {
-    if (!fact) return [];
-    const items: MetricItem[] = [];
-    const push = (key: string, text: string, value: string | null | undefined) => {
-      if (value !== null && value !== undefined) items.push({ key, label: text, value });
-    };
-    push(
-      "reasoning-tokens",
-      label("reasoningTokens"),
-      fact.reasoningTokens !== undefined ? formatCount(fact.reasoningTokens, locale) : null,
-    );
-    // 可见输出 = 输出 − 推理：两个事实都在时才给，避免拿缺席值当 0。
-    push(
-      "visible-output",
-      label("visibleOutput"),
-      fact.outputTokens !== undefined &&
-        fact.reasoningTokens !== undefined &&
-        fact.outputTokens >= fact.reasoningTokens
-        ? formatCount(fact.outputTokens - fact.reasoningTokens, locale)
-        : null,
-    );
-    push(
-      "generation-duration",
-      label("generationDuration"),
-      fact.generationDurationMs !== undefined
-        ? formatDurationMs(fact.generationDurationMs, locale)
-        : null,
-    );
-    push(
-      "request-count",
-      label("requestCount"),
-      fact.requestCount !== undefined ? formatCount(fact.requestCount, locale) : null,
-    );
-    push(
-      "input-tokens",
-      label("inputTokens"),
-      fact.inputTokens !== undefined ? formatCount(fact.inputTokens, locale) : null,
-    );
-    push(
-      "cache-read",
-      label("cacheRead"),
-      fact.cacheReadTokens !== undefined ? formatCount(fact.cacheReadTokens, locale) : null,
-    );
-    push(
-      "cache-write",
-      label("cacheWrite"),
-      fact.cacheWriteTokens !== undefined ? formatCount(fact.cacheWriteTokens, locale) : null,
-    );
-    return items;
-  }, [fact, locale, label]);
+  const sessionItems = useMemo<MetricItem[]>(() => {
+    const display = formatComposerSessionUsage(fact?.session, locale);
+    // 五项恒定渲染：缺值是明确的 `--` 占位，不显示假 live 值，行宽也不随事实到达跳动。
+    return [
+      {
+        key: "average-ttft",
+        label: label("averageTtft"),
+        value: display.averageTimeToFirstToken ?? UNAVAILABLE_PLACEHOLDER,
+      },
+      {
+        key: "average-tokens-per-second",
+        label: label("averageSpeed"),
+        value: display.averageTokensPerSecond ?? UNAVAILABLE_PLACEHOLDER,
+        ...(display.averageTokensPerSecond !== null ? { suffix: " tok/s" } : {}),
+      },
+      {
+        key: "input-tokens",
+        label: label("totalInput"),
+        value: display.inputTokens ?? UNAVAILABLE_PLACEHOLDER,
+        ...(display.inputTokensExact ? { title: display.inputTokensExact } : {}),
+      },
+      {
+        key: "output-tokens",
+        label: label("totalOutput"),
+        value: display.outputTokens ?? UNAVAILABLE_PLACEHOLDER,
+        ...(display.outputTokensExact ? { title: display.outputTokensExact } : {}),
+      },
+      {
+        key: "cache-hit-rate",
+        label: label("cacheHitRate"),
+        value: display.cacheHitRate ?? UNAVAILABLE_PLACEHOLDER,
+      },
+    ];
+  }, [fact?.session, locale, label]);
 
   const lastRequestItems = useMemo<MetricItem[]>(() => {
     const last = fact?.lastRequest;
     if (!last) return [];
     const items: MetricItem[] = [];
-    const push = (key: string, text: string, value: string | null | undefined, suffix?: string) => {
-      if (value !== null && value !== undefined) items.push({ key, label: text, value, suffix });
+    const push = (key: string, text: string, value: string | null, suffix?: string) => {
+      if (value !== null) items.push({ key, label: text, value, ...(suffix ? { suffix } : {}) });
     };
     push(
       "last-request-ttft",
@@ -217,73 +299,45 @@ export const ComposerTurnMetricsCapsule = memo(function ComposerTurnMetricsCapsu
         : null,
     );
     push(
-      "last-request-output-tokens",
-      label("outputTokens"),
-      last.outputTokens !== undefined ? formatCount(last.outputTokens, locale) : null,
-    );
-    push(
       "last-request-tokens-per-second",
       label("tokensPerSecond"),
       formatTokensPerSecond(last.outputTokens, last.generationDurationMs, locale),
       " tok/s",
     );
+    push(
+      "last-request-cache-hit-rate",
+      label("cacheHitRate"),
+      formatCacheHitRate(last.cacheReadTokens, last.inputTokens, locale),
+    );
     return items;
   }, [fact?.lastRequest, locale, label]);
 
-  // 单请求轮里"上次请求"与本轮完全重复，只在多请求轮展示。
-  const showLastRequest = lastRequestItems.length > 0 && (fact?.requestCount ?? 0) > 1;
+  // 会话只有一次请求时，单请求事实与会话累计完全重复，直接隐藏。
+  const showLastRequest = lastRequestItems.length > 0 && (fact?.session?.requestCount ?? 2) > 1;
 
   return (
     <div
       data-testid={TID_COMPOSER_TURN_METRICS}
       className={cn(
-        "flex min-w-0 flex-col gap-1 rounded-lg px-2.5 py-1.5",
+        // 单行优先；宽度不够时按分段换行（flex-wrap），不做横向滚动或省略。
+        "flex min-w-0 flex-wrap items-baseline gap-x-3 gap-y-1 rounded-md px-2 py-1",
         "bg-surface-hover/50 text-ui-xs",
         className,
       )}
     >
-      {/* 第一行：核心三项。恒定渲染，缺值是明确的 `--` 占位，不显示假 live 值。 */}
-      <div className="flex min-w-0 flex-wrap items-baseline gap-x-4 gap-y-1">
-        <TurnMetricsItem
-          item={{
-            key: "ttft",
-            label: label("ttft"),
-            value: display.timeToFirstToken ?? UNAVAILABLE_PLACEHOLDER,
-          }}
-        />
-        <TurnMetricsItem
-          item={{
-            key: "tokens-per-second",
-            label: label("tokensPerSecond"),
-            value: display.tokensPerSecond ?? UNAVAILABLE_PLACEHOLDER,
-            suffix: display.tokensPerSecond !== null ? " tok/s" : undefined,
-            className: `${NARROW_HIDE_SPEED_CONTAINER_QUERY}:hidden`,
-          }}
-        />
-        <TurnMetricsItem
-          item={{
-            key: "output-tokens",
-            label: label("outputTokens"),
-            value: display.outputTokens ?? UNAVAILABLE_PLACEHOLDER,
-          }}
-        />
-      </div>
-      {detailItems.length > 0 ? (
-        <div className="flex min-w-0 flex-wrap items-baseline gap-x-3.5 gap-y-1">
-          {detailItems.map((item) => (
-            <TurnMetricsItem key={item.key} item={item} />
-          ))}
-        </div>
-      ) : null}
+      {sessionItems.map((item) => (
+        <TurnMetricsItem key={item.key} item={item} />
+      ))}
       {showLastRequest ? (
-        <div className="flex min-w-0 flex-wrap items-baseline gap-x-3.5 gap-y-1">
+        <>
+          <span aria-hidden className="h-3 w-px shrink-0 self-center bg-border" />
           <span className="shrink-0 text-ui-xs text-foreground-subtlest">
             {label("sectionLastRequest")}
           </span>
           {lastRequestItems.map((item) => (
             <TurnMetricsItem key={item.key} item={item} />
           ))}
-        </div>
+        </>
       ) : null}
     </div>
   );

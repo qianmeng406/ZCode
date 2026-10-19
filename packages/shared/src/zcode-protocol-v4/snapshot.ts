@@ -202,6 +202,12 @@ export const sessionUsageStateSchema = z.object({
     outputTokens: z.number(),
     cacheReadTokens: z.number(),
     cacheWriteTokens: z.number(),
+    // 会话级速度与平均首 token 的分母/分子，与上面四个 token 累计同源同过滤（仅 main_turn）。
+    // 进程内累计、冷开从 0 起；optional 兼容旧快照。
+    generationDurationMs: z.number().nonnegative().optional(),
+    requestCount: z.number().int().nonnegative().optional(),
+    timeToFirstTokenTotalMs: z.number().nonnegative().optional(),
+    timeToFirstTokenSamples: z.number().int().nonnegative().optional(),
   }),
 });
 export type SessionUsageState = z.infer<typeof sessionUsageStateSchema>;

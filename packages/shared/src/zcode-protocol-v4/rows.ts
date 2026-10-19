@@ -107,6 +107,10 @@ export const turnHeaderRowSchema = z.object({
       outputTokens: z.number().int().nonnegative().optional(),
       timeToFirstTokenMs: z.number().nonnegative().optional(),
       generationDurationMs: z.number().nonnegative().optional(),
+      // 单请求的输入与缓存读：UI 据此算该次请求的缓存命中率（cacheRead / input）。
+      // inputTokens 已包含缓存读/写（见 token-usage.md 的规范化约定）。
+      inputTokens: z.number().int().nonnegative().optional(),
+      cacheReadTokens: z.number().int().nonnegative().optional(),
     })
     .optional(),
   // CLI 从运行时事件聚合的真实耗时；optional 兼容旧快照及普通 turn。

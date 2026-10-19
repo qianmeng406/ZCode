@@ -1941,12 +1941,12 @@ function ConversationComposerImpl({
   const stopTooltipTitle = intl.formatMessage({ id: "chat.stop" });
   const visibleError = error && !shouldSuppressChatErrorBanner(error) ? error : null;
   // main-turn 指标胶囊事实源：snapshot 中最近一个带指标事实的 turnHeader。
-  // CLI 投影在权威 ModelComplete 上聚合并严格过滤 main_turn；composer 只读 snapshot，
+  // 会话级五项取自 snapshot.usage.cumulative（CLI 在权威 ModelComplete 上累计并严格过滤
+  // main_turn）；上次请求三项取自最近一个带 lastRequest 的 turnHeader。composer 只读 snapshot，
   // 不维护第二份 accepted-turn 状态，运行中在事实到达前显示不可用占位而非估算。
-  // 新轮无指标时保留上一完成轮值（见 deriveComposerTurnMetricsFact）。
   const turnMetricsFact = useMemo(
-    () => deriveComposerTurnMetricsFact(snapshot?.rows.window),
-    [snapshot?.rows.window],
+    () => deriveComposerTurnMetricsFact(snapshot?.rows.window, snapshot?.usage?.cumulative),
+    [snapshot?.rows.window, snapshot?.usage?.cumulative],
   );
   // Oracle 一键修复：把问题清单写入输入框后直接走主发送路径（含草稿抢占/队列语义）。
   const handleOracleFixRequest = useCallback(

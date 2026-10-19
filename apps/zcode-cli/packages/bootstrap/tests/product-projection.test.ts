@@ -7056,6 +7056,96 @@ describe("fork / modelChange marker", () => {
     });
   });
 
+  it("会话级 main_turn 种子补齐历史累计，后续 live 请求在种子上继续累加", () => {
+    const log = new EventLog();
+    log.push(SessionEventType.SessionCreated, { mode: "default", contextWindow: 200_000 });
+    log.push(
+      SessionEventType.TurnStarted,
+      { turnNumber: 1, input: "seed", inputId: "cmd-1", messageId: "user-1" },
+      { turnId: "turn-1" },
+    );
+    const { projection } = runAll(log.events);
+    projection.seedUsage({
+      contextWindow: { usedTokens: 1_200, maxTokens: 200_000, autoCompactThresholdTokens: null },
+      cumulative: {
+        inputTokens: 10_000,
+        outputTokens: 500,
+        cacheReadTokens: 8_000,
+        cacheWriteTokens: 100,
+        generationDurationMs: 20_000,
+        requestCount: 4,
+        timeToFirstTokenTotalMs: 1_200,
+        timeToFirstTokenSamples: 4,
+      },
+    });
+    expect(projection.getSnapshot().usage.cumulative).toEqual({
+      inputTokens: 10_000,
+      outputTokens: 500,
+      cacheReadTokens: 8_000,
+      cacheWriteTokens: 100,
+      generationDurationMs: 20_000,
+      requestCount: 4,
+      timeToFirstTokenTotalMs: 1_200,
+      timeToFirstTokenSamples: 4,
+    });
+
+    projection.applyEvent(
+      log.push(
+        SessionEventType.ModelComplete,
+        {
+          content: "a",
+          stopReason: "end_turn",
+          querySource: "main_turn",
+          usage: { inputTokens: 100, outputTokens: 10 },
+          timings: { startedAt: 1_000, firstTokenAt: 1_300, generationDurationMs: 700 },
+        },
+        { turnId: "turn-1", timestampMs: 1_700 },
+      ),
+    );
+    // 种子是基线，live 请求在其上累加（不是重置）。
+    expect(projection.getSnapshot().usage.cumulative).toEqual(
+      expect.objectContaining({
+        inputTokens: 10_100,
+        outputTokens: 510,
+        cacheReadTokens: 8_000,
+        requestCount: 5,
+        generationDurationMs: 20_700,
+        timeToFirstTokenTotalMs: 1_500,
+        timeToFirstTokenSamples: 5,
+      }),
+    );
+  });
+
+  it("会话级种子迟到时被既有 live 用量挡住，不覆盖已累计的值", () => {
+    const log = new EventLog();
+    log.push(SessionEventType.SessionCreated, { mode: "default" });
+    log.push(
+      SessionEventType.TurnStarted,
+      { turnNumber: 1, input: "live", inputId: "cmd-1", messageId: "user-1" },
+      { turnId: "turn-1" },
+    );
+    log.push(
+      SessionEventType.ModelComplete,
+      {
+        content: "a",
+        stopReason: "end_turn",
+        querySource: "main_turn",
+        usage: { inputTokens: 700, outputTokens: 30 },
+        timings: { startedAt: 1_000, firstTokenAt: 1_200, generationDurationMs: 500 },
+      },
+      { turnId: "turn-1", timestampMs: 1_500 },
+    );
+    const { projection } = runAll(log.events);
+    projection.seedUsage({
+      contextWindow: { usedTokens: 29_908, maxTokens: null, autoCompactThresholdTokens: null },
+      cumulative: { inputTokens: 999_999, outputTokens: 999, requestCount: 99 },
+    });
+    // 既有守卫不变：真实 ModelComplete 已写水位时，迟到的恢复种子整体不生效。
+    expect(projection.getSnapshot().usage.cumulative).toEqual(
+      expect.objectContaining({ inputTokens: 700, outputTokens: 30, requestCount: 1 }),
+    );
+  });
+
   it("Todo123: 未知容量种子保留用量，后续容量恢复不归零", () => {
     const log = new EventLog();
     log.push(SessionEventType.SessionCreated, { mode: "default" });
@@ -10317,7 +10407,19 @@ describe("ProductProjection main-turn metrics", () => {
           outputTokens: 30,
           timeToFirstTokenMs: 200,
           generationDurationMs: 1_200,
+          inputTokens: 10,
         },
+      }),
+    );
+    // 会话级累计与轮指标同源同过滤：时长/请求数/TTFT 采样都要有。
+    expect(snapshot.usage.cumulative).toEqual(
+      expect.objectContaining({
+        outputTokens: 50,
+        inputTokens: 20,
+        requestCount: 2,
+        generationDurationMs: 2_000,
+        timeToFirstTokenTotalMs: 520,
+        timeToFirstTokenSamples: 2,
       }),
     );
   });
@@ -10377,6 +10479,19 @@ describe("ProductProjection main-turn metrics", () => {
         generationDurationMs: 1_600,
       }),
     );
+    // 会话累计同步累加：两次请求的 TTFT 之和 300 + 100。
+    expect(snapshot.usage.cumulative).toEqual(
+      expect.objectContaining({
+        inputTokens: 20,
+        outputTokens: 50,
+        cacheReadTokens: 300,
+        cacheWriteTokens: 7,
+        requestCount: 2,
+        generationDurationMs: 1_600,
+        timeToFirstTokenTotalMs: 400,
+        timeToFirstTokenSamples: 2,
+      }),
+    );
   });
 
   it("sidecar/子代理/compact ModelComplete 不更新轮指标，也不覆盖既有 main_turn TTFT", () => {
@@ -10421,6 +10536,16 @@ describe("ProductProjection main-turn metrics", () => {
         requestCount: 1,
       }),
     );
+    // 会话累计同源同过滤：4 个 sidecar 的 999 token / 9_999ms / TTFT 不得进入。
+    expect(snapshot.usage.cumulative).toEqual(
+      expect.objectContaining({
+        outputTokens: 20,
+        requestCount: 1,
+        generationDurationMs: 900,
+        timeToFirstTokenTotalMs: 500,
+        timeToFirstTokenSamples: 1,
+      }),
+    );
   });
 
   it("缺失 timings 或 firstTokenAt 的 main ModelComplete 不产生数字占位，speed 分母缺席由 UI 降级", () => {
@@ -10446,5 +10571,12 @@ describe("ProductProjection main-turn metrics", () => {
     expect(header).toEqual(expect.objectContaining({ outputTokens: 20 }));
     expect(header).not.toHaveProperty("timeToFirstTokenMs");
     expect(header).not.toHaveProperty("generationDurationMs");
+    // 没有 timings 就没有时长/TTFT 事实：会话累计只加请求数与 token，不写 0 冒充。
+    expect(snapshot.usage.cumulative).toEqual(
+      expect.objectContaining({ outputTokens: 20, requestCount: 1 }),
+    );
+    expect(snapshot.usage.cumulative).not.toHaveProperty("generationDurationMs");
+    expect(snapshot.usage.cumulative).not.toHaveProperty("timeToFirstTokenTotalMs");
+    expect(snapshot.usage.cumulative).not.toHaveProperty("timeToFirstTokenSamples");
   });
 });
