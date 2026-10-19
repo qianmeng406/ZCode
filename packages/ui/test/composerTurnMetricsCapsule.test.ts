@@ -86,7 +86,7 @@ describe("ComposerTurnMetricsCapsule", () => {
     });
   });
 
-  it("lists turn, latest-request and session facts inline without a second panel", () => {
+  it("lists turn and latest-request facts inline without a second panel", () => {
     const { container } = renderCapsule({
       outputTokens: 1_234,
       timeToFirstTokenMs: 320,
@@ -97,14 +97,6 @@ describe("ComposerTurnMetricsCapsule", () => {
       cacheWriteTokens: 10,
       requestCount: 3,
       lastRequest: { outputTokens: 100, timeToFirstTokenMs: 200, generationDurationMs: 1_000 },
-      session: {
-        inputTokens: 9_000,
-        outputTokens: 1_200,
-        cacheReadTokens: 8_000,
-        cacheWriteTokens: 100,
-        generationDurationMs: 20_000,
-        requestCount: 30,
-      },
     });
     expect(item(container, "reasoning-tokens")?.textContent).toContain("200");
     // 可见输出 = 1_234 − 200。
@@ -113,15 +105,22 @@ describe("ComposerTurnMetricsCapsule", () => {
     expect(item(container, "request-count")?.textContent).toContain("3");
     expect(item(container, "input-tokens")?.textContent).toContain("5,000");
     expect(item(container, "last-request-tokens-per-second")?.textContent).toContain("100");
-    expect(item(container, "session-output-tokens")?.textContent).toContain("1,200");
-    expect(item(container, "session-request-count")?.textContent).toContain("30");
+  });
+
+  it("hides the latest-request row when the turn has a single request", () => {
+    const { container } = renderCapsule({
+      outputTokens: 10,
+      generationDurationMs: 1_000,
+      requestCount: 1,
+      lastRequest: { outputTokens: 10, generationDurationMs: 1_000 },
+    });
+    expect(item(container, "last-request-output-tokens")).toBeNull();
   });
 
   it("omits detail segments whose fact is absent instead of printing zero", () => {
     const { container } = renderCapsule({ outputTokens: 10, generationDurationMs: 1_000 });
     expect(item(container, "reasoning-tokens")).toBeNull();
     expect(item(container, "cache-write")).toBeNull();
-    expect(item(container, "session-output-tokens")).toBeNull();
   });
 
   it("formats long generation durations as minutes and seconds", () => {
@@ -169,7 +168,7 @@ describe("deriveComposerTurnMetricsFact", () => {
     expect(deriveComposerTurnMetricsFact(undefined)).toBeNull();
   });
 
-  it("carries turn usage details and session cumulative facts", () => {
+  it("carries turn usage details and the latest-request facts", () => {
     const withDetails = {
       kind: "turnHeader",
       outputTokens: 120,
@@ -180,18 +179,7 @@ describe("deriveComposerTurnMetricsFact", () => {
       requestCount: 3,
       lastRequest: { outputTokens: 30, timeToFirstTokenMs: 200, generationDurationMs: 1_000 },
     };
-    expect(
-      deriveComposerTurnMetricsFact([withDetails], {
-        cumulative: {
-          inputTokens: 9_000,
-          outputTokens: 1_200,
-          cacheReadTokens: 8_000,
-          cacheWriteTokens: 100,
-          generationDurationMs: 20_000,
-          requestCount: 30,
-        },
-      }),
-    ).toEqual({
+    expect(deriveComposerTurnMetricsFact([withDetails])).toEqual({
       outputTokens: 120,
       reasoningTokens: 40,
       inputTokens: 900,
@@ -199,14 +187,6 @@ describe("deriveComposerTurnMetricsFact", () => {
       cacheWriteTokens: 10,
       requestCount: 3,
       lastRequest: { outputTokens: 30, timeToFirstTokenMs: 200, generationDurationMs: 1_000 },
-      session: {
-        inputTokens: 9_000,
-        outputTokens: 1_200,
-        cacheReadTokens: 8_000,
-        cacheWriteTokens: 100,
-        generationDurationMs: 20_000,
-        requestCount: 30,
-      },
     });
   });
 });

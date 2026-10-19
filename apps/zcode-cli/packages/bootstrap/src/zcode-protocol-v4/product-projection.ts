@@ -4895,16 +4895,6 @@ export class ProductProjection {
             outputTokens: cumulative.outputTokens + (usage.outputTokens ?? 0),
             cacheReadTokens: cumulative.cacheReadTokens + (usage.cacheReadTokens ?? 0),
             cacheWriteTokens: cumulative.cacheWriteTokens + (usage.cacheWriteTokens ?? 0),
-            // 会话累计速度的分母与请求数：与上面四个 token 累计同源同生命周期，
-            // 只统计 main_turn（本段在非主轮 early return 之后）。
-            ...(payload.timings?.generationDurationMs !== undefined
-              ? {
-                  generationDurationMs:
-                    (cumulative.generationDurationMs ?? 0) +
-                    Math.max(0, payload.timings.generationDurationMs),
-                }
-              : {}),
-            requestCount: (cumulative.requestCount ?? 0) + 1,
           },
         },
       },

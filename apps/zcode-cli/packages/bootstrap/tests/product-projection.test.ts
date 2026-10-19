@@ -10322,7 +10322,7 @@ describe("ProductProjection main-turn metrics", () => {
     );
   });
 
-  it("轮指标累计 usage 明细（推理/缓存），会话累计同步累加请求数与生成时长", () => {
+  it("轮指标累计 usage 明细（推理/缓存）与单请求事实", () => {
     const log = new EventLog();
     log.push(SessionEventType.SessionCreated, { mode: "default", contextWindow: 200_000 });
     log.push(
@@ -10377,16 +10377,6 @@ describe("ProductProjection main-turn metrics", () => {
         generationDurationMs: 1_600,
       }),
     );
-    expect(snapshot.usage.cumulative).toEqual(
-      expect.objectContaining({
-        inputTokens: 20,
-        outputTokens: 50,
-        cacheReadTokens: 300,
-        cacheWriteTokens: 7,
-        generationDurationMs: 1_600,
-        requestCount: 2,
-      }),
-    );
   });
 
   it("sidecar/子代理/compact ModelComplete 不更新轮指标，也不覆盖既有 main_turn TTFT", () => {
@@ -10427,14 +10417,6 @@ describe("ProductProjection main-turn metrics", () => {
       expect.objectContaining({
         outputTokens: 20,
         timeToFirstTokenMs: 500,
-        generationDurationMs: 900,
-        requestCount: 1,
-      }),
-    );
-    // 会话累计同源同过滤：4 个 sidecar 的 999 token / 9_999ms 不得进入。
-    expect(snapshot.usage.cumulative).toEqual(
-      expect.objectContaining({
-        outputTokens: 20,
         generationDurationMs: 900,
         requestCount: 1,
       }),

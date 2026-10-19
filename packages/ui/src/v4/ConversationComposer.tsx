@@ -1945,8 +1945,8 @@ function ConversationComposerImpl({
   // 不维护第二份 accepted-turn 状态，运行中在事实到达前显示不可用占位而非估算。
   // 新轮无指标时保留上一完成轮值（见 deriveComposerTurnMetricsFact）。
   const turnMetricsFact = useMemo(
-    () => deriveComposerTurnMetricsFact(snapshot?.rows.window, snapshot?.usage),
-    [snapshot?.rows.window, snapshot?.usage],
+    () => deriveComposerTurnMetricsFact(snapshot?.rows.window),
+    [snapshot?.rows.window],
   );
   // Oracle 一键修复：把问题清单写入输入框后直接走主发送路径（含草稿抢占/队列语义）。
   const handleOracleFixRequest = useCallback(

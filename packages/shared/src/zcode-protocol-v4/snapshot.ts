@@ -202,10 +202,6 @@ export const sessionUsageStateSchema = z.object({
     outputTokens: z.number(),
     cacheReadTokens: z.number(),
     cacheWriteTokens: z.number(),
-    // 会话累计速度的分母：sum(主轮 ModelComplete 的 generationDurationMs) 与请求数。
-    // 与 token 累计同源、同生命周期（进程内累计，冷开从 0 起）；optional 兼容旧快照。
-    generationDurationMs: z.number().nonnegative().optional(),
-    requestCount: z.number().int().nonnegative().optional(),
   }),
 });
 export type SessionUsageState = z.infer<typeof sessionUsageStateSchema>;
