@@ -208,7 +208,82 @@ describe("v4 冷恢复（gateway 单元）", () => {
       initialFrameEncodeMs: expect.any(Number),
       snapshotRowCount: expect.any(Number),
     });
+    // 开关关闭时 ACK 不带 fastResume，保证与旧客户端/旧版本逐字段一致。
+    expect(result.ack.openTiming).not.toHaveProperty("fastResume");
     expect(result.initialFrame?.payload.kind).toBe("snapshot");
+  });
+
+  it("快速恢复：首帧不带种子，首帧后补种并推一次完整快照", async () => {
+    const sessionId = "sess-fast-resume";
+    const frames: ConversationTopicFrame[] = [];
+    const loadOptions: Array<{ fastResume?: boolean } | undefined> = [];
+    const errors: Array<{ scope: string; error: unknown }> = [];
+    const deferredSeedsLoaded = deferred();
+    const releaseDeferredSeeds = deferred();
+    const gateway = new ConversationV4Gateway({
+      sessionExists: () => true,
+      emitWireFrame: (wire) => {
+        if (wire.kind === "complete" && wire.topic.startsWith("conversation/")) {
+          frames.push(wire.frame as ConversationTopicFrame);
+        }
+      },
+      executeCommand: async () => undefined,
+      isFastSessionResumeEnabled: () => true,
+      loadPersistedEvents: async (_sessionId, _messages, options) => {
+        loadOptions.push(options);
+        return {
+          synthesized: true,
+          sourceEventSeq: 1,
+          // 首帧只算尾部摘要；要求 gateway 在首帧后补一次全量重建。
+          deferredFullHydration: options?.fastResume === true,
+          events: [makeEvent(sessionId, 1, SessionEventType.SessionCreated, { mode: "build" })],
+        };
+      },
+      loadDeferredColdResumeSeeds: async () => {
+        deferredSeedsLoaded.resolve();
+        await releaseDeferredSeeds.promise;
+        return {
+          usageSeed: {
+            contextWindow: {
+              usedTokens: 123,
+              maxTokens: 1_000,
+              autoCompactThresholdTokens: null,
+            },
+          },
+          subagentsSeed: { revision: 1, childSessionIds: [], running: [] },
+        };
+      },
+      onError: (scope, error) => {
+        errors.push({ scope, error });
+      },
+    });
+
+    const result = await gateway.subscribe(subscribeParams(sessionId));
+    expect(result.ack.openTiming).toMatchObject({ fastResume: true });
+    const firstSnapshot = result.initialFrame;
+    if (firstSnapshot?.payload.kind !== "snapshot") throw new Error("expected first snapshot");
+    expect(firstSnapshot.payload.snapshot.usage.contextWindow?.usedTokens ?? 0).toBe(0);
+    expect(loadOptions).toEqual([{ fastResume: true }]);
+
+    await deferredSeedsLoaded.promise;
+    releaseDeferredSeeds.resolve();
+    for (let attempt = 0; attempt < 50 && loadOptions.length < 2; attempt += 1) {
+      await new Promise((resolve) => setTimeout(resolve, 10));
+    }
+    await nextMacrotask();
+
+    // 种子补种触发 resync 快照；随后后台全量重建也走完整路径。
+    const snapshots = frames.filter((frame) => frame.payload.kind === "snapshot");
+    expect(snapshots.length).toBeGreaterThan(0);
+    expect(
+      snapshots.some(
+        (frame) =>
+          frame.payload.kind === "snapshot" &&
+          frame.payload.snapshot.usage.contextWindow?.usedTokens === 123,
+      ),
+    ).toBe(true);
+    expect(loadOptions).toContainEqual({ fastResume: false });
+    expect(errors).toEqual([]);
   });
 
   it("Todo123: 同批容量种子不二次查询，恢复期间新模型和用量覆盖旧种子", async () => {

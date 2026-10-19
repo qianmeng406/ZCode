@@ -617,6 +617,8 @@ export type ZCodeAgentServiceEvent =
 export interface ZCodeAgentAppRuntimePreferences {
   askUserQuestionAutoResolutionEnabled: boolean;
   modelIoFullRetentionEnabled?: boolean;
+  /** 冷恢复提速：缺省 false，旧 Host/旧 CLI 双向兼容。 */
+  fastSessionResumeEnabled?: boolean;
 }
 
 export interface ZCodeAgentLocalRuntimeChildProcesses {

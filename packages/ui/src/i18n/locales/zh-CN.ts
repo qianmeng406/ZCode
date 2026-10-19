@@ -2609,6 +2609,9 @@ const zhCN: Record<string, string> = {
   "settings.modelIoFullRetention": "完整保留模型 I/O",
   "settings.modelIoFullRetentionDescription":
     "保留完整的模型请求和响应，不自动压缩、限制大小或删除旧记录。",
+  "settings.fastSessionResume": "快速恢复历史会话",
+  "settings.fastSessionResumeDescription":
+    "打开历史会话时优先显示消息内容，将上下文重建、技能扫描与会话启动钩子等非首屏工作推迟到后台完成。关闭时保持现有行为。",
   "settings.performanceMode": "性能模式",
   "settings.performanceModeDescription": "精简渲染输出，提高性能。",
   "settings.taskAutoArchive": "自动归档旧任务",

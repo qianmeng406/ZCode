@@ -169,6 +169,8 @@ export interface ZCodeAppOptions {
   /** 新 Session 使用的 Environment 默认选择；仅在没有显式 runtime modelSelection 时参与初始化。 */
   configuredDefaultModelSelection?: ModelSelection;
   modelIoFullRetentionEnabled?: boolean;
+  /** 冷恢复提速：打开历史会话时把与首帧无关的 resume 工作推迟到后台（默认关闭）。 */
+  fastSessionResumeEnabled?: boolean;
   /** 同进程嵌入宿主可注入完整的 borrowed 进程级 Owner；Endpoint 配置不得覆盖它。 */
   telemetryOwner?: AgentTelemetryRuntimeOwner;
   providerEndpointRoutingPort?: ProviderEndpointRoutingPort;

@@ -340,6 +340,13 @@ export interface AppSettings {
   /** 是否完整保留 Model I/O；开启后不轮转、不限额重置、不压缩或裁剪，鉴权信息仍会脱敏。 */
   modelIoFullRetentionEnabled?: boolean;
   /**
+   * 快速恢复历史会话：仅重排冷恢复关键路径——首帧前只做投影必需的全量归约，
+   * 把 context 初始化、历史 hydrate、session-start hooks、usage/subagent 种子等
+   * 与首帧内容无关的工作推迟到首帧后并在下一轮输入前收敛。
+   * 默认关闭；关闭时行为与未引入该开关完全一致。
+   */
+  fastSessionResumeEnabled?: boolean;
+  /**
    * 用户选的动态工作流模式（docs/dynamic-workflow/launch.md「The user's choice」）。缺席 = 跟随服务端
    * 提供的模式；只在功能已提供时生效。选回提供的模式时删除该字段，未改动的安装继续跟随服务端翻转。
    */

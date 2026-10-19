@@ -747,6 +747,7 @@ export function SettingsPage({
   const askUserQuestionAutoResolutionEnabled =
     sharedSettings?.askUserQuestionAutoResolutionEnabled !== false;
   const modelIoFullRetentionEnabled = sharedSettings?.modelIoFullRetentionEnabled === true;
+  const fastSessionResumeEnabled = sharedSettings?.fastSessionResumeEnabled === true;
   const [dataBaseDir, setDataBaseDir] = useState("");
   const [terminalInheritSystemProfile, setTerminalInheritSystemProfile] = useState(true);
   const [terminalFontFamily, setTerminalFontFamily] = useState("");
@@ -979,6 +980,21 @@ export function SettingsPage({
         action: "toggle_model_io_retention",
         trigger: "switch",
         operation: () => updateSharedSettings({ modelIoFullRetentionEnabled: enabled }),
+        completed: {
+          resultSource: "shared_settings",
+          stateAfter: enabled ? "enabled" : "disabled",
+        },
+      });
+    },
+    [updateSharedSettings],
+  );
+  const handleFastSessionResumeEnabledChange = useCallback(
+    async (enabled: boolean) => {
+      await runSettingsActionAsync({
+        featureId: "settings.conversation",
+        action: "toggle_fast_session_resume",
+        trigger: "switch",
+        operation: () => updateSharedSettings({ fastSessionResumeEnabled: enabled }),
         completed: {
           resultSource: "shared_settings",
           stateAfter: enabled ? "enabled" : "disabled",
@@ -1805,6 +1821,7 @@ export function SettingsPage({
                               askUserQuestionAutoResolutionEnabled
                             }
                             modelIoFullRetentionEnabled={modelIoFullRetentionEnabled}
+                            fastSessionResumeEnabled={fastSessionResumeEnabled}
                             onDataBaseDirChange={handleDataBaseDirChange}
                             onSelectDataBaseDir={selectDirectory}
                             onTerminalInheritSystemProfileChange={
@@ -1818,6 +1835,7 @@ export function SettingsPage({
                             onModelIoFullRetentionEnabledChange={
                               handleModelIoFullRetentionEnabledChange
                             }
+                            onFastSessionResumeEnabledChange={handleFastSessionResumeEnabledChange}
                             onHttpProxyChange={handleHttpProxyChange}
                             onHttpProxyNoProxyChange={handleHttpProxyNoProxyChange}
                             onHttpProxyCaCertPathChange={handleHttpProxyCaCertPathChange}

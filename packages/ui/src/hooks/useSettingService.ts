@@ -144,7 +144,8 @@ export function useSettings() {
       await refresh();
       if (
         typeof patch.askUserQuestionAutoResolutionEnabled === "boolean" ||
-        typeof patch.modelIoFullRetentionEnabled === "boolean"
+        typeof patch.modelIoFullRetentionEnabled === "boolean" ||
+        typeof patch.fastSessionResumeEnabled === "boolean"
       ) {
         const preferences = {
           askUserQuestionAutoResolutionEnabled:
@@ -153,6 +154,9 @@ export function useSettings() {
           modelIoFullRetentionEnabled:
             patch.modelIoFullRetentionEnabled ??
             settingsStore.snapshot.settings?.modelIoFullRetentionEnabled === true,
+          fastSessionResumeEnabled:
+            patch.fastSessionResumeEnabled ??
+            settingsStore.snapshot.settings?.fastSessionResumeEnabled === true,
         };
         const syncResults = await Promise.allSettled([
           zcodeAgentService.syncAppRuntimePreferences(preferences),

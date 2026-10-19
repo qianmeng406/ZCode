@@ -477,6 +477,7 @@ const appSettingsObjectSchema = z.object({
   zcodeInteractionBehavior: zcodeInteractionBehaviorSchema.default("queue"),
   askUserQuestionAutoResolutionEnabled: z.boolean().default(true),
   modelIoFullRetentionEnabled: z.boolean().default(false),
+  fastSessionResumeEnabled: z.boolean().default(false),
   dynamicWorkflowMode: dynamicWorkflowModeSettingSchema,
   startPlanRecommendationDismissed: z.boolean().default(false),
   providerFamilyConnectionSelections: providerFamilyConnectionSelectionSettingsSchema.default({}),
@@ -508,9 +509,7 @@ export const appSettingsSchema = z.preprocess(
         migrateMessageStreamShowReasoningDefault(
           migrateCloseToTrayOnWindowsDefault(
             migrateLegacyLocalePreference(
-              sanitizeZCodeEndpointOrigin(
-                migrateLegacyWorkspaceSession(value),
-              ),
+              sanitizeZCodeEndpointOrigin(migrateLegacyWorkspaceSession(value)),
             ),
           ),
         ),

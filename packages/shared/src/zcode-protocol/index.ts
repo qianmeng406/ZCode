@@ -2791,6 +2791,33 @@ export type ZCodeWorkspaceUpdateModelIoPreferencesResult = z.infer<
   typeof zcodeWorkspaceUpdateModelIoPreferencesResultSchema
 >;
 
+export const zcodeSessionResumePreferencesSchema = z
+  .object({
+    fastResumeEnabled: z.boolean(),
+  })
+  .strict();
+export type ZCodeSessionResumePreferences = z.infer<typeof zcodeSessionResumePreferencesSchema>;
+
+export const zcodeWorkspaceUpdateSessionResumePreferencesParamsSchema = z
+  .object({
+    workspace: zcodeWorkspaceRefSchema,
+    preferences: zcodeSessionResumePreferencesSchema,
+  })
+  .strict();
+export type ZCodeWorkspaceUpdateSessionResumePreferencesParams = z.infer<
+  typeof zcodeWorkspaceUpdateSessionResumePreferencesParamsSchema
+>;
+
+export const zcodeWorkspaceUpdateSessionResumePreferencesResultSchema = z
+  .object({
+    workspace: zcodeWorkspaceRefSchema,
+    fastResumeEnabled: z.boolean(),
+  })
+  .strict();
+export type ZCodeWorkspaceUpdateSessionResumePreferencesResult = z.infer<
+  typeof zcodeWorkspaceUpdateSessionResumePreferencesResultSchema
+>;
+
 export const zcodeWorkspaceUpdateOffPeakToolPolicyParamsSchema = z
   .object({
     workspace: zcodeWorkspaceRefSchema,
@@ -4419,6 +4446,9 @@ export const zcodeProtocolMethods = {
   providerUpdateAccountConfig: "provider/updateAccountConfig",
   workspaceUpdateInteractionPreferences: "workspace/updateInteractionPreferences",
   workspaceUpdateModelIoPreferences: "workspace/updateModelIoPreferences",
+  // 冷恢复提速开关：与 model-io 同模式热下发（全局偏好，缺省 false）。
+  // 旧 CLI method-not-found → Host 降级忽略。
+  workspaceUpdateSessionResumePreferences: "workspace/updateSessionResumePreferences",
   // Off-Peak 工具面门禁是 workspace 级事实（灰度 + 本地/远程），由 host 在 agent 就绪时同步；
   // CLI 对 legacy create/resume 与 v4 冷恢复统一读取。旧 CLI method-not-found → host 降级忽略。
   workspaceUpdateOffPeakToolPolicy: "workspace/updateOffPeakToolPolicy",

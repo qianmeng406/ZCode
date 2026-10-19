@@ -1138,6 +1138,16 @@ process.stdin.on("data", (chunk) => {
     if (!line.trim()) continue;
     let msg;
     try { msg = JSON.parse(line); } catch { continue; }
+    if (msg.method === "workspace/updateSessionResumePreferences" && msg.id !== undefined) {
+      send({
+        id: msg.id,
+        result: {
+          workspace: msg.params.workspace,
+          fastResumeEnabled: msg.params.preferences.fastResumeEnabled,
+        },
+      });
+      continue;
+    }
     if (msg.method === "workspace/updateModelIoPreferences" && msg.id !== undefined) {
       fs.appendFileSync(logPath + ".model-io", JSON.stringify({
         method: msg.method,

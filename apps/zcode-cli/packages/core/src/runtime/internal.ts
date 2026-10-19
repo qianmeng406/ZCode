@@ -103,6 +103,22 @@ export interface AgentRuntimeInternal
   contextPrefixRevision: number;
   contextBuilder: ContextBuilder | null;
   contextInitialized: boolean;
+  /**
+   * 进行中的 context 初始化。快速恢复会把初始化推迟到首帧后/首轮输入前，
+   * 后台补做与 turn 惰性初始化必须合流，避免双重初始化清空已 hydrate 的历史。
+   */
+  contextInitializationPromise?: Promise<void>;
+  /**
+   * 快速恢复：会话历史已经先于 context 初始化 hydrate。任何在此之前进入
+   * `ensureContextInitialized` 的入口（control-only turn、goal 提醒、skill 目录等）
+   * 都必须走 prefix 合并，不能执行会清空历史的 `init()`。
+   */
+  preserveMessageHistoryOnInit?: boolean;
+  /**
+   * 快速恢复：首帧后才补做的 resume 工作（file state/context/dwf/hooks）。
+   * 首轮 turn 在任何依赖 context 或 provider history 的分支前必须 await 它。
+   */
+  deferredResumeSettlement?: Promise<void>;
   contextSourceSnapshot?: ContextSourceSnapshot;
   latestContextBuildResult?: ContextBuildResult;
   memoryRoot?: string;

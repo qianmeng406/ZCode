@@ -153,6 +153,7 @@ import {
   zcodeWorkspaceHookTrustGrantResultSchema,
   zcodeWorkspaceUpdateInteractionPreferencesResultSchema,
   zcodeWorkspaceUpdateModelIoPreferencesResultSchema,
+  zcodeWorkspaceUpdateSessionResumePreferencesResultSchema,
   zcodeProviderUpdateAccountConfigResultSchema,
   type ZCodeSessionStateSnapshot,
   type ZCodeAutomation,
@@ -1704,6 +1705,21 @@ export function createZCodeAgentService(
           );
         } catch (error) {
           // 新 Host 兼容尚未升级的 CLI：只有 method-not-found 可降级，其他同步失败仍需上抛。
+          if (!isProtocolMethodNotFoundError(error)) throw error;
+        }
+        try {
+          await params.client.request(
+            zcodeProtocolMethods.workspaceUpdateSessionResumePreferences,
+            {
+              workspace: buildWorkspaceRef(params.workspace),
+              preferences: {
+                fastResumeEnabled: params.preferences.fastSessionResumeEnabled === true,
+              },
+            },
+            zcodeWorkspaceUpdateSessionResumePreferencesResultSchema,
+          );
+        } catch (error) {
+          // 同上：旧 CLI 不认识该方法时忽略，其余错误照常上抛。
           if (!isProtocolMethodNotFoundError(error)) throw error;
         }
       });
@@ -3942,6 +3958,7 @@ export function createZCodeAgentService(
       const normalizedPreferences: ZCodeAgentAppRuntimePreferences = {
         ...preferences,
         modelIoFullRetentionEnabled: preferences.modelIoFullRetentionEnabled === true,
+        fastSessionResumeEnabled: preferences.fastSessionResumeEnabled === true,
       };
       latestAppRuntimePreferences = normalizedPreferences;
       const activeClients = [...activeClientsByWorkspaceKey.values()];

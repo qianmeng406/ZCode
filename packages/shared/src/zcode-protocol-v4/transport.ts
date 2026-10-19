@@ -154,6 +154,11 @@ export const conversationOpenTimingSchema = z
     cliProcessState: z.enum(["spawned", "reused"]).optional(),
     sessionRuntimeState: z.enum(["cold", "warm"]).optional(),
     snapshotRowCount: openTimingCountSchema,
+    /**
+     * 本次冷恢复是否走了快速路径（用于开关开/关的实测对比）。
+     * 只在开关开启时出现；关闭时为缺省，ACK 与旧版本逐字段一致。
+     */
+    fastResume: z.boolean().optional(),
   })
   .strict();
 export type ConversationOpenTiming = z.infer<typeof conversationOpenTimingSchema>;
