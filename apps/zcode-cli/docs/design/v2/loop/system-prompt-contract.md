@@ -83,9 +83,12 @@ boundary is:
 4. Optional `# Memory` when a memory summary is loaded.
 5. `# Environment` for current cwd/platform/shell/OS/model/git-repo boolean.
 6. Optional `# Session Execution Environment` when the session's active execution
-   binding is WSL Linux. It states command routing (Bash/background/hooks/subagents
-   in Linux; MCP/Browser/Computer Use on Windows; Windows-only commands need the
-   local environment) and measured `/mnt/c` performance guidance. Local or
+   binding is WSL Linux. It states binding-enforced command routing (Bash/background/
+   hooks/subagents in Linux; MCP/Browser/Computer Use on Windows; Windows-only
+   commands are outside that routing) as environment facts, and appends measured
+   `/mnt/c` performance guidance phrased as recommendations. The section is
+   advisory: the active execution binding, not the prompt, decides what can run,
+   and the text avoids prohibitions such as "Never" or "Do not". Local or
    unconfigured sessions must not emit this source at all. Minimal, workflow-child
    and subagent prompts use a compact variant.
 7. Optional active `# Output Style` when a non-empty output style is configured.

@@ -38,17 +38,25 @@ describe("session execution environment section", () => {
     expect(section?.content).toContain("WSL Linux (Ubuntu-24.04, user zcodewslp2)");
     expect(section?.content).toContain("MCP servers, Browser Use and Computer Use");
     expect(section?.content).toContain("Windows-only commands");
-    // WSL interop 可能允许 .exe，但不在本会话支持的路由内；提示词不能声称技术上不可能。
+    // 提示词只给建议，能否执行由绑定决定；WSL interop 可能允许 .exe，
+    // 因此既不能用 "Never"/"Do not" 写成硬约束，也不能声称技术上不可能。
+    expect(section?.content).toContain("guidance, not hard restrictions");
+    expect(section?.content).toContain("execution binding is authoritative");
     expect(section?.content).not.toContain("cannot run here");
-    expect(section?.content).toContain("outside this session's supported command routing");
+    expect(section?.content).not.toContain("Never");
+    expect(section?.content).not.toContain("Do not");
+    expect(section?.content).toContain("not part of this session's command routing");
     expect(section?.content).toContain("~10x SLOWER");
-    expect(section?.content).toContain("Never invoke wsl.exe");
+    expect(section?.content).toContain("~107-179 ms");
     expect(section?.content).toContain("~1.0x");
   });
 
   it("renders a compact variant for minimal and subagent prompts", () => {
     const section = buildSessionExecutionSection(WSL, { compact: true });
     expect(section?.content).toContain("WSL Linux (Ubuntu-24.04, user zcodewslp2)");
+    expect(section?.content).toContain("Guidance only");
+    expect(section?.content).not.toContain("Never");
+    expect(section?.content).not.toContain("Do not");
     expect(section?.content).toContain("~10x slower");
     expect(section?.content).not.toContain("Measured performance guidance");
     expect(section?.chars).toBeLessThan(buildSessionExecutionSection(WSL)?.chars ?? 0);
