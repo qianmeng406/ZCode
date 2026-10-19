@@ -1,0 +1,12 @@
+title = "ZCode fork gitleaks configuration"
+
+# 本地 file-policy 对测试/夹具只执行路径规则、跳过内容扫描；CI 保持一致。
+# 测试里构造的假 PEM / AKIA / token 是检测逻辑的 fixture，不是真实凭据。
+[allowlist]
+description = "Intentional credential fixtures in tests and test fixtures"
+paths = [
+  '''(^|/)test(s)?/''',
+  '''(^|/)__tests__/''',
+  '''(^|/)fixtures?/''',
+  '''\.(test|spec)\.[cm]?[jt]sx?$''',
+]
