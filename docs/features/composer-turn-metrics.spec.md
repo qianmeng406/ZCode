@@ -42,11 +42,32 @@ UI ConversationComposer（只读格式化）
 - 冷恢复：durable transcript 合成的 `ModelComplete` 为零 usage 且无 `timings`，不产生指标；同进程 warm 恢复的内存权威事件携带 `timings` 并重新聚合。聚合存于投影行与 `usage.cumulative`。
 - 非主轮（compact / session_title / subagent / workflow_child）与 controlOnly 轮从不写入这些字段。
 
+### 会话累计的冷启动补种（纯附加）
+
+`usage.cumulative` 原本只在本进程内累加，冷开从 0 起。为了让"会话级"真正等于整个会话，hydration 时会从 `model_usage` 读一次聚合补种：
+
+```
+UsageStorePort.queryMainTurnUsage?({ sessionID })          ← optional，store 未实现则跳过
+  └─ select count(*), sum(input/output/cache_*_tokens), sum(duration_ms),
+            sum(time_to_first_token_ms), count(time_to_first_token_ms)
+     from model_usage where session_id = ? and query_source = 'main_turn'
+v4-bridge readMainTurnUsageCumulative()                     ← 失败/空结果一律返回 undefined
+  └─ sessionUsageSeedFromRuntimeContextUsage(usage, window, cumulative?)
+       └─ SessionUsageSeed.cumulative → ProductProjection.seedUsage（既有守卫不变）
+```
+
+约束（改动必须保持纯附加）：
+
+- `queryMainTurnUsage` 是 optional 方法；store 没实现、查询抛错、会话还没有 main_turn 记录时，种子与改动前**逐字段相同**（只带 `contextWindow`），恢复路径行为不变。
+- `seedUsage` 的既有守卫（已有 live 用量水位则整体不覆盖）**不改**；因此种子只会在投影还没有任何用量事实时生效，不会与 live 累计重复相加。
+- 补种值是基线：种上之后，本进程的 live `ModelComplete` 在其上继续累加。
+- 聚合按原始行求和，不做 `queryTaskUsage` 的 context baseline 增量修正——这里要的是"实际请求总量"，与投影逐请求累加同口径。
+
 ## Compatibility
 
 Metric fields are optional so older snapshots and mixed-version peers continue to parse. Non-main turns, compact operations, subagents, and workflow children never overwrite the main-turn metrics. Old `ModelComplete` events without `timings` contribute only tokens and the request count; TTFT, average TTFT, and speed stay unavailable instead of being estimated.
 
-`usage.cumulative` 的 `generationDurationMs` / `requestCount` / `timeToFirstTokenTotalMs` / `timeToFirstTokenSamples` 是 additive optional 字段。它们与既有 token 累计**同生命周期**：进程内累计、冷开从 0 起，不是会话历史总量。UI 不得把它标注成"历史总计"；需要跨重启的历史总量应走 `turn_usage` / `model_usage` 持久化查询，不在本 feature 范围内。
+`usage.cumulative` 的 `generationDurationMs` / `requestCount` / `timeToFirstTokenTotalMs` / `timeToFirstTokenSamples` 是 additive optional 字段。它们与既有 token 累计同生命周期：进程内累加，冷恢复时由持久化聚合补种；补种不可用（旧 store / 查询失败）时退回进程内累计，数值从本次运行起算。
 
 ## Acceptance
 
@@ -56,6 +77,7 @@ Metric fields are optional so older snapshots and mixed-version peers continue t
 - Session cache hit rate equals `cacheReadTokens / inputTokens` and never exceeds 100%.
 - Token totals switch to compact units at 100k and keep the exact value in the `title` attribute.
 - The latest-request group is hidden when the session has only one request.
+- Session cumulative counters survive a cold restart by seeding from the durable `model_usage` aggregate; when that query is unavailable the values fall back to process scope without changing the resume path.
 - Subagent/workflow/compact activity does not change the session cumulative counters or the last-request facts.
 - The card wraps by segment at narrow widths instead of overflowing, and stays readable in both active themes.
 - Shared test-id anchors: `TID_COMPOSER_TURN_METRICS` (`composer-turn-metrics`) and `TID_COMPOSER_TURN_METRICS_ITEM` (`composer-turn-metrics-item` with `average-ttft` / `average-tokens-per-second` / `input-tokens` / `output-tokens` / `cache-hit-rate` / `last-request-ttft` / `last-request-tokens-per-second` / `last-request-cache-hit-rate` suffixes).

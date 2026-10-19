@@ -406,3 +406,125 @@ describe("queryTaskUsage", () => {
     }
   });
 });
+
+describe("queryMainTurnUsage", () => {
+  it("aggregates only main_turn rows: tokens, wall-clock duration, and TTFT samples", async () => {
+    const tempRoot = await mkdtemp(join(tmpdir(), "zcode-main-turn-usage-"));
+    const dbPath = join(tempRoot, "session.sqlite");
+    const store = createSqliteSessionStore({ dbPath });
+    const sessionID = createSessionId("mt");
+    const turnID = createTurnId("mt-turn");
+    const now = 1_900_000_000_000;
+    try {
+      await store.createSession({
+        id: sessionID,
+        projectID: createProjectId("mt"),
+        slug: "mt",
+        directory: tempRoot,
+        title: "mt",
+        version: "0.1.0",
+      });
+      // 两条 main_turn：一条带 TTFT，一条缺 TTFT（非流式），只有前者进入均值分母。
+      await store.recordModelUsage({
+        id: "mt-1",
+        logicalRequestId: "mt-r1",
+        sessionID,
+        turnID,
+        querySource: "main_turn",
+        providerId: "p",
+        modelId: "model-a",
+        status: "completed",
+        startedAt: now,
+        durationMs: 1_000,
+        timeToFirstTokenMs: 300,
+        inputTokens: 100,
+        outputTokens: 20,
+        cacheReadInputTokens: 80,
+        cacheCreationInputTokens: 5,
+        computedTotalTokens: 120,
+      });
+      await store.recordModelUsage({
+        id: "mt-2",
+        logicalRequestId: "mt-r2",
+        sessionID,
+        turnID,
+        querySource: "main_turn",
+        providerId: "p",
+        modelId: "model-a",
+        status: "completed",
+        startedAt: now + 2_000,
+        durationMs: 500,
+        inputTokens: 40,
+        outputTokens: 10,
+        cacheReadInputTokens: 30,
+        computedTotalTokens: 50,
+      });
+      // 非 main_turn 一律不计入会话级累计。
+      for (const [id, querySource] of [
+        ["sub", "subagent"],
+        ["title", "session_title"],
+      ] as const) {
+        await store.recordModelUsage({
+          id,
+          logicalRequestId: `${id}-r`,
+          sessionID,
+          querySource,
+          providerId: "p",
+          modelId: "model-a",
+          status: "completed",
+          startedAt: now,
+          durationMs: 9_999,
+          timeToFirstTokenMs: 9_999,
+          inputTokens: 999,
+          outputTokens: 999,
+          computedTotalTokens: 1_998,
+        });
+      }
+
+      const result = await store.queryMainTurnUsage({ sessionID });
+      expect(result).toEqual({
+        requestCount: 2,
+        inputTokens: 140,
+        outputTokens: 30,
+        cacheReadTokens: 110,
+        cacheWriteTokens: 5,
+        generationDurationMs: 1_500,
+        timeToFirstTokenTotalMs: 300,
+        timeToFirstTokenSamples: 1,
+      });
+    } finally {
+      store.close();
+      await rm(tempRoot, { force: true, recursive: true });
+    }
+  });
+
+  it("returns zeros for a session without main_turn rows", async () => {
+    const tempRoot = await mkdtemp(join(tmpdir(), "zcode-main-turn-empty-"));
+    const dbPath = join(tempRoot, "session.sqlite");
+    const store = createSqliteSessionStore({ dbPath });
+    const sessionID = createSessionId("mt-empty");
+    try {
+      await store.createSession({
+        id: sessionID,
+        projectID: createProjectId("mt-empty"),
+        slug: "mt-empty",
+        directory: tempRoot,
+        title: "mt-empty",
+        version: "0.1.0",
+      });
+      expect(await store.queryMainTurnUsage({ sessionID })).toEqual({
+        requestCount: 0,
+        inputTokens: 0,
+        outputTokens: 0,
+        cacheReadTokens: 0,
+        cacheWriteTokens: 0,
+        generationDurationMs: 0,
+        timeToFirstTokenTotalMs: 0,
+        timeToFirstTokenSamples: 0,
+      });
+    } finally {
+      store.close();
+      await rm(tempRoot, { force: true, recursive: true });
+    }
+  });
+});

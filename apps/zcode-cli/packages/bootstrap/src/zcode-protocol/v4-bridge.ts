@@ -104,6 +104,7 @@ import type {
   StableForkGoalBoundaryMetadata,
   TraceId,
   TurnId,
+  UsageStorePort,
   WorkspaceId,
 } from "@zcode/contracts";
 import { HYDRATION_TRACE_ID } from "../zcode-protocol-v4/projection-state.js";
@@ -137,9 +138,16 @@ function normalizeStoredTitleSource(
   return "generated";
 }
 
+/**
+ * 由 runtime context usage 组装 usage 种子。
+ *
+ * `cumulative` 是**纯附加**参数：只有调用方从持久化拿到了会话级 main_turn 聚合才传，
+ * 缺席时返回结构与改动前完全一致（只带 contextWindow），既有恢复路径不受影响。
+ */
 function sessionUsageSeedFromRuntimeContextUsage(
   contextUsage: ZCodeSessionContextUsage | undefined,
   contextWindowOverride?: number,
+  cumulative?: SessionUsageSeed["cumulative"],
 ): SessionUsageSeed | null {
   if (!contextUsage || contextUsage.used <= 0) {
     return null;
@@ -152,7 +160,46 @@ function sessionUsageSeedFromRuntimeContextUsage(
       ...(contextUsage.cache ? { cache: contextUsage.cache } : {}),
       ...(contextUsage.breakdown ? { breakdown: contextUsage.breakdown } : {}),
     },
+    ...(cumulative ? { cumulative } : {}),
   };
+}
+
+/**
+ * 冷恢复时从 `model_usage` 取会话级 main_turn 累计，补进 usage 种子。
+ *
+ * 纯附加且失败即退：store 未实现该查询 / 查询抛错 / 该会话还没有 main_turn 记录时
+ * 一律返回 undefined，种子退回改动前的形状（只带 contextWindow），不影响恢复路径。
+ * 投影侧 `seedUsage` 原有守卫（已有 live 用量则不覆盖）保持不变，因此不会重复累计。
+ */
+async function readMainTurnUsageCumulative(
+  context: ZCodeProtocolAgentServerContext,
+  sessionId: string,
+): Promise<SessionUsageSeed["cumulative"] | undefined> {
+  const usageStore = context.deps.sessionStore as Partial<UsageStorePort> | undefined;
+  const query = usageStore?.queryMainTurnUsage;
+  if (!usageStore || typeof query !== "function") return undefined;
+  try {
+    const usage = await query.call(usageStore, { sessionID: sessionId as SessionId });
+    if (!usage || usage.requestCount <= 0) return undefined;
+    return {
+      inputTokens: usage.inputTokens,
+      outputTokens: usage.outputTokens,
+      cacheReadTokens: usage.cacheReadTokens,
+      cacheWriteTokens: usage.cacheWriteTokens,
+      generationDurationMs: usage.generationDurationMs,
+      requestCount: usage.requestCount,
+      timeToFirstTokenTotalMs: usage.timeToFirstTokenTotalMs,
+      timeToFirstTokenSamples: usage.timeToFirstTokenSamples,
+    };
+  } catch (error) {
+    context.logger?.warn("v4 main turn usage seed failed", {
+      error: error instanceof Error ? error.message : String(error),
+      event: "zcode_protocol.v4.main_turn_usage_seed_failed",
+      module: "bootstrap.zcode_protocol",
+      sessionId,
+    });
+    return undefined;
+  }
 }
 
 const STABLE_FORK_MODES = new Set<CollaborationMode>([
@@ -1778,6 +1825,7 @@ export function createConversationV4Gateway(
       return sessionUsageSeedFromRuntimeContextUsage(
         contextUsage,
         resolveSessionModelContextWindow(context, record),
+        await readMainTurnUsageCumulative(context, sessionId),
       );
     },
     // ── sessions-index hooks（workspace 分桶 + 冷启动 store 种子）──────────
@@ -2101,6 +2149,7 @@ export function createConversationV4Gateway(
         : sessionUsageSeedFromRuntimeContextUsage(
             await readSessionContextUsage(context, sessionId, source.messages),
             contextWindow,
+            await readMainTurnUsageCumulative(context, sessionId),
           );
       const merged = mergeColdConversationEvents({
         contextWindow,
@@ -2170,8 +2219,12 @@ export function createConversationV4Gateway(
       if (!record) return {};
       const contextWindow = resolveSessionModelContextWindow(context, record);
       const [usageResult, subagentsResult] = await Promise.allSettled([
-        readSessionContextUsage(context, sessionId, persistedMessages).then((usage) =>
-          sessionUsageSeedFromRuntimeContextUsage(usage, contextWindow),
+        readSessionContextUsage(context, sessionId, persistedMessages).then(async (usage) =>
+          sessionUsageSeedFromRuntimeContextUsage(
+            usage,
+            contextWindow,
+            await readMainTurnUsageCumulative(context, sessionId),
+          ),
         ),
         listSessionSubagents(context, { sessionId, endedLimit: 1 }, persistedMessages),
       ]);

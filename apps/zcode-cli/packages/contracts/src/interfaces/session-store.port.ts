@@ -1079,6 +1079,28 @@ export interface TaskUsageQueryResult {
   inputBaselineBySource: Record<string, number>;
 }
 
+/**
+ * 会话级 main_turn 用量聚合（`model_usage` 的持久化真值）。
+ *
+ * 口径与投影里的 `usage.cumulative` 一致：只统计 `query_source = "main_turn"`，
+ * 供冷恢复时把"本次运行"的累计补齐成"整个会话"的累计。
+ * 这是**只读附加**能力：实现缺席时调用方退回进程内累计，不改变既有恢复路径。
+ */
+export interface MainTurnUsageAggregate {
+  /** main_turn 请求数。 */
+  requestCount: number;
+  inputTokens: number;
+  outputTokens: number;
+  cacheReadTokens: number;
+  cacheWriteTokens: number;
+  /** sum(duration_ms)：墙钟时长，含各请求 TTFT。 */
+  generationDurationMs: number;
+  /** sum(time_to_first_token_ms)：只累加有 TTFT 事实的请求。 */
+  timeToFirstTokenTotalMs: number;
+  /** 有 TTFT 事实的请求数（平均首 token 的分母）。 */
+  timeToFirstTokenSamples: number;
+}
+
 export interface UsageStorePort {
   recordModelUsage(input: ModelUsageRecord): Promise<void>;
   upsertTurnUsage(input: TurnUsageRecord): Promise<void>;
@@ -1086,6 +1108,8 @@ export interface UsageStorePort {
   pruneUsage(input?: { beforeTime?: number }): Promise<void>;
   queryAppUsage(input: AppUsageQueryInput): Promise<AppUsageQueryResult>;
   queryTaskUsage(input: TaskUsageQueryInput): Promise<TaskUsageQueryResult>;
+  /** 会话级 main_turn 聚合；optional：缺席时 hydration 沿用进程内累计。 */
+  queryMainTurnUsage?(input: { sessionID: SessionId }): Promise<MainTurnUsageAggregate>;
 }
 
 export interface LocalSettingStorePort {

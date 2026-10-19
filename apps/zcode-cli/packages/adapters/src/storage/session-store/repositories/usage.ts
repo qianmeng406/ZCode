@@ -6,9 +6,11 @@ import type {
   AppUsageQueryInput,
   AppUsageQueryResult,
   AppUsageToolRow,
+  MainTurnUsageAggregate,
   TaskUsageQueryInput,
   TaskUsageQueryResult,
   ModelUsageRecord,
+  SessionId,
   ToolUsageRecord,
   TurnUsageRecord,
 } from "@zcode/contracts";
@@ -670,6 +672,60 @@ export async function queryTaskUsage(
     modelRequestCount: rows.length,
     modelErrorCount,
     inputBaselineBySource,
+  };
+}
+
+/**
+ * 会话级 main_turn 聚合（冷恢复时给投影补种 `usage.cumulative`）。
+ *
+ * 与 `queryTaskUsage` 的口径差异：这里按原始行求和，不做 context baseline 的增量修正。
+ * 原因是本查询服务于"实际发生的请求总量"（与投影逐请求累加 usage 完全一致），
+ * 而 queryTaskUsage 服务于"上下文消耗"，压缩后要回扣 baseline。
+ * `input_tokens` 存的是规范化后的输入侧 token（已含缓存读/写），与投影口径一致。
+ */
+export async function queryMainTurnUsage(
+  db: DatabaseSync,
+  input: { sessionID: SessionId },
+): Promise<MainTurnUsageAggregate> {
+  const row = db
+    .prepare(
+      `select
+         count(*) as requestCount,
+         coalesce(sum(input_tokens), 0) as inputTokens,
+         coalesce(sum(output_tokens), 0) as outputTokens,
+         coalesce(sum(cache_read_input_tokens), 0) as cacheReadTokens,
+         coalesce(sum(cache_creation_input_tokens), 0) as cacheWriteTokens,
+         coalesce(sum(duration_ms), 0) as generationDurationMs,
+         coalesce(sum(time_to_first_token_ms), 0) as timeToFirstTokenTotalMs,
+         coalesce(
+           sum(case when time_to_first_token_ms is not null then 1 else 0 end),
+           0
+         ) as timeToFirstTokenSamples
+       from model_usage
+       where session_id = ? and query_source = 'main_turn'`,
+    )
+    .get(input.sessionID) as
+    | {
+        requestCount: number;
+        inputTokens: number;
+        outputTokens: number;
+        cacheReadTokens: number;
+        cacheWriteTokens: number;
+        generationDurationMs: number;
+        timeToFirstTokenTotalMs: number;
+        timeToFirstTokenSamples: number;
+      }
+    | undefined;
+
+  return {
+    requestCount: integer(row?.requestCount),
+    inputTokens: integer(row?.inputTokens),
+    outputTokens: integer(row?.outputTokens),
+    cacheReadTokens: integer(row?.cacheReadTokens),
+    cacheWriteTokens: integer(row?.cacheWriteTokens),
+    generationDurationMs: integer(row?.generationDurationMs),
+    timeToFirstTokenTotalMs: integer(row?.timeToFirstTokenTotalMs),
+    timeToFirstTokenSamples: integer(row?.timeToFirstTokenSamples),
   };
 }
 

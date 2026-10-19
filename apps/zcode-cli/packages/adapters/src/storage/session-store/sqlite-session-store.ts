@@ -21,6 +21,7 @@ import type {
   AppUsageQueryInput,
   AppUsageQueryResult,
   LocalSettingStorePort,
+  MainTurnUsageAggregate,
   MessageId,
   MessageInfo,
   MessagePart,
@@ -857,6 +858,10 @@ export class SqliteSessionStore
 
   async queryTaskUsage(input: TaskUsageQueryInput): Promise<TaskUsageQueryResult> {
     return usageRepository.queryTaskUsage(this.db, input);
+  }
+
+  async queryMainTurnUsage(input: { sessionID: SessionId }): Promise<MainTurnUsageAggregate> {
+    return usageRepository.queryMainTurnUsage(this.db, input);
   }
 
   async recordInputHistory(input: {
