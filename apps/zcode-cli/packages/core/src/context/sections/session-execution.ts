@@ -32,7 +32,7 @@ const COMMAND_ROUTING = [
   "- Bash commands, background tasks, hooks and subagents run in WSL Linux with POSIX bash.",
   "- File tools (Read/Write/Edit/Glob/Grep) operate on the same mapped project files.",
   "- MCP servers, Browser Use and Computer Use remain on the Windows control plane.",
-  "- Windows-only commands (PowerShell, cmd.exe, .exe tools, Windows GUI/signing/packaging) cannot run here. Ask the user to switch the session to 本机默认 (Windows); do not retry them in Linux.",
+  "- Windows-only commands (PowerShell, cmd.exe, .exe tools, Windows GUI/signing/packaging) are outside this session's supported command routing. Ask the user to switch the session to 本机默认 (Windows); do not run or retry them in Linux.",
 ];
 
 export interface SessionExecutionSectionOptions {
@@ -78,7 +78,7 @@ function buildCompactContent(environment: Extract<SessionExecutionEnvironment, {
     `# ${SECTION_NAME}`,
     `This session runs commands in WSL Linux (${environment.distro}, user ${environment.user}); the desktop and MCP/Browser/Computer Use remain on Windows.`,
     "- Bash, background tasks, hooks, subagents and file tools use the WSL Linux execution binding.",
-    "- Windows-only commands (PowerShell, cmd.exe, .exe, signing/packaging) cannot run here; ask the user to switch the session to 本机默认.",
+    "- Windows-only commands (PowerShell, cmd.exe, .exe, signing/packaging) are outside this session's supported routing; ask the user to switch the session to 本机默认.",
     "- File-dense loops on /mnt/c are ~10x slower than Windows: batch bulk work. Never invoke wsl.exe or a login shell per command. Builds show no reliable speedup.",
   ].join("\n");
 }

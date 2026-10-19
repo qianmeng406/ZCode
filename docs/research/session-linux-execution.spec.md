@@ -65,7 +65,7 @@ Bash/FileSystemPort 读取同一文件并维持 stale-write/revision 语义。�
 | WSL → 本地                      | 下一轮重建后移除                                                       |
 | WSL A → WSL B                   | 下一轮重建后更新 distro/user                                           |
 
-切换提交后必须让 runtime 使下一轮请求重建 context prefix，提示词才能随环境出现/更新/消失；不能在消息历史里追加重复段。`# Environment` 在 WSL 时声明 `Shell: bash (POSIX, WSL)` 与 `Command execution: WSL <distro> (user <user>)`，`Platform` 仍保留控制端 host 事实，不把整个 runtime 冒充 Linux。
+切换提交后必须让 runtime 使下一轮请求重建 context prefix，提示词才能随环境出现/更新/消失；不能在消息历史里追加重复段。`# Environment` 在 WSL 时声明 `Shell: bash (POSIX, WSL)` 与 `Command execution: WSL <distro> (user <user>)`，`Platform` 仍保留控制端 host 事实，不把整个 runtime 冒充 Linux。WSL 会话不再播报控制端 Windows shell 的恢复提醒（例如 “The Bash tool shell is Git Bash.”），避免与实际的 POSIX bash 矛盾。Windows-only 命令的提示词表述为“不属于本会话支持的路由、请切回本机”，不声称技术上无法执行（WSL interop 可能允许 `.exe`，但不属于受支持路径）。
 
 性能建议只使用 `/mnt/c` 映射下的实测数据，数字与限制见
 [session-linux-performance-guidance.md](session-linux-performance-guidance.md)；不得套用 ext4 基准结论。

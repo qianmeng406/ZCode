@@ -656,7 +656,9 @@ describe("AgentRuntime session persistence", () => {
     await runtime.executeTurn("first prompt");
     await runtime.executeTurn("second prompt");
 
-    const userMessages = store.savedMessages.filter((message) => message.role === "user" && !message.synthetic);
+    const userMessages = store.savedMessages.filter(
+      (message) => message.role === "user" && !message.synthetic,
+    );
     const assistantSaves = store.savedMessages.filter((message) => message.role === "assistant");
     const assistantMessageIds = new Set(assistantSaves.map((message) => message.id));
     const completedAssistantSaves = assistantSaves.filter(
@@ -2039,6 +2041,79 @@ describe("AgentRuntime session persistence", () => {
     expect(providerText).toContain("The Bash tool shell is Git Bash.");
   });
 
+  it("suppresses the Windows shell resume notice for WSL sessions", async () => {
+    const sessionId = createSessionId("runtime-persistence-wsl-shell-notice");
+    const store = createRecordingSessionStore();
+    const workingDirectory = "/tmp/zcode-runtime-wsl-shell-notice";
+    const firstRuntime = createTestAgentRuntime(
+      sessionId,
+      {
+        currentDate: "2026-06-26",
+        envInfo: {
+          cwd: workingDirectory,
+          platform: "win32",
+          shell: "CMD",
+          osVersion: "Windows 11",
+          nodeVersion: "v24.14.0",
+        },
+        workingDirectory,
+      },
+      {
+        eventStore: createTestSessionEventStore(),
+        modelFactory: createTestModelFactory({
+          async generateText() {
+            return {
+              text: "first answer",
+              finishReason: "stop",
+              usage: { inputTokens: 1, outputTokens: 1, totalTokens: 2 },
+            };
+          },
+        } as never),
+        sessionStore: store,
+      },
+    );
+    await firstRuntime.executeTurn("persisted prompt");
+
+    let resumedMessages: ModelInputMessage[] = [];
+    const resumedRuntime = createTestAgentRuntime(
+      sessionId,
+      {
+        bashShellSelection: createAutoGitBashSelection(),
+        currentDate: "2026-06-26",
+        workingDirectory,
+        // WSL 激活后 Bash 实际是 Linux POSIX bash；控制端 shell 恢复提醒必须静默。
+        getSessionExecutionEnvironment: () => ({
+          kind: "wsl",
+          distro: "Ubuntu-24.04",
+          user: "me",
+        }),
+      },
+      {
+        eventStore: createTestSessionEventStore(),
+        modelFactory: createTestModelFactory({
+          async generateText(request) {
+            resumedMessages = request.messages;
+            return {
+              text: "resumed answer",
+              finishReason: "stop",
+              usage: { inputTokens: 1, outputTokens: 1, totalTokens: 2 },
+            };
+          },
+        } as never),
+        sessionStore: store,
+      },
+    );
+
+    await resumedRuntime.resumeFromStore();
+    await resumedRuntime.executeTurn("resumed prompt");
+
+    const providerText = providerMessagesToText(resumedMessages);
+    expect(providerText).toContain("- Shell: bash (POSIX, WSL)");
+    expect(providerText).toContain("- Command execution: WSL Ubuntu-24.04 (user me)");
+    expect(providerText).toContain("# Session Execution Environment");
+    expect(providerText).not.toContain("The Bash tool shell is Git Bash.");
+  });
+
   it("announces Windows Git Bash shell when legacy env shell is blank", async () => {
     const sessionId = createSessionId("runtime-persistence-windows-git-bash-blank-shell");
     const store = createRecordingSessionStore();
@@ -2822,7 +2897,11 @@ describe("AgentRuntime session persistence", () => {
 
     await runtime.executeTurn("summarize", [{ type: "file", path: "missing.md" }]);
 
-    const userMessages = capturedMessages.filter((message) => message.role === "user" && !providerContentToText(message.content).startsWith("<system-reminder>"));
+    const userMessages = capturedMessages.filter(
+      (message) =>
+        message.role === "user" &&
+        !providerContentToText(message.content).startsWith("<system-reminder>"),
+    );
     expect(userMessages.map((message) => message.content)).toEqual(["summarize"]);
     expect(providerMessagesToText(capturedMessages)).not.toContain(
       "[Attached text/plain: missing.md]",

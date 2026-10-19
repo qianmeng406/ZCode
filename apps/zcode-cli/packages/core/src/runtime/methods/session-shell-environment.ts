@@ -160,6 +160,12 @@ export function announceSessionShellEnvironmentNoticeAfterResume(
     restore: BashShellSnapshotRestore;
   },
 ): void {
+  // WSL 会话的 Bash 由 Linux 执行端解析为 POSIX bash；控制端 Windows shell
+  // 选择只影响本地目标。恢复期再播报 “The Bash tool shell is Git Bash.” 会与
+  // session_execution 段声明的 `bash (POSIX, WSL)` 直接矛盾。
+  if (runtime.config.getSessionExecutionEnvironment?.()?.kind === "wsl") {
+    return;
+  }
   const selection = getSessionShellSelection(runtime);
   const noticeKind = getShellEnvironmentResumeNoticeKind({
     persistedShell: options.persistedEnvInfo?.shell,

@@ -38,6 +38,9 @@ describe("session execution environment section", () => {
     expect(section?.content).toContain("WSL Linux (Ubuntu-24.04, user zcodewslp2)");
     expect(section?.content).toContain("MCP servers, Browser Use and Computer Use");
     expect(section?.content).toContain("Windows-only commands");
+    // WSL interop 可能允许 .exe，但不在本会话支持的路由内；提示词不能声称技术上不可能。
+    expect(section?.content).not.toContain("cannot run here");
+    expect(section?.content).toContain("outside this session's supported command routing");
     expect(section?.content).toContain("~10x SLOWER");
     expect(section?.content).toContain("Never invoke wsl.exe");
     expect(section?.content).toContain("~1.0x");
