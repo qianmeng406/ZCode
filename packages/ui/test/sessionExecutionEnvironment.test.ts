@@ -6,6 +6,7 @@ import type { SessionExecutionEnvironment, SessionExecutionState } from "@zcode/
 import {
   IDLE_PREPARATION_STATE,
   canConfigureSessionExecutionEnvironment,
+  formatSessionExecutionEnvironmentLabel,
   useSessionExecutionEnvironment,
   validateSessionExecutionEnvironmentSelection,
   type SessionExecutionEnvironmentServicePort,
@@ -17,7 +18,7 @@ import { ZCodeIntlProvider } from "@/i18n/IntlProvider.js";
 // 定向 UI 测试（docs/research/session-linux-execution.spec.md「UI」+协调口径）：
 // 1) service 调用带完整 session identity（workspacePath/workspaceIdentity/sessionId）；
 // 2) 切换 session 后迟到结果被丢弃，不串投影；
-// 3) distro/user 显式必填校验；
+// 3) distro 必填、user 可选（留空 = 发行版默认用户）校验；
 // 4) 准备取消（cancel 不提交、脱离 cancelling）；
 // 5) 失败保留原环境、可重试；
 // 6) 隐藏规则（非 Windows/remote/无 session 不可配）。
@@ -128,16 +129,19 @@ describe("canConfigureSessionExecutionEnvironment（入口隐藏规则）", () =
   });
 });
 
-describe("validateSessionExecutionEnvironmentSelection（显式必填）", () => {
+describe("validateSessionExecutionEnvironmentSelection（distro 必填，user 可选）", () => {
   it("distro 必填", () => {
     expect(
       validateSessionExecutionEnvironmentSelection({ kind: "wsl", distro: "  ", user: "u" }),
     ).toBe("sessionExecutionEnvironment.error.distroRequired");
   });
-  it("user 必填，不允许默认用户回退", () => {
+  it("user 留空允许使用发行版默认用户", () => {
     expect(
       validateSessionExecutionEnvironmentSelection({ kind: "wsl", distro: "Ubuntu", user: "" }),
-    ).toBe("sessionExecutionEnvironment.error.userRequired");
+    ).toBeNull();
+    expect(
+      validateSessionExecutionEnvironmentSelection({ kind: "wsl", distro: "Ubuntu" }),
+    ).toBeNull();
   });
   it("user 含路径分隔/冒号/控制字符拒绝", () => {
     expect(
@@ -151,6 +155,34 @@ describe("validateSessionExecutionEnvironmentSelection（显式必填）", () =>
     expect(
       validateSessionExecutionEnvironmentSelection({ kind: "wsl", distro: "Ubuntu", user: "dev" }),
     ).toBeNull();
+  });
+});
+
+describe("formatSessionExecutionEnvironmentLabel（当前环境展示）", () => {
+  const intl = {
+    formatMessage: ({ id }: { id: string }) =>
+      ({
+        "sessionExecutionEnvironment.current.default": "本机默认（Windows）",
+        "sessionExecutionEnvironment.user.defaultTag": "默认用户",
+      })[id] ?? id,
+  };
+
+  it("显式用户显示 user@distro", () => {
+    expect(
+      formatSessionExecutionEnvironmentLabel(intl, {
+        kind: "wsl",
+        distro: "Ubuntu",
+        user: "dev",
+      }),
+    ).toBe("dev@Ubuntu");
+  });
+  it("未指定用户显示 distro · 默认用户", () => {
+    expect(formatSessionExecutionEnvironmentLabel(intl, { kind: "wsl", distro: "Ubuntu" })).toBe(
+      "Ubuntu · 默认用户",
+    );
+  });
+  it("本机默认回退文案", () => {
+    expect(formatSessionExecutionEnvironmentLabel(intl, null)).toBe("本机默认（Windows）");
   });
 });
 
@@ -194,6 +226,27 @@ describe("useSessionExecutionEnvironment", () => {
     });
     expect(submitted).toBe(true);
     expect(result.current.current).toEqual({ kind: "wsl", distro: "Ubuntu", user: "dev" });
+    expect(result.current.preparation.phase).toBe("succeeded");
+  });
+
+  it("用户留空提交时省略 user 字段，交由执行端使用发行版默认用户", async () => {
+    const f = fixture();
+    const { result } = renderEnv({ port: f.port });
+    await act(async () => {});
+
+    let submitted = false;
+    await act(async () => {
+      const promise = result.current.submitSelection({ kind: "wsl", distro: "Ubuntu" });
+      expect(f.set).toHaveBeenCalledWith({
+        workspacePath: "C:/ws",
+        sessionId: "session-a",
+        environment: { kind: "wsl", distro: "Ubuntu" },
+      });
+      f.setStates[0]!({ status: "idle", environment: { kind: "wsl", distro: "Ubuntu" } });
+      submitted = await promise;
+    });
+    expect(submitted).toBe(true);
+    expect(result.current.current).toEqual({ kind: "wsl", distro: "Ubuntu" });
     expect(result.current.preparation.phase).toBe("succeeded");
   });
 

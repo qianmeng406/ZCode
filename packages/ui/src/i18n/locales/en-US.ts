@@ -2171,8 +2171,11 @@ const enUS: Record<string, string> = {
   "appHeader.reloadSessionSuccess": "Session reloaded",
   "appHeader.reloadSessionFailed": "Could not reload session",
   "appHeader.workspaceSessionActionLoading": "Applying session changes...",
-  "sessionExecutionEnvironment.menu.label": "Execution environment (local Linux)",
-  "sessionExecutionEnvironment.toolbar.label": "Linux env",
+  "sessionExecutionEnvironment.menu.label": "Execution environment",
+  "sessionExecutionEnvironment.toolbar.local": "Local Windows",
+  "sessionExecutionEnvironment.toolbar.loading": "Loading execution environment…",
+  "sessionExecutionEnvironment.toolbar.title":
+    "Execution environment: {environment} (click to switch)",
   "sessionExecutionEnvironment.dialog.title": "Session execution environment",
   "sessionExecutionEnvironment.dialog.description":
     "Choose where Agent commands run for this session. History, model, and permissions stay unchanged; other sessions can use a different environment.",
@@ -2185,12 +2188,13 @@ const enUS: Record<string, string> = {
   "sessionExecutionEnvironment.distro.unavailableHint":
     "Could not list WSL distributions. WSL may not be installed or not ready.",
   "sessionExecutionEnvironment.distro.defaultTag": "default",
-  "sessionExecutionEnvironment.user.label": "Linux user",
+  "sessionExecutionEnvironment.user.label": "Linux user (optional)",
   "sessionExecutionEnvironment.user.placeholder":
-    "An existing user in this distribution, for example ubuntu",
+    "Leave empty to use the distribution's default user, or enter an existing user",
+  "sessionExecutionEnvironment.user.defaultHint":
+    "When empty, the execution host uses the distribution's configured default user; the WSL default user is not changed.",
+  "sessionExecutionEnvironment.user.defaultTag": "default user",
   "sessionExecutionEnvironment.error.distroRequired": "Select a WSL distribution",
-  "sessionExecutionEnvironment.error.userRequired":
-    "Enter a Linux user name that already exists in this distribution",
   "sessionExecutionEnvironment.error.invalidUser": "User name contains invalid characters",
   "sessionExecutionEnvironment.hint.title": "Before you continue",
   "sessionExecutionEnvironment.hint.mountedFiles":
@@ -2209,8 +2213,6 @@ const enUS: Record<string, string> = {
   "sessionExecutionEnvironment.action.cancelPrepare": "Cancel preparation",
   "sessionExecutionEnvironment.action.retry": "Retry",
   "sessionExecutionEnvironment.action.apply": "Apply to this session",
-  "sessionExecutionEnvironment.action.explicitRequiredHint":
-    "Select a distribution and enter a Linux user that already exists in it",
   "sessionExecutionEnvironment.action.useDefault": "Back to local default",
   "sessionExecutionEnvironment.scopeNote":
     "Affects Agent command execution in this session only; files, Git, and the built-in terminal stay on local Windows.",

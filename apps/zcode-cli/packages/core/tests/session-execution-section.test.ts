@@ -11,6 +11,12 @@ const WSL: SessionExecutionEnvironment = {
   user: "zcodewslp2",
 };
 
+/** user 留空 = 发行版默认用户：提示词不得虚构用户名。 */
+const WSL_DEFAULT_USER: SessionExecutionEnvironment = {
+  kind: "wsl",
+  distro: "Ubuntu-24.04",
+};
+
 const ENV_INFO = {
   cwd: "/workspace",
   platform: "win32",
@@ -60,6 +66,18 @@ describe("session execution environment section", () => {
     expect(section?.content).toContain("~10x slower");
     expect(section?.content).not.toContain("Measured performance guidance");
     expect(section?.chars).toBeLessThan(buildSessionExecutionSection(WSL)?.chars ?? 0);
+  });
+
+  it("writes default-user wording when the user is omitted", () => {
+    expect(buildSessionExecutionSection(WSL_DEFAULT_USER)?.content).toContain(
+      "WSL Linux (Ubuntu-24.04, the distribution's default user)",
+    );
+    expect(buildSessionExecutionSection(WSL_DEFAULT_USER, { compact: true })?.content).toContain(
+      "the distribution's default user",
+    );
+    expect(buildEnvInfoSection(ENV_INFO, undefined, [], WSL_DEFAULT_USER).content).toContain(
+      "- Command execution: WSL Ubuntu-24.04 (default user)",
+    );
   });
 
   it("declares POSIX shell and WSL command execution in env info", () => {

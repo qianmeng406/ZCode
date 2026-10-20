@@ -31,7 +31,10 @@ import { useGlobalTaskList } from "@/hooks/useGlobalTaskList.js";
 import { useBaseWorkspaceServices, useWorkspaceServices } from "@/hooks/useWorkspaceServices.js";
 import { shouldLoadTaskMenuPaths } from "@/lib/onDemandLoadingGuards.js";
 import { useOptionalPlatform } from "@/hooks/usePlatform.js";
-import { useSessionExecutionEnvironment } from "@/hooks/useSessionExecutionEnvironment.js";
+import {
+  formatSessionExecutionEnvironmentLabel,
+  useSessionExecutionEnvironment,
+} from "@/hooks/useSessionExecutionEnvironment.js";
 import { SessionExecutionEnvironmentDialog } from "@/SessionExecutionEnvironmentDialog.js";
 import { useTaskListItemContextActions } from "@/useTaskListItemContextActions.js";
 import { TaskActionMenuContent } from "@/TaskActionMenuContent.js";
@@ -761,13 +764,13 @@ export function WorkspaceHeaderTitleSection({
                       <span className="truncate">
                         {intl.formatMessage({ id: "sessionExecutionEnvironment.menu.label" })}
                       </span>
-                      {sessionExecutionEnvironment.current?.kind === "wsl" ? (
-                        <span className="font-mono text-ui-xs text-foreground-subtlest">
-                          {sessionExecutionEnvironment.current.user?.trim()
-                            ? `${sessionExecutionEnvironment.current.user.trim()}@${sessionExecutionEnvironment.current.distro}`
-                            : sessionExecutionEnvironment.current.distro}
-                        </span>
-                      ) : null}
+                      <span className="font-mono text-ui-xs text-foreground-subtlest">
+                        {formatSessionExecutionEnvironmentLabel(
+                          intl,
+                          sessionExecutionEnvironment.preparingTarget ??
+                            sessionExecutionEnvironment.current,
+                        )}
+                      </span>
                     </span>
                   </DropdownMenuItem>
                 </>

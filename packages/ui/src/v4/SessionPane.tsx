@@ -24,7 +24,7 @@ import {
   useSyncExternalStore,
   type ReactNode,
 } from "react";
-import { Hand } from "lucide-react";
+import { Hand, LoaderIcon, Monitor, Terminal } from "lucide-react";
 import {
   BUILTIN_MODEL_PROVIDER_IDS,
   buildCustomSupplierKey,
@@ -75,7 +75,10 @@ import { useCodingPlanBillingDiscountFromService } from "@/CodingPlanBillingDisc
 import { toast } from "@/components/ui/toast.js";
 import { Button } from "@/components/ui/button.js";
 import { isWindowsDesktopUserAgentGlobal } from "@/lib/cuaPlatform.js";
-import { useSessionExecutionEnvironment } from "@/hooks/useSessionExecutionEnvironment.js";
+import {
+  formatSessionExecutionEnvironmentLabel,
+  useSessionExecutionEnvironment,
+} from "@/hooks/useSessionExecutionEnvironment.js";
 import { SessionExecutionEnvironmentDialog } from "@/SessionExecutionEnvironmentDialog.js";
 import { cn } from "@/components/lib/utils.js";
 import { useZCodeIntl } from "@/i18n/IntlProvider.js";
@@ -3269,19 +3272,54 @@ export function SessionPane({
     // eslint-disable-next-line react-hooks/exhaustive-deps -- 依赖经 ref 闭合，避免按钮引用逐渲染抖动
   }, [sessionId, workspaceKey]);
 
+  // 入口直接展示当前生效环境（本机 Windows / user@distro / distro · 默认用户），
+  // 准备中展示目标环境并转圈；不再只给一个无状态的 “Linux” 文本按钮。
+  const executionEnvironmentIsPreparing =
+    sessionExecutionEnvironment.preparation.phase === "preparing" ||
+    sessionExecutionEnvironment.preparation.phase === "cancelling";
+  const executionEnvironmentDisplay =
+    sessionExecutionEnvironment.preparingTarget ?? sessionExecutionEnvironment.current;
+  const executionEnvironmentIsWsl = executionEnvironmentDisplay?.kind === "wsl";
+  // 初值/会话切换时 current 尚未返回：不能先渲染「本机 Windows」误导 WSL 会话，
+  // 用中性加载态占位；读取失败（currentLoading=false）才按未配置回退本机默认。
+  const executionEnvironmentLoading =
+    sessionExecutionEnvironment.currentLoading && executionEnvironmentDisplay === null;
+  const executionEnvironmentLabel = executionEnvironmentLoading
+    ? intl.formatMessage({ id: "sessionExecutionEnvironment.toolbar.loading" })
+    : executionEnvironmentDisplay?.kind === "wsl"
+      ? formatSessionExecutionEnvironmentLabel(intl, executionEnvironmentDisplay)
+      : intl.formatMessage({ id: "sessionExecutionEnvironment.toolbar.local" });
+  const executionEnvironmentTitle = executionEnvironmentLoading
+    ? executionEnvironmentLabel
+    : intl.formatMessage(
+        { id: "sessionExecutionEnvironment.toolbar.title" },
+        { environment: executionEnvironmentLabel },
+      );
   const executionEnvironmentSlot = isWindowsLocalWorkspaceForExecution ? (
     <Button
       type="button"
       variant="ghost"
       size="sm"
-      className="h-7 px-2 text-ui-sm text-foreground-subtle"
+      className={cn(
+        "h-7 max-w-[220px] gap-1.5 px-2 text-ui-sm",
+        executionEnvironmentIsWsl ? "text-foreground" : "text-foreground-subtle",
+      )}
       disabled={executionEnvironmentBusy}
+      title={executionEnvironmentTitle}
+      aria-label={executionEnvironmentTitle}
       onClick={() => {
         void handleOpenExecutionEnvironment();
       }}
       data-testid="session-execution-environment-trigger"
     >
-      {intl.formatMessage({ id: "sessionExecutionEnvironment.toolbar.label" })}
+      {executionEnvironmentIsPreparing || executionEnvironmentLoading ? (
+        <LoaderIcon className="size-3.5 shrink-0 animate-spin" aria-hidden />
+      ) : executionEnvironmentIsWsl ? (
+        <Terminal className="size-3.5 shrink-0" aria-hidden />
+      ) : (
+        <Monitor className="size-3.5 shrink-0" aria-hidden />
+      )}
+      <span className="truncate">{executionEnvironmentLabel}</span>
     </Button>
   ) : null;
   const showModelChangeNotice = useCallback(

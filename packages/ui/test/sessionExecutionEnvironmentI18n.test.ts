@@ -1,6 +1,6 @@
-// 回归：会话执行环境弹窗引用的 message id 必须两个 locale 都存在。
-// 现场缺陷：校验返回 sessionExecutionEnvironment.error.userRequired，但 zh/en 词表都没有该键，
-// 弹窗把 key 原样红字显示（useIntl 缺键回退 id），比“必填”本身更难懂。
+// 回归：会话执行环境弹窗/入口引用的 message id 必须两个 locale 都存在。
+// 现场缺陷（历史）：校验返回的 error.userRequired 曾在 zh/en 词表缺失，弹窗把 key
+// 原样红字显示；现在 user 已改为可选，仍要求所有引用 id 有译文且两语言键集合一致。
 import { readFileSync } from "node:fs";
 import { describe, expect, it } from "vitest";
 import enUS from "@/i18n/locales/en-US.js";
@@ -44,26 +44,30 @@ describe("SessionExecutionEnvironment i18n", () => {
     expect(keySet(enUS)).toEqual(keySet(zhCN));
   });
 
-  it("显式用户必填：校验结果落到已翻译文案，不回退 key 原文", () => {
-    const userRequired = validateSessionExecutionEnvironmentDraft("Ubuntu-24.04", "");
-    expect(userRequired).toBe("sessionExecutionEnvironment.error.userRequired");
-    // 校验返回的是 id，展示层必须能查到译文，否则 UI 会显示 id 本身。
-    expect(zhCN[userRequired as keyof typeof zhCN]).toBeTruthy();
-    expect(enUS[userRequired as keyof typeof enUS]).toBeTruthy();
-    expect(zhCN[userRequired as keyof typeof zhCN]).not.toBe(userRequired);
+  it("用户留空合法：不再返回必填错误 id", () => {
+    expect(validateSessionExecutionEnvironmentDraft("Ubuntu-24.04", "")).toBeNull();
   });
 
-  it("文案与 spec 显式 distro/user 口径一致：用户字段不再标可选", () => {
-    expect(zhCN["sessionExecutionEnvironment.user.label"]).toBe("Linux 用户");
-    expect(enUS["sessionExecutionEnvironment.user.label"]).toBe("Linux user");
-    expect(zhCN["sessionExecutionEnvironment.user.placeholder"]).not.toContain("留空");
-    expect(enUS["sessionExecutionEnvironment.user.placeholder"]).not.toContain("Leave empty");
-    expect(
-      zhCN["sessionExecutionEnvironment.action.explicitRequiredHint" as keyof typeof zhCN],
-    ).toBeTruthy();
-    expect(
-      enUS["sessionExecutionEnvironment.action.explicitRequiredHint" as keyof typeof enUS],
-    ).toBeTruthy();
+  it("文案体现 user 可选与默认用户语义，且两种语言键一致", () => {
+    expect(zhCN["sessionExecutionEnvironment.user.label"]).toContain("可选");
+    expect(enUS["sessionExecutionEnvironment.user.label"]).toContain("optional");
+    expect(zhCN["sessionExecutionEnvironment.user.placeholder"]).toContain("留空");
+    expect(enUS["sessionExecutionEnvironment.user.placeholder"]).toContain("Leave empty");
+    expect(zhCN["sessionExecutionEnvironment.user.defaultHint"]).toBeTruthy();
+    expect(enUS["sessionExecutionEnvironment.user.defaultHint"]).toBeTruthy();
+    expect(zhCN["sessionExecutionEnvironment.user.defaultTag"]).toBeTruthy();
+    expect(enUS["sessionExecutionEnvironment.user.defaultTag"]).toBeTruthy();
+    // 入口需要同时表达“本机默认”和“点击切换”，不能只剩一个无状态 Linux 文本。
+    expect(zhCN["sessionExecutionEnvironment.toolbar.local"]).toBeTruthy();
+    expect(enUS["sessionExecutionEnvironment.toolbar.local"]).toBeTruthy();
+    expect(zhCN["sessionExecutionEnvironment.toolbar.title"]).toBeTruthy();
+    expect(enUS["sessionExecutionEnvironment.toolbar.title"]).toBeTruthy();
+    // 左侧固定文案必须是中性标题：菜单会追加当前值，不能再带 “本机 Linux” 限定。
+    expect(zhCN["sessionExecutionEnvironment.menu.label"]).toBe("执行环境");
+    expect(enUS["sessionExecutionEnvironment.menu.label"]).toBe("Execution environment");
+    // 读取中不能先显示“本机 Windows”（会让 WSL 会话短暂误示），需要中性占位文案。
+    expect(zhCN["sessionExecutionEnvironment.toolbar.loading"]).toBeTruthy();
+    expect(enUS["sessionExecutionEnvironment.toolbar.loading"]).toBeTruthy();
   });
 
   it("已选发行版且用户名合法时不再报错", () => {

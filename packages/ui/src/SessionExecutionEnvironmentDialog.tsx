@@ -27,14 +27,16 @@ import {
   validateSessionExecutionEnvironmentDraft,
   validateSessionExecutionEnvironmentSelection,
   type SessionExecutionEnvironmentPreparationState,
+  type SessionExecutionEnvironmentSelection,
   type UseSessionExecutionEnvironmentResult,
 } from "@/hooks/useSessionExecutionEnvironment.js";
 
 /**
  * 会话执行环境选择弹窗（spec: docs/research/session-linux-execution.spec.md「UI」）。
  * 仅 Windows 本地 workspace + 已落库 session 提供入口；远程/其他平台不渲染。
- * distro 与 user 必须用户显式选择/填写（不默认、不回退）；文件仍在 Windows 挂载盘，
- * 不承诺 ext4 性能、node_modules 隔离或容器级沙箱。准备可取消、失败保留原环境可重试。
+ * distro 必须用户显式选择；user 可留空，此时由执行端使用该发行版的默认用户
+ * （不修改 WSL 默认用户）。文件仍在 Windows 挂载盘，不承诺 ext4 性能、
+ * node_modules 隔离或容器级沙箱。准备可取消、失败保留原环境可重试。
  *
  * workspacePath/workspaceIdentity 由 hook 的 scopeKey 单点持有，弹窗不重复接收，
  * 避免第二身份来源造成投影错位。
@@ -160,10 +162,10 @@ function SessionExecutionEnvironmentDialogInner({
   const isBusy = preparation.phase === "preparing" || preparation.phase === "cancelling";
   const currentLabel = formatSessionExecutionEnvironmentLabel(intl, environment.current);
 
-  const submit = (selection: { kind: "wsl"; distro: string; user: string } | { kind: "local" }) => {
+  const submit = (selection: SessionExecutionEnvironmentSelection | { kind: "local" }) => {
     if (isBusy) return;
     if (selection.kind === "wsl") {
-      // 提交前再校验一次显式必填；不合法直接丢弃，不发 service。
+      // 提交前再校验一次（distro 必填、user 可空）；不合法直接丢弃，不发 service。
       if (validateSessionExecutionEnvironmentSelection(selection)) return;
       setLastSubmittedSelection(selection);
     }
@@ -172,12 +174,14 @@ function SessionExecutionEnvironmentDialogInner({
     });
   };
 
-  // 提交弹窗草稿：显式 distro+user 齐全才可发（无默认回退，协调口径）。
+  // 提交弹窗草稿：只需选中 distro；用户留空 = 使用发行版默认用户。
   const submitDraft = () => {
-    if (!distroDraft.trim() || !userDraft.trim()) {
+    const distro = distroDraft.trim();
+    if (!distro) {
       return;
     }
-    submit({ kind: "wsl", distro: distroDraft.trim(), user: userDraft.trim() });
+    const user = userDraft.trim();
+    submit({ kind: "wsl", distro, ...(user ? { user } : {}) });
   };
 
   return (
@@ -288,6 +292,9 @@ function SessionExecutionEnvironmentDialogInner({
               data-testid="session-execution-environment-user"
               className="h-9 font-mono"
             />
+            <span className="text-ui-xs text-foreground-subtlest">
+              {intl.formatMessage({ id: "sessionExecutionEnvironment.user.defaultHint" })}
+            </span>
             {draftError ? (
               <span className="text-ui-xs text-destructive" role="alert">
                 {intl.formatMessage({ id: draftError })}
@@ -383,11 +390,11 @@ function SessionExecutionEnvironmentDialogInner({
               <Button
                 type="button"
                 onClick={() => submitDraft()}
-                disabled={Boolean(draftError) || !distroDraft.trim() || !userDraft.trim()}
+                disabled={Boolean(draftError) || !distroDraft.trim()}
                 title={
-                  !distroDraft.trim() || !userDraft.trim()
+                  !distroDraft.trim()
                     ? intl.formatMessage({
-                        id: "sessionExecutionEnvironment.action.explicitRequiredHint",
+                        id: "sessionExecutionEnvironment.error.distroRequired",
                       })
                     : undefined
                 }
@@ -403,8 +410,8 @@ function SessionExecutionEnvironmentDialogInner({
   );
 }
 
-/** 重试沿用上一次显式提交的选择；弹窗级状态，不跨会话。 */
-type LastSubmittedSelection = { kind: "wsl"; distro: string; user: string } | null;
+/** 重试沿用上一次提交的选择（user 可缺省 = 默认用户）；弹窗级状态，不跨会话。 */
+type LastSubmittedSelection = SessionExecutionEnvironmentSelection | null;
 
 /** 使用须知条目（挂载盘性能 / 依赖冲突 / 非安全沙箱），按 spec「UI」固定顺序展示。 */
 const HINT_MESSAGE_IDS = [

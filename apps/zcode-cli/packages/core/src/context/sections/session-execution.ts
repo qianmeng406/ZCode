@@ -65,10 +65,18 @@ export function buildSessionExecutionSection(
   };
 }
 
+/** user 缺省 = 发行版默认用户；提示词按该语义措辞，不虚构用户名。 */
+function describeWslUser(
+  environment: Extract<SessionExecutionEnvironment, { kind: "wsl" }>,
+): string {
+  const user = environment.user?.trim();
+  return user ? `user ${user}` : "the distribution's default user";
+}
+
 function buildFullContent(environment: Extract<SessionExecutionEnvironment, { kind: "wsl" }>) {
   return [
     `# ${SECTION_NAME}`,
-    `This session runs commands in WSL Linux (${environment.distro}, user ${environment.user}). The desktop and control plane remain on Windows; the project directory is mounted from the Windows disk (/mnt/c).`,
+    `This session runs commands in WSL Linux (${environment.distro}, ${describeWslUser(environment)}). The desktop and control plane remain on Windows; the project directory is mounted from the Windows disk (/mnt/c).`,
     "",
     ADVISORY_NOTE,
     "",
@@ -81,7 +89,7 @@ function buildFullContent(environment: Extract<SessionExecutionEnvironment, { ki
 function buildCompactContent(environment: Extract<SessionExecutionEnvironment, { kind: "wsl" }>) {
   return [
     `# ${SECTION_NAME}`,
-    `This session runs commands in WSL Linux (${environment.distro}, user ${environment.user}); the desktop and MCP/Browser/Computer Use remain on Windows. Guidance only; the active execution binding is authoritative.`,
+    `This session runs commands in WSL Linux (${environment.distro}, ${describeWslUser(environment)}); the desktop and MCP/Browser/Computer Use remain on Windows. Guidance only; the active execution binding is authoritative.`,
     "- Bash, background tasks, hooks, subagents and file tools use the WSL Linux execution binding.",
     "- Windows-only commands (PowerShell, cmd.exe, .exe, signing/packaging) are not part of this routing; if one is genuinely required, prefer asking the user to switch the session to 本机默认.",
     "- Prefer batching bulk work on /mnt/c (~10x slower for file-dense loops); the provided Bash tool is cheaper than invoking wsl.exe or a login shell per command. Builds show no reliable speedup.",

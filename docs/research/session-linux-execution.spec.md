@@ -4,7 +4,7 @@
 
 Windows 桌面的聊天会话可显式选择本机默认或本机 Linux（WSL）。Linux 是本机 WSL 进程，不需要外部服务器。模型、聊天数据库、sessionId、workspaceIdentity、Windows 项目文件真源不迁移。不同聊天即便同工作区也可选择不同执行环境。
 
-首版不安装 Windows 功能/发行版，不修改默认发行版/用户、代理、防火墙或 .wslconfig，不启用 resident。WSL 未就绪时明确不可用。使用显式 distro/user；不能借用实验配置作为全用户默认。未指定环境保留现有行为。远程工作区不叠加本机 Linux 绑定。
+首版不安装 Windows 功能/发行版，不修改默认发行版/用户、代理、防火墙或 .wslconfig，不启用 resident。WSL 未就绪时明确不可用。必须显式选择 distro；user 可留空，表示使用该发行版配置的默认用户（执行端省略 `-u`，不修改 WSL 默认用户，也不借用实验配置作为全用户默认）。未指定环境保留现有行为。远程工作区不叠加本机 Linux 绑定。
 
 Windows 项目经经验证的 wslpath 映射访问同一文件；不复制、双向同步或改写 shell 命令。源码在 Windows 挂载盘不承诺 ext4 性能。Windows/Linux 原生依赖混用必须提示；不自动覆盖 node_modules。会话工具目录与缓存在所选 Linux 用户 HOME 下受管目录。应用运行时准备幂等、版本校验、复用部署锁。未知项目脚本不是可信安装器；安装工具/依赖需明确命令及原有权限授权。首版不提供系统数据库/apt/sudo/systemd 通用安装器。
 
@@ -14,7 +14,7 @@ Windows 项目经经验证的 wslpath 映射访问同一文件；不复制、双
 - 窗口 Host 管理执行连接池、临时 session lease/generation、准备取消及进程回收；Main 仅转发/原生操作。
 - Linux 执行端复用 NodeExecutionAdapter 和标准 Channel RPC，拥有前后台任务与输出文件。不能每条命令新建 wsl.exe 或采用 PTY 文本协议。
 - Windows CLI App 按聊天 session 注入 ExecutionPort。共享工作区 Agent 进程不能因单会话切换重启。
-- 配置仅保存 kind/distro/user，目录映射通过准备实时验证；不保存 PID、lease 或凭据。UI 只保留待提交状态。
+- 配置仅保存 kind/distro/user（user 缺省 = 发行版默认用户），目录映射通过准备实时验证；不保存 PID、lease 或凭据。UI 只保留待提交状态。
 - 连接复用与会话 lease 分离。执行、poll、取消、后台读取均验证 sessionId + lease + generation + executionId。旧代请求拒绝。断连明确失败，不回落本地。
 - injected ExecutionPort 是借用端口，关闭/切换必须显式释放 lease。会话关闭不等于标签隐藏；其他会话资源不能被释放。
 - 线格式使用明确的毫秒时间戳和字节编码；不跨 RPC 传 AbortSignal/function/Error 实例。runtime 合同中的 Date/Uint8Array 在适配器边界转换。
@@ -65,7 +65,7 @@ Bash/FileSystemPort 读取同一文件并维持 stale-write/revision 语义。�
 | WSL → 本地                      | 下一轮重建后移除                                                       |
 | WSL A → WSL B                   | 下一轮重建后更新 distro/user                                           |
 
-切换提交后必须让 runtime 使下一轮请求重建 context prefix，提示词才能随环境出现/更新/消失；不能在消息历史里追加重复段。`# Environment` 在 WSL 时声明 `Shell: bash (POSIX, WSL)` 与 `Command execution: WSL <distro> (user <user>)`，`Platform` 仍保留控制端 host 事实，不把整个 runtime 冒充 Linux。WSL 会话不再播报控制端 Windows shell 的恢复提醒（例如 “The Bash tool shell is Git Bash.”），避免与实际的 POSIX bash 矛盾。提示词段整体是建议性的：实际能否执行由执行绑定决定，提示词不使用 `Never`/`Do not` 等禁止性措辞。Windows-only 命令表述为“不属于本会话的路由；确需执行时建议请用户切回本机”，不声称技术上无法执行（WSL interop 可能允许 `.exe`，但不属于受支持路径）。
+切换提交后必须让 runtime 使下一轮请求重建 context prefix，提示词才能随环境出现/更新/消失；不能在消息历史里追加重复段。`# Environment` 在 WSL 时声明 `Shell: bash (POSIX, WSL)` 与 `Command execution: WSL <distro> (user <user>)`；未指定 user 时写作 `(default user)`，不虚构用户名。`Platform` 仍保留控制端 host 事实，不把整个 runtime 冒充 Linux。WSL 会话不再播报控制端 Windows shell 的恢复提醒（例如 “The Bash tool shell is Git Bash.”），避免与实际的 POSIX bash 矛盾。提示词段整体是建议性的：实际能否执行由执行绑定决定，提示词不使用 `Never`/`Do not` 等禁止性措辞。Windows-only 命令表述为“不属于本会话的路由；确需执行时建议请用户切回本机”，不声称技术上无法执行（WSL interop 可能允许 `.exe`，但不属于受支持路径）。
 
 性能建议只使用 `/mnt/c` 映射下的实测数据，数字与限制见
 [session-linux-performance-guidance.md](session-linux-performance-guidance.md)；不得套用 ext4 基准结论。

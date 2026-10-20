@@ -22,10 +22,18 @@ describe("sessionExecutionEnvironment", () => {
     expect(
       parseSessionExecutionEnvironment({ kind: "wsl", distro: "Ubuntu-22.04", user: "me" }),
     ).toEqual({ kind: "wsl", distro: "Ubuntu-22.04", user: "me" });
+    // user 缺省/留空 = 使用发行版默认用户：合法且归一为无 user 字段。
+    expect(parseSessionExecutionEnvironment({ kind: "wsl", distro: "Ubuntu-22.04" })).toEqual({
+      kind: "wsl",
+      distro: "Ubuntu-22.04",
+    });
+    expect(
+      parseSessionExecutionEnvironment({ kind: "wsl", distro: "Ubuntu-22.04", user: "  " }),
+    ).toEqual({ kind: "wsl", distro: "Ubuntu-22.04" });
     // 未指定环境保留现有行为
     expect(parseSessionExecutionEnvironment(undefined)).toBeUndefined();
     expect(parseSessionExecutionEnvironment({})).toBeUndefined();
-    // wsl 缺 distro/user 不再合法
+    // wsl 仍必须显式选择 distro
     expect(parseSessionExecutionEnvironment({ kind: "wsl" })).toBeUndefined();
     expect(parseSessionExecutionEnvironment("wsl")).toBeUndefined();
   });
@@ -49,6 +57,11 @@ describe("sessionExecutionEnvironment", () => {
       kind: "wsl",
       distro: "d",
       user: "u",
+    });
+    // 空 user 归一到缺省，避免持久层出现 `user: ""` 与字段缺失两种等价形态。
+    expect(normalizeSessionExecutionEnvironment({ kind: "wsl", distro: "d", user: "" })).toEqual({
+      kind: "wsl",
+      distro: "d",
     });
   });
 
@@ -74,6 +87,13 @@ describe("sessionExecutionWire", () => {
       workspacePath: "C:\\proj",
     };
     expect(sessionExecutionPrepareParamsSchema.safeParse(ok).success).toBe(true);
+    // 留空 user（缺省字段）同样合法：由执行端使用发行版默认用户。
+    expect(
+      sessionExecutionPrepareParamsSchema.safeParse({
+        ...ok,
+        environment: { kind: "wsl", distro: "Ubuntu-22.04" },
+      }).success,
+    ).toBe(true);
     expect(sessionExecutionPrepareParamsSchema.safeParse({ ...ok, extra: 1 }).success).toBe(false);
   });
 

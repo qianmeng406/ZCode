@@ -39,7 +39,12 @@ export function buildEnvInfoSection(
   additionalDirectories: readonly string[] = [],
   sessionExecutionEnvironment?: SessionExecutionEnvironment,
 ): ContextSection {
-  const content = buildEnvInfoContent(envInfo, model, additionalDirectories, sessionExecutionEnvironment);
+  const content = buildEnvInfoContent(
+    envInfo,
+    model,
+    additionalDirectories,
+    sessionExecutionEnvironment,
+  );
 
   return {
     name: "Environment Info",
@@ -95,7 +100,13 @@ function buildEnvInfoContent(
     // Platform 始终是控制端 host 的事实；WSL 只切换命令执行，不把整个 runtime 冒充 Linux。
     `- ${PLATFORM_LABEL}: ${info.platform}`,
     `- ${SHELL_LABEL}: ${wsl ? WSL_POSIX_SHELL : info.shell}`,
-    ...(wsl ? [`- ${COMMAND_EXECUTION_LABEL}: WSL ${wsl.distro} (user ${wsl.user})`] : []),
+    ...(wsl
+      ? [
+          `- ${COMMAND_EXECUTION_LABEL}: WSL ${wsl.distro} (${
+            wsl.user?.trim() ? `user ${wsl.user.trim()}` : "default user"
+          })`,
+        ]
+      : []),
     `- ${OS_VERSION_LABEL}: ${info.osVersion}`,
     // 旧环境快照可能携带历史模型字段；渲染只读取本步骤实际执行的 Model。
     ...(model

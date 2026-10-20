@@ -1,5 +1,5 @@
 import { z } from "zod";
-import { isValidWslUser, WSL_USER_MAX_LENGTH } from "./wslUserValidation.js";
+import { wslUserSchema } from "./wslUserValidation.js";
 
 // ============================================================
 // 会话级执行环境（session execution environment）
@@ -17,11 +17,14 @@ export interface SessionExecutionEnvironmentLocal {
   kind: "local";
 }
 
-/** 本机 WSL 执行环境。显式 distro/user 必填（spec：不能借用实验配置作全用户默认）。 */
+/**
+ * 本机 WSL 执行环境。distro 必填；user 缺省表示使用该发行版的默认用户
+ * （由执行端 `wsl.exe` 自行解析，不修改 WSL 的默认用户配置）。
+ */
 export interface SessionExecutionEnvironmentWsl {
   kind: "wsl";
   distro: string;
-  user: string;
+  user?: string;
 }
 
 export type SessionExecutionEnvironment =
@@ -35,8 +38,8 @@ export const sessionExecutionEnvironmentLocalSchema = z
 export const sessionExecutionEnvironmentWslSchema = z
   .object({
     kind: z.literal("wsl"),
-    // 显式 distro/user 是本机环境批准的一部分：trim 后必须非空且不含控制符/分隔符。
-    // 不复用 remoteTarget 的 wslConnectOptions 缺省语义（那是远程默认发行版语义）。
+    // distro 是本机环境批准的一部分：trim 后必须非空且不含控制符/分隔符。
+    // user 可缺省/留空 = 使用该发行版默认用户（执行端省略 `-u`，不改 WSL 的默认用户）。
     distro: z
       .string()
       .trim()
@@ -45,12 +48,7 @@ export const sessionExecutionEnvironmentWslSchema = z
       .refine((value) => !containsControlCharacter(value) && !/[/\\:]/.test(value), {
         message: "Invalid WSL distro",
       }),
-    user: z
-      .string()
-      .trim()
-      .min(1)
-      .max(WSL_USER_MAX_LENGTH)
-      .refine((value) => isValidWslUser(value), { message: "Invalid WSL user" }),
+    user: wslUserSchema.optional(),
   })
   .strict();
 
@@ -69,11 +67,20 @@ export function containsControlCharacter(value: string): boolean {
   return false;
 }
 
+/** 空 user（含纯空白）归一为缺省字段，避免持久层出现 `user: ""` 两种等价形态。 */
+function normalizeWslUser(environment: SessionExecutionEnvironment): SessionExecutionEnvironment {
+  if (environment.kind !== "wsl") return environment;
+  const user = environment.user?.trim();
+  return user
+    ? { kind: "wsl", distro: environment.distro, user }
+    : { kind: "wsl", distro: environment.distro };
+}
+
 export function parseSessionExecutionEnvironment(
   value: unknown,
 ): SessionExecutionEnvironment | undefined {
   const parsed = sessionExecutionEnvironmentSchema.safeParse(value);
-  return parsed.success ? parsed.data : undefined;
+  return parsed.success ? normalizeWslUser(parsed.data) : undefined;
 }
 
 /**
@@ -85,7 +92,7 @@ export function normalizeSessionExecutionEnvironment(
 ): SessionExecutionEnvironment | undefined {
   if (!value) return undefined;
   if (value.kind === "local") return undefined;
-  return value;
+  return normalizeWslUser(value);
 }
 
 /**

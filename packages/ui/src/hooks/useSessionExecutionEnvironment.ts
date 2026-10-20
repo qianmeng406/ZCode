@@ -29,7 +29,7 @@ export interface SessionExecutionEnvironmentServicePort {
     workspacePath: string;
     workspaceIdentity?: string;
     sessionId: string;
-    /** 必须显式 distro+user 的 wsl 环境，或 kind:"local" 回到本机默认。 */
+    /** wsl 环境（distro 必填，user 缺省 = 发行版默认用户），或 kind:"local" 回到本机默认。 */
     environment: SessionExecutionEnvironment;
   }): Promise<{ state: SessionExecutionState }>;
   cancelExecutionEnvironmentPreparation(params: {
@@ -39,11 +39,14 @@ export interface SessionExecutionEnvironmentServicePort {
   }): Promise<{ state: SessionExecutionState }>;
 }
 
-/** WSL 选择必须显式：distro 与 user 都由用户选/填，无默认回退（协调口径）。 */
+/**
+ * WSL 选择：distro 必须显式；user 留空表示使用该发行版默认用户
+ * （执行端省略 `-u` 由 WSL 解析，不修改 WSL 默认用户）。
+ */
 export interface SessionExecutionEnvironmentSelection {
   kind: "wsl";
   distro: string;
-  user: string;
+  user?: string;
 }
 
 export type SessionExecutionEnvironmentPreparationPhase =
@@ -73,7 +76,7 @@ export function canConfigureSessionExecutionEnvironment(params: {
   return Boolean(params.sessionId) && !params.isRemoteWorkspace && params.isWindowsLocalWorkspace;
 }
 
-/** 显式选择校验：distro 与 user 均必填且合法（无默认用户回退）。 */
+/** 选择校验：distro 必填；user 可留空（= 默认用户），填写时必须合法。 */
 export function validateSessionExecutionEnvironmentSelection(
   selection: SessionExecutionEnvironmentSelection,
 ): string | null {
@@ -81,11 +84,8 @@ export function validateSessionExecutionEnvironmentSelection(
   if (!distro) {
     return "sessionExecutionEnvironment.error.distroRequired";
   }
-  const user = selection.user.trim();
-  if (!user) {
-    return "sessionExecutionEnvironment.error.userRequired";
-  }
-  if (!isValidWslUser(user)) {
+  const user = selection.user?.trim() ?? "";
+  if (user && !isValidWslUser(user)) {
     return "sessionExecutionEnvironment.error.invalidUser";
   }
   return null;
@@ -230,13 +230,15 @@ export function useSessionExecutionEnvironment(
       cancelledRef.current = false;
       setPreparation({ phase: "preparing", error: null });
       try {
+        const user = selection.kind === "wsl" ? (selection.user?.trim() ?? "") : "";
         const environment: SessionExecutionEnvironment =
           selection.kind === "local"
             ? { kind: "local" }
             : {
                 kind: "wsl",
                 distro: selection.distro.trim(),
-                user: selection.user.trim(),
+                // 留空即缺省字段：Host 端省略 `-u`，由 WSL 使用发行版默认用户。
+                ...(user ? { user } : {}),
               };
         const result = await resolvePort(injectedService).setExecutionEnvironment({
           workspacePath,
@@ -353,7 +355,8 @@ export function validateSessionExecutionEnvironmentDraft(
 }
 
 /**
- * 环境展示标签：wsl 用 user@distro（无 user 时只 distro）；local/null 回本机默认文案。
+ * 环境展示标签：wsl 用 user@distro；未指定 user 时显式标注“默认用户”，
+ * 避免只显示 distro 让用户误以为没配置成功；local/null 回本机默认文案。
  */
 export function formatSessionExecutionEnvironmentLabel(
   intl: { formatMessage: (desc: { id: string }) => string },
@@ -363,5 +366,10 @@ export function formatSessionExecutionEnvironmentLabel(
     return intl.formatMessage({ id: "sessionExecutionEnvironment.current.default" });
   }
   const user = environment.user?.trim();
-  return user ? `${user}@${environment.distro}` : environment.distro;
+  if (user) {
+    return `${user}@${environment.distro}`;
+  }
+  return `${environment.distro} · ${intl.formatMessage({
+    id: "sessionExecutionEnvironment.user.defaultTag",
+  })}`;
 }

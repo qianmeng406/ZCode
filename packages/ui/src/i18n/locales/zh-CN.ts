@@ -1999,8 +1999,10 @@ const zhCN: Record<string, string> = {
   "appHeader.reloadSessionSuccess": "会话已重载",
   "appHeader.reloadSessionFailed": "重载会话失败",
   "appHeader.workspaceSessionActionLoading": "正在应用会话变更...",
-  "sessionExecutionEnvironment.menu.label": "执行环境（本机 Linux）",
-  "sessionExecutionEnvironment.toolbar.label": "Linux 环境",
+  "sessionExecutionEnvironment.menu.label": "执行环境",
+  "sessionExecutionEnvironment.toolbar.local": "本机 Windows",
+  "sessionExecutionEnvironment.toolbar.loading": "正在读取执行环境…",
+  "sessionExecutionEnvironment.toolbar.title": "执行环境：{environment}（点击切换）",
   "sessionExecutionEnvironment.dialog.title": "会话执行环境",
   "sessionExecutionEnvironment.dialog.description":
     "为本会话选择 Agent 命令的执行环境。会话历史、模型与权限保持不变，不同会话可以使用不同环境。",
@@ -2013,10 +2015,12 @@ const zhCN: Record<string, string> = {
   "sessionExecutionEnvironment.distro.unavailableHint":
     "无法读取 WSL 发行版列表，可能 WSL 未安装或未就绪。",
   "sessionExecutionEnvironment.distro.defaultTag": "默认",
-  "sessionExecutionEnvironment.user.label": "Linux 用户",
-  "sessionExecutionEnvironment.user.placeholder": "发行版内已存在的用户名，例如 ubuntu",
+  "sessionExecutionEnvironment.user.label": "Linux 用户（可选）",
+  "sessionExecutionEnvironment.user.placeholder": "留空则使用发行版默认用户，或填写已存在的用户名",
+  "sessionExecutionEnvironment.user.defaultHint":
+    "留空时由执行端使用该发行版配置的默认用户，不会修改 WSL 的默认用户。",
+  "sessionExecutionEnvironment.user.defaultTag": "默认用户",
   "sessionExecutionEnvironment.error.distroRequired": "请选择 WSL 发行版",
-  "sessionExecutionEnvironment.error.userRequired": "请填写发行版内已存在的 Linux 用户名",
   "sessionExecutionEnvironment.error.invalidUser": "用户名包含非法字符",
   "sessionExecutionEnvironment.hint.title": "使用须知",
   "sessionExecutionEnvironment.hint.mountedFiles":
@@ -2034,8 +2038,6 @@ const zhCN: Record<string, string> = {
   "sessionExecutionEnvironment.action.cancelPrepare": "取消准备",
   "sessionExecutionEnvironment.action.retry": "重试",
   "sessionExecutionEnvironment.action.apply": "应用到此会话",
-  "sessionExecutionEnvironment.action.explicitRequiredHint":
-    "需先选择发行版并填写发行版内已存在的 Linux 用户",
   "sessionExecutionEnvironment.action.useDefault": "回到本机默认",
   "sessionExecutionEnvironment.scopeNote":
     "仅影响本会话 Agent 命令执行；文件、Git 与内置终端仍在本机 Windows 侧。",
