@@ -747,6 +747,32 @@ modules:
     layers:
       app: .
     owner: desktop
+  # shared-ai-features：由 architecture:adopt 登记
+  - id: shared-ai-features
+    roots:
+      - packages/shared/src/ai-features
+    managed: true
+    requires: []
+    publicEntrypoints:
+      - packages/shared/src/ai-features/index.ts
+      - packages/shared/src/ai-features/contract.ts
+    layers:
+      domain: .
+  # settings-ai-features：由 architecture:adopt 登记
+  - id: settings-ai-features
+    roots:
+      - packages/ui/src/settings/ai-features
+    managed: true
+    requires:
+      - provider
+      - shared
+      - ui
+    publicEntrypoints:
+      - packages/ui/src/settings/ai-features/index.ts
+      - packages/ui/src/settings/ai-features/contract.ts
+      - packages/ui/src/settings/ai-features/aiFeatureModelOptions.ts
+    layers:
+      ui: .
 
 global:
   # 临时时间戳（2026-09-10）：unmanaged-new-file 只约束此日期之后首次入库的文件。

@@ -6,10 +6,7 @@ import { REMOTE_ASSET_INSTALL_MODES } from "./remoteAssetInstallMode.js";
 import { isKnownRemoteResourcePackageId } from "./remoteResourcePackages.js";
 import { wslUserSchema } from "./wslUserValidation.js";
 import { DYNAMIC_WORKFLOW_MODES } from "./dynamic-workflow-feature.js";
-import {
-  PROMPT_OPTIMIZER_CONTEXT_RANGES,
-  PROMPT_OPTIMIZER_MODES,
-} from "./ai-feature-preferences.js";
+import { PROMPT_OPTIMIZER_CONTEXT_RANGES, PROMPT_OPTIMIZER_MODES } from "./ai-features/index.js";
 import { modelSelectionSchema } from "./model-selection.js";
 import { normalizeZCodeEndpointOrigin } from "./zcodeEndpoint.js";
 import {

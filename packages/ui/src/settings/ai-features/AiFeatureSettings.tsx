@@ -13,7 +13,7 @@ import { useSettings } from "@/hooks/useSettingService.js";
 import { useBaseWorkspaceServices } from "@/hooks/useWorkspaceServices.js";
 import { useZCodeIntl } from "@/i18n/IntlProvider.js";
 import { logger } from "@/logger.js";
-import { AiFeatureModelSetting } from "@/settings/AiFeatureModelSetting.js";
+import { AiFeatureModelSetting } from "./AiFeatureModelSetting.js";
 import { SettingsRow } from "@/settings/SettingsPageParts.js";
 
 const PROMPT_OPTIMIZER_MODE_LABEL_KEYS: Record<PromptOptimizerMode, string> = {

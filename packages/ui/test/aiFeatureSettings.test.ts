@@ -87,7 +87,7 @@ vi.mock("@/components/ui/select.js", async () => {
   };
 });
 
-import { OracleReviewModelSetting, PromptOptimizerSetting } from "@/settings/AiFeatureSettings.js";
+import { OracleReviewModelSetting, PromptOptimizerSetting } from "@/settings/ai-features/index.js";
 
 describe("AI feature settings", () => {
   beforeEach(() => {

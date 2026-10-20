@@ -36,7 +36,7 @@ import { useZCodeIntl } from "@/i18n/IntlProvider.js";
 import { useOptionalServices } from "@/hooks/useServices.js";
 import { ProactiveSuggestionsSetting } from "@/settings/ProactiveSuggestionsSetting.js";
 import { DynamicWorkflowModeSetting } from "@/settings/DynamicWorkflowModeSetting.js";
-import { OracleReviewModelSetting, PromptOptimizerSetting } from "@/settings/AiFeatureSettings.js";
+import { OracleReviewModelSetting, PromptOptimizerSetting } from "@/settings/ai-features/index.js";
 import { normalizeInterfaceMode, type InterfaceMode } from "@/lib/interfaceMode.js";
 import {
   createSettingsPageConfig,

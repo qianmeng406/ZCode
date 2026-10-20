@@ -113,7 +113,7 @@ export * from "./plugin-display-name.js";
 export * from "./zcode-agent-runtime.js";
 export * from "./runtimeEnv.js";
 export * from "./dynamic-workflow-feature.js";
-export * from "./ai-feature-preferences.js";
+export * from "./ai-features/index.js";
 export * from "./markdown-artifact-images.js";
 export * from "./serviceAuthority.js";
 export * from "./server-remote.js";

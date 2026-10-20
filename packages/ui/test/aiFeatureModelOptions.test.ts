@@ -7,7 +7,7 @@ import {
   buildAiFeatureSelection,
   findAiFeatureModel,
   formatAiFeatureModelValue,
-} from "../src/settings/aiFeatureModelOptions.js";
+} from "../src/settings/ai-features/aiFeatureModelOptions.js";
 
 const view = {
   providers: [

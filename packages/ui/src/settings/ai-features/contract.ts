@@ -1,0 +1,10 @@
+/**
+ * settings-ai-features 对外契约：设置页只负责展示与归一化，不直接写设置。
+ * 调用方通过受控 props 注入当前值与保存回调。
+ */
+export type { AiFeatureModelSettingProps } from "./AiFeatureModelSetting.js";
+export type {
+  AiFeatureModelGroup,
+  AiFeatureModelOption,
+  AiFeatureReasoningLevelPolicy,
+} from "./aiFeatureModelOptions.js";

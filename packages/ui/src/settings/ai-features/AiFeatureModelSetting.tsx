@@ -21,7 +21,7 @@ import {
   formatAiFeatureModelValue,
   type AiFeatureModelGroup,
   type AiFeatureReasoningLevelPolicy,
-} from "@/settings/aiFeatureModelOptions.js";
+} from "./aiFeatureModelOptions.js";
 
 export interface AiFeatureModelSettingProps {
   label: string;

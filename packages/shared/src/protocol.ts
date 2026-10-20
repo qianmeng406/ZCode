@@ -5,7 +5,7 @@ import type { ProviderFamilyConnectionSelectionSettings } from "./provider-famil
 import type { ZCodeProvider } from "./zcode-task-types-core.js";
 import type { WorkspacePurpose } from "./workspacePurpose.js";
 import type { DynamicWorkflowMode } from "./dynamic-workflow-feature.js";
-import type { PromptOptimizerContextRange, PromptOptimizerMode } from "./ai-feature-preferences.js";
+import type { PromptOptimizerContextRange, PromptOptimizerMode } from "./ai-features/index.js";
 import type { ModelSelection } from "./model-selection.js";
 import type { EmbeddedBrowserViewportPreference } from "./browser-use/command-metadata.js";
 import type { AppToolSearchMode } from "./app-runtime-preferences.js";
