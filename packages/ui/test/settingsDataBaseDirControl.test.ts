@@ -69,6 +69,13 @@ vi.mock("@/settings/SettingsPageParts.js", () => ({
   }) => createElement("div", null, description, control, detail),
 }));
 
+// 本文件只验证数据目录等 General 设置行；AI 功能设置行需要 ServiceProvider，
+// 由 aiFeatureSettings.test.ts 单独覆盖。
+vi.mock("@/settings/ai-features/index.js", () => ({
+  OracleReviewModelSetting: () => null,
+  PromptOptimizerSetting: () => null,
+}));
+
 vi.mock("@/i18n/IntlProvider.js", () => ({
   useZCodeIntl: () => ({
     intl: {
