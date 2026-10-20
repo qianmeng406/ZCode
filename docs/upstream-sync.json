@@ -19,12 +19,14 @@
     "pushPolicy": "fetch-only"
   },
   "currentBase": {
-    "tag": "v3.15.1",
-    "commit": "aac4755666d09fdcd70272fcf063c077a639015f"
+    "tag": null,
+    "commit": "0a1fc56d279fd1001f78387bd81aec1c26767411",
+    "sourceCommit": "1f4d7f01beb143df0ec1224f0ed4236f42d0fd13",
+    "note": "3.16.1 未打 tag，以上游 main 提交发布；后续同步的 --is-ancestor 校验改用该 commit SHA。"
   },
   "versions": {
-    "desktop": "3.15.1",
-    "cli": "0.16.9"
+    "desktop": "3.16.1",
+    "cli": "0.17.0"
   },
   "retiredFeatures": [
     "companion/mobile 自建移动端远控",
