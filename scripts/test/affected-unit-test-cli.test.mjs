@@ -238,7 +238,9 @@ test("实际选中测试失败返回 1，无关测试不执行", async (t) => {
   assert.ok(!result.stdout.includes("UNSELECTED_TEST_EXECUTED"));
 });
 
-test("lint-staged manifest 使用官方 related，保留用户 manifest", async (t) => {
+// fork 已退役 lint-staged（3b2b4c06：推送门禁改为 scripts/git-gate 强相关选测），
+// run-lint-staged-vitest.mjs 随之删除；保留用例骨架并跳过，避免复活退役子系统。
+test.skip("lint-staged manifest 使用官方 related，保留用户 manifest", async (t) => {
   const { root, write, invoke } = await fixture(t);
   await write("source.mjs", "export const value = 2;");
   await write(

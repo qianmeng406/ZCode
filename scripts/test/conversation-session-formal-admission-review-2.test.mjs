@@ -89,7 +89,21 @@ function codes(result, caseName) {
   );
 }
 
-test("rejects provider and static file symlinks that escape trusted roots", async () => {
+test("rejects provider and static file symlinks that escape trusted roots", async (t) => {
+  // Windows 无「创建符号链接」特权（未开开发者模式）时 symlink() 直接 EPERM；
+  // 本用例需要真实文件符号链接（junction 仅支持目录），能力缺失时跳过而非失败。
+  const probeRoot = await mkdtemp(join(tmpdir(), "zcode-symlink-probe-"));
+  try {
+    await symlink(join(probeRoot, "target"), join(probeRoot, "link"));
+  } catch (error) {
+    if (error?.code === "EPERM" || error?.code === "EACCES") {
+      t.skip("宿主无创建文件符号链接的特权（Windows 需开启开发者模式）");
+      return;
+    }
+    throw error;
+  } finally {
+    await rm(probeRoot, { force: true, recursive: true });
+  }
   const root = await makeRoot();
   const provider = await addFormalCase(root, "provider-symlink-escape");
   await writeJson(root, "outside-provider.json", { version: 1, fixtures: [] });
