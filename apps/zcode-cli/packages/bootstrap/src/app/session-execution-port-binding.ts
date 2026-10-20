@@ -32,7 +32,8 @@ export interface SessionExecutionBorrowedWsl {
   lease: SessionExecutionLease;
   capabilities: { bashBackgroundLifecycle: boolean; embeddedSearchNative: boolean };
   distro: string;
-  user: string;
+  /** 缺省表示使用发行版默认用户（与共享契约一致）。 */
+  user?: string;
 }
 
 export interface SessionExecutionLocalPorts {
