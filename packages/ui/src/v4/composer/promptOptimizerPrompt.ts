@@ -8,8 +8,9 @@
  * - 保真检查只做低成本字面量核对，产出**警告**，不声称证明语义等价。
  */
 
-export type PromptOptimizerMode = "polish" | "structure";
-export type PromptOptimizerContextRange = "draft" | "conversation";
+import type { PromptOptimizerContextRange, PromptOptimizerMode } from "@zcode/shared";
+
+export type { PromptOptimizerContextRange, PromptOptimizerMode } from "@zcode/shared";
 
 /** 单条草稿的输入预算：超限提示用户缩短，不静默截断草稿。 */
 export const MAX_PROMPT_OPTIMIZER_DRAFT_CHARS = 24_000;

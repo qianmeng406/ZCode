@@ -63,8 +63,6 @@ import type {
 } from "@zcode/shared/zcode-protocol-v4";
 import {
   ArrowUpIcon,
-  CheckIcon,
-  ChevronDownIcon,
   ClipboardPenLineIcon,
   InfoIcon,
   RotateCcwIcon,
@@ -75,17 +73,6 @@ import {
   XIcon,
 } from "lucide-react";
 import { ControlHintTooltip } from "@/ControlHintTooltip.js";
-import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuLabel,
-  DropdownMenuSeparator,
-  DropdownMenuSub,
-  DropdownMenuSubContent,
-  DropdownMenuSubTrigger,
-  DropdownMenuTrigger,
-} from "@/components/ui/dropdown-menu.js";
 import {
   ChatErrorBanner,
   resolveChatErrorBannerDisplayMessage,
@@ -171,11 +158,7 @@ import {
 } from "@/v4/composer/followupModeSettings.js";
 import { isAppleKeyboardPlatform } from "@/lib/keyboardShortcuts.js";
 import { usePrimaryFollowupModifier } from "@/v4/composer/usePrimaryFollowupModifier.js";
-import {
-  readStoredOptimizerModelSelection,
-  usePromptOptimizer,
-  writeStoredOptimizerModelSelection,
-} from "@/v4/composer/usePromptOptimizer.js";
+import { usePromptOptimizer } from "@/v4/composer/usePromptOptimizer.js";
 import type {
   PromptOptimizerContextRange,
   PromptOptimizerMode,
@@ -477,6 +460,10 @@ export interface ConversationComposerProps {
   autoFocusEnabled?: boolean;
   /** Oracle 把关控制面由 SessionPane 注入（轮尾「审查这一回合」与 composer 共用同一实例）。 */
   oracleReview?: OracleReviewController;
+  /** 提示词优化全局配置（设置页）；缺省时使用安全默认值。 */
+  promptOptimizerModel?: ModelSelection | null;
+  promptOptimizerMode?: PromptOptimizerMode;
+  promptOptimizerContextRange?: PromptOptimizerContextRange;
   /** 当前 composer 是否运行在手机 Web 远控壳中。 */
   isWebRemoteControl?: boolean;
   workspacePath: string;
@@ -602,6 +589,9 @@ function ConversationComposerImpl({
   autoFocusEnabled = true,
   isWebRemoteControl = false,
   oracleReview,
+  promptOptimizerModel = null,
+  promptOptimizerMode = "polish",
+  promptOptimizerContextRange = "conversation",
   workspacePath,
   workspaceIdentity,
   remoteSessionId,
@@ -1344,18 +1334,7 @@ function ConversationComposerImpl({
   const canStop = Boolean(snapshot?.control.canStop);
   const modifiedEnterReversesDelivery = modifiedEnterSubmits && canStop;
   const hasText = text.trim().length > 0;
-  // 优化用模型：null = 跟随会话模型；用户显式选择后全局记住。
-  const [optimizerModel, setOptimizerModel] = useState<ModelSelection | null>(() =>
-    readStoredOptimizerModelSelection(),
-  );
-  const handleSelectOptimizerModel = useCallback((selection: ModelSelection | null) => {
-    setOptimizerModel(selection);
-    writeStoredOptimizerModelSelection(selection);
-  }, []);
-  // 优化方式/上下文范围：本版只在当前组件存活期内记忆，不做全局偏好。
-  const [optimizerMode, setOptimizerMode] = useState<PromptOptimizerMode>("polish");
-  const [optimizerContextRange, setOptimizerContextRange] =
-    useState<PromptOptimizerContextRange>("conversation");
+  // 优化模型/方式/上下文统一来自设置页；输入栏只保留一次点击的 ✨ 动作。
   const handleOptimizePrompt = useCallback(() => {
     const draft = textRef.current.trim();
     if (!draft || promptOptimizer.optimizing || pendingRef.current) {
@@ -1363,7 +1342,7 @@ function ConversationComposerImpl({
     }
     // 模型解析必须是同步的：await 之后再分配请求身份会留下重复请求与取消空窗，
     // 所以这里用组件已有的 ModelSelectionView 直接算出推理档清单。
-    const pick = optimizerModel ?? modelSelectionView?.preferredSelection ?? null;
+    const pick = promptOptimizerModel ?? modelSelectionView?.preferredSelection ?? null;
     const pickedModel = pick
       ? modelSelectionView?.providers
           .find((provider) => provider.providerId === pick.providerId)
@@ -1377,8 +1356,8 @@ function ConversationComposerImpl({
       draft,
       // 版本用内容修订号，不用文本本身：空白/缩进改动也必须算「草稿变了」。
       version: String(contentRevisionRef.current),
-      mode: optimizerMode,
-      contextRange: optimizerContextRange,
+      mode: promptOptimizerMode,
+      contextRange: promptOptimizerContextRange,
       rows: snapshot?.rows.window ?? [],
       selection: pick,
       // null = 该模型不在当前视图里（已下线/换提供方）：明确报错，不静默改模型。
@@ -1402,9 +1381,9 @@ function ConversationComposerImpl({
     hasPptxElementReferences,
     hasWebElementContexts,
     modelSelectionView,
-    optimizerContextRange,
-    optimizerMode,
-    optimizerModel,
+    promptOptimizerContextRange,
+    promptOptimizerMode,
+    promptOptimizerModel,
     promptOptimizer,
     snapshot,
     snapshotDraftOfEditor,
@@ -2559,61 +2538,15 @@ function ConversationComposerImpl({
   const optimizePromptTitle = intl.formatMessage({
     id: "chat.composer.optimizePrompt",
   });
-  // ✨ 旁的下拉：优化用模型清单（按 provider 分组）。没有可用模型时整个下拉不渲染。
-  // Oracle 复用同一份模型清单；推理档两者取向相反：优化取最低档走辅助快速通道，
-  // Oracle 由用户在档位子菜单里自选（默认跟随模型档位，见 resolveOracleRequestOptions）。
-  const optimizerModelGroups = useMemo(
-    () =>
-      (modelSelectionView?.providers ?? [])
-        .filter((provider) => provider.models.length > 0)
-        .map((provider) => ({
-          key: provider.providerId,
-          label: provider.providerName?.trim() || provider.providerId,
-          models: provider.models.map((model) => ({
-            modelId: model.modelId,
-            // 部分渠道（如 Command Code）在创建模型时强制要求推理档；
-            // 选中即带该模型的最低公开档，正好与辅助快速通道的绑定一致。
-            reasoningLevel: model.config.optionSpecs.reasoningLevel?.values[0],
-            // 全量档位：把关模型下拉的档位子菜单用（不再自动顶最高档后，
-            // 强度控制交还用户，见 resolveOracleRequestOptions）。
-            reasoningLevels: model.config.optionSpecs.reasoningLevel?.values ?? [],
-          })),
-        })),
-    [modelSelectionView],
-  );
-  const optimizeModelMenuTitle = intl.formatMessage({
-    id: "chat.composer.optimizeModel",
-  });
-  const optimizeModelFollowLabel = intl.formatMessage({
-    id: "chat.composer.optimizeModelFollow",
-  });
-  const optimizeOptionsLabel = intl.formatMessage({
-    id: "chat.composer.optimizeOptions",
-  });
-  const optimizeModeLabel = intl.formatMessage({
-    id: "chat.composer.optimizeMode",
-  });
-  const optimizeContextLabel = intl.formatMessage({
-    id: "chat.composer.optimizeContext",
-  });
   const oracleReviewButtonTitle = intl.formatMessage({
     id: "chat.composer.oracleReview",
-  });
-  const oracleModelMenuTitle = intl.formatMessage({
-    id: "chat.composer.oracleModel",
-  });
-  const oracleModelFollowLabel = intl.formatMessage({
-    id: "chat.composer.oracleModelFollow",
-  });
-  const oracleReasoningDefaultLabel = intl.formatMessage({
-    id: "chat.composer.oracleReasoningDefault",
   });
   const oracleDepthDeepLabel = intl.formatMessage({
     id: "chat.oracleReview.reviewDepth.deep",
   });
   const optimizePromptTooltip =
-    optimizerModel && promptOptimizer.optimizing === false
-      ? `${optimizePromptTitle}（${optimizerModel.modelId}）`
+    promptOptimizerModel && promptOptimizer.optimizing === false
+      ? `${optimizePromptTitle}（${promptOptimizerModel.modelId}）`
       : optimizePromptTitle;
   const submitControlNode = useMemo(
     () => (
@@ -2691,135 +2624,6 @@ function ConversationComposerImpl({
                 <span className="sr-only">{optimizePromptTooltip}</span>
               </Button>
             </ControlHintTooltip>
-            {optimizerModelGroups.length > 0 ? (
-              <DropdownMenu>
-                <DropdownMenuTrigger asChild>
-                  <Button
-                    type="button"
-                    variant="ghost"
-                    size="icon-sm"
-                    disabled={disabled}
-                    data-testid="v4-composer-optimize-model"
-                    aria-label={optimizeModelMenuTitle}
-                  >
-                    <ChevronDownIcon className="size-3 text-foreground-subtle" />
-                  </Button>
-                </DropdownMenuTrigger>
-                <DropdownMenuContent align="end" className="max-h-72 w-56 overflow-y-auto">
-                  <DropdownMenuItem onSelect={() => handleSelectOptimizerModel(null)}>
-                    <span className="min-w-0 flex-1 truncate">{optimizeModelFollowLabel}</span>
-                    {optimizerModel === null ? <CheckIcon className="size-3.5 shrink-0" /> : null}
-                  </DropdownMenuItem>
-                  <DropdownMenuSeparator />
-                  {optimizerModelGroups.map((group) => (
-                    <div key={group.key}>
-                      <DropdownMenuLabel className="text-ui-xs text-foreground-subtlest">
-                        {group.label}
-                      </DropdownMenuLabel>
-                      {group.models.map((model) => {
-                        const selected =
-                          optimizerModel?.providerId === group.key &&
-                          optimizerModel.modelId === model.modelId;
-                        return (
-                          <DropdownMenuItem
-                            key={model.modelId}
-                            onSelect={() =>
-                              handleSelectOptimizerModel({
-                                providerId: group.key,
-                                modelId: model.modelId,
-                                ...(model.reasoningLevel
-                                  ? {
-                                      options: {
-                                        reasoningLevel: model.reasoningLevel,
-                                      },
-                                    }
-                                  : {}),
-                              })
-                            }
-                          >
-                            <span className="min-w-0 flex-1 truncate">{model.modelId}</span>
-                            {selected ? <CheckIcon className="size-3.5 shrink-0" /> : null}
-                          </DropdownMenuItem>
-                        );
-                      })}
-                    </div>
-                  ))}
-                </DropdownMenuContent>
-              </DropdownMenu>
-            ) : null}
-            <DropdownMenu>
-              <DropdownMenuTrigger asChild>
-                <Button
-                  type="button"
-                  variant="ghost"
-                  size="icon-sm"
-                  disabled={disabled || promptOptimizer.optimizing}
-                  data-testid="v4-composer-optimize-options"
-                  aria-label={optimizeOptionsLabel}
-                >
-                  <ChevronDownIcon className="size-3 text-foreground-subtle" />
-                </Button>
-              </DropdownMenuTrigger>
-              <DropdownMenuContent align="end" className="w-56">
-                <DropdownMenuLabel className="text-ui-xs text-foreground-subtlest">
-                  {optimizeModeLabel}
-                </DropdownMenuLabel>
-                <DropdownMenuItem
-                  data-testid="v4-composer-optimize-mode-polish"
-                  onSelect={() => setOptimizerMode("polish")}
-                >
-                  <span className="min-w-0 flex-1 truncate">
-                    {intl.formatMessage({
-                      id: "chat.composer.optimizeModePolish",
-                    })}
-                  </span>
-                  {optimizerMode === "polish" ? <CheckIcon className="size-3.5 shrink-0" /> : null}
-                </DropdownMenuItem>
-                <DropdownMenuItem
-                  data-testid="v4-composer-optimize-mode-structure"
-                  onSelect={() => setOptimizerMode("structure")}
-                >
-                  <span className="min-w-0 flex-1 truncate">
-                    {intl.formatMessage({
-                      id: "chat.composer.optimizeModeStructure",
-                    })}
-                  </span>
-                  {optimizerMode === "structure" ? (
-                    <CheckIcon className="size-3.5 shrink-0" />
-                  ) : null}
-                </DropdownMenuItem>
-                <DropdownMenuSeparator />
-                <DropdownMenuLabel className="text-ui-xs text-foreground-subtlest">
-                  {optimizeContextLabel}
-                </DropdownMenuLabel>
-                <DropdownMenuItem
-                  data-testid="v4-composer-optimize-context-draft"
-                  onSelect={() => setOptimizerContextRange("draft")}
-                >
-                  <span className="min-w-0 flex-1 truncate">
-                    {intl.formatMessage({
-                      id: "chat.composer.optimizeContextDraft",
-                    })}
-                  </span>
-                  {optimizerContextRange === "draft" ? (
-                    <CheckIcon className="size-3.5 shrink-0" />
-                  ) : null}
-                </DropdownMenuItem>
-                <DropdownMenuItem
-                  data-testid="v4-composer-optimize-context-conversation"
-                  onSelect={() => setOptimizerContextRange("conversation")}
-                >
-                  <span className="min-w-0 flex-1 truncate">
-                    {intl.formatMessage({
-                      id: "chat.composer.optimizeContextConversation",
-                    })}
-                  </span>
-                  {optimizerContextRange === "conversation" ? (
-                    <CheckIcon className="size-3.5 shrink-0" />
-                  ) : null}
-                </DropdownMenuItem>
-              </DropdownMenuContent>
-            </DropdownMenu>
             {/* 手动审查入口不随 oracleReviewEnabled 隐藏：总开关只控「回合成功后的
                 自动把关」；用它连带隐藏按钮，用户关掉自动后就连手动入口一起找不到了。 */}
             {oracleReview ? (
@@ -2854,111 +2658,6 @@ function ConversationComposerImpl({
                   <span className="sr-only">{oracleDepthDeepLabel}</span>
                 </Button>
               </ControlHintTooltip>
-            ) : null}
-            {oracleReview && optimizerModelGroups.length > 0 ? (
-              <DropdownMenu>
-                <DropdownMenuTrigger asChild>
-                  <Button
-                    type="button"
-                    variant="ghost"
-                    size="icon-sm"
-                    disabled={disabled}
-                    data-testid="v4-composer-oracle-model"
-                    aria-label={oracleModelMenuTitle}
-                  >
-                    <ChevronDownIcon className="size-3 text-foreground-subtle" />
-                  </Button>
-                </DropdownMenuTrigger>
-                <DropdownMenuContent align="end" className="max-h-72 w-56 overflow-y-auto">
-                  <DropdownMenuItem onSelect={() => oracleReview.onSelectModel(null)}>
-                    <span className="min-w-0 flex-1 truncate">{oracleModelFollowLabel}</span>
-                    {oracleReview.model === null ? (
-                      <CheckIcon className="size-3.5 shrink-0" />
-                    ) : null}
-                  </DropdownMenuItem>
-                  <DropdownMenuSeparator />
-                  {optimizerModelGroups.map((group) => (
-                    <div key={group.key}>
-                      <DropdownMenuLabel className="text-ui-xs text-foreground-subtlest">
-                        {group.label}
-                      </DropdownMenuLabel>
-                      {group.models.map((model) => {
-                        const selected =
-                          oracleReview.model?.providerId === group.key &&
-                          oracleReview.model.modelId === model.modelId;
-                        const hasLevels = model.reasoningLevels.length > 0;
-                        // 无公开推理档的模型（非推理模型/渠道未暴露 optionSpec）回退为
-                        // 普通条目直接选中——SubTrigger 没有子菜单内容时不可选，会回归。
-                        if (!hasLevels) {
-                          return (
-                            <DropdownMenuItem
-                              key={model.modelId}
-                              onSelect={() =>
-                                oracleReview.onSelectModel({
-                                  providerId: group.key,
-                                  modelId: model.modelId,
-                                })
-                              }
-                            >
-                              <span className="min-w-0 flex-1 truncate">{model.modelId}</span>
-                              {selected ? <CheckIcon className="size-3.5 shrink-0" /> : null}
-                            </DropdownMenuItem>
-                          );
-                        }
-                        return (
-                          <DropdownMenuSub key={model.modelId}>
-                            <DropdownMenuSubTrigger className="gap-2">
-                              <span className="min-w-0 flex-1 truncate">{model.modelId}</span>
-                              {selected ? <CheckIcon className="size-3.5 shrink-0" /> : null}
-                            </DropdownMenuSubTrigger>
-                            {hasLevels ? (
-                              <DropdownMenuSubContent className="max-h-64 overflow-y-auto">
-                                <DropdownMenuItem
-                                  onSelect={() =>
-                                    oracleReview.onSelectModel({
-                                      providerId: group.key,
-                                      modelId: model.modelId,
-                                    })
-                                  }
-                                >
-                                  <span className="min-w-0 flex-1 truncate">
-                                    {oracleReasoningDefaultLabel}
-                                  </span>
-                                  {selected && !oracleReview.model?.options?.reasoningLevel ? (
-                                    <CheckIcon className="size-3.5 shrink-0" />
-                                  ) : null}
-                                </DropdownMenuItem>
-                                {model.reasoningLevels.map((level) => {
-                                  const levelSelected =
-                                    selected &&
-                                    oracleReview.model?.options?.reasoningLevel === level;
-                                  return (
-                                    <DropdownMenuItem
-                                      key={level}
-                                      onSelect={() =>
-                                        oracleReview.onSelectModel({
-                                          providerId: group.key,
-                                          modelId: model.modelId,
-                                          options: { reasoningLevel: level },
-                                        })
-                                      }
-                                    >
-                                      <span className="min-w-0 flex-1 truncate">{level}</span>
-                                      {levelSelected ? (
-                                        <CheckIcon className="size-3.5 shrink-0" />
-                                      ) : null}
-                                    </DropdownMenuItem>
-                                  );
-                                })}
-                              </DropdownMenuSubContent>
-                            ) : null}
-                          </DropdownMenuSub>
-                        );
-                      })}
-                    </div>
-                  ))}
-                </DropdownMenuContent>
-              </DropdownMenu>
             ) : null}
           </>
         ) : null}
@@ -3006,19 +2705,12 @@ function ConversationComposerImpl({
       composerUsage,
       disabled,
       handleOptimizePrompt,
-      handleSelectOptimizerModel,
       hasText,
-      optimizerModel,
-      optimizerModelGroups,
-      optimizeModelFollowLabel,
-      optimizeModelMenuTitle,
       optimizePromptTitle,
       optimizePromptTooltip,
-      optimizeOptionsLabel,
-      optimizeModeLabel,
-      optimizeContextLabel,
-      optimizerMode,
-      optimizerContextRange,
+      promptOptimizerModel,
+      promptOptimizerMode,
+      promptOptimizerContextRange,
       promptOptimizer.optimizing,
       promptOptimizer.cancel,
       intl,

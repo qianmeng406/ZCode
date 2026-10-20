@@ -5,6 +5,8 @@ import type { ProviderFamilyConnectionSelectionSettings } from "./provider-famil
 import type { ZCodeProvider } from "./zcode-task-types-core.js";
 import type { WorkspacePurpose } from "./workspacePurpose.js";
 import type { DynamicWorkflowMode } from "./dynamic-workflow-feature.js";
+import type { PromptOptimizerContextRange, PromptOptimizerMode } from "./ai-feature-preferences.js";
+import type { ModelSelection } from "./model-selection.js";
 import type { EmbeddedBrowserViewportPreference } from "./browser-use/command-metadata.js";
 import type { AppToolSearchMode } from "./app-runtime-preferences.js";
 
@@ -304,9 +306,17 @@ export interface AppSettings {
   keepAwakeWhileRunning?: boolean;
   /**
    * Oracle 双模型把关：回合成功结束且改过文件时，自动用把关模型复审本回合 diff。
-   * 把关模型在输入框旁的 Oracle 菜单指定（localStorage），默认跟随会话模型。
+   * 把关模型在设置页指定，默认跟随会话模型。
    */
   oracleReviewEnabled?: boolean;
+  /** Oracle 审查模型；缺省/null = 跟随会话模型。 */
+  oracleReviewModel?: ModelSelection | null;
+  /** 提示词优化模型；缺省/null = 跟随会话模型。 */
+  promptOptimizerModel?: ModelSelection | null;
+  /** 提示词优化方式；缺省 polish。 */
+  promptOptimizerMode?: PromptOptimizerMode;
+  /** 提示词优化上下文范围；缺省 conversation。 */
+  promptOptimizerContextRange?: PromptOptimizerContextRange;
   /** Windows 关闭到托盘默认值是否已执行过一次性迁移；只用于设置迁移，不参与业务判断。 */
   closeToTrayOnWindowsMigrationInitialized?: boolean;
   /**

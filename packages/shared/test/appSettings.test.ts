@@ -212,6 +212,61 @@ describe("app settings", () => {
     );
   });
 
+  it("defaults AI feature preferences and validates model/option patches", () => {
+    const defaults = appSettingsSchema.parse({});
+    expect(defaults.promptOptimizerMode).toBe("polish");
+    expect(defaults.promptOptimizerContextRange).toBe("conversation");
+    expect(defaults.promptOptimizerModel).toBeUndefined();
+    expect(defaults.oracleReviewModel).toBeUndefined();
+
+    const model = {
+      providerId: "openai",
+      modelId: "gpt-5",
+      options: { reasoningLevel: "high" },
+    };
+    const stored = appSettingsSchema.parse({
+      promptOptimizerModel: model,
+      oracleReviewModel: model,
+      promptOptimizerMode: "structure",
+      promptOptimizerContextRange: "draft",
+    });
+    expect(stored.promptOptimizerModel).toEqual(model);
+    expect(stored.oracleReviewModel).toEqual(model);
+    expect(stored.promptOptimizerMode).toBe("structure");
+    expect(stored.promptOptimizerContextRange).toBe("draft");
+
+    expect(
+      appSettingsPatchSchema.parse({
+        promptOptimizerModel: null,
+        oracleReviewModel: null,
+        promptOptimizerMode: "structure",
+        promptOptimizerContextRange: "draft",
+      }),
+    ).toEqual({
+      promptOptimizerModel: null,
+      oracleReviewModel: null,
+      promptOptimizerMode: "structure",
+      promptOptimizerContextRange: "draft",
+    });
+
+    // 旧版本写坏的枚举/模型值回落到产品默认，不拖垮整份设置。
+    const repaired = appSettingsSchema.parse({
+      promptOptimizerMode: "invalid",
+      promptOptimizerContextRange: "invalid",
+      promptOptimizerModel: { providerId: "" },
+    });
+    expect(repaired.promptOptimizerMode).toBe("polish");
+    expect(repaired.promptOptimizerContextRange).toBe("conversation");
+    expect(repaired.promptOptimizerModel).toBeUndefined();
+
+    expect(appSettingsPatchSchema.safeParse({ promptOptimizerMode: "invalid" }).success).toBe(
+      false,
+    );
+    expect(
+      appSettingsPatchSchema.safeParse({ oracleReviewModel: { providerId: "x" } }).success,
+    ).toBe(false);
+  });
+
   it("drops the removed CUA overlay/pip/background settings keys from stored configs", () => {
     // 2026-08-17 设置面收敛：三个 key 已从 schema 删除；存量配置里的旧值被 zod strip 静默忽略，
     // 不报错也不回流（overlay/PiP 由 services 装配层恒传 true，见 cuaGhostCursorSettingsWiring）。

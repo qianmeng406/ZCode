@@ -305,6 +305,10 @@ import { useSlashCommands } from "@/hooks/useSlashCommands.js";
 import { useV4Conversation } from "@/v4/V4ConversationContext.js";
 import { useConversationProjection } from "@/v4/useConversationProjection.js";
 import {
+  readStoredOptimizerModelSelection,
+  writeStoredOptimizerModelSelection,
+} from "@/v4/composer/usePromptOptimizer.js";
+import {
   readStoredOracleModelSelection,
   writeStoredOracleModelSelection,
 } from "@/v4/oracleReview/oracleReviewSupport.js";
@@ -1888,15 +1892,49 @@ export function SessionPane({
     useZCodeSessionStore.getState().invalidateDraftRuntime(workspacePath, workspaceIdentity);
   }, [draftConfigRef, modelSelectionView?.revision, sessionId, workspaceIdentity, workspacePath]);
   const recommendStartPlan = useStartPlanRecommendation(modelSelectionView);
-  // Oracle 把关：hook 挂在 pane 层——同一份状态既喂 composer（横幅/盾牌/模型下拉），
-  // 也经 row context 喂轮尾工具栏的「审查这一回合」。模型偏好存 renderer localStorage。
-  const [oracleModel, setOracleModel] = useState<ModelSelection | null>(() =>
-    readStoredOracleModelSelection(),
-  );
-  const handleSelectOracleModel = useCallback((selection: ModelSelection | null) => {
-    setOracleModel(selection);
-    writeStoredOracleModelSelection(selection);
-  }, []);
+  const { settings: sharedSettings, update: updateSharedSettings } = useSettings();
+  // 旧版本的模型偏好存在 renderer localStorage；首次读到设置缺省时迁移一次，
+  // 之后只以 AppSettings 为权威（null = 显式跟随会话模型）。
+  const storedOracleModel = useMemo(() => readStoredOracleModelSelection(), []);
+  const storedOptimizerModel = useMemo(() => readStoredOptimizerModelSelection(), []);
+  const legacyAiSettingsMigratedRef = useRef(false);
+  const oracleModel =
+    sharedSettings?.oracleReviewModel !== undefined
+      ? sharedSettings.oracleReviewModel
+      : storedOracleModel;
+  const promptOptimizerModel =
+    sharedSettings?.promptOptimizerModel !== undefined
+      ? sharedSettings.promptOptimizerModel
+      : storedOptimizerModel;
+  const promptOptimizerMode = sharedSettings?.promptOptimizerMode ?? "polish";
+  const promptOptimizerContextRange = sharedSettings?.promptOptimizerContextRange ?? "conversation";
+  useEffect(() => {
+    if (!sharedSettings || legacyAiSettingsMigratedRef.current) return;
+    legacyAiSettingsMigratedRef.current = true;
+    void (async () => {
+      let failed = false;
+      if (sharedSettings.oracleReviewModel === undefined && storedOracleModel) {
+        try {
+          await updateSharedSettings({ oracleReviewModel: storedOracleModel });
+          writeStoredOracleModelSelection(null);
+        } catch {
+          failed = true;
+        }
+      }
+      if (sharedSettings.promptOptimizerModel === undefined && storedOptimizerModel) {
+        try {
+          await updateSharedSettings({ promptOptimizerModel: storedOptimizerModel });
+          writeStoredOptimizerModelSelection(null);
+        } catch {
+          failed = true;
+        }
+      }
+      // 写入失败时保留旧值，等下一次设置刷新再迁移，避免用户偏好被静默丢弃。
+      if (failed) legacyAiSettingsMigratedRef.current = false;
+    })();
+  }, [sharedSettings, storedOptimizerModel, storedOracleModel, updateSharedSettings]);
+  // Oracle 把关：hook 挂在 pane 层——同一份状态既喂 composer（横幅/盾牌），
+  // 也经 row context 喂轮尾工具栏的「审查这一回合」。模型偏好来自设置页。
   const oracleReview = useOracleReview({
     snapshot,
     workspacePath,
@@ -2032,7 +2070,6 @@ export function SessionPane({
       workspacePath,
     ],
   );
-  const { settings: sharedSettings } = useSettings();
   const readPlanIdentitySnapshot = usePlanIdentitySnapshot(
     sharedSettings?.providerFamilyDomain,
     sharedSettings?.providerFamilyDomain
@@ -5571,8 +5608,6 @@ export function SessionPane({
       retryReview: oracleReview.retryReview,
       dismiss: oracleReview.dismiss,
       acknowledge: oracleReview.acknowledge,
-      model: oracleModel,
-      onSelectModel: handleSelectOracleModel,
     }),
     // 依赖逐字段列出：oracleReview 是 store 聚合对象，整体引用每渲染都变。
     Object.values(oracleReview) as unknown as unknown[],
@@ -5585,6 +5620,9 @@ export function SessionPane({
       snapshot={snapshot}
       sessionId={sessionId}
       oracleReview={oracleReviewComposerProps}
+      promptOptimizerModel={promptOptimizerModel}
+      promptOptimizerMode={promptOptimizerMode}
+      promptOptimizerContextRange={promptOptimizerContextRange}
       // 草稿 taskId 仍为 null，但 prewarm 已经拥有独立 AgentRuntime。
       // 只给 Skill catalog 下发 effective id，避免 UI 扫到 prewarm runtime 尚未加载的新 Skill。
       skillCatalogSessionId={effectiveSessionId}

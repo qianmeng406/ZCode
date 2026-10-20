@@ -298,7 +298,7 @@ export function writeStoredOracleModelSelection(selection: ModelSelection | null
  *
  * 档位（reasoningLevel）**跟随用户选择/模型默认，本函数不补档、不升级**：实测
  * 把关模型在最高档上单轮思考可达 10 分钟（慢渠道），多轮深度审查在 20 分钟
- * deadline 内结构性无法收敛。要更高强度的把关，请在把关模型下拉里显式选档。
+ * deadline 内结构性无法收敛。要更高强度的把关，请在设置页显式选档。
  *
  * maxOutputTokens 跟随模型声明的上限（optionSpecs.maxOutputTokens.max，与主回合
  * 「打满模型声明上限」同语义）：省略会被 adapters 的 validateOptions 以
@@ -354,9 +354,6 @@ export interface OracleReviewController {
    * 恢复成卡片；best-effort，失败只记日志不影响界面。
    */
   acknowledge: () => void;
-  /** 把关模型偏好（localStorage 全局）；下拉的受控值。 */
-  model: ModelSelection | null;
-  onSelectModel: (selection: ModelSelection | null) => void;
 }
 
 export type { OracleReviewableTurnState };

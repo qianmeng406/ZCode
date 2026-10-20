@@ -6,6 +6,11 @@ import { REMOTE_ASSET_INSTALL_MODES } from "./remoteAssetInstallMode.js";
 import { isKnownRemoteResourcePackageId } from "./remoteResourcePackages.js";
 import { wslUserSchema } from "./wslUserValidation.js";
 import { DYNAMIC_WORKFLOW_MODES } from "./dynamic-workflow-feature.js";
+import {
+  PROMPT_OPTIMIZER_CONTEXT_RANGES,
+  PROMPT_OPTIMIZER_MODES,
+} from "./ai-feature-preferences.js";
+import { modelSelectionSchema } from "./model-selection.js";
 import { normalizeZCodeEndpointOrigin } from "./zcodeEndpoint.js";
 import {
   DEFAULT_EMBEDDED_BROWSER_VIEWPORT_PREFERENCE,
@@ -45,6 +50,13 @@ const zcodeInteractionBehaviorSchema = z.enum(["queue", "guide"]);
 // launch.md「The user's choice」：读文件时未知取值（降级后读到新版本写的值）按「跟随」处理，
 // 不能让一个偏好字段把整份设置读坏。
 const dynamicWorkflowModeSettingSchema = z.enum(DYNAMIC_WORKFLOW_MODES).optional().catch(undefined);
+// 新版本写入的未知取值（或旧版本读新值）不能让整份设置读坏：非法值回落到产品默认。
+const promptOptimizerModeSettingSchema = z.enum(PROMPT_OPTIMIZER_MODES).catch("polish");
+const promptOptimizerContextRangeSettingSchema = z
+  .enum(PROMPT_OPTIMIZER_CONTEXT_RANGES)
+  .catch("conversation");
+// 模型选择是全局偏好，缺省/null 表示跟随会话模型；损坏值同样回落到跟随。
+const aiFeatureModelSettingSchema = modelSelectionSchema.nullable().optional().catch(undefined);
 const electronReleaseChannelSchema = z.enum(["stable", "preview"]);
 const desktopZoomLevelSchema = z.number().int().min(-3).max(5);
 const desktopWindowSizeSchema = z.object({
@@ -507,6 +519,10 @@ const appSettingsObjectSchema = z.object({
   closeToTrayLinuxMigrationInitialized: z.boolean().default(false),
   keepAwakeWhileRunning: z.boolean().default(false),
   oracleReviewEnabled: z.boolean().default(false),
+  oracleReviewModel: aiFeatureModelSettingSchema,
+  promptOptimizerModel: aiFeatureModelSettingSchema,
+  promptOptimizerMode: promptOptimizerModeSettingSchema,
+  promptOptimizerContextRange: promptOptimizerContextRangeSettingSchema,
   desktopZoomLevel: desktopZoomLevelSchema.optional(),
   desktopWindowSize: desktopWindowSizeSchema.optional(),
   desktopChromiumHardwareAccelerationEnabled: z.boolean().default(true),
@@ -597,6 +613,10 @@ export const appSettingsPatchSchema = z.object({
   closeToTrayOnWindows: z.boolean().optional(),
   keepAwakeWhileRunning: z.boolean().optional(),
   oracleReviewEnabled: z.boolean().optional(),
+  oracleReviewModel: modelSelectionSchema.nullable().optional(),
+  promptOptimizerModel: modelSelectionSchema.nullable().optional(),
+  promptOptimizerMode: z.enum(PROMPT_OPTIMIZER_MODES).optional(),
+  promptOptimizerContextRange: z.enum(PROMPT_OPTIMIZER_CONTEXT_RANGES).optional(),
   closeToTrayOnWindowsMigrationInitialized: z.boolean().optional(),
   closeToTrayLinuxMigrationInitialized: z.boolean().optional(),
   desktopZoomLevel: desktopZoomLevelSchema.optional(),

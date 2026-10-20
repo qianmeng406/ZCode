@@ -3394,7 +3394,23 @@ const enUS: Record<string, string> = {
     "Prevent the system from sleeping due to idle. You can still sleep manually or by closing the lid. Desktop only.",
   "settings.oracleReview": "Oracle dual-model review",
   "settings.oracleReviewDescription":
-    "After a turn finishes successfully with file changes, a review model automatically audits this turn's diff. Pick the review model from the shield menu next to the input box; it defaults to the session model. Turning this off stops the automatic review only — the shield/deep buttons and the per-turn Review this turn entry can still start a review manually.",
+    "After a turn finishes successfully with file changes, the review model automatically audits this turn's diff. Configure the review model below in Settings; it defaults to the session model. Turning this off stops the automatic review only — the shield/deep buttons and the per-turn Review this turn entry can still start a review manually.",
+  "settings.oracleReviewModel.label": "Review model",
+  "settings.oracleReviewModel.description":
+    "Used by both automatic and manual reviews. Leave empty to follow the session model.",
+  "settings.promptOptimizer.model": "Optimization model",
+  "settings.promptOptimizer.modelDescription":
+    "Model used for prompt optimization. Leave empty to follow the session model.",
+  "settings.promptOptimizer.mode": "Optimization mode",
+  "settings.promptOptimizer.modeDescription":
+    "Light polish only improves wording; Structured task adds goals, constraints, and steps.",
+  "settings.promptOptimizer.context": "Context range",
+  "settings.promptOptimizer.contextDescription":
+    "Whether optimization also reads this conversation. Draft only is faster; with conversation is more accurate.",
+  "settings.aiFeature.followSession": "Follow session model",
+  "settings.aiFeature.reasoningLevel": "Reasoning level",
+  "settings.aiFeature.reasoningDefault": "Model default",
+  "settings.aiFeature.saveError": "Could not save AI feature settings",
   "settings.messageStreamShowReasoning": "Show reasoning",
   "settings.messageStreamShowReasoningDescription":
     "Show full reasoning inside the message stream. When off, the first reasoning item in each turn remains visible.",

@@ -3174,7 +3174,21 @@ const zhCN: Record<string, string> = {
     "打开后阻止系统因空闲进入休眠（仍可手动睡眠/合盖休眠）。桌面端全局生效。",
   "settings.oracleReview": "Oracle 双模型把关",
   "settings.oracleReviewDescription":
-    "回合成功结束且改过文件时，自动用把关模型复审本回合代码改动；把关模型在输入框旁的盾牌菜单选择，默认跟随会话模型。关闭后仅停用这份自动把关，输入框旁的盾牌/深度按钮与轮尾「审查这一回合」入口仍可手动发起审查。",
+    "回合成功结束且改过文件时，自动用审查模型复审本回合代码改动；审查模型可在下方设置页配置，默认跟随会话模型。关闭后仅停用自动审查，输入框旁的盾牌/深度按钮与轮尾「审查这一回合」入口仍可手动发起审查。",
+  "settings.oracleReviewModel.label": "审查模型",
+  "settings.oracleReviewModel.description": "自动审查与手动审查共用；留空跟随会话模型。",
+  "settings.promptOptimizer.model": "优化模型",
+  "settings.promptOptimizer.modelDescription": "执行提示词优化时使用的模型；留空跟随会话模型。",
+  "settings.promptOptimizer.mode": "优化方式",
+  "settings.promptOptimizer.modeDescription":
+    "轻量润色只做措辞整理；执行化整理会补全目标、约束与步骤。",
+  "settings.promptOptimizer.context": "上下文范围",
+  "settings.promptOptimizer.contextDescription":
+    "优化时是否参考当前对话；仅当前输入更快，结合对话更准确。",
+  "settings.aiFeature.followSession": "跟随会话模型",
+  "settings.aiFeature.reasoningLevel": "推理档位",
+  "settings.aiFeature.reasoningDefault": "模型默认档位",
+  "settings.aiFeature.saveError": "保存 AI 功能设置失败",
   "settings.messageStreamShowReasoning": "显示思考过程",
   "settings.messageStreamShowReasoningDescription":
     "在消息流中展示完整的模型思考内容；关闭时每轮仍展示第一次思考。",

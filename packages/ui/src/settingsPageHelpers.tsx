@@ -36,6 +36,7 @@ import { useZCodeIntl } from "@/i18n/IntlProvider.js";
 import { useOptionalServices } from "@/hooks/useServices.js";
 import { ProactiveSuggestionsSetting } from "@/settings/ProactiveSuggestionsSetting.js";
 import { DynamicWorkflowModeSetting } from "@/settings/DynamicWorkflowModeSetting.js";
+import { OracleReviewModelSetting, PromptOptimizerSetting } from "@/settings/AiFeatureSettings.js";
 import { normalizeInterfaceMode, type InterfaceMode } from "@/lib/interfaceMode.js";
 import {
   createSettingsPageConfig,
@@ -825,6 +826,11 @@ export function GeneralSectionContent({
             />
           }
         />
+        <OracleReviewModelSetting />
+      </SettingsGroupCard>
+
+      <SettingsGroupCard>
+        <PromptOptimizerSetting />
       </SettingsGroupCard>
 
       <SettingsGroupCard>
