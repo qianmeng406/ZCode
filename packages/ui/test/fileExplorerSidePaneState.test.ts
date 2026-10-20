@@ -48,9 +48,9 @@ test("重复打开幂等：只保留一个文件标签并聚焦它", () => {
 test("文件标签是 workspace 级：不属于任何对话也始终可见", () => {
   const next = openFileExplorerSidePane(null);
   // ownerTaskId 冻结为其它对话的 tab 场景：scope 收窄后文件标签仍然可见。
-  const scoped = getVisibleSidePaneTabs(next, { workspaceKey: "ws", ownerTaskId: "task-2" });
+  const scoped = getVisibleSidePaneTabs(next.tabs, { workspaceKey: "ws", ownerTaskId: "task-2" });
   assert.ok(scoped.some((tab) => tab.type === "file-explorer"));
-  const byParent = getVisibleSidePaneTabs(next, "task-2");
+  const byParent = getVisibleSidePaneTabs(next.tabs, { workspaceKey: null, ownerTaskId: "task-2" });
   assert.ok(byParent.some((tab) => tab.type === "file-explorer"));
 });
 

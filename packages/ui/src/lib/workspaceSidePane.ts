@@ -1187,10 +1187,12 @@ export function isSidePaneTabVisibleInScope(
 ): boolean {
   if (!sidePaneTabMatchesWorkspace(tab, scope.workspaceKey)) return false;
   switch (tab.type) {
+    // workspace 级标签（fork 定制：文件树/git/开发者工具不随对话切换回收），任意对话 scope 均可见。
     case "git":
     case "developer-tools":
     case "plugin-market":
     case "treemapping":
+    case "file-explorer":
       return true;
     case "browser-use":
       return tab.sessionId === scope.ownerTaskId;
@@ -1209,7 +1211,6 @@ export function isSidePaneTabVisibleInScope(
       return tab.parentSessionId === scope.ownerTaskId;
     case "browser":
     case "browser-permissions":
-    case "file-explorer":
     case "file-manager":
     case "code-viewer":
     case "whiteboard":
