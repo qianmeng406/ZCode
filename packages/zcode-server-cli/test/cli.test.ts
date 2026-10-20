@@ -196,7 +196,9 @@ describe("Server CLI routing", () => {
     async (progress) => {
       const root = await mkdtemp(join(process.platform === "win32" ? tmpdir() : "/tmp", "zuh-"));
       const serverRoot = join(root, "server");
-      const layout = resolveServerLayout(serverRoot);
+      // 控制面端点由 stablePathId(serverRoot) 派生；CLI 子进程会先 realpath 规范化，
+      // TEMP 为 8.3 短路径（如 QIANME~1）时两边会算出不同管道名，必须与 CLI 一样先规范化。
+      const layout = await resolveCanonicalServerLayout(serverRoot);
       const releases = new ReleaseManager(layout);
       await releases.ensure();
       const oldReleaseDir = join(layout.releasesDir, "release-a");
@@ -265,7 +267,7 @@ describe("Server CLI routing", () => {
   it("allows only one update command to own the daemon handoff", async () => {
     const root = await mkdtemp(join(process.platform === "win32" ? tmpdir() : "/tmp", "zul-"));
     const serverRoot = join(root, "server");
-    const layout = resolveServerLayout(serverRoot);
+    const layout = await resolveCanonicalServerLayout(serverRoot);
     const releases = new ReleaseManager(layout);
     await releases.ensure();
     const oldReleaseDir = join(layout.releasesDir, "release-a");

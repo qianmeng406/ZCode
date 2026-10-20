@@ -1,6 +1,6 @@
 import { mkdtemp, mkdir, rename, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
-import { join } from "node:path";
+import { join, normalize } from "node:path";
 import { describe, expect, it, vi } from "vitest";
 import type { ProjectRepositoryContract, VirtualProject } from "#src/project-storage/contract.js";
 import type { IProjectService } from "#src/project/contract.js";
@@ -249,18 +249,23 @@ it("browses owner directories without touching project storage or admitting a se
     workspaceDirectory: "/workspace",
     directories,
   });
-  expect(await service.readDirectory()).toEqual({ path: "/owner", entries: [] });
-  expect(directories.read).toHaveBeenCalledWith({ path: "/owner" });
+  // 服务端 normalize 用平台分隔符（Windows 为 `\owner` 形态）；契约语义是原样回显
+  // 并折叠 `..`，与分隔符形态无关，期望值统一过同款 normalize 保持平台中立。
+  expect(await service.readDirectory()).toEqual({ path: normalize("/owner"), entries: [] });
+  expect(directories.read).toHaveBeenCalledWith({ path: normalize("/owner") });
   await service.readDirectory({ path: "/another", includeHidden: true });
-  expect(directories.read).toHaveBeenLastCalledWith({ path: "/another", includeHidden: true });
+  expect(directories.read).toHaveBeenLastCalledWith({
+    path: normalize("/another"),
+    includeHidden: true,
+  });
   await expect(service.readDirectory({ path: "relative" })).rejects.toThrow(
     "project.absolute-path-required",
   );
   expect(await service.readDirectory({ path: "/owner/child/../folder" })).toEqual({
-    path: "/owner/folder",
+    path: normalize("/owner/folder"),
     entries: [],
   });
-  expect(directories.read).toHaveBeenLastCalledWith({ path: "/owner/folder" });
+  expect(directories.read).toHaveBeenLastCalledWith({ path: normalize("/owner/folder") });
   expect(repository).not.toHaveBeenCalled();
 });
 

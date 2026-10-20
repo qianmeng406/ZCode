@@ -8,6 +8,7 @@ import { pipeline } from "node:stream/promises";
 import type { ReadableStream as NodeWebReadableStream } from "node:stream/web";
 import { fileURLToPath, pathToFileURL } from "node:url";
 import { SERVER_RUNTIME_NODE_VERSION } from "../contracts.js";
+import { resolveHostTarCommand } from "./tarCommand.js";
 import {
   currentServerTarget,
   supportedServerTargets,
@@ -105,7 +106,7 @@ async function ensureNodeBinary(repoRoot: string, target: ServerTarget): Promise
     await mkdir(cacheDir, { recursive: true });
     if (isWindows) {
       await runCommand(
-        "tar",
+        resolveHostTarCommand(),
         [
           "-xf",
           archivePath,
@@ -118,7 +119,7 @@ async function ensureNodeBinary(repoRoot: string, target: ServerTarget): Promise
       );
     } else {
       await runCommand(
-        "tar",
+        resolveHostTarCommand(),
         [
           "-xJf",
           archivePath,

@@ -217,7 +217,7 @@ describe("daemon service registration", () => {
     // Bug 原因：stop-failed 的 Supervisor 在迟到 exit 后仍持有锁与 control socket，旧实现直接拉起
     // 新 Supervisor，只能锁冲突失败；设备在有人手工 stop 前一直无法重新连接。
     const root = await mkdtemp(join(process.platform === "win32" ? tmpdir() : "/tmp", "zsf-"));
-    const layout = resolveServerLayout(join(root, "server"));
+    const layout = await resolveCanonicalServerLayout(join(root, "server"));
     const core = Object.assign(new EventEmitter(), {
       pid: 42,
       send: () => true,

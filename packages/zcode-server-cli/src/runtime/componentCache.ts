@@ -7,6 +7,7 @@ import { pipeline } from "node:stream/promises";
 import { open as openZip, type Entry, type ZipFile } from "yauzl";
 import type { ServerRuntimeManifest } from "./manifest.js";
 import { promoteImmutableReleaseDirectory } from "./immutableRelease.js";
+import { resolveHostTarCommand } from "../packaging/tarCommand.js";
 import type { ServerLayout } from "./paths.js";
 
 function assertComponentId(componentId: string): void {
@@ -183,13 +184,16 @@ export async function extractArchiveSafely(
     await extractZipSafely(archivePath, destination);
     return;
   }
-  const listing = await run("tar", ["-tzf", archivePath], destination, true);
-  const verboseListing = await run("tar", ["-tvzf", archivePath], destination, true);
+  // Windows 上 PATH 可能前置 Git 的 GNU tar：它把 `C:\...` 归档路径当 `host:path`
+  // 远程规格（Cannot connect to C:），必须显式解析 System32 bsdtar。
+  const tarCommand = resolveHostTarCommand();
+  const listing = await run(tarCommand, ["-tzf", archivePath], destination, true);
+  const verboseListing = await run(tarCommand, ["-tvzf", archivePath], destination, true);
   if (verboseListing.split(/\r?\n/u).some((line) => /^[lh]/u.test(line))) {
     throw new Error(`Component archive contains a symbolic or hard link: ${archivePath}`);
   }
   validateArchiveEntries(listing);
-  await run("tar", ["-xzf", archivePath, "-C", destination], destination);
+  await run(tarCommand, ["-xzf", archivePath, "-C", destination], destination);
 }
 
 export class ComponentCache {
