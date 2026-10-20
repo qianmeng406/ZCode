@@ -373,7 +373,9 @@
     System::Call 'Kernel32::SetEnvironmentVariableW(w "ZCODE_SHORTCUT_PATH", w "$R9") i.R1'
     StrCmp $R1 "0" zcodeReadShortcutTargetDone 0
 
-    nsExec::ExecToStack /TIMEOUT=5000 `"$SYSDIR\WindowsPowerShell\v1.0\powershell.exe" -NoProfile -NonInteractive -Command "[Console]::Out.Write(([Activator]::CreateInstance([type]::GetTypeFromProgID('WScript.Shell'))).CreateShortcut([Environment]::GetEnvironmentVariable('ZCODE_SHORTCUT_PATH')).TargetPath)"`
+    ; 超时从 5s 提到 15s：CI runner 负载高时 PowerShell + WScript.Shell 冷启动可能超过 5s，
+    ; 超时返回空串会让安装器误判目标不一致并重写快捷方式（丢失保留参数）。
+    nsExec::ExecToStack /TIMEOUT=15000 `"$SYSDIR\WindowsPowerShell\v1.0\powershell.exe" -NoProfile -NonInteractive -Command "[Console]::Out.Write(([Activator]::CreateInstance([type]::GetTypeFromProgID('WScript.Shell'))).CreateShortcut([Environment]::GetEnvironmentVariable('ZCODE_SHORTCUT_PATH')).TargetPath)"`
     Pop $R1
     Pop $R2
     StrCmp $R1 "0" zcodeReadShortcutTargetDone 0

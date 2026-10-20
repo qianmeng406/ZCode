@@ -1,4 +1,4 @@
-import { execFile, spawn } from "node:child_process";
+import { execFile, execFileSync, spawn } from "node:child_process";
 import { promisify } from "node:util";
 import { existsSync } from "node:fs";
 import { access, mkdtemp, mkdir, readFile, readdir, rm, utimes, writeFile } from "node:fs/promises";
@@ -107,9 +107,14 @@ class ShellInstallerBackend extends InstallerBackend {
       '"$HOME"',
       quotePosixShellArg(toLocalShellPath(this.rootDir)),
     );
-    const child = spawn(localShellCommand!, ["-c", `${this.prelude}\n${isolatedCommand}`], {
+    // 完整脚本可达 40KB+，超过 Windows 32767 字符命令行上限；用 `-s` 从 stdin 喂脚本，
+    // 避免 `-c <script>` 被截断成半截命令（CI 上表现为 unexpected EOF / 30s 超时）。
+    const child = spawn(localShellCommand!, ["-s"], {
       detached: process.platform !== "win32",
     });
+    // 子进程可能提前退出（断言失败场景），stdin 的 EPIPE 不应让测试直接崩掉。
+    child.stdin.on("error", () => undefined);
+    child.stdin.end(`${this.prelude}\n${isolatedCommand}`);
     let stdout = "";
     let stderr = "";
     child.stdout.on("data", (chunk: Buffer) => {
@@ -128,8 +133,25 @@ class ShellInstallerBackend extends InstallerBackend {
       }
     });
     const code = await new Promise<number>((resolve, reject) => {
+      let settled = false;
+      const settle = (exitCode: number) => {
+        if (settled) return;
+        settled = true;
+        resolve(exitCode);
+      };
       child.once("error", reject);
-      child.once("close", (exitCode) => resolve(exitCode ?? 1));
+      child.once("close", (exitCode) => settle(exitCode ?? 1));
+      if (process.platform === "win32") {
+        // Windows 没有进程组回收：脚本启动的后台进度/sleep 子进程会继承 stdout/stderr
+        // 管道，主 shell 退出后 close 可能永不触发。以 exit 为准，短暂排空后主动收尾。
+        child.once("exit", (exitCode) => {
+          setTimeout(() => {
+            child.stdout.destroy();
+            child.stderr.destroy();
+            settle(exitCode ?? 1);
+          }, 300);
+        });
+      }
     });
     return createClosedStream([stdout], code, stderr);
   }
@@ -209,6 +231,25 @@ function hashRemoteCacheSegment(value: string): string {
   return createHash("sha256").update(value).digest("hex").slice(0, 16);
 }
 
+function gitInstallRoots(): string[] {
+  try {
+    const execPath = execFileSync("git", ["--exec-path"], {
+      encoding: "utf8",
+      windowsHide: true,
+    }).trim();
+    // 形态：<root>/mingw64/libexec/git-core 或 <root>/libexec/git-core。
+    const normalized = execPath.replaceAll("\\", "/");
+    const markerIndex = normalized.lastIndexOf("/libexec/git-core");
+    if (markerIndex < 0) {
+      return [];
+    }
+    const root = normalized.slice(0, markerIndex);
+    return root.endsWith("/mingw64") ? [root.slice(0, -"/mingw64".length)] : [root];
+  } catch {
+    return [];
+  }
+}
+
 function resolveLocalShellCommand(): string | null {
   if (process.platform !== "win32") {
     return "sh";
@@ -217,6 +258,12 @@ function resolveLocalShellCommand(): string | null {
   const gitShellCandidates = [
     join(process.env.ProgramFiles ?? "C:\\Program Files", "Git", "bin", "sh.exe"),
     join(process.env.ProgramFiles ?? "C:\\Program Files", "Git", "usr", "bin", "sh.exe"),
+    // 本机 Git 可能装在非 Program Files 盘符；用 `git --exec-path` 反推安装根目录，
+    // 让这些 shell-backed 用例在本地也真实执行，而不是静默 skip 后只在 CI 暴露问题。
+    ...gitInstallRoots().flatMap((root) => [
+      join(root, "bin", "sh.exe"),
+      join(root, "usr", "bin", "sh.exe"),
+    ]),
   ];
   return gitShellCandidates.find((candidate) => existsSync(candidate)) ?? null;
 }
