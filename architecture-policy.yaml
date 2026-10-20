@@ -890,3 +890,37 @@ exceptions:
       - apps/zcode-cli/packages/adapters/src/model/endpoint-routing-edition/index.ts
       - apps/zcode-cli/packages/adapters/src/model/provider-endpoint-routing-options.ts
     reason: Existing upstream routing assembly files gain the endpoint origin and injected JWT reader; adopting the full CLI model adapter directory needs a separate module boundary refactor.
+  - id: upstream-3.16.1-source-server-new-files
+    rule: unmanaged-new-file
+    paths:
+      - packages/server/src/source-server/sourceServerTransportRuntime.ts
+      - packages/server/src/source-server/transportAdapter.ts
+      - packages/shared/src/source-server/errorCodes.ts
+      - packages/services/src/source-server-workspace/sourceServerWorkspace.ts
+      - packages/desktop/src/host/sourceServerOperationLogs.ts
+      - packages/ui/src/hooks/useSourceServerManagementSnapshot.ts
+      - packages/ui/src/store/sourceServerDisplayNameRegistry.ts
+      - packages/ui/src/settings/SourceServerMigrationReportPanel.tsx
+    reason: 上游 3.16.1 Source Server（descriptor+archive 发布与常驻连接管理）功能新文件，随官方基线合并进入；与既有 connectionLog/connectionErrors 豁免同因，接管 shared/server/services/desktop/ui 整包不在本次同步范围内。
+  - id: upstream-3.16.1-embedded-browser-permission-new-files
+    rule: unmanaged-new-file
+    paths:
+      - packages/desktop/src/main/embeddedBrowserPermissionUiBridge.ts
+      - packages/desktop/src/main/embeddedBrowserSitePermissionStore.ts
+      - packages/ui/src/browser-use/BrowserSitePermissionsPage.tsx
+      - packages/ui/src/WorkspaceSidebar/RemoteProjectDetailsPopover.tsx
+    reason: 上游 3.16.1 内嵌浏览器站点权限与远端项目详情新 UI/主进程文件，随官方基线合并进入；接管 desktop/ui 整包不在本次同步范围内。
+  - id: upstream-3.16.1-workspace-file-search-new-files
+    rule: unmanaged-new-file
+    paths:
+      - packages/services/src/file/workspaceFileIgnore.ts
+      - packages/ui/src/workspace-file-search/workspaceFileSearchFilterBackend.ts
+    reason: 上游 3.16.1 工作区文件忽略与搜索后端新文件，随官方基线合并进入；接管 services/ui 目录不在本次同步范围内。
+  - id: upstream-3.16.1-packaging-plan-workflow-new-files
+    rule: unmanaged-new-file
+    paths:
+      - packages/zcode-server-cli/src/packaging/stageArchives.ts
+      - packages/zcode-server-cli/src/packaging/stageRemoteAssetsCli.ts
+      - packages/services/src/zcode-agent/independentPlanSupport.ts
+      - packages/ui/src/lib/workflowRunLine.ts
+    reason: 上游 3.16.1 发布打包（Source Server 组件归档入口）、独立 plan 支持与 workflow 运行行展示新文件，随官方基线合并进入；接管 zcode-server-cli/services/ui 目录不在本次同步范围内。
