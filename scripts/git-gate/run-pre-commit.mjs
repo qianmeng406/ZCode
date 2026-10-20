@@ -42,6 +42,42 @@ function runTool({ root, name, args, label }) {
   return result.status ?? 1;
 }
 
+// 大提交（如全仓格式对齐/上游合并）会把几千个文件一次性塞进 spawn 参数，
+// 撞 Windows 命令行长度上限（ENAMETOOLONG）。按累计参数长度分批执行，
+// 每批单独起进程；任一批失败即返回其退出码。
+const SPAWN_ARGS_CHAR_BUDGET = 20000;
+
+function chunkArgs(args) {
+  const chunks = [];
+  let current = [];
+  let currentLength = 0;
+  for (const arg of args) {
+    if (current.length > 0 && currentLength + arg.length + 1 > SPAWN_ARGS_CHAR_BUDGET) {
+      chunks.push(current);
+      current = [];
+      currentLength = 0;
+    }
+    current.push(arg);
+    currentLength += arg.length + 1;
+  }
+  if (current.length > 0) chunks.push(current);
+  return chunks;
+}
+
+function runToolChunked({ root, name, baseArgs = [], files, label }) {
+  const chunks = chunkArgs(files);
+  for (const [index, chunk] of chunks.entries()) {
+    const status = runTool({
+      root,
+      name,
+      args: [...baseArgs, ...chunk],
+      label: `${label} [batch ${index + 1}/${chunks.length}, ${chunk.length} files]`,
+    });
+    if (status !== 0) return status;
+  }
+  return 0;
+}
+
 const root = process.cwd();
 const files = collectStagedFileContents(root);
 if (files.length === 0) process.exit(0);
@@ -58,10 +94,10 @@ const lintable = staged.filter(
   (file) => JS_LIKE_RE.test(file) && !LOCAL_LINT_EXCLUDES.some((prefix) => file.startsWith(prefix)),
 );
 if (lintable.length > 0) {
-  const status = runTool({
+  const status = runToolChunked({
     root,
     name: "oxlint",
-    args: lintable,
+    files: lintable,
     label: `oxlint (${lintable.length} files)`,
   });
   if (status !== 0) process.exit(status);
@@ -69,10 +105,11 @@ if (lintable.length > 0) {
 
 const formattable = staged.filter((file) => FORMATTABLE_RE.test(file));
 if (formattable.length > 0) {
-  const status = runTool({
+  const status = runToolChunked({
     root,
     name: "oxfmt",
-    args: ["--check", ...formattable],
+    baseArgs: ["--check", "--no-error-on-unmatched-pattern"],
+    files: formattable,
     label: `oxfmt --check (${formattable.length} files)`,
   });
   if (status !== 0) {

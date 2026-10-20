@@ -34,8 +34,7 @@ const ORACLE_REQUIREMENTS_LINE_PATTERN =
   /^\s*(?:\*\*)?(?:REQUIREMENTS|需求核验)(?:\*\*)?\s*[:：]?\s*$/i;
 const ORACLE_SCOPE_LINE_PATTERN =
   /^\s*(?:\*\*)?(?:SCOPE|范围|审查范围)(?:\*\*)?\s*[:：]\s*(.*?)\s*$/i;
-const ORACLE_LIMITS_LINE_PATTERN =
-  /^\s*(?:\*\*)?(?:LIMITS|限制)(?:\*\*)?\s*[:：]\s*(.*?)\s*$/i;
+const ORACLE_LIMITS_LINE_PATTERN = /^\s*(?:\*\*)?(?:LIMITS|限制)(?:\*\*)?\s*[:：]\s*(.*?)\s*$/i;
 
 /** 宽松归一：认英文与中文同义表达；认不出返回 unknown。 */
 function normalizeOracleVerdictWord(word: string): OracleVerdict {
@@ -118,10 +117,7 @@ export function parseOracleVerdict(raw: string): OracleVerdictParse {
   );
   const findings =
     findingsIndex >= 0
-      ? collectUntil(findingsIndex + 1, [
-          ...stopAfterBody,
-          ORACLE_REQUIREMENTS_LINE_PATTERN,
-        ])
+      ? collectUntil(findingsIndex + 1, [...stopAfterBody, ORACLE_REQUIREMENTS_LINE_PATTERN])
       : lines
           .slice(verdictLineIndex + 1)
           .filter((line) => !ORACLE_SUMMARY_LINE_PATTERN.test(line))
@@ -143,4 +139,3 @@ export function parseOracleVerdict(raw: string): OracleVerdictParse {
     ...(limits ? { limits } : {}),
   };
 }
-

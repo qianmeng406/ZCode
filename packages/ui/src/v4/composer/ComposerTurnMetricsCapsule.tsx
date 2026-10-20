@@ -14,7 +14,11 @@
 import { memo, useCallback, useMemo } from "react";
 import { useZCodeIntl } from "@/i18n/IntlProvider.js";
 import { cn } from "@/components/lib/utils.js";
-import { TID_COMPOSER_TURN_METRICS, TID_COMPOSER_TURN_METRICS_ITEM, testId } from "@zcode/shared";
+import {
+  TID_COMPOSER_TURN_METRICS,
+  TID_COMPOSER_TURN_METRICS_ITEM,
+  testId,
+} from "@zcode/shared/test-ids";
 
 export interface ComposerLastRequestMetrics {
   outputTokens?: number;

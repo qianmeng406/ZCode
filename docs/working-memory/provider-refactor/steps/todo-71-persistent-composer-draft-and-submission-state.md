@@ -137,6 +137,8 @@ interface V4ComposerDraft {
 - 本轮持久化扩展只覆盖现有安全可序列化字段和 `mode/modelSelection`；
 - 跨重启附件恢复留给独立设计，不得把失效 object URL 或未校验本地路径直接写入持久 Draft。
 
+> 2026-10-14 更新：空正文持久化与初始化规则由 [Composer 仅持久化文字草稿](../../../ui/composer-text-draft-persistence.md) 替代。下面的历史设计中“立即写入 Draft”“空文本保留配置”不再作为当前实施合同。
+
 ## 4. 初始化规则
 
 初始化只在 Composer 创建、Workspace/Session scope 切换或恢复时执行一次。完成后，普通 React render 不再重新
@@ -435,16 +437,16 @@ Todo 70 处理的是恢复历史 Session 时旧 Selection 的迁移/未绑定状
 
 ## 11. 跨层影响面
 
-| 层级 | 本 Todo 的改动 | 不允许发生的事 |
-| --- | --- | --- |
-| UI / Composer | 完整内存态、菜单交互、选择空态 | 每次 render 回读 Session Snapshot |
-| Draft persistence | 持久化 text/editor/mode/ModelSelection | 持久化 Active Model、凭据或 Option Specs |
-| Submission | 一次复制完整 Composer 状态 | 提交后再从 Session 补 mode/model |
-| App Recent | 接纳后保存最近 Submission 的 Selection + mode | 菜单点击即更新 Recent |
-| Agent Session | 接纳后记录执行状态 | 作为 Renderer Composer 的实时 store |
-| Registry | 提供 Ready View、preferred 和 Selection 校验 | Renderer 复制 fallback 算法 |
-| Queue / Guide | 保留冻结的 Submission | 执行时回读 Composer |
-| Remote | 透传相同 Submission 与 workspace identity | Relay/Main 持有 Composer 业务状态 |
+| 层级              | 本 Todo 的改动                                | 不允许发生的事                           |
+| ----------------- | --------------------------------------------- | ---------------------------------------- |
+| UI / Composer     | 完整内存态、菜单交互、选择空态                | 每次 render 回读 Session Snapshot        |
+| Draft persistence | 持久化 text/editor/mode/ModelSelection        | 持久化 Active Model、凭据或 Option Specs |
+| Submission        | 一次复制完整 Composer 状态                    | 提交后再从 Session 补 mode/model         |
+| App Recent        | 接纳后保存最近 Submission 的 Selection + mode | 菜单点击即更新 Recent                    |
+| Agent Session     | 接纳后记录执行状态                            | 作为 Renderer Composer 的实时 store      |
+| Registry          | 提供 Ready View、preferred 和 Selection 校验  | Renderer 复制 fallback 算法              |
+| Queue / Guide     | 保留冻结的 Submission                         | 执行时回读 Composer                      |
+| Remote            | 透传相同 Submission 与 workspace identity     | Relay/Main 持有 Composer 业务状态        |
 
 Automation、Repo Wiki、Subagent、Off-Peak、Bot、Prompt CLI 和 TUI 不迁入 App Composer Draft。本轮只验证它们
 没有被共享 helper 的清理误伤。

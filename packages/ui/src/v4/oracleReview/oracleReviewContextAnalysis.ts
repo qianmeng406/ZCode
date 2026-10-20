@@ -98,7 +98,7 @@ export async function collectContextCandidates(params: {
   return { candidates: toContextCandidates(rows), rows };
 }
 
-/** 从候选行渲染历史文本（带 rowId 供模型引用；超预算按最近优先裁剪旧候选）。 */export function renderContextCandidates(
+/** 从候选行渲染历史文本（带 rowId 供模型引用；超预算按最近优先裁剪旧候选）。 */ export function renderContextCandidates(
   candidates: readonly OracleContextCandidate[],
   budget: number = CONTEXT_HISTORY_MAX_CHARS,
 ): string {
@@ -162,7 +162,8 @@ export function buildOracleContextAnalysisPrompt(params: {
     "",
     `目标回合 header rowId=${params.targetHeaderRowId}（你要解释的是它之前的历史）。`,
     "目标回合的用户请求：",
-    truncateWithEllipsis(params.targetUserRequest.trim(), 2_000) || "（无法恢复，请仅凭历史推断指代）",
+    truncateWithEllipsis(params.targetUserRequest.trim(), 2_000) ||
+      "（无法恢复，请仅凭历史推断指代）",
     "",
     "候选历史（每段开头标注 rowId）：",
     params.candidatesText || "（没有可用的候选历史）",

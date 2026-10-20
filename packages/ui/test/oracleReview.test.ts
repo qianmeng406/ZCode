@@ -219,7 +219,14 @@ test("材料组装：窗口命中直接返回，不翻页", async () => {
   let fetchCalls = 0;
   const windowRows = [
     turnHeader(2),
-    row({ kind: "userInput", rowId: 3, turnId: "t2", productTurnId: "pt2", origin: "realUser", text: "修复登录" }),
+    row({
+      kind: "userInput",
+      rowId: 3,
+      turnId: "t2",
+      productTurnId: "pt2",
+      origin: "realUser",
+      text: "修复登录",
+    }),
     row({
       kind: "toolCall",
       rowId: 4,
@@ -253,16 +260,34 @@ test("材料组装：轮次起点不在窗口时翻页补齐，合并去重", as
     {
       rows: [
         turnHeader(2),
-        row({ kind: "userInput", rowId: 3, turnId: "t2", productTurnId: "pt2", origin: "realUser", text: "早期请求" }),
+        row({
+          kind: "userInput",
+          rowId: 3,
+          turnId: "t2",
+          productTurnId: "pt2",
+          origin: "realUser",
+          text: "早期请求",
+        }),
       ],
       hasMore: true,
     },
-    { rows: [row({ kind: "assistantText", rowId: 1, turnId: "t2", productTurnId: "pt2", text: "更早" })], hasMore: false },
+    {
+      rows: [
+        row({ kind: "assistantText", rowId: 1, turnId: "t2", productTurnId: "pt2", text: "更早" }),
+      ],
+      hasMore: false,
+    },
   ];
   let page = 0;
   const bundle = await assembleOracleTurnMaterial({
     windowRows: [
-      row({ kind: "assistantText", rowId: 4, turnId: "t2", productTurnId: "pt2", text: "窗口内回答" }),
+      row({
+        kind: "assistantText",
+        rowId: 4,
+        turnId: "t2",
+        productTurnId: "pt2",
+        text: "窗口内回答",
+      }),
     ],
     header: { rowId: 2, turnId: "t2", productTurnId: "pt2" },
     fetchRowsBefore: async () => pages[page++]!,
@@ -285,7 +310,10 @@ test("材料组装：翻页到顶仍找不到起点 → truncated 如实标注",
       row({ kind: "assistantText", rowId: 4, turnId: "t2", productTurnId: "pt2", text: "回答" }),
     ],
     header: { rowId: 2, turnId: "t2", productTurnId: "pt2" },
-    fetchRowsBefore: async () => ({ rows: [row({ kind: "userInput", rowId: 1, turnId: "t0", text: "别的轮" })], hasMore: false }),
+    fetchRowsBefore: async () => ({
+      rows: [row({ kind: "userInput", rowId: 1, turnId: "t0", text: "别的轮" })],
+      hasMore: false,
+    }),
   });
   assert.equal(bundle.completeness.turnStartMissing, true);
   assert.equal(bundle.material.truncated, true);
@@ -408,45 +436,49 @@ test("材料组装：翻页预算耗尽 → budget", async () => {
 });
 
 test("材料渲染：epilogue 裁剪、origin 标签、工具截断标记", () => {
-  const bundle = extractTurnMaterialFromRows(
-    { rowId: 2, turnId: "t2", productTurnId: "pt2" },
-    [
-      turnHeader(2),
-      row({
-        kind: "userInput",
-        rowId: 3,
-        turnId: "t2",
-        productTurnId: "pt2",
-        origin: "realUser",
-        text: "真实请求\n（引擎附加尾注）",
-        epilogueStart: 4,
-      }),
-      row({ kind: "userInput", rowId: 4, turnId: "t2", productTurnId: "pt2", origin: "backgroundResult", text: "后台结果" }),
-      row({
-        kind: "toolCall",
-        rowId: 5,
-        turnId: "t2",
-        productTurnId: "pt2",
-        toolCallId: "call-1",
-        toolName: "Bash",
-        status: "success",
-        inputText: "npm test",
-        output: { text: "all passing", truncated: { totalBytes: 99, ref: "tool-output/call-1" } },
-      }),
-      row({
-        kind: "toolCall",
-        rowId: 6,
-        turnId: "t2",
-        productTurnId: "pt2",
-        toolCallId: "call-2",
-        toolName: "Bash",
-        status: "error",
-        inputText: "npm lint",
-        error: { code: "E_LINT", message: "3 errors" },
-      }),
-      row({ kind: "assistantText", rowId: 7, turnId: "t2", productTurnId: "pt2", text: "完成" }),
-    ],
-  );
+  const bundle = extractTurnMaterialFromRows({ rowId: 2, turnId: "t2", productTurnId: "pt2" }, [
+    turnHeader(2),
+    row({
+      kind: "userInput",
+      rowId: 3,
+      turnId: "t2",
+      productTurnId: "pt2",
+      origin: "realUser",
+      text: "真实请求\n（引擎附加尾注）",
+      epilogueStart: 4,
+    }),
+    row({
+      kind: "userInput",
+      rowId: 4,
+      turnId: "t2",
+      productTurnId: "pt2",
+      origin: "backgroundResult",
+      text: "后台结果",
+    }),
+    row({
+      kind: "toolCall",
+      rowId: 5,
+      turnId: "t2",
+      productTurnId: "pt2",
+      toolCallId: "call-1",
+      toolName: "Bash",
+      status: "success",
+      inputText: "npm test",
+      output: { text: "all passing", truncated: { totalBytes: 99, ref: "tool-output/call-1" } },
+    }),
+    row({
+      kind: "toolCall",
+      rowId: 6,
+      turnId: "t2",
+      productTurnId: "pt2",
+      toolCallId: "call-2",
+      toolName: "Bash",
+      status: "error",
+      inputText: "npm lint",
+      error: { code: "E_LINT", message: "3 errors" },
+    }),
+    row({ kind: "assistantText", rowId: 7, turnId: "t2", productTurnId: "pt2", text: "完成" }),
+  ]);
   const text = renderOracleTurnMaterialText(bundle.material, "目标回合 rowId=2");
   assert.ok(text.includes("目标回合 rowId=2"));
   assert.ok(text.includes("[用户] 真实请求")); // epilogue 已裁剪
@@ -461,7 +493,14 @@ test("材料渲染：epilogue 裁剪、origin 标签、工具截断标记", () =
 test("材料渲染：中途指导（guided）不冒充用户主请求，标签区分", () => {
   const bundle = extractTurnMaterialFromRows({ rowId: 2, turnId: "t2", productTurnId: "pt2" }, [
     turnHeader(2),
-    row({ kind: "userInput", rowId: 3, turnId: "t2", productTurnId: "pt2", origin: "realUser", text: "先做设计规划" }),
+    row({
+      kind: "userInput",
+      rowId: 3,
+      turnId: "t2",
+      productTurnId: "pt2",
+      origin: "realUser",
+      text: "先做设计规划",
+    }),
     row({
       kind: "userInput",
       rowId: 4,
@@ -605,7 +644,13 @@ test("上下文分析 prompt：带目标请求、rowId 标注与 JSON 输出格�
 test("parseOracleContextAnalysis：合法引用校验通过、引文对照原文", () => {
   const candidates = toContextCandidates([
     turnHeader(1),
-    row({ kind: "userInput", rowId: 2, turnId: "t1", origin: "realUser", text: "只做设计，暂不实现代码" }),
+    row({
+      kind: "userInput",
+      rowId: 2,
+      turnId: "t1",
+      origin: "realUser",
+      text: "只做设计，暂不实现代码",
+    }),
   ]);
   const raw = [
     "```json",
@@ -667,7 +712,9 @@ test("parseOracleContextAnalysis：引文在原文中定位不到 → 保留线�
     row({ kind: "userInput", rowId: 2, turnId: "t1", origin: "realUser", text: "历史原文" }),
   ]);
   const analysis = parseOracleContextAnalysis({
-    raw: JSON.stringify({ priorContext: [{ rowId: 2, quote: "完全不同的编造引文内容xyz", reason: "r" }] }),
+    raw: JSON.stringify({
+      priorContext: [{ rowId: 2, quote: "完全不同的编造引文内容xyz", reason: "r" }],
+    }),
     candidates,
     cutoffRowId: 10,
     depth: "standard",
@@ -736,10 +783,18 @@ test("renderOracleContextAnalysis：约束段带注入防护声明", () => {
 test("parseOracleContextAnalysis：非 JSON / 空输出 → null", () => {
   const candidates = toContextCandidates([turnHeader(1)]);
   assert.equal(
-    parseOracleContextAnalysis({ raw: "这不是 JSON", candidates, cutoffRowId: 10, depth: "standard" }),
+    parseOracleContextAnalysis({
+      raw: "这不是 JSON",
+      candidates,
+      cutoffRowId: 10,
+      depth: "standard",
+    }),
     null,
   );
-  assert.equal(parseOracleContextAnalysis({ raw: "", candidates, cutoffRowId: 10, depth: "standard" }), null);
+  assert.equal(
+    parseOracleContextAnalysis({ raw: "", candidates, cutoffRowId: 10, depth: "standard" }),
+    null,
+  );
 });
 
 test("上下文历史渲染：超预算按最近优先裁剪旧候选", () => {
@@ -781,8 +836,13 @@ function contextAnalysisParams(
     workspaceArgs: { workspacePath: "/repo" },
     request: makeReviewRequest({ depth }),
     requestOptions: { selection: { providerId: "p", modelId: "m" } },
-    material:
-      material ?? { headerRowId: 10, userInputs: [], assistantTexts: [], toolCalls: [], truncated: false },
+    material: material ?? {
+      headerRowId: 10,
+      userInputs: [],
+      assistantTexts: [],
+      toolCalls: [],
+      truncated: false,
+    },
   };
 }
 
@@ -860,7 +920,10 @@ test("parseOracleVerdict 解析深度审查的需求核验段", () => {
 });
 
 test("parseOracleVerdict 认 INSUFFICIENT 与中文同义", () => {
-  assert.equal(parseOracleVerdict("VERDICT: INSUFFICIENT\nSUMMARY: 材料不足\nFINDINGS:\n- 无").verdict, "insufficient");
+  assert.equal(
+    parseOracleVerdict("VERDICT: INSUFFICIENT\nSUMMARY: 材料不足\nFINDINGS:\n- 无").verdict,
+    "insufficient",
+  );
   assert.equal(parseOracleVerdict("结论：信息不足\n总结：无法判断").verdict, "insufficient");
   assert.equal(parseOracleVerdict("verdict：pass\nsummary：ok").verdict, "pass");
   assert.equal(parseOracleVerdict("判定：不通过，缺少测试").verdict, "fail");

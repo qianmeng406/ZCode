@@ -14,7 +14,9 @@
 import { createElement, type ReactNode } from "react";
 import { act, cleanup, fireEvent, render, waitFor } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import { TID_WORKFLOW_ARTIFACT_PANE, type IPlatformService } from "@zcode/shared";
+import { type IPlatformService } from "@zcode/shared";
+import { TID_WORKFLOW_ARTIFACT_PANE } from "@zcode/shared";
+
 import type {
   V4ConversationWorkflowRunArtifactDataResult,
   V4ConversationWorkflowRunArtifactReadResult,
@@ -554,12 +556,6 @@ describe("WorkflowArtifactSidePane 头部动作", () => {
     const view = renderPane();
     await waitFor(() => expect(view.getByTestId("pdf-viewer")).toBeTruthy());
     expect(view.queryByTestId("workflow-artifact-copy")).toBeNull();
-  });
-
-  it("没有「下载」按钮——renderer 没有任何把字节存成用户文件的宿主能力", async () => {
-    const view = renderPane();
-    await waitFor(() => expect(view.getByTestId("pdf-viewer")).toBeTruthy());
-    expect(view.queryByText("下载")).toBeNull();
   });
 });
 

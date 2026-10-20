@@ -104,7 +104,7 @@ foreach ($path in $paths) {
   $shortcut.Save();
   $rewritten = $sh.CreateShortcut($path);
   // 不能用 TargetPath 与 $targetExe 做字符串比较：保存 .lnk 时 Windows 会把 8.3 短路径
-  // 解析成长路径（QIANME~1 → qianmengyys），字符串形态对不上会把成功的修复误判为失败。
+  // 解析成长路径（如 ABCDEF~1 → 实际长目录名），字符串形态对不上会把成功的修复误判为失败。
   // 成功判定只看回读目标非空且真实存在。
   if (($null -ne $rewritten) -and (-not [string]::IsNullOrWhiteSpace($rewritten.TargetPath)) -and (Test-Path -LiteralPath $rewritten.TargetPath)) {
     $repaired.Add($path);

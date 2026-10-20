@@ -5,7 +5,7 @@ import {
   TID_MODEL_PROVIDER_ADD_MODEL_BUTTON,
   TID_MODEL_UPSTREAM_FETCH_BUTTON,
   TID_TASK_SETTINGS_BUTTON,
-} from "@zcode/shared";
+} from "@zcode/shared/test-ids";
 // sel 是 e2e 的 CSS 选择器帮助函数，不属于 @zcode/shared 导出面；
 // 从 shared 引入会造成 TS2305 并连带 execute 回调参数类型失效。
 import { sel } from "../helpers/selectors.js";
@@ -31,7 +31,9 @@ async function ensureShellReady() {
         await dismissOccupationOnboarding();
         return false;
       }
-      const settings = await $(sel(TID_TASK_SETTINGS_BUTTON)).isExisting().catch(() => false);
+      const settings = await $(sel(TID_TASK_SETTINGS_BUTTON))
+        .isExisting()
+        .catch(() => false);
       const probeReady = await browser
         .execute(() => Boolean(document.querySelector('[data-testid^="v4-session-pane-"]')))
         .catch(() => false);
@@ -65,7 +67,9 @@ describe("fork 三功能 UI 验收", () => {
       return { count: items.length, labels, placeholder };
     }, sel(TID_COMPOSER_TURN_METRICS));
     if (segments.count !== 3) {
-      throw new Error(`指标胶囊应有 3 个分段，实际 ${segments.count}: ${segments.labels.join(" | ")}`);
+      throw new Error(
+        `指标胶囊应有 3 个分段，实际 ${segments.count}: ${segments.labels.join(" | ")}`,
+      );
     }
     if (segments.placeholder !== segments.count) {
       // 已有完成轮时显示真实值；仅打印，不判失败。
@@ -98,16 +102,18 @@ describe("fork 三功能 UI 验收", () => {
     await ensureShellReady();
     await clickTestIdByDom(TID_TASK_SETTINGS_BUTTON);
     // 设置页导航到模型供应商区块（中文或英文文案均可）。
-    const providerNav = await $('div[role="button"]:has-text("模型"), [data-testid*="model-provider"]');
+    const providerNav = await $(
+      'div[role="button"]:has-text("模型"), [data-testid*="model-provider"]',
+    );
     if (await providerNav.isExisting().catch(() => false)) {
       await providerNav.click();
     } else {
       // 兜底：遍历设置导航点击包含“模型”的项。
       await browser.execute(() => {
         const items = Array.from(document.querySelectorAll("[role='button'], button, a"));
-        const target = items.find((el) =>
-          /模型|Model/.test(el.textContent ?? ""),
-        ) as HTMLElement | undefined;
+        const target = items.find((el) => /模型|Model/.test(el.textContent ?? "")) as
+          | HTMLElement
+          | undefined;
         target?.click();
       });
     }
@@ -125,8 +131,8 @@ describe("fork 三功能 UI 验收", () => {
     } else {
       console.log("[AC-3] 弹窗已打开；无可用供应商时拉取入口按设计不渲染");
     }
-    const dialogVisible = await browser.execute(
-      () => Boolean(document.querySelector("[role='dialog']")),
+    const dialogVisible = await browser.execute(() =>
+      Boolean(document.querySelector("[role='dialog']")),
     );
     if (!dialogVisible) throw new Error("添加模型弹窗未打开");
   });

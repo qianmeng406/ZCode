@@ -3,6 +3,8 @@
 // 文件写工具（Write/Edit/ApplyPatch），因此 Bash 是唯一的副作用入口，只读语义靠 Explore prompt 约束。
 // research 检索渠道同为只读（sideEffectScope: network），一并放行，Explore 子代理可做资料检索。
 export const EXPLORE_AGENT_ALLOWED_TOOLS = [
+  "ToolSearch",
+  "DeferredToolCall",
   "Bash",
   "Glob",
   "Grep",
@@ -26,6 +28,8 @@ export const EXPLORE_AGENT_ALLOWED_TOOLS = [
 export type ExploreAgentAllowedTool = (typeof EXPLORE_AGENT_ALLOWED_TOOLS)[number];
 
 export const EXPLORE_AGENT_EMBEDDED_SEARCH_ALLOWED_TOOLS = [
+  "ToolSearch",
+  "DeferredToolCall",
   "Bash",
   "Read",
   "WebFetch",
@@ -68,24 +72,31 @@ const EXPLORE_AGENT_DESCRIPTION_TOOL_PRIORITY_SET = new Set<ExploreAgentAllowedT
   EXPLORE_AGENT_DESCRIPTION_TOOL_PRIORITY,
 );
 
-export function buildExploreAllowedTools(options: {
-  embeddedSearchEnabled?: boolean;
-} = {}): readonly ExploreAgentAllowedTool[] {
+export function buildExploreAllowedTools(
+  options: {
+    embeddedSearchEnabled?: boolean;
+  } = {},
+): readonly ExploreAgentAllowedTool[] {
   return options.embeddedSearchEnabled
     ? EXPLORE_AGENT_EMBEDDED_SEARCH_ALLOWED_TOOLS
     : EXPLORE_AGENT_ALLOWED_TOOLS;
 }
 
-export function formatExploreAllowedToolsForAgentDescription(options: {
-  embeddedSearchEnabled?: boolean;
-} = {}): string {
+export function formatExploreAllowedToolsForAgentDescription(
+  options: {
+    embeddedSearchEnabled?: boolean;
+  } = {},
+): string {
   const allowedTools = buildExploreAllowedTools(options);
   const allowedToolSet = new Set(allowedTools);
   const prioritizedTools = EXPLORE_AGENT_DESCRIPTION_TOOL_PRIORITY.filter((tool) =>
     allowedToolSet.has(tool),
   );
   const unprioritizedTools = allowedTools.filter(
-    (tool) => !EXPLORE_AGENT_DESCRIPTION_TOOL_PRIORITY_SET.has(tool),
+    (tool) =>
+      tool !== "ToolSearch" &&
+      tool !== "DeferredToolCall" &&
+      !EXPLORE_AGENT_DESCRIPTION_TOOL_PRIORITY_SET.has(tool),
   );
   return [...prioritizedTools, ...unprioritizedTools].join(", ");
 }

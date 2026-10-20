@@ -381,7 +381,11 @@ export async function createElectronBrowserWebmRecorder(
       `[browser-recording] recorder console level=${details.level ?? "unknown"} message=${details.message ?? ""}`,
     );
   };
-  recorderWindow.webContents.on("console-message", onConsoleMessage);
+  const recorderConsoleEvents = recorderWindow.webContents as unknown as {
+    on(event: "console-message", listener: typeof onConsoleMessage): void;
+    removeListener(event: "console-message", listener: typeof onConsoleMessage): void;
+  };
+  recorderConsoleEvents.on("console-message", onConsoleMessage);
 
   const cleanup = async (cancel: boolean): Promise<void> => {
     if (closed) return;
@@ -402,7 +406,7 @@ export async function createElectronBrowserWebmRecorder(
     closePort(rendererPort);
     clearDisplayMediaHandler(recorderSession);
     recorderWindow.webContents.removeListener("render-process-gone", onRendererGone);
-    recorderWindow.webContents.removeListener("console-message", onConsoleMessage);
+    recorderConsoleEvents.removeListener("console-message", onConsoleMessage);
     closeWindow(recorderWindow);
     await rm(recorderDocumentPath, { force: true }).catch(() => undefined);
   };
@@ -432,7 +436,11 @@ export async function createElectronBrowserWebmRecorder(
     await recorderWindow.loadFile(recorderDocumentPath);
     await rm(recorderDocumentPath, { force: true }).catch(() => undefined);
     recorderWindow.webContents.postMessage(RECORDER_PORT_CHANNEL, null, [rendererPort]);
-    await withTimeout(ready.promise, RECORDER_START_TIMEOUT_MS, "recorder renderer did not become ready");
+    await withTimeout(
+      ready.promise,
+      RECORDER_START_TIMEOUT_MS,
+      "recorder renderer did not become ready",
+    );
     mainPort.postMessage({
       type: "start",
       fps: input.fps,

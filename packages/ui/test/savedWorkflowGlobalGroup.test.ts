@@ -6,6 +6,11 @@ import { createElement } from "react";
 import { cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import {
+  type ZCodeSavedWorkflowEntry,
+  type ZCodeSavedWorkflowRun,
+  type ZCodeWorkflowsListResult,
+} from "@zcode/shared";
+import {
   TID_WORKFLOWS_CREATE_VIA_CHAT,
   TID_WORKFLOWS_LIST,
   TID_WORKFLOW_ACTION_DELETE,
@@ -14,11 +19,9 @@ import {
   TID_WORKFLOW_CARD_RUN,
   TID_WORKFLOW_DETAIL,
   TID_WORKFLOW_GLOBAL_GROUP,
-  testId,
-  type ZCodeSavedWorkflowEntry,
-  type ZCodeSavedWorkflowRun,
-  type ZCodeWorkflowsListResult,
 } from "@zcode/shared";
+
+import { testId } from "@zcode/shared/test-ids";
 import type { AutomationWorkspaceOption } from "@/settings/automationWorkspaceOptions.js";
 import { ZCodeIntlProvider } from "@/i18n/IntlProvider.js";
 import { resetSavedWorkflowStoreForTests } from "@/store/savedWorkflowStore.js";

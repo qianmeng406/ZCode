@@ -57,9 +57,24 @@
     "exitCode": 2,
     "status": "failed-existing",
     "diagnostics": [
-      { "file": "packages/desktop/test/e2e/settings/fork-feature-acceptance.test.ts", "line": 8, "code": "TS2305", "detail": "@zcode/shared has no exported member sel" },
-      { "file": "packages/desktop/test/e2e/settings/fork-feature-acceptance.test.ts", "line": 54, "code": "TS2769", "detail": "HTMLElement is not assignable to parameter of type string" },
-      { "file": "packages/desktop/test/e2e/settings/fork-feature-acceptance.test.ts", "line": 84, "code": "TS2769", "detail": "HTMLElement is not assignable to parameter of type string" }
+      {
+        "file": "packages/desktop/test/e2e/settings/fork-feature-acceptance.test.ts",
+        "line": 8,
+        "code": "TS2305",
+        "detail": "@zcode/shared has no exported member sel"
+      },
+      {
+        "file": "packages/desktop/test/e2e/settings/fork-feature-acceptance.test.ts",
+        "line": 54,
+        "code": "TS2769",
+        "detail": "HTMLElement is not assignable to parameter of type string"
+      },
+      {
+        "file": "packages/desktop/test/e2e/settings/fork-feature-acceptance.test.ts",
+        "line": 84,
+        "code": "TS2769",
+        "detail": "HTMLElement is not assignable to parameter of type string"
+      }
     ],
     "newDiagnostics": 0,
     "localLog": "C:/Users/qianmengyys/.zcode/cli/exec/sess_6a295cdd-c1b8-4f64-84c5-cdb719b83b92/call_f151d20be69546dfa2444cb7abb7c9a7-stdout.log"

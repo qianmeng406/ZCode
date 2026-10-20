@@ -17,9 +17,8 @@ import {
   TID_SSH_SUCCESS,
   TID_WSL_DISTRO_SELECT,
   TID_WSL_USER_INPUT,
-  buildRemoteWorkspaceIdentity,
-  type RemoteTarget,
-} from "@zcode/shared";
+} from "@zcode/shared/test-ids";
+import { buildRemoteWorkspaceIdentity, type RemoteTarget } from "@zcode/shared";
 import {
   clickTestIdByWebDriver,
   setInputValueByTestIdDom,

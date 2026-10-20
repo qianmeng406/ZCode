@@ -7,6 +7,11 @@ import { createElement } from "react";
 import { cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import {
+  type ZCodeSavedWorkflowEntry,
+  type ZCodeSavedWorkflowRun,
+  type ZCodeWorkflowsListResult,
+} from "@zcode/shared";
+import {
   TID_WORKFLOWS_CREATE_VIA_CHAT,
   TID_WORKFLOWS_LIST,
   TID_WORKFLOW_ACTION_DELETE,
@@ -15,11 +20,9 @@ import {
   TID_WORKFLOW_CARD_RUN,
   TID_WORKFLOW_DETAIL,
   TID_WORKFLOW_PROJECT_GROUP,
-  testId,
-  type ZCodeSavedWorkflowEntry,
-  type ZCodeSavedWorkflowRun,
-  type ZCodeWorkflowsListResult,
 } from "@zcode/shared";
+
+import { testId } from "@zcode/shared/test-ids";
 import type { AutomationWorkspaceOption } from "@/settings/automationWorkspaceOptions.js";
 import { ZCodeIntlProvider } from "@/i18n/IntlProvider.js";
 import { resetSavedWorkflowStoreForTests } from "@/store/savedWorkflowStore.js";
@@ -468,7 +471,7 @@ describe("SavedWorkflowProjectGroup", () => {
     expect(onOpenDetail).toHaveBeenCalledWith("x");
   });
 
-  it("detail 模式渲染 SavedWorkflowDetailView 并把项目名传给面包屑", async () => {
+  it("detail 模式渲染 SavedWorkflowDetailView 并把项目名传给详情页", async () => {
     agentBeta.listResult.current = { workflows: [entry("x")], invalid: [] };
     const { onBack } = mount({ mode: { kind: "detail", name: "x" } });
     const detail = await screen.findByTestId(TID_WORKFLOW_DETAIL);

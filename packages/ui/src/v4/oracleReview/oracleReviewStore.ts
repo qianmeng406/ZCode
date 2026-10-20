@@ -125,7 +125,10 @@ export function seedOracleReviewHistory(
   records: readonly ZCodeOracleReviewRecord[],
 ): void {
   const existing = histories.get(sessionId) ?? [];
-  const merged = [...records, ...existing.filter((entry) => !records.some((r) => r.reviewId === entry.reviewId))];
+  const merged = [
+    ...records,
+    ...existing.filter((entry) => !records.some((r) => r.reviewId === entry.reviewId)),
+  ];
   merged.sort((a, b) => b.completedAt - a.completedAt);
   histories.set(
     sessionId,

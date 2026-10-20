@@ -1,4 +1,4 @@
-import { TID_CHAT_INPUT } from "@zcode/shared";
+import { TID_CHAT_INPUT } from "@zcode/shared/test-ids";
 import { clearAppData, readSettings } from "../../../helpers/desktop-app.js";
 import { waitForUpstreamNetworkRequestStarted } from "../../../helpers/upstream-capture.js";
 import {
@@ -62,10 +62,7 @@ describe("会话区 Background Guide Steer E2E", () => {
     );
     await waitForComposerText("", "background guide steer 引导消息发送后输入框没有清空");
     await waitForGuideProjection(guideMarker);
-    await waitForToolCallBlockByToolCallId(
-      "toolu_e2e_background_guide_steer_agent",
-      60000,
-    );
+    await waitForToolCallBlockByToolCallId("toolu_e2e_background_guide_steer_agent", 60000);
     await respondToToolCrossProductBlockers();
 
     const coalescedIndex = await waitForFirstRequestIndex(
@@ -133,9 +130,7 @@ async function waitForGuideProjection(marker: string) {
 
 async function sendPromptWithoutInputClick(prompt: string) {
   const focused = await browser.execute((inputTestId) => {
-    const input = document.querySelector<HTMLElement>(
-      `[data-testid="${inputTestId}"]`,
-    );
+    const input = document.querySelector<HTMLElement>(`[data-testid="${inputTestId}"]`);
     input?.focus();
     return document.activeElement === input;
   }, TID_CHAT_INPUT);

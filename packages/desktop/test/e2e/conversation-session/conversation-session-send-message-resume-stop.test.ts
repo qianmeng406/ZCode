@@ -4,7 +4,7 @@ import {
   TID_V4_BACKGROUND_WORK_CANCEL,
   TID_V4_BACKGROUND_WORK_ITEM,
   TID_V4_SUBAGENT_OPEN_SIDE_PANE,
-} from "@zcode/shared";
+} from "@zcode/shared/test-ids";
 import { clearAppData } from "../helpers/desktop-app.js";
 import { waitForToolCallBlockByToolName } from "../helpers/conversation-session-tool.js";
 import {
@@ -94,9 +94,7 @@ describe("SendMessage resume Stop", () => {
       90000,
     );
     expect((await waitForToolCallBlockByToolName("SendMessage", 30000)).status).toBe("completed");
-    expect(await waitForSingleSubagentSummaryChildSessionId(30000)).toBe(
-      foregroundChildSessionId,
-    );
+    expect(await waitForSingleSubagentSummaryChildSessionId(30000)).toBe(foregroundChildSessionId);
 
     await openV4RunningBackgroundWorks(90000);
     const runningWork = await waitForSingleRunningBackgroundWork(30000);
@@ -146,9 +144,7 @@ async function readForegroundAgentId(runMarker: string): Promise<string> {
   if (!capturePath) {
     throw new Error("E2E_PROVIDER_CAPTURE_PATH 未配置，无法读取 foreground agentId");
   }
-  const artifact = JSON.parse(
-    await readFile(capturePath, "utf8"),
-  ) as E2ENetworkCaptureArtifact;
+  const artifact = JSON.parse(await readFile(capturePath, "utf8")) as E2ENetworkCaptureArtifact;
   for (const record of artifact.records) {
     const requestText = JSON.stringify(record.requestJson ?? null);
     if (!requestText.includes(runMarker) || !requestText.includes(FOREGROUND_DONE)) continue;

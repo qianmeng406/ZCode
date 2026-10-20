@@ -5,10 +5,7 @@
   "user": "zcodewslp2",
   "uid": 1001,
   "scope": "Final post-WDIO observation only; no claim of per-close old-server PID timing",
-  "processRows": [
-    "13      12 Ss+        0 sh",
-    "     14      13 R+         0 ps"
-  ],
+  "processRows": ["13      12 Ss+        0 sh", "     14      13 R+         0 ps"],
   "unexpectedProcessRows": [],
   "replayScripts": [],
   "clean": true,

@@ -3,7 +3,11 @@
 import { access, mkdir, readFile, rm, writeFile } from "node:fs/promises";
 import { DatabaseSync } from "node:sqlite";
 import { join } from "node:path";
-import { TID_CHAT_MODE_SELECT_ITEM, TID_CHAT_MODE_SELECT_TRIGGER, testId } from "@zcode/shared";
+import {
+  TID_CHAT_MODE_SELECT_ITEM,
+  TID_CHAT_MODE_SELECT_TRIGGER,
+  testId,
+} from "@zcode/shared/test-ids";
 import { clearAppData, getE2EAppDataPaths } from "../helpers/desktop-app.js";
 import { resolveE2ERuntimePath } from "../helpers/e2e-runtime-paths.js";
 import { skipOccupationOnboardingIfPresent } from "../helpers/occupation-onboarding.js";
@@ -128,15 +132,20 @@ describe("Guarded dangerous command once approval", () => {
       const color = mode === "guarded" ? "icon-blue" : "warning";
       expect(await trigger.$(`svg.lucide-${icon}`).isExisting()).toBe(true);
       await browser.waitUntil(
-        () => browser.execute((triggerId, token) => {
-          const element = document.querySelector<HTMLElement>(`[data-testid="${triggerId}"]`)!;
-          const probe = document.createElement("span");
-          probe.style.color = `var(--color-${token})`;
-          element.append(probe);
-          const expected = getComputedStyle(probe).color;
-          probe.remove();
-          return getComputedStyle(element).color === expected;
-        }, TID_CHAT_MODE_SELECT_TRIGGER, color),
+        () =>
+          browser.execute(
+            (triggerId, token) => {
+              const element = document.querySelector<HTMLElement>(`[data-testid="${triggerId}"]`)!;
+              const probe = document.createElement("span");
+              probe.style.color = `var(--color-${token})`;
+              element.append(probe);
+              const expected = getComputedStyle(probe).color;
+              probe.remove();
+              return getComputedStyle(element).color === expected;
+            },
+            TID_CHAT_MODE_SELECT_TRIGGER,
+            color,
+          ),
         { timeout: 5000, timeoutMsg: `${mode} trigger color` },
       );
       await sendV4Prompt(marker + " Run the isolated cleanup command once.");

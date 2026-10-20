@@ -312,13 +312,14 @@ export function OracleReviewBanner({
               </CollapsibleContent>
             </Collapsible>
             {result.requirements ? (
-              <ResultSection
-                titleKey="chat.oracleReview.requirements"
-                body={result.requirements}
-              />
+              <ResultSection titleKey="chat.oracleReview.requirements" body={result.requirements} />
             ) : null}
-            {result.scope ? <ResultSection titleKey="chat.oracleReview.scope" body={result.scope} /> : null}
-            {result.limits ? <ResultSection titleKey="chat.oracleReview.limits" body={result.limits} /> : null}
+            {result.scope ? (
+              <ResultSection titleKey="chat.oracleReview.scope" body={result.scope} />
+            ) : null}
+            {result.limits ? (
+              <ResultSection titleKey="chat.oracleReview.limits" body={result.limits} />
+            ) : null}
           </>
         ) : null}
       </div>

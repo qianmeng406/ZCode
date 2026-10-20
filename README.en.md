@@ -15,6 +15,7 @@ Myzcode is a personal customization of ZCode, an AI coding workspace with deskto
 
 ## Upstream Version and Sync Status
 
+- **2026-10-16**: Updated to ZCode v3.16.1.
 - 2026-10-16: Added three session-experience features: **upstream model fetching** (the add-model dialog pulls model IDs from the provider's `/models` endpoint into a searchable picker), a **compact-context button** in the context usage panel (one click triggers the existing `/compact` flow), and a **composer main-turn metrics capsule** (persistent TTFT, generation speed, and output tokens below the input box, counting main-turn requests only); produced a new `ZCode Preview` installer.
 - 2026-10-15: Added **Beta mode** (prompt-fusion mode test version), then revised it into an independent work mode (minimal-mode entry removed; Beta uses full-access permissions) and produced a new `ZCode Preview` installer (`dist-new/`; the running old instance is untouched).
 - 2026-10-13: Migrated the Myzcode customizations onto this repository, based on official v3.15.1.
@@ -128,6 +129,8 @@ When starting the general Web service's HTTP entry directly, configure API/WebSo
 See Packaging below for build instructions. `pnpm build:zcode` only creates the distribution; it does not replace an existing `zcode` on `PATH`. If the command still points to an older installation or another checkout, check it with `command -v zcode` on macOS / Linux or `where.exe zcode` on Windows.
 
 ### CLI Source Development
+
+See the [CLI usage guide (Chinese)](apps/zcode-cli/docs/usage/README.md) for model configuration, non-interactive runs, tools and extensions, batch evaluation, and trajectory capture.
 
 Use the source entry when developing the TUI or Agent:
 

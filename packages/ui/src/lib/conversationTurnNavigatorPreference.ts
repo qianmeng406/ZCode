@@ -11,5 +11,8 @@ export function loadConversationTurnNavigatorEnabled(): boolean {
 }
 
 export function persistConversationTurnNavigatorEnabled(enabled: boolean): void {
-  writeSafeLocalStorage(CONVERSATION_TURN_NAVIGATOR_ENABLED_STORAGE_KEY, enabled ? "true" : "false");
+  writeSafeLocalStorage(
+    CONVERSATION_TURN_NAVIGATOR_ENABLED_STORAGE_KEY,
+    enabled ? "true" : "false",
+  );
 }

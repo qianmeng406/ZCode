@@ -126,8 +126,9 @@ settings.get
 
 - 只在 Desktop 主窗口的本地 `desktop-continuous` 恢复链路启用 active-first。Web、手机
   `web-remote-replayable`、不恢复会话的次级窗口维持现状。
-- active workspace 的选择继续复用 `resolveStartupLocalWorkspaceSessionIndex`：持久化 active 为
-  断连 remote 时仍选择可用 local workspace；不改变远程自动重连禁用语义。
+- Renderer 按 `lastActiveTabIndex` 恢复上次激活项目，包括断连 remote。
+  `resolveStartupLocalWorkspaceSessionIndex` 只决定 Main 的本地预热目标，允许与 Renderer
+  激活项目不同；不改变远程自动重连禁用语义。
 - inactive 补齐必须是 merge，不得重建已经恢复的 active tab，不得抢焦点，也不得覆盖补齐前
   用户新开的 settings/workspace tab。
 - active-only 是瞬态投影，不是新的持久化事实。inactive 补齐完成或失败前，tab persistence
@@ -187,11 +188,11 @@ workspace/session 数据，至少各跑 3 次改前/改后冷启动，报告中�
 和数据库 clone，按 baseline/optimized 交替执行各 5 次；未清空操作系统文件缓存，因此这里的“冷启动”
 指冷进程启动，不把不可控的整机冷缓存作为前提。
 
-| 指标 | 改前中位数 | 改后中位数 | 变化 |
-| --- | ---: | ---: | ---: |
-| T0 到输入框可用（T6） | 5,441ms | 3,249ms | -2,193ms（快 40.3%） |
-| Local Host 初始化 | 2,707ms | 17ms | -2,690ms（快 99.4%） |
-| React commit 后 startup gate | 3,278ms | 579ms | -2,699ms（快 82.3%） |
+| 指标                         | 改前中位数 | 改后中位数 |                 变化 |
+| ---------------------------- | ---------: | ---------: | -------------------: |
+| T0 到输入框可用（T6）        |    5,441ms |    3,249ms | -2,193ms（快 40.3%） |
+| Local Host 初始化            |    2,707ms |       17ms | -2,690ms（快 99.4%） |
+| React commit 后 startup gate |    3,278ms |      579ms | -2,699ms（快 82.3%） |
 
 新的单次异步 login shell snapshot 本身中位数仍约 `1,626ms`，但它在 Main 模块初始化时启动，和
 Electron ready、窗口及 renderer 加载重叠；5 轮中都在 Local Host 创建前完成，所以不再进入 Host

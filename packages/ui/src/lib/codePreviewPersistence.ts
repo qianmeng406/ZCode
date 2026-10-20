@@ -1,10 +1,7 @@
 // 代码预览设置持久化：读取（损坏/缺失回退默认）与落盘各走唯一入口。
 // store 只保留写入时的合并提交，读取逻辑下沉到本模块（codePreviewSettings
 // 类型与默认值本就住在这里），避免 store 文件继续膨胀。
-import {
-  DEFAULT_CODE_PREVIEW_SETTINGS,
-  type CodePreviewSettings,
-} from "./codePreviewSettings.js";
+import { DEFAULT_CODE_PREVIEW_SETTINGS, type CodePreviewSettings } from "./codePreviewSettings.js";
 import { readSafeLocalStorage, writeSafeLocalStorage } from "./browserEnvironment.js";
 
 const CODE_PREVIEW_SETTINGS_KEY = "zcode-code-preview-settings";

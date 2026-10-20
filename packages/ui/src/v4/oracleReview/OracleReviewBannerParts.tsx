@@ -111,7 +111,6 @@ export function failureDetail(state: Extract<OracleReviewState, { status: "error
   }
 }
 
-
 /** 结果卡的附加信息段（范围/限制/需求核验）；内容缺席不渲染。 */
 export function ResultSection({
   titleKey,
@@ -149,4 +148,3 @@ export function ResultSection({
     </Collapsible>
   );
 }
-

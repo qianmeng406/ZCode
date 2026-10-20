@@ -20,7 +20,10 @@ test("shouldLoadTaskMenuPaths：菜单关闭或无稳定 taskId 均不查询", (
 });
 
 test("shouldRunPresentationClock：不可见或无运行中回合都不跑 tick", () => {
-  assert.equal(shouldRunPresentationClock({ presentationVisible: true, hasRunningUnit: true }), true);
+  assert.equal(
+    shouldRunPresentationClock({ presentationVisible: true, hasRunningUnit: true }),
+    true,
+  );
   assert.equal(
     shouldRunPresentationClock({ presentationVisible: false, hasRunningUnit: true }),
     false,
@@ -31,11 +34,17 @@ test("shouldRunPresentationClock：不可见或无运行中回合都不跑 tick"
     false,
   );
   // 分屏未聚焦但可见：presentationVisible 仍为 true，时钟照常。
-  assert.equal(shouldRunPresentationClock({ presentationVisible: true, hasRunningUnit: true }), true);
+  assert.equal(
+    shouldRunPresentationClock({ presentationVisible: true, hasRunningUnit: true }),
+    true,
+  );
 });
 
 test("shouldCommitDeferredRequest：暂停后代际失效，迟到结果不得提交", () => {
-  assert.equal(shouldCommitDeferredRequest({ active: true, generation: 3, expectedGeneration: 3 }), true);
+  assert.equal(
+    shouldCommitDeferredRequest({ active: true, generation: 3, expectedGeneration: 3 }),
+    true,
+  );
   assert.equal(
     shouldCommitDeferredRequest({ active: false, generation: 3, expectedGeneration: 3 }),
     false,
@@ -49,11 +58,14 @@ test("shouldCommitDeferredRequest：暂停后代际失效，迟到结果不得�
 
 test("resolveFileTreeWatchedDirectories：隐藏时监听目标为空，恢复保留集合内容", () => {
   const dirs = new Set(["/ws", "/ws/src"]);
-  assert.deepEqual([...resolveFileTreeWatchedDirectories({ active: true, watchedDirectoryPaths: dirs })].sort(), [
-    "/ws",
-    "/ws/src",
-  ]);
-  assert.equal(resolveFileTreeWatchedDirectories({ active: false, watchedDirectoryPaths: dirs }).size, 0);
+  assert.deepEqual(
+    [...resolveFileTreeWatchedDirectories({ active: true, watchedDirectoryPaths: dirs })].sort(),
+    ["/ws", "/ws/src"],
+  );
+  assert.equal(
+    resolveFileTreeWatchedDirectories({ active: false, watchedDirectoryPaths: dirs }).size,
+    0,
+  );
 });
 
 test("resolveAssistantPreviewLoadAction：自动/手动/无三态", () => {

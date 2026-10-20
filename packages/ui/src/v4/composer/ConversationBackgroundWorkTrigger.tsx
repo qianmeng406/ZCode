@@ -1,6 +1,6 @@
 import { memo, useMemo } from "react";
 import { ActivityIcon, BotIcon, SquareTerminalIcon, Workflow } from "lucide-react";
-import { TID_V4_COMPOSER_BACKGROUND_WORK_TRIGGER } from "@zcode/shared";
+import { TID_V4_COMPOSER_BACKGROUND_WORK_TRIGGER } from "@zcode/shared/test-ids";
 import type { BackgroundWorkSummary } from "@zcode/shared/zcode-protocol-v4";
 import { Button } from "@/components/ui/button.js";
 import { ControlHintTooltip } from "@/ControlHintTooltip.js";
@@ -58,8 +58,7 @@ function ConversationBackgroundWorkTriggerImpl({
 }: ConversationBackgroundWorkTriggerProps) {
   const { intl } = useZCodeIntl();
   const counts = useMemo(
-    () =>
-      getComposerBackgroundWorkCounts(backgroundWorks, runningSubagentCount),
+    () => getComposerBackgroundWorkCounts(backgroundWorks, runningSubagentCount),
     [backgroundWorks, runningSubagentCount],
   );
 
@@ -146,6 +145,4 @@ function ConversationBackgroundWorkTriggerImpl({
   );
 }
 
-export const ConversationBackgroundWorkTrigger = memo(
-  ConversationBackgroundWorkTriggerImpl,
-);
+export const ConversationBackgroundWorkTrigger = memo(ConversationBackgroundWorkTriggerImpl);

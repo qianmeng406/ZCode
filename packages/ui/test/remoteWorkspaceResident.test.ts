@@ -101,5 +101,8 @@ test("断开判定助手：仅 ssh+resident 命中；wsl/docker/标准 ssh 一�
     ),
     false,
   );
-  assert.equal(isResidentRemoteWorkspaceEntry(entryWithTarget({ kind: "docker", container: "c1" })), false);
+  assert.equal(
+    isResidentRemoteWorkspaceEntry(entryWithTarget({ kind: "docker", container: "c1" })),
+    false,
+  );
 });

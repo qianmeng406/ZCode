@@ -63,7 +63,7 @@ describe("session execution environment section", () => {
   });
 
   it("declares POSIX shell and WSL command execution in env info", () => {
-    const content = buildEnvInfoSection(ENV_INFO, undefined, WSL).content;
+    const content = buildEnvInfoSection(ENV_INFO, undefined, [], WSL).content;
     expect(content).toContain("- Platform: win32");
     expect(content).toContain("- Shell: bash (POSIX, WSL)");
     expect(content).toContain("- Command execution: WSL Ubuntu-24.04 (user zcodewslp2)");

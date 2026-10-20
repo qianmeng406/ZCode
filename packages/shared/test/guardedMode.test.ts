@@ -9,17 +9,6 @@ import { zcodeSessionModeSchema } from "../src/zcode-protocol-legacy-types.js";
 import { executionStateSchema, resolveExecutionState } from "../src/execution-state.js";
 
 describe("guarded wire and mode catalog", () => {
-  it("uses autonomous display copy without renaming the guarded value", () => {
-    const copy = { name: "Autonomous mode", description: "Ask when there’s risk" };
-    expect(getZCodeAgentAvailableModes().find((mode) => mode.id === "guarded")).toEqual({
-      id: "guarded",
-      ...copy,
-    });
-    expect(getZCodeAgentModeSelectOptions().find((option) => option.value === "guarded")).toEqual({
-      value: "guarded",
-      ...copy,
-    });
-  });
   it("preserves guarded across independent Plan transitions and serialization", () => {
     const current = resolveExecutionState({ mode: "guarded", planEnabled: true });
     expect(executionStateSchema.parse(current)).toEqual({

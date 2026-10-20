@@ -36,18 +36,14 @@ export interface ConversationFullHistoryJob {
 }
 
 /** 是否还有未 abort 的 owner：全部退出后 job 不得再发起下一页请求。 */
-export function hasActiveFullHistoryOwner(
-  owners: Iterable<ConversationFullHistoryOwner>,
-): boolean {
+export function hasActiveFullHistoryOwner(owners: Iterable<ConversationFullHistoryOwner>): boolean {
   for (const owner of owners) {
     if (!owner.signal.aborted) return true;
   }
   return false;
 }
 
-export function hasShareFullHistoryOwner(
-  owners: Iterable<ConversationFullHistoryOwner>,
-): boolean {
+export function hasShareFullHistoryOwner(owners: Iterable<ConversationFullHistoryOwner>): boolean {
   for (const owner of owners) {
     if (owner.consumer === "share") return true;
   }

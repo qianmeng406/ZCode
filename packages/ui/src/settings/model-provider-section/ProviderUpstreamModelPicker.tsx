@@ -10,7 +10,11 @@ import {
   CommandList,
 } from "@/components/ui/command.js";
 import { useZCodeIntl } from "@/i18n/IntlProvider.js";
-import { TID_MODEL_UPSTREAM_FETCH_BUTTON, TID_MODEL_UPSTREAM_PICKER, testId } from "@zcode/shared";
+import {
+  TID_MODEL_UPSTREAM_FETCH_BUTTON,
+  TID_MODEL_UPSTREAM_PICKER,
+  testId,
+} from "@zcode/shared/test-ids";
 import type { ProviderUpstreamModelsResult } from "@zcode/services";
 
 /**

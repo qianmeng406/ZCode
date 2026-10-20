@@ -264,9 +264,7 @@ export async function runOracleReview(
         `目标回合 rowId=${request.target.rowId}`,
       ),
       ...(analyzed.priorTurnsText ? { priorTurnsText: analyzed.priorTurnsText } : {}),
-      ...(analyzed.analysis
-        ? { contextText: renderOracleContextAnalysis(analyzed.analysis) }
-        : {}),
+      ...(analyzed.analysis ? { contextText: renderOracleContextAnalysis(analyzed.analysis) } : {}),
       diffSections: evidence.sections,
       ...(evidence.diffSource ? { diffSource: evidence.diffSource } : {}),
       ...(evidence.recentCommits ? { recentCommits: evidence.recentCommits } : {}),
@@ -298,9 +296,7 @@ export async function runOracleReview(
         ? { maxOutputTokens: requestOptions.maxOutputTokens }
         : {}),
       requestTimeoutMs:
-        request.depth === "deep"
-          ? ORACLE_DEEP_REVIEW_TIMEOUT_MS
-          : ORACLE_REVIEW_REQUEST_TIMEOUT_MS,
+        request.depth === "deep" ? ORACLE_DEEP_REVIEW_TIMEOUT_MS : ORACLE_REVIEW_REQUEST_TIMEOUT_MS,
     });
     if (!result.text.trim()) {
       // 空正文：thinking 模型在输出预算内没留下可见文本（finishReason 可佐证）。

@@ -1,7 +1,7 @@
 import { createElement, type ReactNode } from "react";
 import { renderToStaticMarkup } from "react-dom/server";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { TID_V4_COMPOSER_INPUT } from "@zcode/shared";
+import { TID_V4_COMPOSER_INPUT } from "@zcode/shared/test-ids";
 
 const captured = vi.hoisted(() => ({
   contentProps: null as Record<string, unknown> | null,

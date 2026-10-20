@@ -62,10 +62,7 @@
           "backgroundOutput": true,
           "backgroundStatus": true,
           "cancellation": true,
-          "childPids": [
-            900,
-            939
-          ]
+          "childPids": [900, 939]
         },
         "closeReconnect": {
           "identity": "remote:wsl:Ubuntu-24.04:zcodewslp2:/home/zcodewslp2/workspace/.zcode-e2e/windowpair-c4zv94/B",

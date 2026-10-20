@@ -112,9 +112,7 @@ test("解析标准 JSON 并保留正文里的引号与围栏", () => {
 });
 
 test("解析被单层代码围栏包裹的 JSON", () => {
-  const parsed = parsePromptOptimizerResult(
-    '```json\n{"optimizedPrompt":"修复登录按钮"}\n```',
-  );
+  const parsed = parsePromptOptimizerResult('```json\n{"optimizedPrompt":"修复登录按钮"}\n```');
   assert.equal(parsed.ok, true);
   assert.equal(parsed.ok ? parsed.optimizedPrompt : "", "修复登录按钮");
 });
@@ -138,10 +136,7 @@ test("非 JSON / 缺字段 / unresolved 类型错误一律解析失败", () => {
   assert.equal(parsePromptOptimizerResult("").ok, false);
   assert.equal(parsePromptOptimizerResult('{"unresolved":[]}').ok, false);
   assert.equal(parsePromptOptimizerResult('{"optimizedPrompt":"  "}').ok, false);
-  assert.equal(
-    parsePromptOptimizerResult('{"optimizedPrompt":"x","unresolved":"nope"}').ok,
-    false,
-  );
+  assert.equal(parsePromptOptimizerResult('{"optimizedPrompt":"x","unresolved":"nope"}').ok, false);
   assert.equal(parsePromptOptimizerResult("[1,2]").ok, false);
 });
 
@@ -174,7 +169,15 @@ test("上下文只取最近轮次的用户原话与助手正文，排除工具�
   const rows: ConversationRow[] = [
     userRow("t1", "最早的请求"),
     assistantRow("t1", "t1 结论"),
-    { kind: "reasoning", turnId: "t2", rowId: 3, createdAt: 0, createdAtSeq: 0, text: "思考", state: "complete" } as unknown as ConversationRow,
+    {
+      kind: "reasoning",
+      turnId: "t2",
+      rowId: 3,
+      createdAt: 0,
+      createdAtSeq: 0,
+      text: "思考",
+      state: "complete",
+    } as unknown as ConversationRow,
     userRow("t2", "第二请求"),
     assistantRow("t2", "t2 结论"),
     userRow("t3", "第三请求"),
@@ -230,7 +233,10 @@ test("系统来源输入与未完成的助手正文都不进上下文", () => {
 
 test("轮次归属优先 productTurnId，窗口不足只保留最近三轮", () => {
   const withProduct = (turnId: string, productTurnId: string, text: string): ConversationRow =>
-    ({ ...(userRow(turnId, text) as unknown as Record<string, unknown>), productTurnId }) as unknown as ConversationRow;
+    ({
+      ...(userRow(turnId, text) as unknown as Record<string, unknown>),
+      productTurnId,
+    }) as unknown as ConversationRow;
   const rows: ConversationRow[] = [
     withProduct("t1", "p1", "第一轮"),
     withProduct("t2", "p2", "第二轮"),
@@ -265,10 +271,18 @@ test("模型解析区分未选/视图未就绪/模型不存在", () => {
     rows: [],
     richContext: false,
   };
-  assert.deepEqual(resolveOptimizerSelection({ ...base, selection: null, modelReasoningLevels: null, modelViewReady: true }), {
-    ok: false,
-    reason: "no-model",
-  });
+  assert.deepEqual(
+    resolveOptimizerSelection({
+      ...base,
+      selection: null,
+      modelReasoningLevels: null,
+      modelViewReady: true,
+    }),
+    {
+      ok: false,
+      reason: "no-model",
+    },
+  );
   // 视图还没加载完：不能误报成「模型已不可用」。
   assert.deepEqual(
     resolveOptimizerSelection({

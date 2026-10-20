@@ -1,5 +1,5 @@
 // BG34：active goal 仅剩 background Agent 时输入直发；notification verifier 完成后自动消费 future queue。
-import { TID_V4_COMPOSER } from "@zcode/shared";
+import { TID_V4_COMPOSER } from "@zcode/shared/test-ids";
 import { clearAppData } from "../../../helpers/desktop-app.js";
 import {
   countUpstreamRequests,
@@ -102,9 +102,7 @@ describe("BG34 v4 goal background queue", () => {
 
     await sendV4Prompt(verifierQueuePrompt);
     await waitForV4QueueCount(1, 30000);
-    expect((await getV4QueueItems())[0]?.text).toContain(
-      "E2E_BACKGROUND_GOAL_VERIFIER_QUEUE",
-    );
+    expect((await getV4QueueItems())[0]?.text).toContain("E2E_BACKGROUND_GOAL_VERIFIER_QUEUE");
     expect(
       await countUpstreamRequests(
         {
@@ -117,13 +115,10 @@ describe("BG34 v4 goal background queue", () => {
 
     // UI status panel 把 durable target complete 投影成 verified；CLI 回调仍由
     // TargetChangedPayload.target.status === "complete" 触发。
-    await browser.waitUntil(
-      async () => (await getV4GoalProjection())?.status === "verified",
-      {
-        timeout: 90000,
-        timeoutMsg: "background goal verifier 没有把 target 标记为 complete",
-      },
-    );
+    await browser.waitUntil(async () => (await getV4GoalProjection())?.status === "verified", {
+      timeout: 90000,
+      timeoutMsg: "background goal verifier 没有把 target 标记为 complete",
+    });
     const drainedIndex = await waitForFirstRequestIndex(
       {
         includes: ["E2E_BACKGROUND_GOAL_VERIFIER_QUEUE"],

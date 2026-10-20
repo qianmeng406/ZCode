@@ -139,6 +139,15 @@ console.log(`[local-remote-assets] out=${options.outDir}`);
 rmSync(releaseOutDir, { recursive: true, force: true });
 mkdirSync(releaseOutDir, { recursive: true });
 
+// staging 根只应保留当前版本：历史版本目录是旧构建残留，整树会被 extraResources 打进
+// 安装包（体积膨胀 + 运行时按 ZCODE_VERSION 找错目录）。这里一并清掉其它版本。
+const releasesRoot = join(options.outDir, "releases");
+for (const entry of readdirSync(releasesRoot, { withFileTypes: true })) {
+  if (entry.name !== version) {
+    rmSync(join(releasesRoot, entry.name), { recursive: true, force: true });
+  }
+}
+
 // server-bundle 的 mount 是跨平台共享的（manifest 里 mount=server），按 mount 去重只复制一次。
 const copiedMounts = new Set();
 const missingMounts = [];

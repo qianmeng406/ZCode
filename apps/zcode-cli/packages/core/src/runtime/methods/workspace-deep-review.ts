@@ -166,7 +166,11 @@ export async function runDeepReviewAgentLoop(
       return { text: result.text, toolCalls: result.toolCalls };
     },
     maxTurns: DEEP_REVIEW_MAX_TURNS,
-    messages: input.messages,
+    request: {
+      messages: input.messages,
+      tools,
+      toolSearchEnabled: false,
+    },
     model: input.model,
     onTurn: (event) => {
       currentRound = event.turn;
@@ -193,7 +197,6 @@ export async function runDeepReviewAgentLoop(
       }
       return false;
     },
-    tools,
     workingDirectory: runtime.workingDirectory,
     workspaceRoot: runtime.workspaceRoot,
   });
@@ -233,7 +236,11 @@ export async function runDeepReviewAgentLoop(
       },
       // 收尾轮不给工具：模型只能产出正文结论。
       maxTurns: 1,
-      messages: wrapUpMessages,
+      request: {
+        messages: wrapUpMessages,
+        tools: [],
+        toolSearchEnabled: false,
+      },
       model: input.model,
       requestOptions: (model) => ({ ...model.options, ...input.requestOptions }),
       evaluateToolPolicy: () => ({
@@ -241,7 +248,6 @@ export async function runDeepReviewAgentLoop(
         reason: "Deep review wrap-up: no tools available, output the conclusion directly.",
       }),
       rootDir: runtime.workingDirectory,
-      tools: [],
       workingDirectory: runtime.workingDirectory,
       workspaceRoot: runtime.workspaceRoot,
     });
@@ -346,9 +352,7 @@ function isAllowedEvidencePath(
   const resolved = isAbsolute(candidate)
     ? normalize(candidate)
     : resolve(workingDirectory, normalize(candidate));
-  return (
-    isPathInsideRoot(resolved, workingDirectory) || isPathInsideRoot(resolved, workspaceRoot)
-  );
+  return isPathInsideRoot(resolved, workingDirectory) || isPathInsideRoot(resolved, workspaceRoot);
 }
 
 function stringRecord(input: unknown): Record<string, unknown> | null {
@@ -358,7 +362,11 @@ function stringRecord(input: unknown): Record<string, unknown> | null {
 }
 
 /** Bash 命令的粗粒度路径扫描：任何疑似工作区外的路径都拒绝（保守方向）。 */
-function bashEscapesWorkspace(command: string, workingDirectory: string, workspaceRoot: string): boolean {
+function bashEscapesWorkspace(
+  command: string,
+  workingDirectory: string,
+  workspaceRoot: string,
+): boolean {
   // shell 引号内的路径也按 token 切：deep review 的取证命令不需要精巧转义。
   const tokens = command.split(/\s+/);
   for (const rawToken of tokens) {

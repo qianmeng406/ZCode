@@ -48,13 +48,21 @@ describe("Core-local TaskActivityTracker", () => {
     lifecycle.fire({
       ...targetA,
       workspaceKey: targetA.workspaceIdentity,
-      runtimeIdentity: { generation: 1, identity: "runtime-a", workspaceKey: targetA.workspaceIdentity },
+      runtimeIdentity: {
+        generation: 1,
+        identity: "runtime-a",
+        workspaceKey: targetA.workspaceIdentity,
+      },
       state: "available",
     });
     lifecycle.fire({
       ...targetB,
       workspaceKey: targetB.workspaceIdentity,
-      runtimeIdentity: { generation: 1, identity: "runtime-b", workspaceKey: targetB.workspaceIdentity },
+      runtimeIdentity: {
+        generation: 1,
+        identity: "runtime-b",
+        workspaceKey: targetB.workspaceIdentity,
+      },
       state: "available",
     });
 
@@ -62,14 +70,23 @@ describe("Core-local TaskActivityTracker", () => {
     telemetryByWorkspace.get(targetA.workspaceIdentity)?.fire(fact("turn.started", "session-1"));
     telemetryByWorkspace.get(targetB.workspaceIdentity)?.fire(fact("turn.started", "session-1"));
     expect(tracker.readRunningTaskCount()).toBe(2);
+    expect(tracker.readRunningTasks()).toEqual([
+      { ...targetA, sessionId: "session-1" },
+      { ...targetB, sessionId: "session-1" },
+    ]);
 
     telemetryByWorkspace.get(targetA.workspaceIdentity)?.fire(fact("turn.terminal", "session-1"));
     expect(tracker.readRunningTaskCount()).toBe(1);
+    expect(tracker.readRunningTasks()).toEqual([{ ...targetB, sessionId: "session-1" }]);
 
     lifecycle.fire({
       ...targetB,
       workspaceKey: targetB.workspaceIdentity,
-      runtimeIdentity: { generation: 1, identity: "runtime-b", workspaceKey: targetB.workspaceIdentity },
+      runtimeIdentity: {
+        generation: 1,
+        identity: "runtime-b",
+        workspaceKey: targetB.workspaceIdentity,
+      },
       state: "unavailable",
     });
     expect(tracker.readRunningTaskCount()).toBe(0);

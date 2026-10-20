@@ -22,7 +22,10 @@ import {
   resolveDesktopProductIdentity,
 } from "./scripts/desktop-product-identity.mjs";
 import { createWindowsPowerShellSecurityArgs } from "./scripts/powershell-command.mjs";
-import { isSharpRequiredByComputerUse, verifyStagedSharp } from "./scripts/sharp-package-assets.mjs";
+import {
+  isSharpRequiredByComputerUse,
+  verifyStagedSharp,
+} from "./scripts/sharp-package-assets.mjs";
 import { isRealComputerUseProducerInstalled } from "./scripts/computer-use-producer.mjs";
 import { verifyStagedKoffi } from "./scripts/koffi-package-assets.mjs";
 import {
@@ -236,6 +239,18 @@ if (
 const PACKAGING_PRUNE_PATTERNS = [
   "!**/*.map",
   "!**/*.pdb",
+  // ssh2 等原生模块的 MSVC 构建中间物会把构建机绝对路径（含用户名）打进 asar，
+  // 只保留运行时需要的 .node；.exp/.iobj/.ipdb/.lib/.tlog/.vcxproj/.recipe 一律剔除。
+  "!**/*.exp",
+  "!**/*.iobj",
+  "!**/*.ipdb",
+  "!**/*.lib",
+  "!**/*.tlog",
+  "!**/*.vcxproj",
+  "!**/*.vcxproj.filters",
+  "!**/*.recipe",
+  "!**/*.lastbuildstate",
+  "!**/build/Release/obj/**",
   "!**/__tests__/**",
   "!**/test/**",
   "!**/tests/**",
@@ -738,13 +753,15 @@ export default {
       from: builtinProviderConfig.sourcePath,
       to: "config/provider/zcode-builtin.json",
     },
-    ...(existsSync(localRemoteAssetsDir)
+    // 只打包当前版本的本地资源树：staging 目录可能残留历史版本（按版本分目录），
+    // 整目录拷贝会把旧版本资源混进安装包（体积 + 错版双害）。
+    ...(existsSync(resolve(localRemoteAssetsDir, "releases", buildMetadata.appVersion))
       ? [
           {
             // 远端工作区（SSH/WSL）运行时资源：随包分发后部署时直接本地上传，不访问 CDN。
             // 目录缺失时不做失败断言，让未准备该资源的构建仍能产出可用包（此时运行时回退 CDN）。
-            from: localRemoteAssetsDir,
-            to: "remote-assets",
+            from: resolve(localRemoteAssetsDir, "releases", buildMetadata.appVersion),
+            to: `remote-assets/releases/${buildMetadata.appVersion}`,
             filter: ["**/*"],
           },
         ]

@@ -19,11 +19,11 @@
 
 ## SSH vs WSL 核心差异
 
-| 维度 | SSH | WSL |
-|------|-----|-----|
-| 连接方式 | TCP 网络协议，ssh2 库 | 本地子进程，wsl.exe |
-| 认证 | 密码/私钥/SSH Agent | Windows 用户身份（无需认证） |
-| 文件系统 | SFTP / exec pipe | Windows 路径映射 `\\wsl$\Distro` |
+| 维度     | SSH                    | WSL                                 |
+| -------- | ---------------------- | ----------------------------------- |
+| 连接方式 | TCP 网络协议，ssh2 库  | 本地子进程，wsl.exe                 |
+| 认证     | 密码/私钥/SSH Agent    | Windows 用户身份（无需认证）        |
+| 文件系统 | SFTP / exec pipe       | Windows 路径映射 `\\wsl$\Distro`    |
 | 部署路径 | 远程 `~/.zcode/server` | WSL 路径 `/home/user/.zcode/server` |
 
 ## 当前释放生命周期
@@ -89,7 +89,7 @@ import type {
 } from "@zcode/server/remote/backend.js";
 
 export interface WSLBackendOptions {
-  distribution?: string;  // WSL 分发版名称，如 "Ubuntu"
+  distribution?: string; // WSL 分发版名称，如 "Ubuntu"
 }
 
 export class WSLBackend implements IRemoteBackend {
@@ -117,10 +117,17 @@ export class WSLBackend implements IRemoteBackend {
   }
 
   // 3. 执行命令：wsl.exe --exec
+  //    必须用 --exec 而不是 `--`：不带 --exec 时 wsl.exe 会把原始命令行整段交给用户默认 shell `-c`，
+  //    Node 加的双引号会让外层 shell 先展开 `"$var"`，局部变量在到达 bash -lc 前就变成空串
+  //    （2026-09-14 WSL 连接误报「远端缺少 tar」的根因）。--exec 按 CommandLineToArgvW 解析后直接 exec。
   async exec(command: string): Promise<StdioStream> {
-    const proc = spawn("wsl.exe", ["--distribution", this.distro, "--", "bash", "-c", command], {
-      stdio: ["pipe", "pipe", "pipe"],
-    });
+    const proc = spawn(
+      "wsl.exe",
+      ["--distribution", this.distro, "--exec", "bash", "-c", command],
+      {
+        stdio: ["pipe", "pipe", "pipe"],
+      },
+    );
 
     return {
       stdin: proc.stdin!,
@@ -156,7 +163,7 @@ export class WSLBackend implements IRemoteBackend {
 
   private getHomeDir(): string {
     try {
-      return execSync(`wsl.exe --distribution ${this.distro} -- bash -c "printf %s \\$HOME"`, {
+      return execSync(`wsl.exe --distribution ${this.distro} --exec bash -c "printf %s \\$HOME"`, {
         encoding: "utf-8",
       }).trim();
     } catch {
@@ -216,6 +223,7 @@ export function createRemoteBackend(options: RemoteConnectOptions): IRemoteBacke
 ### 1. WSL 路径转换
 
 WSL 有两种访问方式：
+
 - WSL 内部路径：`/home/user/.zcode`
 - Windows 访问 WSL：`\\wsl$\Ubuntu\home\user\.zcode`
 
@@ -224,12 +232,14 @@ WSL 有两种访问方式：
 ### 2. 文件上传优化
 
 当前 SSH 使用 SFTP + exec fallback，WSL 可以：
+
 - 小文件：`wsl.exe --exec cat` + stdin pipe
 - 大文件：考虑 `wsl.exe cp` 或直接写 `\\wsl$\Distro` 路径
 
 ### 3. 部署 zcode-server
 
 与 SSH 完全相同：
+
 ```bash
 # SSH
 ssh user@host "ZCODE_SERVER_RUNTIME_ROOT=~/.zcode/server ~/.zcode/server/node ..."
@@ -243,13 +253,17 @@ wsl.exe --exec bash -c "ZCODE_SERVER_RUNTIME_ROOT=~/.zcode/server ~/.zcode/serve
 ```typescript
 export async function listWSLDistributions(): Promise<string[]> {
   const output = execSync("wsl.exe --list --quiet", { encoding: "utf-8" });
-  return output.split("\n").map((s) => s.trim()).filter(Boolean);
+  return output
+    .split("\n")
+    .map((s) => s.trim())
+    .filter(Boolean);
 }
 ```
 
 ## UI 层改动
 
 连接对话框需要：
+
 1. 增加连接类型选择：SSH / WSL
 2. SSH 模式：显示 host、port、username、认证方式
 3. WSL 模式：显示分发版选择（默认读取可用列表）

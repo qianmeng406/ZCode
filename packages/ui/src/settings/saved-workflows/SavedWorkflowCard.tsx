@@ -1,15 +1,15 @@
 import { memo, type ReactNode } from "react";
 import { Ban, CircleCheck, Loader2, TriangleAlert } from "lucide-react";
+import { type ZCodeSavedWorkflowEntry, type ZCodeSavedWorkflowRun } from "@zcode/shared";
 import {
   TID_WORKFLOW_CARD,
   TID_WORKFLOW_CARD_MENU,
   TID_WORKFLOW_CARD_RUN,
   TID_WORKFLOW_ACTION_DELETE,
   TID_WORKFLOW_ACTION_MOVE,
-  testId,
-  type ZCodeSavedWorkflowEntry,
-  type ZCodeSavedWorkflowRun,
 } from "@zcode/shared";
+
+import { testId } from "@zcode/shared/test-ids";
 import { Button } from "@/components/ui/button.js";
 import {
   DropdownMenu,

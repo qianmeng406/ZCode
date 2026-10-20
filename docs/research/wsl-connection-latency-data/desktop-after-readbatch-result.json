@@ -31,10 +31,7 @@
     "backgroundOutput": true,
     "backgroundStatus": true,
     "cancellation": true,
-    "childPids": [
-      488,
-      527
-    ]
+    "childPids": [488, 527]
   },
   "closeReconnect": {
     "identity": "remote:wsl:Ubuntu-24.04:zcodewslp2:/home/zcodewslp2/workspace",

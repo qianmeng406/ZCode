@@ -447,9 +447,7 @@ export function useGitRepository(options: {
       // 若本轮又判定“无需刷新”（如 Git 面板隐藏），就没有接替请求去收口 loading，
       // 界面会永远停在加载中。这里兜底清掉孤儿 loading；数据保留最后可信状态，
       // 下次扩展数据资格恢复（面板重新可见）会触发补拉。
-      setRepositoryState((current) =>
-        current.loading ? { ...current, loading: false } : current,
-      );
+      setRepositoryState((current) => (current.loading ? { ...current, loading: false } : current));
       return;
     }
 

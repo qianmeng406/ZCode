@@ -205,6 +205,7 @@ describe("ChannelServer + ChannelClient", () => {
           details?: { requestId: string; issues: Array<{ code: string; scope: string }> };
           kind?: string;
           status?: number;
+          retryable?: boolean;
         };
         error.name = "RequestError";
         error.code = -32603;
@@ -217,6 +218,7 @@ describe("ChannelServer + ChannelClient", () => {
           requestId: "server-request-123",
           issues: [{ code: "artifact_type_not_allowed", scope: "artifact" }],
         };
+        error.retryable = false;
         return Promise.reject(error);
       },
       listen() {
@@ -237,6 +239,7 @@ describe("ChannelServer + ChannelClient", () => {
         details?: { requestId?: string; issues?: Array<{ code: string; scope: string }> };
         kind?: string;
         status?: number;
+        retryable?: boolean;
       };
       expect(typedError.message).toBe("Internal error");
       expect(typedError.name).toBe("RequestError");
@@ -250,6 +253,7 @@ describe("ChannelServer + ChannelClient", () => {
         requestId: "server-request-123",
         issues: [{ code: "artifact_type_not_allowed", scope: "artifact" }],
       });
+      expect(typedError.retryable).toBe(false);
     } finally {
       dispose();
     }

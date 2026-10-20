@@ -124,7 +124,6 @@ export function formatOracleCommitLine(hash: string, subject: string): string {
   return truncate(`${hash.slice(0, 7)} ${subject}`, MAX_COMMIT_LINE_CHARS);
 }
 
-
 export function isOracleDeadlineTimeoutError(error: unknown): boolean {
   return error instanceof Error && error.name === "ZCodeProtocolRequestTimeoutError";
 }

@@ -31,9 +31,6 @@
     "backgroundOutput": true,
     "backgroundStatus": true,
     "cancellation": true,
-    "childPids": [
-      1443,
-      1482
-    ]
+    "childPids": [1443, 1482]
   }
 }

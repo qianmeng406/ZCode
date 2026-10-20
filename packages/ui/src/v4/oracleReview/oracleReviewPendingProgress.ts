@@ -14,9 +14,7 @@ import { getOracleReviewState, setOracleReviewState } from "./oracleReviewStore.
  * 可审查 = 非运行中的对话终态（成功/被中断/失败）且非 controlOnly——失败与中断
  * 本身是被审查对象；不再要求有文件改动（纯对话回合同样可审）。
  */
-export function findLastReviewableTurnHeader(
-  snapshot: ConversationSnapshot,
-): TurnHeaderRow | null {
+export function findLastReviewableTurnHeader(snapshot: ConversationSnapshot): TurnHeaderRow | null {
   for (let index = snapshot.rows.window.length - 1; index >= 0; index -= 1) {
     const row = snapshot.rows.window[index];
     if (

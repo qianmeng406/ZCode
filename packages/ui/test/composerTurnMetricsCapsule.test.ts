@@ -10,7 +10,12 @@
 import { createElement } from "react";
 import { cleanup, render } from "@testing-library/react";
 import { afterEach, describe, expect, it } from "vitest";
-import { TID_COMPOSER_TURN_METRICS, TID_COMPOSER_TURN_METRICS_ITEM, testId } from "@zcode/shared";
+import {
+  TID_COMPOSER_TURN_METRICS,
+  TID_COMPOSER_TURN_METRICS_ITEM,
+  testId,
+} from "@zcode/shared/test-ids";
+
 import {
   ComposerTurnMetricsCapsule,
   formatComposerSessionUsage,

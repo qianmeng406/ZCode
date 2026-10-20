@@ -193,7 +193,10 @@ function resolveEffectiveAssetsRoot(localAssetsDir: string): string {
 
   const versionDirs = readdirSync(releasesRoot, { withFileTypes: true })
     .filter((entry) => entry.isDirectory() || entry.isSymbolicLink())
-    .map((entry) => entry.name);
+    .map((entry) => entry.name)
+    // 本地目录可能残留历史版本构建；按名字升序取最后一个（= 最新版本）做映射，
+    // 避免 readdir 顺序随机时把旧布局映射给运行时版本号。
+    .sort();
   if (versionDirs.length === 0) {
     return absoluteAssetsDir;
   }
@@ -205,7 +208,11 @@ function resolveEffectiveAssetsRoot(localAssetsDir: string): string {
   for (const versionDir of versionDirs) {
     symlinkSync(join(releasesRoot, versionDir), join(mappedReleases, versionDir), "junction");
   }
-  symlinkSync(join(releasesRoot, versionDirs[0]!), join(mappedReleases, ZCODE_VERSION), "junction");
+  symlinkSync(
+    join(releasesRoot, versionDirs[versionDirs.length - 1]!),
+    join(mappedReleases, ZCODE_VERSION),
+    "junction",
+  );
 
   // 映射后立即自校验：link 建失败时必须在部署前就停下，否则会误报"随包资源缺失"。
   const probePath = join(mappedReleases, ZCODE_VERSION, "server", "zcode-server.cjs");

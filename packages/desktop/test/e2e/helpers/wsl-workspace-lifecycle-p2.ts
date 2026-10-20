@@ -11,7 +11,7 @@ import {
   TID_WORKSPACE_CLOSE,
   TID_WORKSPACE_ITEM,
   testId,
-} from "@zcode/shared";
+} from "@zcode/shared/test-ids";
 import { clickTestIdByDom, waitForTestIdByDom, waitForWorkspaceApp } from "./desktop-app.js";
 import {
   readRemoteTabSnapshot,

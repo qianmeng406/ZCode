@@ -156,6 +156,7 @@ export class ChannelServer<TContext = string> implements IChannelServer<TContext
               details?: unknown;
               taskId?: unknown;
               traceId?: unknown;
+              retryable?: unknown;
             } = {
               message: error.message,
               name: error.name,
@@ -172,6 +173,7 @@ export class ChannelServer<TContext = string> implements IChannelServer<TContext
               "details",
               "taskId",
               "traceId",
+              "retryable",
             ] as const;
             for (const key of passthroughKeys) {
               const value = errorRecord[key];
@@ -215,7 +217,11 @@ export class ChannelServer<TContext = string> implements IChannelServer<TContext
 
     let disposable: IDisposable;
     try {
-      disposable = channel.listen(this.ctx, request.name, request.arg)((data) => {
+      disposable = channel.listen(
+        this.ctx,
+        request.name,
+        request.arg,
+      )((data) => {
         this.sendResponse({
           id: request.id,
           data,

@@ -13,10 +13,7 @@ import {
 } from "../src/v4/conversationFullHistoryJob.js";
 import { shouldHydrateConversationTurnNavigatorDirectory } from "../src/v4/conversationTurnNavigatorHelpers.js";
 
-function owner(
-  consumer: "navigator" | "share",
-  signal: AbortSignal,
-): ConversationFullHistoryOwner {
+function owner(consumer: "navigator" | "share", signal: AbortSignal): ConversationFullHistoryOwner {
   return { consumer, signal };
 }
 

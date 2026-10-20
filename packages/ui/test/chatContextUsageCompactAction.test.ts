@@ -3,7 +3,8 @@ import { createElement } from "react";
 import type { ReactNode } from "react";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { cleanup, fireEvent, render, screen } from "@testing-library/react";
-import { TID_CHAT_CONTEXT_COMPACT_BUTTON } from "@zcode/shared";
+import { TID_CHAT_CONTEXT_COMPACT_BUTTON } from "@zcode/shared/test-ids";
+
 import { ChatContextUsage } from "@/chat-input-toolbar/contextUsage.js";
 
 // 压缩上下文按钮的交互回归：只关注按钮派发 / 禁用 / 无回调 / 无可用上下文四类

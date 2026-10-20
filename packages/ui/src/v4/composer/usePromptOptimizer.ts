@@ -181,9 +181,7 @@ export function usePromptOptimizer(options: UsePromptOptimizerOptions) {
   const fail = useCallback(
     (requestId: number, errorReason: string, toastId: string, detail?: string): void => {
       patchPromptOptimizerState(scopeKey, requestId, { status: "error", errorReason });
-      toast(
-        intl.formatMessage({ id: toastId }) + (detail ? ` · ${detail.slice(0, 120)}` : ""),
-      );
+      toast(intl.formatMessage({ id: toastId }) + (detail ? ` · ${detail.slice(0, 120)}` : ""));
     },
     [intl, scopeKey],
   );
@@ -269,12 +267,7 @@ export function usePromptOptimizer(options: UsePromptOptimizerOptions) {
         }
         const parsed = parsePromptOptimizerResult(result.text);
         if (!parsed.ok) {
-          fail(
-            requestId,
-            parsed.reason,
-            "chat.composer.optimizePromptParseFailed",
-            parsed.reason,
-          );
+          fail(requestId, parsed.reason, "chat.composer.optimizePromptParseFailed", parsed.reason);
           return;
         }
         const durationMs = Date.now() - startedAt;

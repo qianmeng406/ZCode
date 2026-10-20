@@ -1,5 +1,6 @@
 /* eslint-disable max-lines -- Side pane 当前集中承载 tabs、browser/git/code-viewer 内容；完整拆分需按 pane 功能边界继续推进。 */
-import { ServiceProvider } from "@/hooks/useServices.js";
+import type { CreateTaskRequest } from "@/app-shell/types.js";
+import { ServiceProvider, useComposerClientNamespace } from "@/hooks/useServices.js";
 import { useEffect, useMemo, useRef, useState, type CSSProperties, type RefObject } from "react";
 import type { PanelImperativeHandle } from "react-resizable-panels";
 import type { IServiceAccessor } from "@zcode/services";
@@ -15,7 +16,10 @@ import {
 } from "@dnd-kit/core";
 import { horizontalListSortingStrategy, SortableContext } from "@dnd-kit/sortable";
 import type { BrowserViewScreenshotSurfacePreparePayload, GitChangeSourceId } from "@zcode/shared";
-import { PreviewPane } from "@/PreviewPane.js";
+import { FileManagerPane } from "@/WorkspaceFileTree.js";
+import type { FileManagerTarget } from "@/lib/workspaceSidePane.js";
+import { useZCodeSessionStore } from "@/store/zcodeSessionStore.js";
+import { composerScopeKey, resolveComposerScope } from "@/v4/composer/composerDraftStore.js";
 import { SidePaneTerminalPane } from "@/SidePaneTerminalPane.js";
 import { useIsOfficeMode } from "@/hooks/useInterfaceMode.js";
 import { WorkspaceSidePaneToggleButton } from "@/WorkspaceSidePaneToggleButton.js";
@@ -29,16 +33,16 @@ import { GitPane } from "@/GitPane.js";
 import { TreemappingPane } from "@/TreemappingPane.js";
 import { WhiteboardPane } from "@/WhiteboardPane.js";
 import { ModelTrajectoryPane } from "@/ModelTrajectoryPane.js";
+import { PluginStorePage } from "@/settings/PluginStorePage.js";
 import { DeveloperToolsPane } from "@/DeveloperToolsPane.js";
 import { cn } from "@/components/lib/utils.js";
 import { Button } from "@/components/ui/button.js";
+
 import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuTrigger,
-} from "@/components/ui/dropdown-menu.js";
-import { ResizableHandle, ResizablePanel } from "@/components/ui/resizable.js";
+  ResizableHandle,
+  ResizablePanel,
+  WORKSPACE_VERTICAL_RESIZE_HANDLE_CLASS_NAME,
+} from "@/components/ui/resizable.js";
 import { Tabs, TabsContent, TabsList } from "@/components/ui/tabs.js";
 import { SidePaneTabOverview } from "@/app-shell/SidePaneTabOverview.js";
 import { FileExplorerSidePane } from "@/app-shell/FileExplorerSidePane.js";
@@ -47,7 +51,12 @@ import { SubagentDirectorySidePane } from "@/app-shell/SubagentDirectorySidePane
 import { SelectionSideChatPane } from "@/app-shell/SelectionSideChatPane.js";
 import { BackgroundBashOutputSidePane } from "@/app-shell/BackgroundBashOutputSidePane.js";
 import { PlanDetailSidePane } from "@/app-shell/PlanDetailSidePane.js";
-import { PluginUiLauncherItems, PluginUiSidePane, useOpenPluginUi } from "@/plugin-ui/index.js";
+import {
+  PluginUiLauncherItems,
+  PluginUiSidePane,
+  SidePaneLauncherRow,
+  useOpenPluginUi,
+} from "@/plugin-ui/index.js";
 import { WorkflowRunSidePane } from "@/app-shell/WorkflowRunSidePane.js";
 import { WorkflowRunDirectorySidePane } from "@/app-shell/WorkflowRunDirectorySidePane.js";
 import { WorkflowActorSessionSidePane } from "@/app-shell/WorkflowActorSessionSidePane.js";
@@ -95,8 +104,10 @@ import { getVisibleSidePaneTabs } from "@/lib/workspaceSidePane.js";
 import { useZCodeIntl } from "@/i18n/IntlProvider.js";
 import {
   BugIcon,
+  ChevronRightIcon,
   FileDiffIcon,
   FolderIcon,
+  FolderOpenIcon,
   GlobeIcon,
   MessageSquareTextIcon,
   PlusIcon,
@@ -110,12 +121,10 @@ type TabsScrollMaskEdges = {
   left: boolean;
   right: boolean;
 };
-const OPEN_TAB_LAUNCHER_BUTTON_CLASS =
-  "side-pane-open-tab-button flex h-12 min-w-0 items-center gap-3 rounded-xl bg-surface px-3 text-ui-base font-medium text-foreground transition-colors hover:bg-surface-hover focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring";
-
 type OpenTabLauncherItem = {
   id: OpenTabLauncherItemId;
   label: string;
+  description: string;
   icon: LucideIcon;
   onOpen: () => void;
 };
@@ -288,6 +297,7 @@ export function AnimatedSidePanePanel({
   services,
   isDesktop,
   isWindowsDesktop,
+  isMacDesktop,
   isVisible,
   sidePaneState,
   recentClosedSidePaneTabs,
@@ -310,9 +320,9 @@ export function AnimatedSidePanePanel({
   fileChangeFindNavigationRequestId,
   fileChangeFindQuery,
   onFileChangeFindMatchCountChange,
-  onCloseCodeViewer,
   onCloseGit,
   onActivateTab,
+  onOpenNewTab,
   onReorderTab,
   onCloseTab,
   onCloseOtherTabs,
@@ -322,6 +332,10 @@ export function AnimatedSidePanePanel({
   onOpenBrowserPermissionSettings,
   onOpenWhiteboard: _onOpenWhiteboard,
   onOpenDeveloperTools,
+  onOpenFileManager,
+  onNavigateFileManager,
+  onOpenPluginMarket,
+  onCreateTask,
   onOpenTerminalTab,
   onOpenReviewTab,
   onOpenFileExplorerTab,
@@ -357,6 +371,7 @@ export function AnimatedSidePanePanel({
   toggleSidePaneShortcutLabel?: string;
   isDesktop?: boolean;
   isWindowsDesktop?: boolean;
+  isMacDesktop?: boolean;
   isVisible: boolean;
   sidePaneState: WorkspaceSidePaneState | null;
   recentClosedSidePaneTabs: RecentClosedSidePaneTab[];
@@ -382,6 +397,7 @@ export function AnimatedSidePanePanel({
   onCloseCodeViewer: () => void;
   onCloseGit: () => void;
   onActivateTab: (tabId: string) => void;
+  onOpenNewTab: () => void;
   /** "插件"分组打开面板 tab；缺省不渲染分组（web / 无宿主）。 */
   onReorderTab: (activeTabId: string, overTabId: string) => void;
   onCloseTab: (tabId: string) => void;
@@ -392,6 +408,10 @@ export function AnimatedSidePanePanel({
   onOpenBrowserPermissionSettings?: (origin: string) => void;
   onOpenWhiteboard: () => void;
   onOpenDeveloperTools: () => void;
+  onOpenFileManager: (target?: FileManagerTarget) => void;
+  onNavigateFileManager: (tabId: string, source: CodeViewerSource) => void;
+  onOpenPluginMarket?: () => void;
+  onCreateTask?: (request?: CreateTaskRequest) => void;
   onOpenTerminalTab: () => void;
   onOpenReviewTab: () => void;
   onOpenFileExplorerTab: () => void;
@@ -426,6 +446,13 @@ export function AnimatedSidePanePanel({
   const isDragCollapsible = !isVisible;
   const isResizeDisabled = !isVisible;
   const workspaceKey = workspaceIdentity?.trim() || workspaceAbsPath;
+  const composerClientNamespace = useComposerClientNamespace();
+  const draftProjectId = useZCodeSessionStore(
+    (state) => state.workspaces[workspaceKey]?.draftProjectId,
+  );
+  const draftScopeKey = composerScopeKey(
+    resolveComposerScope(draftProjectId, workspaceIdentity, composerClientNamespace),
+  );
   const tabs = sidePaneState?.tabs ?? EMPTY_SIDE_PANE_TABS;
   const screenshotSurfaceRequest = screenshotSurfaceRequestProp;
   const isScreenshotSurfaceActive = Boolean(screenshotSurfaceRequest);
@@ -446,7 +473,17 @@ export function AnimatedSidePanePanel({
   const visibleActiveTabId = visibleTabs.some((tab) => tab.id === activeTabId)
     ? activeTabId
     : (visibleTabs.at(-1)?.id ?? "");
-  const [isAddMenuOpen, setIsAddMenuOpen] = useState(false);
+  const [marketReturnTarget, setMarketReturnTarget] = useState<{
+    workspaceKey: string;
+    ownerId: string | null;
+    tabId: string;
+  } | null>(null);
+  useEffect(() => {
+    if (!visibleTabs.some((tab) => tab.type === "plugin-market")) {
+      setMarketReturnTarget(null);
+    }
+  }, [visibleTabs]);
+  const hasVisibleTabs = visibleTabs.length > 0;
   const tabsScrollViewportRef = useRef<HTMLDivElement | null>(null);
   const tabsScrollContentRef = useRef<HTMLDivElement | null>(null);
   const [lockedContentWidthPx, setLockedContentWidthPx] = useState<number | null>(null);
@@ -700,144 +737,67 @@ export function AnimatedSidePanePanel({
     };
   }, [visibleActiveTabId, visibleTabs]);
 
-  const addTabMenu = (
-    <DropdownMenu open={isAddMenuOpen} onOpenChange={setIsAddMenuOpen}>
-      <DropdownMenuTrigger asChild>
-        <Button
-          type="button"
-          variant="ghost"
-          size="icon-md"
-          className="shrink-0"
-          data-side-pane-add-trigger
-          data-side-pane-add-tab-trigger=""
-          aria-label={intl.formatMessage({
-            id: "sidePane.addTab",
-          })}
-        >
-          <PlusIcon className="size-4" />
-        </Button>
-      </DropdownMenuTrigger>
-      <DropdownMenuContent align="end" className="w-48">
-        {canOpenSelectionSideConversation ? (
-          <DropdownMenuItem
-            data-side-pane-add-item="selection-side-conversation"
-            onSelect={onOpenSelectionSideConversation}
-          >
-            <MessageSquareTextIcon className="size-4" />
-            <span>{intl.formatMessage({ id: "sidePane.selectionChat" })}</span>
-          </DropdownMenuItem>
-        ) : null}
-        {!isOfficeMode && !hasReviewTab ? (
-          <DropdownMenuItem
-            onSelect={() => {
-              onOpenReviewTab();
-            }}
-          >
-            <FileDiffIcon className="size-4" />
-            <span>{intl.formatMessage({ id: "sidePane.review" })}</span>
-          </DropdownMenuItem>
-        ) : null}
-        {!hasFileExplorerTab ? (
-          <DropdownMenuItem
-            data-side-pane-add-item="file-explorer"
-            onSelect={() => {
-              onOpenFileExplorerTab();
-            }}
-          >
-            <FolderIcon className="size-4" />
-            <span>{intl.formatMessage({ id: "fileExplorer.title" })}</span>
-          </DropdownMenuItem>
-        ) : null}
-        {/* 画板入口未启用 */}
-        {/* <DropdownMenuItem
-          onSelect={() => {
-            onOpenWhiteboard();
-          }}
-        >
-          <PaletteIcon className="size-4" />
-          <span>{intl.formatMessage({ id: "whiteboard.title" })}</span>
-        </DropdownMenuItem> */}
-        {!isOfficeMode ? (
-          <DropdownMenuItem
-            data-side-pane-add-item="terminal"
-            onSelect={() => {
-              onOpenTerminalTab();
-            }}
-          >
-            <SquareTerminalIcon className="size-4" />
-            <span>{intl.formatMessage({ id: "terminal.title" })}</span>
-          </DropdownMenuItem>
-        ) : null}
-        {supportsEmbeddedBrowser ? (
-          <DropdownMenuItem
-            data-side-pane-add-item="browser"
-            onSelect={() => {
-              onOpenBrowserTab();
-            }}
-          >
-            <GlobeIcon className="size-4" />
-            <span>{intl.formatMessage({ id: "browser.title" })}</span>
-          </DropdownMenuItem>
-        ) : null}
-        {developerToolsEnabled ? (
-          <DropdownMenuItem
-            data-side-pane-add-item="developer-tools"
-            onSelect={() => {
-              onOpenDeveloperTools();
-            }}
-          >
-            <BugIcon className="size-4" />
-            <span>{intl.formatMessage({ id: "developerTools.title" })}</span>
-          </DropdownMenuItem>
-        ) : null}
-        {/* 插件此前只接入空白页；已有 tab 后必须在加号菜单复用相同候选与打开动作。 */}
-        {onOpenPluginUi ? (
-          <PluginUiLauncherItems
-            variant="menu"
-            workspacePath={workspaceAbsPath}
-            workspaceIdentity={workspaceIdentity}
-            remoteSessionId={workspaceRemoteSessionId}
-            sessionId={activeTaskId}
-            onOpenPluginUi={onOpenPluginUi}
-          />
-        ) : null}
-      </DropdownMenuContent>
-    </DropdownMenu>
+  const addTabButton = (
+    <Button
+      type="button"
+      variant="ghost"
+      size="icon-md"
+      className="shrink-0"
+      data-side-pane-add-trigger
+      data-side-pane-add-tab-trigger=""
+      aria-label={intl.formatMessage({ id: "sidePane.addTab" })}
+      onClick={onOpenNewTab}
+    >
+      <PlusIcon className="size-4" />
+    </Button>
   );
   const openTabLauncherItemById: Record<OpenTabLauncherItemId, OpenTabLauncherItem> = {
     "selection-side-conversation": {
       id: "selection-side-conversation",
       label: intl.formatMessage({ id: "sidePane.selectionChat" }),
+      description: intl.formatMessage({ id: "sidePane.launcher.selection-side-conversation" }),
       icon: MessageSquareTextIcon,
       onOpen: onOpenSelectionSideConversation,
+    },
+    files: {
+      id: "files",
+      label: intl.formatMessage({ id: "fileManager.title" }),
+      description: intl.formatMessage({ id: "fileManager.empty" }),
+      icon: FolderOpenIcon,
+      onOpen: () => onOpenFileManager(),
     },
     review: {
       id: "review",
       label: intl.formatMessage({ id: "sidePane.review" }),
+      description: intl.formatMessage({ id: "sidePane.launcher.review" }),
       icon: FileDiffIcon,
       onOpen: onOpenReviewTab,
     },
     "file-explorer": {
       id: "file-explorer",
       label: intl.formatMessage({ id: "fileExplorer.title" }),
+      description: intl.formatMessage({ id: "fileExplorer.title" }),
       icon: FolderIcon,
       onOpen: onOpenFileExplorerTab,
     },
     terminal: {
       id: "terminal",
       label: intl.formatMessage({ id: "terminal.title" }),
+      description: intl.formatMessage({ id: "sidePane.launcher.terminal" }),
       icon: SquareTerminalIcon,
       onOpen: onOpenTerminalTab,
     },
     browser: {
       id: "browser",
       label: intl.formatMessage({ id: "browser.title" }),
+      description: intl.formatMessage({ id: "sidePane.launcher.browser" }),
       icon: GlobeIcon,
       onOpen: onOpenBrowserTab,
     },
     "developer-tools": {
       id: "developer-tools",
       label: intl.formatMessage({ id: "developerTools.title" }),
+      description: intl.formatMessage({ id: "sidePane.launcher.developer-tools" }),
       icon: BugIcon,
       onOpen: onOpenDeveloperTools,
     },
@@ -863,57 +823,68 @@ export function AnimatedSidePanePanel({
       </div>
     ) : null;
   const openTabLauncher = (
-    <div className="side-pane-open-tab-shell flex h-full min-h-0 flex-col bg-background">
-      {!mobileOverlay ? (
-        <div
-          className={cn(
-            "flex h-12 shrink-0 items-center justify-end px-2",
-            isDesktop && "[app-region:drag]",
-          )}
-          style={captionControlsStyle}
-        >
-          {closeSidePaneButton}
-        </div>
-      ) : null}
-      <div className="flex min-h-0 flex-1 items-center justify-center overflow-y-auto px-5 py-10">
-        <div className="side-pane-open-tab-content flex w-full max-w-[20rem] flex-col gap-5">
-          <div className="flex flex-col gap-2 text-center">
-            <h2 className="text-xl font-semibold leading-7 text-foreground">
-              {intl.formatMessage({ id: "sidePane.openTab" })}
-            </h2>
-            <p className="text-ui-base leading-5 text-foreground-subtle">
-              {intl.formatMessage({ id: "sidePane.openTabDescription" })}
-            </p>
-          </div>
-          <div className="side-pane-open-tab-list flex w-full flex-col gap-2">
-            {openTabLauncherItems.map((item) => {
-              const Icon = item.icon;
-              return (
-                <button
-                  key={item.id}
-                  type="button"
-                  data-side-pane-open-tab-item={item.id}
-                  className={OPEN_TAB_LAUNCHER_BUTTON_CLASS}
-                  onClick={item.onOpen}
-                >
-                  <Icon className="size-4 text-foreground-subtle" />
-                  <span className="side-pane-open-tab-button-label min-w-0 flex-1 truncate text-left">
-                    {item.label}
-                  </span>
-                </button>
-              );
-            })}
-            {onOpenPluginUi ? (
-              <PluginUiLauncherItems
-                workspacePath={workspaceAbsPath}
-                workspaceIdentity={workspaceIdentity}
-                remoteSessionId={workspaceRemoteSessionId}
-                sessionId={activeTaskId}
-                onOpenPluginUi={onOpenPluginUi}
-                itemClassName={OPEN_TAB_LAUNCHER_BUTTON_CLASS}
+    <div className="side-pane-open-tab-shell @container/launcher flex h-full min-h-0 flex-col bg-background">
+      {/* 对齐原型：顶部对齐滚动、左对齐标题；内置应用与 UI 插件同为横向行，短分割线分区。 */}
+      <div className="min-h-0 flex-1 overflow-y-auto px-7 py-6">
+        <div className="mx-auto flex w-full max-w-3xl flex-col gap-6">
+          <h2 className="pl-2 text-ui-xl font-semibold text-foreground">
+            {intl.formatMessage({ id: "sidePane.openTab" })}
+          </h2>
+          <div className="grid min-w-0 grid-cols-1 gap-x-8 gap-y-1 @min-[36rem]/launcher:grid-cols-2">
+            {openTabLauncherItems.map((item) => (
+              <SidePaneLauncherRow
+                key={item.id}
+                itemId={item.id}
+                icon={item.icon}
+                label={item.label}
+                description={item.description}
+                onOpen={item.onOpen}
               />
-            ) : null}
+            ))}
           </div>
+          {/* 空会话暂不支持应用插件，连同分区入口一起隐藏。 */}
+          {activeTaskId ? (
+            <>
+              <div aria-hidden="true" className="my-4 h-px w-24 self-center bg-border" />
+              <section className="min-w-0" data-testid="side-pane-ui-recommendations">
+                <div className="flex flex-wrap items-center justify-between gap-2 pb-2">
+                  <h2 className="pl-2 text-ui-lg font-semibold text-foreground">
+                    {intl.formatMessage({ id: "settings.plugins.store.ui.title" })}
+                  </h2>
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    size="sm"
+                    className="shrink-0 text-foreground-subtle"
+                    data-testid="side-pane-plugin-market"
+                    onClick={() => {
+                      if (!onOpenPluginMarket) return;
+                      setMarketReturnTarget({
+                        workspaceKey,
+                        ownerId: sidePaneOwnerId ?? null,
+                        tabId: visibleActiveTabId,
+                      });
+                      onOpenPluginMarket();
+                    }}
+                  >
+                    {intl.formatMessage({ id: "sidePane.launcher.viewAllPlugins" })}
+                    <ChevronRightIcon className="size-3.5" aria-hidden="true" />
+                  </Button>
+                </div>
+                <div className="mt-2 grid min-w-0 grid-cols-1 gap-x-8 gap-y-1 @min-[36rem]/launcher:grid-cols-2">
+                  {onOpenPluginUi ? (
+                    <PluginUiLauncherItems
+                      workspacePath={workspaceAbsPath}
+                      workspaceIdentity={workspaceIdentity}
+                      remoteSessionId={workspaceRemoteSessionId}
+                      sessionId={activeTaskId}
+                      onOpenPluginUi={onOpenPluginUi}
+                    />
+                  ) : null}
+                </div>
+              </section>
+            </>
+          ) : null}
         </div>
       </div>
     </div>
@@ -937,6 +908,7 @@ export function AnimatedSidePanePanel({
         relativeTime: (timestamp) => formatTaskRelativeTime(timestamp, intl),
         browserTitle: intl.formatMessage({ id: "browser.title" }),
         reviewTitle: intl.formatMessage({ id: "sidePane.review" }),
+        fileManagerTitle: intl.formatMessage({ id: "fileManager.title" }),
         codeViewerTitle: intl.formatMessage({ id: "codeViewer.title" }),
         fileExplorerTitle: intl.formatMessage({ id: "fileExplorer.title" }),
         treemappingTitle: intl.formatMessage({ id: "treemapping.title" }),
@@ -944,6 +916,8 @@ export function AnimatedSidePanePanel({
         modelTrajectoryTitle: intl.formatMessage({
           id: "modelTrajectory.title",
         }),
+        newTabTitle: intl.formatMessage({ id: "sidePane.newTab" }),
+        pluginMarketTitle: intl.formatMessage({ id: "workspace.openPluginsSettings" }),
         developerToolsTitle: intl.formatMessage({
           id: "developerTools.title",
         }),
@@ -996,15 +970,12 @@ export function AnimatedSidePanePanel({
       >
         {hasRenderedSidePane && sidePaneState ? (
           <>
-            {visibleTabs.length === 0 ? openTabLauncher : null}
-            {/* Bugfix：sidePaneState 是 workspace 级 registry，fork/切换任务后可能只剩其他
-                任务的 session-scoped tab。此时 registry 非空但 visibleTabs 为空，旧逻辑会渲染
-                value="" 的空 Tabs 而白屏。这里隐藏但保留 TabsContent 挂载，切回父任务时
-                辅助对话草稿和引用不会丢失。 */}
+            {/* 收起或切换对话时保留其他对话的内容挂载，避免丢失辅助对话草稿和引用。
+                展开后的空标签集合由 useAppPanels 统一补建「新标签页」。 */}
             <div
               className={cn(
                 "h-full min-h-0",
-                visibleTabs.length === 0 && !screenshotSurfaceRequest && "hidden",
+                !hasVisibleTabs && !screenshotSurfaceRequest && "hidden",
               )}
             >
               <Tabs
@@ -1094,7 +1065,7 @@ export function AnimatedSidePanePanel({
                               );
                             })}
                           </SortableContext>
-                          {!isTabsOverflowing ? addTabMenu : null}
+                          {!isTabsOverflowing ? addTabButton : null}
                         </div>
                       </div>
                       <DragOverlay dropAnimation={null}>
@@ -1111,7 +1082,7 @@ export function AnimatedSidePanePanel({
                     </DndContext>
 
                     <div className="ml-auto flex h-full shrink-0 items-center gap-1 px-2">
-                      {isTabsOverflowing ? addTabMenu : null}
+                      {isTabsOverflowing ? addTabButton : null}
                       {closeSidePaneButton}
                     </div>
                   </div>
@@ -1205,6 +1176,7 @@ export function AnimatedSidePanePanel({
                         ) : tab.type === "plugin-ui" ? (
                           <PluginUiSidePane
                             tab={tab}
+                            visible={isVisible && tab.id === visibleActiveTabId}
                             onOpenBrowserUrl={onOpenBrowserUrl}
                             onCloseTab={onCloseTab}
                           />
@@ -1273,11 +1245,31 @@ export function AnimatedSidePanePanel({
                             onOpenBrowserUrl={isDesktop ? onOpenBrowserUrl : undefined}
                             onOpenCodeViewer={onOpenCodeViewer}
                           />
-                        ) : tab.type === "code-viewer" ? (
-                          <PreviewPane
-                            markdownSelectionTarget={{ sessionId: activeTaskId, workspaceKey }}
+                        ) : tab.type === "code-viewer" || tab.type === "file-manager" ? (
+                          <FileManagerPane
+                            markdownSelectionTarget={{
+                              sessionId: activeTaskId,
+                              workspaceKey,
+                              draftScopeKey,
+                            }}
                             source={tab.source}
-                            onClose={onCloseCodeViewer}
+                            target={
+                              tab.type === "file-manager"
+                                ? tab.target
+                                : {
+                                    workspacePath: tab.source.workspacePath ?? workspaceAbsPath,
+                                    workspaceIdentity: tab.source.workspacePath
+                                      ? tab.source.workspaceIdentity
+                                      : workspaceIdentity,
+                                    workspaceRemoteSessionId: tab.source.workspacePath
+                                      ? tab.source.workspaceRemoteSessionId
+                                      : workspaceRemoteSessionId,
+                                  }
+                            }
+                            mobileOverlay={mobileOverlay}
+                            canOpenLocalFileManager={Boolean(isDesktop)}
+                            onNavigate={(source) => onNavigateFileManager(tab.id, source)}
+                            onClose={() => onCloseTab(tab.id)}
                             workspacePath={workspaceAbsPath}
                             onOpenBrowserUrl={onOpenBrowserUrl}
                             onOpenCodeViewer={onOpenCodeViewer}
@@ -1288,8 +1280,8 @@ export function AnimatedSidePanePanel({
                               // video/audio 原生全屏会触发 resize，resize settling
                               // 期间必须保持当前媒体节点挂载，否则浏览器会立即退出全屏。
                               isMediaPreview:
-                                tab.source.type === "media" ||
-                                (tab.source.type === "file" &&
+                                tab.source?.type === "media" ||
+                                (tab.source?.type === "file" &&
                                   inferMediaPreview(tab.source.path) !== null),
                               isMobileOverlay: mobileOverlay,
                               isResizeSettling: isWindowResizeSettling,
@@ -1337,6 +1329,40 @@ export function AnimatedSidePanePanel({
                             workspaceIdentity={workspaceIdentity}
                             onClose={() => onCloseTab(tab.id)}
                           />
+                        ) : tab.type === "new-tab" ? (
+                          openTabLauncher
+                        ) : tab.type === "plugin-market" ? (
+                          <ServiceProvider services={services}>
+                            <div className="h-full min-w-0 overflow-y-auto p-4">
+                              <PluginStorePage
+                                onBack={
+                                  marketReturnTarget?.workspaceKey === workspaceKey &&
+                                  marketReturnTarget.ownerId === (sidePaneOwnerId ?? null)
+                                    ? () => {
+                                        const targetId = marketReturnTarget.tabId;
+                                        setMarketReturnTarget(null);
+                                        onCloseTab(tab.id);
+                                        if (visibleTabs.some((item) => item.id === targetId)) {
+                                          onActivateTab(targetId);
+                                        } else {
+                                          onOpenNewTab();
+                                        }
+                                      }
+                                    : undefined
+                                }
+                                embedded
+                                onCreateTask={onCreateTask}
+                                workspacePath={workspaceAbsPath}
+                                workspaceIdentity={workspaceIdentity}
+                                remoteSessionId={workspaceRemoteSessionId}
+                                sessionId={activeTaskId}
+                                isDesktop={isDesktop}
+                                isWindowsDesktop={isWindowsDesktop}
+                                isMacDesktop={isMacDesktop}
+                                isWebRemoteControl={mobileOverlay}
+                              />
+                            </div>
+                          </ServiceProvider>
                         ) : tab.type === "developer-tools" ? (
                           <ServiceProvider services={services}>
                             <DeveloperToolsPane
@@ -1406,8 +1432,6 @@ export function AnimatedSidePanePanel({
               </Tabs>
             </div>
           </>
-        ) : hasRenderedSidePane ? (
-          openTabLauncher
         ) : null}
       </ScopedErrorBoundary>
     </div>
@@ -1441,12 +1465,7 @@ export function AnimatedSidePanePanel({
         <ResizableHandle
           data-workspace-side-pane-resize-handle="true"
           className={cn(
-            // 拖动条占据真实 4px 间距，关闭时随 handle 一起移除，不为隐藏面板保留空隙。
-            "aria-[orientation=vertical]:w-1 aria-[orientation=vertical]:translate-x-0 aria-[orientation=vertical]:my-0 aria-[orientation=vertical]:h-full",
-            "hover:bg-transparent data-[separator=hover]:bg-transparent data-[separator=active]:bg-transparent focus-visible:bg-transparent",
-            "aria-[orientation=vertical]:[mask-image:none] aria-[orientation=vertical]:[-webkit-mask-image:none]",
-            "after:pointer-events-none after:absolute after:rounded-full after:bg-foreground-subtlest/50 after:opacity-0 after:transition-opacity after:content-[''] after:inset-y-[var(--workspace-panel-radius,var(--radius-xl))] after:w-0.5",
-            "hover:after:opacity-100 data-[separator=hover]:after:opacity-100 data-[separator=active]:after:opacity-100 focus-visible:after:opacity-100",
+            WORKSPACE_VERTICAL_RESIZE_HANDLE_CLASS_NAME,
             mobileStacked && "max-md:hidden",
           )}
         />

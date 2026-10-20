@@ -73,40 +73,84 @@ function runNodeScript(root, script, args, label) {
   return result.status ?? 1;
 }
 
+// 大提交（全仓格式对齐/上游合并）会把几千个文件一次性塞进 spawn 参数，撞 Windows
+// 命令行长度上限（ENAMETOOLONG）。按累计参数长度分批执行，任一批失败即返回其退出码。
+const SPAWN_ARGS_CHAR_BUDGET = 20000;
+
+function chunkArgs(args) {
+  const chunks = [];
+  let current = [];
+  let currentLength = 0;
+  for (const arg of args) {
+    if (current.length > 0 && currentLength + arg.length + 1 > SPAWN_ARGS_CHAR_BUDGET) {
+      chunks.push(current);
+      current = [];
+      currentLength = 0;
+    }
+    current.push(arg);
+    currentLength += arg.length + 1;
+  }
+  if (current.length > 0) chunks.push(current);
+  return chunks;
+}
+
+function runNodeScriptChunked(root, script, baseArgs, files, label) {
+  const chunks = chunkArgs(files);
+  for (const [index, chunk] of chunks.entries()) {
+    const status = runNodeScript(
+      root,
+      script,
+      [...baseArgs, ...chunk],
+      `${label} [batch ${index + 1}/${chunks.length}, ${chunk.length} files]`,
+    );
+    if (status !== 0) return status;
+  }
+  return 0;
+}
+
 function runVitestSelection(root, files) {
   const cli = join(root, "node_modules", "vitest", "vitest.mjs");
   if (!existsSync(cli)) {
     console.error("[git-gate] 未找到本地 vitest；请先 pnpm install。");
     return 1;
   }
-  const startedAt = Date.now();
-  const result = spawnSync(
-    process.execPath,
-    [cli, "run", "--exclude", E2E_GLOB, "--passWithNoTests", ...files],
-    { cwd: root, stdio: "inherit" },
-  );
-  if (result.error) {
-    console.error(`[git-gate] vitest 启动失败：${result.error.message}`);
-    return 1;
+  for (const [index, chunk] of chunkArgs(files).entries()) {
+    const startedAt = Date.now();
+    const result = spawnSync(
+      process.execPath,
+      [cli, "run", "--exclude", E2E_GLOB, "--passWithNoTests", ...chunk],
+      { cwd: root, stdio: "inherit" },
+    );
+    if (result.error) {
+      console.error(`[git-gate] vitest 启动失败：${result.error.message}`);
+      return 1;
+    }
+    console.log(
+      `[git-gate] vitest batch ${index + 1}（${chunk.length} 个文件）完成（${elapsedLabel(startedAt)}，exit ${result.status ?? 1}）`,
+    );
+    if ((result.status ?? 1) !== 0) return result.status ?? 1;
   }
-  console.log(
-    `[git-gate] vitest ${files.length} 个文件完成（${elapsedLabel(startedAt)}，exit ${result.status ?? 1}）`,
-  );
-  return result.status ?? 1;
+  return 0;
 }
 
 /** scripts/ 下的 node:test 文件（门禁自身回归）直接用 node --test 运行。 */
 function runScriptNodeTests(root, files) {
-  const startedAt = Date.now();
-  const result = spawnSync(process.execPath, ["--test", ...files], { cwd: root, stdio: "inherit" });
-  if (result.error) {
-    console.error(`[git-gate] node --test 启动失败：${result.error.message}`);
-    return 1;
+  for (const [index, chunk] of chunkArgs(files).entries()) {
+    const startedAt = Date.now();
+    const result = spawnSync(process.execPath, ["--test", ...chunk], {
+      cwd: root,
+      stdio: "inherit",
+    });
+    if (result.error) {
+      console.error(`[git-gate] node --test 启动失败：${result.error.message}`);
+      return 1;
+    }
+    console.log(
+      `[git-gate] node --test batch ${index + 1}（${chunk.length} 个文件）完成（${elapsedLabel(startedAt)}，exit ${result.status ?? 1}）`,
+    );
+    if ((result.status ?? 1) !== 0) return result.status ?? 1;
   }
-  console.log(
-    `[git-gate] node --test ${files.length} 个文件完成（${elapsedLabel(startedAt)}，exit ${result.status ?? 1}）`,
-  );
-  return result.status ?? 1;
+  return 0;
 }
 
 function packageJsonDependencySectionChanged(root, base, head) {
@@ -161,9 +205,10 @@ export async function runGate(argv = process.argv.slice(2)) {
         !LOCAL_LINT_EXCLUDES.some((prefix) => file.startsWith(prefix)),
     );
     if (lintable.length > 0) {
-      const status = runNodeScript(
+      const status = runNodeScriptChunked(
         root,
         "node_modules/oxlint/bin/oxlint",
+        [],
         lintable,
         `oxlint（${lintable.length} 个改动文件）`,
       );
@@ -174,10 +219,11 @@ export async function runGate(argv = process.argv.slice(2)) {
       (file) => FORMATTABLE_RE.test(file) && existsSync(join(root, file)),
     );
     if (formattable.length > 0) {
-      const status = runNodeScript(
+      const status = runNodeScriptChunked(
         root,
         "node_modules/oxfmt/bin/oxfmt",
-        ["--check", ...formattable],
+        ["--check", "--no-error-on-unmatched-pattern"],
+        formattable,
         `oxfmt --check（${formattable.length} 个改动文件）`,
       );
       if (status !== 0) {

@@ -2,30 +2,31 @@
 import { createElement } from "react";
 import { cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { type EmbeddedBrowserPermissionPromptEvent } from "@zcode/shared";
 import {
   TID_BROWSER_PERMISSION_ALLOW_ALWAYS,
   TID_BROWSER_PERMISSION_ALLOW_ONCE,
   TID_BROWSER_PERMISSION_DENY,
   TID_BROWSER_PERMISSION_DISMISS,
   TID_BROWSER_PERMISSION_PROMPTS,
-  type EmbeddedBrowserPermissionPromptEvent,
-} from "@zcode/shared";
+} from "@zcode/shared/test-ids";
 import { ZCodeIntlProvider } from "@/i18n/IntlProvider.js";
 // 与组件相同的 "@/..." 说明符：vitest alias 下相对路径与别名会解析成两个模块实例，
 // 导致 setState 与组件订阅落在不同 store 上。
 import { useEmbeddedBrowserPermissionStore } from "@/store/embeddedBrowserPermissionStore.js";
 
 /** 模拟 main 的设备列表热更新：同 requestId 的推送应替换列表而非追加。 */
-function pushDeviceListUpdate(requestId: string, devices: Array<{ deviceId: string; name?: string }>) {
-  useEmbeddedBrowserPermissionStore
-    .getState()
-    .receivePrompt({
-      requestId,
-      kind: "device",
-      origin: "https://example.com",
-      permission: "select-bluetooth-device",
-      devices,
-    });
+function pushDeviceListUpdate(
+  requestId: string,
+  devices: Array<{ deviceId: string; name?: string }>,
+) {
+  useEmbeddedBrowserPermissionStore.getState().receivePrompt({
+    requestId,
+    kind: "device",
+    origin: "https://example.com",
+    permission: "select-bluetooth-device",
+    devices,
+  });
 }
 
 const resolveEmbeddedBrowserPermissionPrompt = vi.fn();
@@ -38,9 +39,8 @@ vi.mock("@/hooks/usePlatform.js", () => ({
   }),
 }));
 
-const { EmbeddedBrowserPermissionPrompts } = await import(
-  "@/browser-use/EmbeddedBrowserPermissionPrompts.js"
-);
+const { EmbeddedBrowserPermissionPrompts } =
+  await import("@/browser-use/EmbeddedBrowserPermissionPrompts.js");
 
 function renderWithPrompts(
   prompts: EmbeddedBrowserPermissionPromptEvent[],
@@ -132,18 +132,12 @@ describe("EmbeddedBrowserPermissionPrompts Chrome 式权限气泡", () => {
 
   it("permission 请求按 guest 归属过滤：后台 tab 的请求不在当前 tab 渲染", () => {
     // 当前 tab 的 guest id = 42；请求来自 99（后台 tab）
-    renderWithPrompts(
-      [{ ...permissionPrompt, guestWebContentsId: 99 }],
-      42,
-    );
+    renderWithPrompts([{ ...permissionPrompt, guestWebContentsId: 99 }], 42);
     expect(screen.queryByTestId(TID_BROWSER_PERMISSION_PROMPTS)).toBeNull();
 
     // 请求来自当前 tab（42）：渲染
     cleanup();
-    renderWithPrompts(
-      [{ ...permissionPrompt, guestWebContentsId: 42 }],
-      42,
-    );
+    renderWithPrompts([{ ...permissionPrompt, guestWebContentsId: 42 }], 42);
     expect(screen.getByTestId(TID_BROWSER_PERMISSION_PROMPTS)).toBeTruthy();
     expect(screen.getByText("https://example.com")).toBeTruthy();
 

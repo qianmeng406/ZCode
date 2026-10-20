@@ -9,12 +9,14 @@ import {
   type CSSProperties,
 } from "react";
 import {
-  TID_CHAT_CONTEXT_COMPACT_BUTTON,
-  TID_CHAT_CONTEXT_USAGE_TRIGGER,
   type CodingPlanResetType,
   type ZCodeContextUsageBreakdownItem,
   type ZCodeProvider,
 } from "@zcode/shared";
+import {
+  TID_CHAT_CONTEXT_COMPACT_BUTTON,
+  TID_CHAT_CONTEXT_USAGE_TRIGGER,
+} from "@zcode/shared/test-ids";
 import {
   Context,
   ContextContentBody,

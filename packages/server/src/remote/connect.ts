@@ -69,7 +69,6 @@ export interface RemoteConnection {
   resident: boolean;
 }
 
-
 function createRemoteConnectAbortError(signal: AbortSignal): Error {
   if (signal.reason instanceof Error) {
     return signal.reason;

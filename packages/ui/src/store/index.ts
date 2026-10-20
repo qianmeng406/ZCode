@@ -37,17 +37,18 @@ import {
   persistTaskNotificationSoundEnabled,
 } from "@/lib/taskNotificationPreferences.js";
 import {
-  loadConversationTurnNavigatorEnabled, persistConversationTurnNavigatorEnabled,
+  loadConversationTurnNavigatorEnabled,
+  persistConversationTurnNavigatorEnabled,
 } from "@/lib/conversationTurnNavigatorPreference.js";
 import {
-  loadAssistantAutoFilePreviewEnabled, persistAssistantAutoFilePreviewEnabled,
+  loadAssistantAutoFilePreviewEnabled,
+  persistAssistantAutoFilePreviewEnabled,
 } from "@/lib/assistantAutoFilePreviewPreference.js";
 import {
-  loadCodePreviewSettings, persistCodePreviewSettings,
+  loadCodePreviewSettings,
+  persistCodePreviewSettings,
 } from "@/lib/codePreviewPersistence.js";
-import {
-  loadPerformanceMode, persistPerformanceMode,
-} from "@/lib/performanceModePreference.js";
+import { loadPerformanceMode, persistPerformanceMode } from "@/lib/performanceModePreference.js";
 import type { Theme } from "../useTheme.js";
 import { applyTheme, normalizeThemePreference, resolveTheme } from "../useTheme.js";
 import {
@@ -203,12 +204,20 @@ export interface ZCodeState {
 // ============================================================================
 
 const BROADCAST_FIELDS = new Set([
-  "theme", "locale", "uiFontSizePx", "interfaceMode", "conversationTurnNavigatorEnabled",
+  "theme",
+  "locale",
+  "uiFontSizePx",
+  "interfaceMode",
+  "conversationTurnNavigatorEnabled",
   "assistantAutoFilePreviewEnabled",
 ]);
 
 type BroadcastField =
-  | "theme" | "locale" | "uiFontSizePx" | "interfaceMode" | "conversationTurnNavigatorEnabled"
+  | "theme"
+  | "locale"
+  | "uiFontSizePx"
+  | "interfaceMode"
+  | "conversationTurnNavigatorEnabled"
   | "assistantAutoFilePreviewEnabled";
 
 /** 广播频道名前缀 */

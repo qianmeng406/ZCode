@@ -17,6 +17,7 @@ Assistant 正文中的 Markdown/HTML 文件引用会自动读取本轮 `fileChan
 ### 自动加载的触发条件（现状，不回归）
 
 仅当同时满足才自动查 `fileChanges`：
+
 1. 当前回合最新 assistant 文本为 complete/interrupted；
 2. 提取到 Markdown/HTML 引用（Office/PDF 不触发本次明细查询）；
 3. 有 turnHeader target（V4 fileChanges 只接受 turnHeader）；

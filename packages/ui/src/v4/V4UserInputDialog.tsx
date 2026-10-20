@@ -4,7 +4,7 @@ import {
   TID_V4_USER_INPUT_OPTION,
   TID_V4_USER_INPUT_TEXT,
   testId,
-} from "@zcode/shared";
+} from "@zcode/shared/test-ids";
 import { Button } from "@/components/ui/button.js";
 import { Input } from "@/components/ui/input.js";
 import type { V4UserInputViewModel } from "@/v4/pendingInteractionAdapter.js";
@@ -22,7 +22,11 @@ export function V4UserInputDialog({ model, onSubmit }: V4UserInputDialogProps) {
   const handleOption = useCallback(
     (optionId: string) => {
       runUserAction({
-        input: { featureId: "conversation.blocking.user_input", action: "select_option", trigger: "button" },
+        input: {
+          featureId: "conversation.blocking.user_input",
+          action: "select_option",
+          trigger: "button",
+        },
         operation: () => onSubmit({ optionId }),
         completed: { resultSource: "optimistic_projection" },
         failureStage: "user_input_submit",

@@ -56,7 +56,8 @@ test("remoteCacheDir 支持 ZCODE_REMOTE_ASSET_CACHE_DIR 覆盖（本地分支�
     );
     assert.equal(dirs.mockCdnDir, localAssetDir);
     assert.ok(
-      typeof dirs.remoteCacheDir === "string" && dirs.remoteCacheDir.replace(/\\/g, "/").endsWith("custom-cache"),
+      typeof dirs.remoteCacheDir === "string" &&
+        dirs.remoteCacheDir.replace(/\\/g, "/").endsWith("custom-cache"),
       `remoteCacheDir 应为覆盖值，实际: ${String(dirs.remoteCacheDir)}`,
     );
   } finally {

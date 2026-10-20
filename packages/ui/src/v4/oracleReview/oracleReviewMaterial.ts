@@ -15,9 +15,7 @@ import type { ConversationRow, TurnHeaderRow } from "@zcode/shared/zcode-protoco
 export type OracleReviewableTurnState = "completedSuccess" | "completedInterrupted" | "failed";
 
 export function isOracleReviewableTurnState(state: string): state is OracleReviewableTurnState {
-  return (
-    state === "completedSuccess" || state === "completedInterrupted" || state === "failed"
-  );
+  return state === "completedSuccess" || state === "completedInterrupted" || state === "failed";
 }
 
 /** 目标轮次的稳定身份：entityId 是持久实体定位，rowId 仅作诊断与陈旧校验。 */
@@ -123,10 +121,7 @@ export type OracleMaterialFetchRowsBefore = (
 const MATERIAL_PAGE_SIZE = 200;
 const MATERIAL_MAX_PAGES = 10;
 
-function belongsToTurn(
-  row: ConversationRow,
-  header: OracleTurnHeaderRef,
-): boolean {
+function belongsToTurn(row: ConversationRow, header: OracleTurnHeaderRef): boolean {
   // 权威归属三级退化：productTurnId（新 CLI 必带）→ turnId → 位置（同窗口内
   // header 及其后、直到下一个 turnHeader）。行上的 turn 标签是 CLI 裁决的事实，
   // 客户端只在标签缺席时才用位置推断。
@@ -176,12 +171,7 @@ export function collectTurnRowsFromWindow(
         sawHeaderInWindow = true;
         continue;
       }
-      if (
-        sawHeader &&
-        !header.productTurnId &&
-        !header.turnId &&
-        positionalStopAtRowId === null
-      ) {
+      if (sawHeader && !header.productTurnId && !header.turnId && positionalStopAtRowId === null) {
         positionalStopAtRowId = row.rowId;
       }
       continue;
@@ -385,10 +375,7 @@ function originLabel(input: OracleUserInputEntry): string {
 }
 
 /** 把单轮材料渲染成审查 prompt 的材料段（确定性文本，无 Markdown 表格依赖）。 */
-export function renderOracleTurnMaterialText(
-  material: OracleTurnMaterial,
-  label: string,
-): string {
+export function renderOracleTurnMaterialText(material: OracleTurnMaterial, label: string): string {
   const sections: string[] = [`### ${label}`];
   if (material.userInputs.length > 0) {
     sections.push("#### 本轮输入");
@@ -421,11 +408,15 @@ export function renderOracleTurnMaterialText(
         `- [${call.toolName}] status=${call.status}${call.inputText ? ` 输入: ${truncateWithEllipsis(call.inputText, MAX_TOOL_INPUT_CHARS)}` : ""}`,
       ];
       if (call.errorMessage) {
-        lines.push(`  错误: ${call.errorCode ?? ""} ${truncateWithEllipsis(call.errorMessage, 400)}`);
+        lines.push(
+          `  错误: ${call.errorCode ?? ""} ${truncateWithEllipsis(call.errorMessage, 400)}`,
+        );
       }
       if (call.outputText) {
         const suffix = call.outputTruncated ? "（输出被截断，仅含部分结果）" : "";
-        lines.push(`  结果: ${truncateWithEllipsis(call.outputText, MAX_TOOL_OUTPUT_CHARS)}${suffix}`);
+        lines.push(
+          `  结果: ${truncateWithEllipsis(call.outputText, MAX_TOOL_OUTPUT_CHARS)}${suffix}`,
+        );
       }
       sections.push(lines.join("\n"));
     }

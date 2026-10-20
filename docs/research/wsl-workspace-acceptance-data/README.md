@@ -4,25 +4,25 @@
 
 ## 证据清单
 
-| 文件 | 内容 |
-| --- | --- |
-| first-deploy-result.json | 空运行时标准首部署，21.18 秒，passed |
-| standard-smoke-result.json | 文件、Git、真实 PTY、重连持久，12/12 passed |
-| lifecycle-final-result.json | detect 取消、PTY Ctrl+C、shell 后台输出、断线回收和重连，5/5 passed |
-| lifecycle-result.json、lifecycle-debug-result.json | 两轮失败调试结果，保留不覆盖 |
-| resources.json | 专属用户、HOME、工作区及隔离边界 |
-| asset-verification.json、provenance-summary.json | 七组件核验、来源、版本和 SHA 摘要 |
-| desktop-generated-closure.json | 开发态桌面所需四项插件生成产物 |
-| rpc-regression-result.json、rpc-red.log、rpc-green.log | 基线 3 failed/11 passed，修复后 14 passed；含 barrier 确定性 pre-init 取消回归 |
-| desktop-1792133306853-result.json | 第三轮：mode helper 旧 role 不匹配 |
-| desktop-1792133659192-result.json | 第四轮：首发通过，续发回放拒绝 |
-| desktop-1792134434344-result.json | 第五轮：用户名受控输入追加，非代理/NAT 根因 |
-| desktop-1792134645913-result.json | 第六轮：后台详情 loading 即断言 running |
-| desktop-1792134924932-result.json | 第七轮：Agent 四项全过，关闭菜单未先 hover |
-| **desktop-1792135327776-result.json** | **第八轮完整 passed**：首发、续发、后台、Stop、UI 连接取消、关闭重连、新 session 和文件保留；WDIO exit 0 |
-| final-cleanup-result.json | 最终专属用户仅观察命令 sh/ps，无残留服务/回放脚本；不是逐关闭 PID 时序记录 |
-| replay-selftest.log | 最终回放夹具 21 项 OK，SELFTEST_ALL_PASS，exit 0 |
-| checks.json | 最终命令、退出码、测试数量和已知类型错误 |
+| 文件                                                   | 内容                                                                                                     |
+| ------------------------------------------------------ | -------------------------------------------------------------------------------------------------------- |
+| first-deploy-result.json                               | 空运行时标准首部署，21.18 秒，passed                                                                     |
+| standard-smoke-result.json                             | 文件、Git、真实 PTY、重连持久，12/12 passed                                                              |
+| lifecycle-final-result.json                            | detect 取消、PTY Ctrl+C、shell 后台输出、断线回收和重连，5/5 passed                                      |
+| lifecycle-result.json、lifecycle-debug-result.json     | 两轮失败调试结果，保留不覆盖                                                                             |
+| resources.json                                         | 专属用户、HOME、工作区及隔离边界                                                                         |
+| asset-verification.json、provenance-summary.json       | 七组件核验、来源、版本和 SHA 摘要                                                                        |
+| desktop-generated-closure.json                         | 开发态桌面所需四项插件生成产物                                                                           |
+| rpc-regression-result.json、rpc-red.log、rpc-green.log | 基线 3 failed/11 passed，修复后 14 passed；含 barrier 确定性 pre-init 取消回归                           |
+| desktop-1792133306853-result.json                      | 第三轮：mode helper 旧 role 不匹配                                                                       |
+| desktop-1792133659192-result.json                      | 第四轮：首发通过，续发回放拒绝                                                                           |
+| desktop-1792134434344-result.json                      | 第五轮：用户名受控输入追加，非代理/NAT 根因                                                              |
+| desktop-1792134645913-result.json                      | 第六轮：后台详情 loading 即断言 running                                                                  |
+| desktop-1792134924932-result.json                      | 第七轮：Agent 四项全过，关闭菜单未先 hover                                                               |
+| **desktop-1792135327776-result.json**                  | **第八轮完整 passed**：首发、续发、后台、Stop、UI 连接取消、关闭重连、新 session 和文件保留；WDIO exit 0 |
+| final-cleanup-result.json                              | 最终专属用户仅观察命令 sh/ps，无残留服务/回放脚本；不是逐关闭 PID 时序记录                               |
+| replay-selftest.log                                    | 最终回放夹具 21 项 OK，SELFTEST_ALL_PASS，exit 0                                                         |
+| checks.json                                            | 最终命令、退出码、测试数量和已知类型错误                                                                 |
 
 大二进制（tar.gz、bundle、Node）、完整 E2E/Agent 日志及构建输入哈希保留在 `C:/Users/qianmengyys/Desktop/agent/wsl-agent-lab/phase2`。第一/二轮没有此处的桌面结构化 JSON，原始日志和 artifact 仍在 lab；报告保留其真实失败层级。
 

@@ -24,10 +24,9 @@ if (process.argv.includes("app-server") && process.argv.includes("--stdio")) {
     // 只移除当前代理预加载，保留覆盖采集等其他 Node 参数，防止递归启动代理。
     env: {
       ...process.env,
-      NODE_OPTIONS: preloadVariants.reduce(
-        (value, variant) => value.replace(variant, ""),
-        process.env.NODE_OPTIONS ?? "",
-      ).trim(),
+      NODE_OPTIONS: preloadVariants
+        .reduce((value, variant) => value.replace(variant, ""), process.env.NODE_OPTIONS ?? "")
+        .trim(),
     },
   });
   const root = process.env.ZCODE_E2E_ARTIFACT_DIR;

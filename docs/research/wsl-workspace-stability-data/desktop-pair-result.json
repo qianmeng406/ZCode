@@ -49,10 +49,7 @@
           "backgroundOutput": true,
           "backgroundStatus": true,
           "cancellation": true,
-          "childPids": [
-            1039,
-            1122
-          ]
+          "childPids": [1039, 1122]
         },
         "peerExitedBeforeReconnect": true,
         "closeReconnect": {
@@ -100,10 +97,7 @@
           "backgroundOutput": true,
           "backgroundStatus": true,
           "cancellation": true,
-          "childPids": [
-            1019,
-            1085
-          ]
+          "childPids": [1019, 1085]
         },
         "peerExitedBeforeReconnect": false,
         "closeReconnect": {

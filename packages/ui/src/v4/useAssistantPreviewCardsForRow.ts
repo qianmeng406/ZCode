@@ -116,8 +116,7 @@ export function useAssistantPreviewCardsForAssistantTextRow({
     hasTarget: Boolean(target),
     fileChangesState,
     isLatestCompleteTurn: canBuildCards,
-    requestState:
-      requestState?.key === requestKey ? requestState.status : ("none" as const),
+    requestState: requestState?.key === requestKey ? requestState.status : ("none" as const),
   });
 
   // 自动与手动共用同一条权威读取路径（同一缓存策略与 builder）；
@@ -166,10 +165,13 @@ export function useAssistantPreviewCardsForAssistantTextRow({
     runLoad();
   }, [loadAction, runLoad]);
 
-  useEffect(() => () => {
-    // 卸载使迟到回包失效。
-    loadSeqRef.current += 1;
-  }, []);
+  useEffect(
+    () => () => {
+      // 卸载使迟到回包失效。
+      loadSeqRef.current += 1;
+    },
+    [],
+  );
 
   const changedFilePaths =
     needsFileChanges && requestState?.key === requestKey && requestState.status === "loaded"

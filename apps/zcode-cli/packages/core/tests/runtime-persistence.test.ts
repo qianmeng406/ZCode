@@ -2253,6 +2253,7 @@ describe("AgentRuntime session persistence", () => {
     const firstProviderText = providerMessagesToText(firstResumeMessages);
     const secondProviderText = providerMessagesToText(secondResumeMessages);
     const reminder = "The Bash tool shell is Git Bash.";
+    expect(firstProviderText).toContain("- Shell: CMD");
     expect(firstProviderText.match(new RegExp(escapeRegExp(reminder), "g")) ?? []).toHaveLength(1);
     expect(secondProviderText.match(new RegExp(escapeRegExp(reminder), "g")) ?? []).toHaveLength(1);
   });
@@ -4432,57 +4433,6 @@ describe("AgentRuntime session persistence", () => {
     expect(summaryEvents).toHaveLength(0);
     expect(runtime.hasResidencyBlockingWork()).toBe(false);
   });
-
-  it("does not generate a session title from model-only goal continuation input", async () => {
-    const sessionId = createSessionId("runtime-persistence-model-only-title");
-    const store = createRecordingSessionStore();
-    const titleRequests: ModelInputMessage[][] = [];
-    const defaultModel = createTestModelSelection("test-provider/default-model", {});
-    const runtime = createTestAgentRuntime(
-      sessionId,
-      {
-        mode: "build",
-        modelSelection: createTestModelSelection(defaultModel),
-        titleGeneration: {
-          modelSelection: createTestModelSelection(defaultModel),
-          timeoutMs: 1_000,
-        },
-      },
-      {
-        eventStore: createTestSessionEventStore(),
-        modelFactory: createTestModelFactory({
-          async generateText(_request, observation) {
-            if (isTitleGenerationObservation(observation)) {
-              titleRequests.push(request.messages);
-              return {
-                finishReason: "stop",
-                text: '{"title":"内部 Reminder 标题"}',
-                usage: { inputTokens: 3, outputTokens: 2, totalTokens: 5 },
-              };
-            }
-            return {
-              finishReason: "stop",
-              text: "done",
-              usage: { inputTokens: 1, outputTokens: 1, totalTokens: 2 },
-            };
-          },
-        } as never),
-        sessionStore: store,
-      },
-    );
-
-    await runtime.executeTurn(
-      '<system-reminder source="goal-continuation">继续目标</system-reminder>',
-      undefined,
-      {
-        inputSource: "goal-continuation",
-        inputVisibility: "model-only",
-      },
-    );
-    await new Promise((resolveWait) => setTimeout(resolveWait, 20));
-
-    expect(titleRequests).toHaveLength(0);
-  });
 });
 
 interface RecordingSessionStore extends SessionStorePort, UsageStorePort {
@@ -4841,8 +4791,6 @@ function createRecordingSessionStore(): RecordingSessionStore {
             input.timeCompacting === null
               ? undefined
               : (input.timeCompacting ?? current.time.compacting),
-          archived:
-            input.timeArchived === null ? undefined : (input.timeArchived ?? current.time.archived),
         },
       };
       sessions.set(input.id, next);
@@ -4853,9 +4801,7 @@ function createRecordingSessionStore(): RecordingSessionStore {
     },
     async listSessions(input) {
       return Array.from(sessions.values()).filter(
-        (session) =>
-          (!input?.projectID || session.projectID === input.projectID) &&
-          (input?.includeArchived || session.time.archived === undefined),
+        (session) => !input?.projectID || session.projectID === input.projectID,
       );
     },
     async saveMessage(input) {

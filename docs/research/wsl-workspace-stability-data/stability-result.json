@@ -282,66 +282,36 @@
   "concurrent": [
     {
       "round": 1,
-      "connectMs": [
-        5123,
-        8259
-      ],
-      "distinctServerPids": [
-        "8961",
-        "9131"
-      ],
+      "connectMs": [5123, 8259],
+      "distinctServerPids": ["8961", "9131"],
       "survivingConnectionVerified": true,
       "closedPidsExited": true
     },
     {
       "round": 2,
-      "connectMs": [
-        5172,
-        8191
-      ],
-      "distinctServerPids": [
-        "9518",
-        "9688"
-      ],
+      "connectMs": [5172, 8191],
+      "distinctServerPids": ["9518", "9688"],
       "survivingConnectionVerified": true,
       "closedPidsExited": true
     },
     {
       "round": 3,
-      "connectMs": [
-        8200,
-        5193
-      ],
-      "distinctServerPids": [
-        "10075",
-        "10245"
-      ],
+      "connectMs": [8200, 5193],
+      "distinctServerPids": ["10075", "10245"],
       "survivingConnectionVerified": true,
       "closedPidsExited": true
     },
     {
       "round": 4,
-      "connectMs": [
-        8158,
-        5027
-      ],
-      "distinctServerPids": [
-        "10632",
-        "10802"
-      ],
+      "connectMs": [8158, 5027],
+      "distinctServerPids": ["10632", "10802"],
       "survivingConnectionVerified": true,
       "closedPidsExited": true
     },
     {
       "round": 5,
-      "connectMs": [
-        8182,
-        5211
-      ],
-      "distinctServerPids": [
-        "11195",
-        "11359"
-      ],
+      "connectMs": [8182, 5211],
+      "distinctServerPids": ["11195", "11359"],
       "survivingConnectionVerified": true,
       "closedPidsExited": true
     }

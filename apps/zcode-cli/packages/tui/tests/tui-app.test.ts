@@ -258,12 +258,12 @@ test("Shift+Tab switches mode through the injected mode setter", async () => {
   }
 });
 
-test("Shift+Tab can cycle edit mode to yolo mode", async () => {
+test("Shift+Tab can cycle research mode to yolo mode", async () => {
   let view: Awaited<ReturnType<typeof testRender>> | undefined;
   const requestedModes: string[] = [];
 
   const options: TuiOptions = {
-    initialMode: "edit",
+    initialMode: "research",
     noColor: true,
     stderr: process.stderr,
     stdin: process.stdin,
@@ -443,6 +443,20 @@ test("mode composer popup submits the highlighted explicit mode command", async 
 
     await act(async () => {
       assert.ok(view);
+      view.mockInput.pressArrow("down");
+      await Promise.resolve();
+      await view.renderOnce();
+    });
+
+    await act(async () => {
+      assert.ok(view);
+      view.mockInput.pressArrow("down");
+      await Promise.resolve();
+      await view.renderOnce();
+    });
+
+    await act(async () => {
+      assert.ok(view);
       view.mockInput.pressEnter();
       await Promise.resolve();
       await view.renderOnce();
@@ -526,7 +540,9 @@ test("mode composer popup can submit edit mode command", async () => {
   }
 });
 
-function reactElementChildren(node: unknown): Array<{ props?: Record<string, unknown>; type?: unknown }> {
+function reactElementChildren(
+  node: unknown,
+): Array<{ props?: Record<string, unknown>; type?: unknown }> {
   if (typeof node !== "object" || node === null || !("props" in node)) return [];
   const element = node as { props?: { children?: unknown } };
   const children = element.props?.children;

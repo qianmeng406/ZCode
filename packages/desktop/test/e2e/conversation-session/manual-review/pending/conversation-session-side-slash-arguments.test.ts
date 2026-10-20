@@ -3,7 +3,7 @@ import {
   TID_V4_COMPOSER_SEND,
   TID_V4_SESSION_PANE,
   testId,
-} from "@zcode/shared";
+} from "@zcode/shared/test-ids";
 import { clearAppData } from "../../../helpers/desktop-app.js";
 import {
   clickV4Stop,
@@ -158,16 +158,13 @@ async function readSelectionSidePanes(): Promise<SelectionSidePane[]> {
   return browser.execute(
     (panePrefix) =>
       Array.from(
-        document.querySelectorAll<HTMLElement>(
-          '[data-side-pane-tab-id^="selection-side-chat:"]',
-        ),
+        document.querySelectorAll<HTMLElement>('[data-side-pane-tab-id^="selection-side-chat:"]'),
       ).flatMap((tab) => {
         const tabId = tab.dataset.sidePaneTabId;
         if (!tabId) return [];
         const paneTestId = `${panePrefix}-${tabId}`;
-        const childSessionId = document.querySelector<HTMLElement>(
-          `[data-testid="${paneTestId}"]`,
-        )?.dataset.sessionId;
+        const childSessionId = document.querySelector<HTMLElement>(`[data-testid="${paneTestId}"]`)
+          ?.dataset.sessionId;
         return childSessionId ? [{ childSessionId, paneTestId, tabId }] : [];
       }),
     TID_V4_SESSION_PANE,
@@ -181,9 +178,7 @@ async function waitForNewSelectionSidePane(
   let result: SelectionSidePane | undefined;
   await browser.waitUntil(
     async () => {
-      result = (await readSelectionSidePanes()).find(
-        (side) => !beforeIds.has(side.childSessionId),
-      );
+      result = (await readSelectionSidePanes()).find((side) => !beforeIds.has(side.childSessionId));
       return result !== undefined;
     },
     { timeout: 30000, timeoutMsg: "带参数 slash command 没有创建新的 child" },
@@ -212,9 +207,7 @@ async function waitForSelectionSidePaneContaining(
 
 async function activateSelectionSidePane(tabId: string): Promise<void> {
   const clicked = await browser.execute((nextTabId) => {
-    const tab = document.querySelector<HTMLElement>(
-      `[data-side-pane-tab-id="${nextTabId}"]`,
-    );
+    const tab = document.querySelector<HTMLElement>(`[data-side-pane-tab-id="${nextTabId}"]`);
     tab?.click();
     return Boolean(tab);
   }, tabId);

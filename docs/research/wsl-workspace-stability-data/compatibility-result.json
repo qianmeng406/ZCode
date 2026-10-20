@@ -74,10 +74,7 @@
       "windowsMs": 2
     }
   ],
-  "installedDistros": [
-    "Ubuntu-24.04",
-    "docker-desktop"
-  ],
+  "installedDistros": ["Ubuntu-24.04", "docker-desktop"],
   "environment": "user=zcodewslp2\nuid=1001\nhome=/home/zcodewslp2\nfilesystem=ext2/ext3\nVERSION_ID=\"24.04\"\nID=ubuntu",
   "matrix": [
     {

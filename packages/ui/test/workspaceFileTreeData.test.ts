@@ -208,6 +208,11 @@ function createWorkspaceFileTreeHarness(initialEntriesByDirectory: Record<string
     },
     root,
     services,
+    queueWatcherChange(path: string) {
+      const id = [...watchedPathById.entries()].find(([, value]) => value === path)?.[0];
+      if (!id) throw new Error(`missing watcher for ${path}`);
+      watcherListeners.get(id)?.({ dirPath: path });
+    },
     async fireWatcherChange(path: string) {
       const watcherId = [...watchedPathById.entries()].find(
         ([, watchedPath]) => watchedPath === path,
@@ -240,8 +245,33 @@ describe("useWorkspaceFileTreeData", () => {
     vi.useRealTimers();
     delete (globalThis as { document?: unknown }).document;
     delete (globalThis as { window?: unknown }).window;
-    delete (globalThis as { IS_REACT_ACT_ENVIRONMENT?: unknown })
-      .IS_REACT_ACT_ENVIRONMENT;
+    delete (globalThis as { IS_REACT_ACT_ENVIRONMENT?: unknown }).IS_REACT_ACT_ENVIRONMENT;
+  });
+
+  it("卸载文件树释放 watcher，并取消尚未执行的目录和 Git 刷新", async () => {
+    vi.useFakeTimers();
+    const harness = createWorkspaceFileTreeHarness({
+      [WORKSPACE_PATH]: [file(`${WORKSPACE_PATH}/old.ts`)],
+    });
+    await harness.render();
+    await flushReactWork();
+    expect(harness.watchedPaths()).toContain(WORKSPACE_PATH);
+    act(() => harness.queueWatcherChange(WORKSPACE_PATH));
+    const reads = vi.mocked(harness.services.fileService.readdir).mock.calls.length;
+    const gitReads = vi.mocked(harness.services.gitService.refresh).mock.calls.length;
+    act(() => {
+      harness.root.unmount();
+    });
+    expect(harness.watchedPaths()).toEqual([]);
+    expect(harness.services.fileWatcherService.unwatch).toHaveBeenCalledWith({
+      id: `watch:${WORKSPACE_PATH}`,
+    });
+    await act(async () => {
+      vi.runAllTimers();
+      await flushMicrotasks();
+    });
+    expect(harness.services.fileService.readdir).toHaveBeenCalledTimes(reads);
+    expect(harness.services.gitService.refresh).toHaveBeenCalledTimes(gitReads);
   });
 
   it("实时刷新展开目录里的新增文件，不需要重启 ZCode", async () => {
@@ -259,9 +289,7 @@ describe("useWorkspaceFileTreeData", () => {
     });
     await flushReactWork();
 
-    expect(harness.latestResult.rows.map((row) => row.path)).toContain(
-      `${SRC_PATH}/old.ts`,
-    );
+    expect(harness.latestResult.rows.map((row) => row.path)).toContain(`${SRC_PATH}/old.ts`);
 
     harness.setDirectoryEntries(SRC_PATH, [file(`${SRC_PATH}/new.ts`)]);
     await harness.fireWatcherChange(SRC_PATH);
@@ -294,9 +322,7 @@ describe("useWorkspaceFileTreeData", () => {
     });
     await flushReactWork();
 
-    expect(harness.watchedPaths()).toEqual(
-      expect.arrayContaining([WORKSPACE_PATH, SRC_PATH]),
-    );
+    expect(harness.watchedPaths()).toEqual(expect.arrayContaining([WORKSPACE_PATH, SRC_PATH]));
 
     await act(async () => {
       harness.latestResult.setExpandedPaths(new Set());
@@ -337,9 +363,7 @@ describe("useWorkspaceFileTreeData", () => {
       SRC_PATH,
       `${SRC_PATH}/renamed.ts`,
     ]);
-    expect(harness.latestResult.rows.map((row) => row.path)).not.toContain(
-      `${SRC_PATH}/old.ts`,
-    );
+    expect(harness.latestResult.rows.map((row) => row.path)).not.toContain(`${SRC_PATH}/old.ts`);
 
     act(() => {
       harness.root.unmount();
@@ -361,14 +385,12 @@ describe("useWorkspaceFileTreeData", () => {
     });
     await flushReactWork();
 
-    harness.services.fileService.readdir = vi.fn(
-      async ({ path }: { path: string }) => {
-        if (path === WORKSPACE_PATH) {
-          throw rootRefreshError;
-        }
-        return harness.entriesByDirectory.get(path) ?? [];
-      },
-    );
+    harness.services.fileService.readdir = vi.fn(async ({ path }: { path: string }) => {
+      if (path === WORKSPACE_PATH) {
+        throw rootRefreshError;
+      }
+      return harness.entriesByDirectory.get(path) ?? [];
+    });
 
     await act(async () => {
       await harness.latestResult.refreshLoadedDirectories();
@@ -377,12 +399,8 @@ describe("useWorkspaceFileTreeData", () => {
     await flushReactWork();
 
     expect(harness.latestResult.refreshingLoadedDirectories).toBe(false);
-    expect(harness.latestResult.loadedDirectoryPaths.has(WORKSPACE_PATH)).toBe(
-      true,
-    );
-    expect(harness.latestResult.errorByDirectory.get(WORKSPACE_PATH)).toBe(
-      rootRefreshError,
-    );
+    expect(harness.latestResult.loadedDirectoryPaths.has(WORKSPACE_PATH)).toBe(true);
+    expect(harness.latestResult.errorByDirectory.get(WORKSPACE_PATH)).toBe(rootRefreshError);
     expect(harness.latestResult.rows.map((row) => row.path)).toEqual([
       SRC_PATH,
       `${SRC_PATH}/old.ts`,
@@ -402,14 +420,12 @@ describe("useWorkspaceFileTreeData", () => {
     await harness.render();
     await flushReactWork();
 
-    harness.services.fileService.readdir = vi.fn(
-      async ({ path }: { path: string }) => {
-        if (path === WORKSPACE_PATH) {
-          await new Promise<void>(() => {});
-        }
-        return harness.entriesByDirectory.get(path) ?? [];
-      },
-    );
+    harness.services.fileService.readdir = vi.fn(async ({ path }: { path: string }) => {
+      if (path === WORKSPACE_PATH) {
+        await new Promise<void>(() => {});
+      }
+      return harness.entriesByDirectory.get(path) ?? [];
+    });
 
     let refreshPromise: Promise<void> | undefined;
     await act(async () => {
@@ -426,15 +442,13 @@ describe("useWorkspaceFileTreeData", () => {
     await flushReactWork();
 
     expect(harness.latestResult.refreshingLoadedDirectories).toBe(false);
-    expect(harness.latestResult.errorByDirectory.get(WORKSPACE_PATH)?.message)
-      .toContain("timed out");
-    expect(harness.latestResult.rows.map((row) => row.path)).toEqual([
-      SRC_PATH,
-    ]);
+    expect(harness.latestResult.errorByDirectory.get(WORKSPACE_PATH)?.message).toContain(
+      "timed out",
+    );
+    expect(harness.latestResult.rows.map((row) => row.path)).toEqual([SRC_PATH]);
 
     harness.services.fileService.readdir = vi.fn(
-      async ({ path }: { path: string }) =>
-        harness.entriesByDirectory.get(path) ?? [],
+      async ({ path }: { path: string }) => harness.entriesByDirectory.get(path) ?? [],
     );
     await act(async () => {
       await harness.latestResult.refreshLoadedDirectories();
@@ -443,12 +457,8 @@ describe("useWorkspaceFileTreeData", () => {
     await flushReactWork();
 
     expect(harness.latestResult.refreshingLoadedDirectories).toBe(false);
-    expect(harness.latestResult.errorByDirectory.has(WORKSPACE_PATH)).toBe(
-      false,
-    );
-    expect(harness.latestResult.rows.map((row) => row.path)).toEqual([
-      SRC_PATH,
-    ]);
+    expect(harness.latestResult.errorByDirectory.has(WORKSPACE_PATH)).toBe(false);
+    expect(harness.latestResult.rows.map((row) => row.path)).toEqual([SRC_PATH]);
 
     act(() => {
       harness.root.unmount();
@@ -485,9 +495,7 @@ describe("useWorkspaceFileTreeData", () => {
 
     expect(harness.latestResult.refreshingLoadedDirectories).toBe(false);
 
-    harness.services.gitService.refresh = vi.fn(async () =>
-      createGitRefreshResult(),
-    );
+    harness.services.gitService.refresh = vi.fn(async () => createGitRefreshResult());
     await act(async () => {
       await harness.latestResult.refreshLoadedDirectories();
       await flushMicrotasks();
@@ -509,29 +517,25 @@ describe("useWorkspaceFileTreeData", () => {
     let rootReadCount = 0;
     let releaseInitialRootReaddir: (() => void) | null = null;
     let releaseRefreshRootReaddir: (() => void) | null = null;
-    harness.services.fileService.readdir = vi.fn(
-      async ({ path }: { path: string }) => {
-        if (path === WORKSPACE_PATH) {
-          rootReadCount += 1;
-          if (rootReadCount === 1) {
-            await new Promise<void>((resolve) => {
-              releaseInitialRootReaddir = resolve;
-            });
-          }
-          if (rootReadCount === 2) {
-            await new Promise<void>((resolve) => {
-              releaseRefreshRootReaddir = resolve;
-            });
-          }
+    harness.services.fileService.readdir = vi.fn(async ({ path }: { path: string }) => {
+      if (path === WORKSPACE_PATH) {
+        rootReadCount += 1;
+        if (rootReadCount === 1) {
+          await new Promise<void>((resolve) => {
+            releaseInitialRootReaddir = resolve;
+          });
         }
-        return harness.entriesByDirectory.get(path) ?? [];
-      },
-    );
+        if (rootReadCount === 2) {
+          await new Promise<void>((resolve) => {
+            releaseRefreshRootReaddir = resolve;
+          });
+        }
+      }
+      return harness.entriesByDirectory.get(path) ?? [];
+    });
 
     await harness.render();
-    expect(harness.latestResult.loadingDirectoryPaths.has(WORKSPACE_PATH)).toBe(
-      true,
-    );
+    expect(harness.latestResult.loadingDirectoryPaths.has(WORKSPACE_PATH)).toBe(true);
 
     let refreshPromise: Promise<void> | undefined;
     await act(async () => {
@@ -547,9 +551,7 @@ describe("useWorkspaceFileTreeData", () => {
     });
     await flushReactWork();
 
-    expect(harness.latestResult.loadingDirectoryPaths.has(WORKSPACE_PATH)).toBe(
-      false,
-    );
+    expect(harness.latestResult.loadingDirectoryPaths.has(WORKSPACE_PATH)).toBe(false);
     expect(harness.latestResult.refreshingLoadedDirectories).toBe(false);
 
     act(() => {
@@ -569,9 +571,7 @@ describe("useWorkspaceFileTreeData", () => {
 
     await harness.render();
     await act(async () => {
-      harness.latestResult.setLoadedDirectoryPaths(
-        new Set([WORKSPACE_PATH, ...loadedDirectories]),
-      );
+      harness.latestResult.setLoadedDirectoryPaths(new Set([WORKSPACE_PATH, ...loadedDirectories]));
       await flushMicrotasks();
     });
     await flushReactWork();
@@ -579,22 +579,20 @@ describe("useWorkspaceFileTreeData", () => {
     const releaseBlockedReads: (() => void)[] = [];
     const readsAfterWorkspaceSwitch: string[] = [];
     let switchedWorkspace = false;
-    harness.services.fileService.readdir = vi.fn(
-      async ({ path }: { path: string }) => {
-        if (path.startsWith(WORKSPACE_PATH)) {
-          if (switchedWorkspace) {
-            readsAfterWorkspaceSwitch.push(path);
-          }
-          if (releaseBlockedReads.length < 4) {
-            await new Promise<void>((resolve) => {
-              releaseBlockedReads.push(resolve);
-            });
-          }
-          return [file(`${path}/stale.ts`)];
+    harness.services.fileService.readdir = vi.fn(async ({ path }: { path: string }) => {
+      if (path.startsWith(WORKSPACE_PATH)) {
+        if (switchedWorkspace) {
+          readsAfterWorkspaceSwitch.push(path);
         }
-        return harness.entriesByDirectory.get(path) ?? [];
-      },
-    );
+        if (releaseBlockedReads.length < 4) {
+          await new Promise<void>((resolve) => {
+            releaseBlockedReads.push(resolve);
+          });
+        }
+        return [file(`${path}/stale.ts`)];
+      }
+      return harness.entriesByDirectory.get(path) ?? [];
+    });
 
     let refreshPromise: Promise<void> | undefined;
     await act(async () => {
@@ -615,9 +613,7 @@ describe("useWorkspaceFileTreeData", () => {
     await flushReactWork();
 
     expect(readsAfterWorkspaceSwitch).toEqual([]);
-    expect(harness.latestResult.loadedDirectoryPaths.has(WORKSPACE_PATH)).toBe(
-      false,
-    );
+    expect(harness.latestResult.loadedDirectoryPaths.has(WORKSPACE_PATH)).toBe(false);
     expect(harness.latestResult.rows.map((row) => row.path)).toEqual([]);
 
     act(() => {
@@ -643,24 +639,22 @@ describe("useWorkspaceFileTreeData", () => {
 
     let srcReadCount = 0;
     let releaseDeletedDirectoryRead: (() => void) | null = null;
-    harness.services.fileService.readdir = vi.fn(
-      async ({ path }: { path: string }) => {
-        if (path === SRC_PATH) {
-          srcReadCount += 1;
-          if (srcReadCount === 1) {
-            await new Promise<void>((resolve) => {
-              releaseDeletedDirectoryRead = resolve;
-            });
-            return [file(oldFilePath)];
-          }
-          if (srcReadCount === 2) {
-            throw new Error("directory was replaced");
-          }
-          return [file(newFilePath)];
+    harness.services.fileService.readdir = vi.fn(async ({ path }: { path: string }) => {
+      if (path === SRC_PATH) {
+        srcReadCount += 1;
+        if (srcReadCount === 1) {
+          await new Promise<void>((resolve) => {
+            releaseDeletedDirectoryRead = resolve;
+          });
+          return [file(oldFilePath)];
         }
-        return harness.entriesByDirectory.get(path) ?? [];
-      },
-    );
+        if (srcReadCount === 2) {
+          throw new Error("directory was replaced");
+        }
+        return [file(newFilePath)];
+      }
+      return harness.entriesByDirectory.get(path) ?? [];
+    });
 
     let staleLoadPromise: Promise<unknown> | undefined;
     await act(async () => {
@@ -682,10 +676,7 @@ describe("useWorkspaceFileTreeData", () => {
     });
     await flushReactWork();
 
-    expect(harness.latestResult.rows.map((row) => row.path)).toEqual([
-      SRC_PATH,
-      newFilePath,
-    ]);
+    expect(harness.latestResult.rows.map((row) => row.path)).toEqual([SRC_PATH, newFilePath]);
 
     releaseDeletedDirectoryRead?.();
     await act(async () => {
@@ -694,13 +685,8 @@ describe("useWorkspaceFileTreeData", () => {
     });
     await flushReactWork();
 
-    expect(harness.latestResult.rows.map((row) => row.path)).toEqual([
-      SRC_PATH,
-      newFilePath,
-    ]);
-    expect(harness.latestResult.rows.map((row) => row.path)).not.toContain(
-      oldFilePath,
-    );
+    expect(harness.latestResult.rows.map((row) => row.path)).toEqual([SRC_PATH, newFilePath]);
+    expect(harness.latestResult.rows.map((row) => row.path)).not.toContain(oldFilePath);
 
     act(() => {
       harness.root.unmount();
@@ -748,10 +734,7 @@ describe("useWorkspaceFileTreeData", () => {
     harness.setDirectoryEntries(SRC_PATH, [file(newFilePath)]);
     await harness.fireWatcherChange(SRC_PATH);
 
-    expect(harness.latestResult.rows.map((row) => row.path)).toEqual([
-      SRC_PATH,
-      newFilePath,
-    ]);
+    expect(harness.latestResult.rows.map((row) => row.path)).toEqual([SRC_PATH, newFilePath]);
 
     releaseManualSrcReaddir?.();
     await act(async () => {
@@ -760,13 +743,8 @@ describe("useWorkspaceFileTreeData", () => {
     });
     await flushReactWork();
 
-    expect(harness.latestResult.rows.map((row) => row.path)).toEqual([
-      SRC_PATH,
-      newFilePath,
-    ]);
-    expect(harness.latestResult.rows.map((row) => row.path)).not.toContain(
-      oldFilePath,
-    );
+    expect(harness.latestResult.rows.map((row) => row.path)).toEqual([SRC_PATH, newFilePath]);
+    expect(harness.latestResult.rows.map((row) => row.path)).not.toContain(oldFilePath);
 
     act(() => {
       harness.root.unmount();

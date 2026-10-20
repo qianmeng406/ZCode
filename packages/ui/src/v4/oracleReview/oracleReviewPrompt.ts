@@ -68,14 +68,20 @@ export function buildOracleReviewPrompt(params: {
           "## 审查的任务范围",
           `与本目标同任务的相关回合（回合边界 rowId）：${params.taskScope.relatedTurnRowIds.join(", ")}`,
           ...(params.taskScope.candidateFilePaths.length > 0
-            ? [`任务相关文件线索（取证起点，非白名单）：${params.taskScope.candidateFilePaths.join(", ")}`]
+            ? [
+                `任务相关文件线索（取证起点，非白名单）：${params.taskScope.candidateFilePaths.join(", ")}`,
+              ]
             : []),
           "",
         ]
       : [];
   const completenessSection =
     params.completenessNotes.length > 0
-      ? ["## 材料完整性说明（涉及这些缺口时如实标注无法确认）", ...params.completenessNotes.map((note) => `- ${note}`), ""]
+      ? [
+          "## 材料完整性说明（涉及这些缺口时如实标注无法确认）",
+          ...params.completenessNotes.map((note) => `- ${note}`),
+          "",
+        ]
       : [];
   return [
     "你是独立对话质量审查者（Oracle）。请核查一位编程智能体对用户请求的回应是否正确、完整、合规。你只提供评价与建议：不执行修复、不修改任何代码。",
@@ -85,9 +91,7 @@ export function buildOracleReviewPrompt(params: {
       ? [
           "不要修改任何代码、不要执行任何写操作（写类命令会被拒绝）；你的结论只基于你亲自取得的证据。",
         ]
-      : [
-          "你没有可用工具，也不要输出任何工具调用：直接以文本给出结论。",
-        ]),
+      : ["你没有可用工具，也不要输出任何工具调用：直接以文本给出结论。"]),
     "",
     `审查模式：${depth === "deep" ? "深度审查（跨轮任务核查）" : "标准审查（单轮对话核查）"}`,
     "",
@@ -100,7 +104,7 @@ export function buildOracleReviewPrompt(params: {
     "- 每项问题必须指出依据（引用材料中的具体内容）；给不出依据就不要断言。",
     "",
     ...(params.contextText ? [params.contextText, ""] : []),
-    ...(scopeSection),
+    ...scopeSection,
     ...(depth === "deep"
       ? [
           "## 深度审查指引",
@@ -114,7 +118,9 @@ export function buildOracleReviewPrompt(params: {
       : []),
     "## 审查材料",
     params.targetMaterialText,
-    ...(params.priorTurnsText ? ["", "## 同任务的更早相关轮次（同为审查对象）", params.priorTurnsText] : []),
+    ...(params.priorTurnsText
+      ? ["", "## 同任务的更早相关轮次（同为审查对象）", params.priorTurnsText]
+      : []),
     ...(diffHeader.length > 0 ? ["", ...diffHeader, diffText, ""] : []),
     ...(recentCommitsSection.length > 0 ? ["", ...recentCommitsSection] : []),
     ...(completenessSection.length > 0 ? ["", ...completenessSection] : []),

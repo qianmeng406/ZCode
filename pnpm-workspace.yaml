@@ -33,6 +33,7 @@ patchedDependencies:
   "@ai-sdk/anthropic@3.0.81": patches/@ai-sdk__anthropic@3.0.81.patch
   "@ai-sdk/openai-compatible@2.0.60": patches/@ai-sdk__openai-compatible@2.0.60.patch
   "@arms/rum-electron@0.0.3": patches/@arms__rum-electron@0.0.3.patch
+  "@radix-ui/react-collapsible@1.1.12": patches/@radix-ui__react-collapsible@1.1.12.patch
   "@radix-ui/react-dismissable-layer@1.1.11": patches/@radix-ui__react-dismissable-layer@1.1.11.patch
   "@radix-ui/react-dropdown-menu@2.1.16": patches/@radix-ui__react-dropdown-menu@2.1.16.patch
   "@radix-ui/react-focus-scope@1.1.7": patches/@radix-ui__react-focus-scope@1.1.7.patch

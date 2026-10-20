@@ -20,7 +20,7 @@ import {
 import { flushSync } from "react-dom";
 import { useVirtualizer } from "@tanstack/react-virtual";
 import { ArrowDownIcon } from "lucide-react";
-import { TID_V4_TIMELINE, TID_V4_TIMELINE_BOTTOM } from "@zcode/shared";
+import { TID_V4_TIMELINE, TID_V4_TIMELINE_BOTTOM } from "@zcode/shared/test-ids";
 import type {
   ApiRetryState,
   AttachmentRef,
@@ -303,9 +303,7 @@ export interface ConversationTimelineProps {
    * 宽屏问题目录挂载后一次补齐当前有效分支的全部历史。signal 表达本次导航
    * attempt 的需求存续：资格撤销/卸载时 abort，store 据此协作停止后续分页。
    */
-  onLoadAllOlder?: (
-    signal: AbortSignal,
-  ) => Promise<ConversationTurnNavigatorHydrationResult>;
+  onLoadAllOlder?: (signal: AbortSignal) => Promise<ConversationTurnNavigatorHydrationResult>;
   /**
    * 问题导航目录失效代际（store turnNavigatorDirectoryRevision）。
    * real-user query 增删后终态必须失效重探测；组件 hydration key
@@ -357,13 +355,7 @@ export interface ConversationTimelineProps {
     onAddToCurrentTask: (reference: ConversationSelectionReference) => void;
     onAskInSideChat: (reference: ConversationSelectionReference) => void;
   };
-  /** 分享选择阶段的本轮勾选状态；仅桌面分享时间线传入。 */
-  shareSelection?: {
-    eligibleRowIds: ReadonlySet<number>;
-    selectedRowIds: ReadonlySet<number>;
-    onToggle: (rowId: number) => void;
-  };
-  /** 分享选择流程存在时，左侧 rail 由分享面板或 reopen 按钮独占。 */
+  /** 范围编辑时，左侧 rail 由分享选择面板独占。 */
   hideTurnNavigator?: boolean;
   /**
    * 功能开关（客户端偏好，默认 false）。false 时彻底停用导航：不挂载 rail、
@@ -422,7 +414,6 @@ function ConversationTimelineImpl({
   scrollToBottomActionRef,
   scrollToQueryActionRef,
   selectionActions,
-  shareSelection,
   hideTurnNavigator = false,
   turnNavigatorEnabled = false,
   presentationVisible = true,
@@ -2073,7 +2064,6 @@ function ConversationTimelineImpl({
                         onRetry={onRetry}
                         onFeedbackChange={onFeedbackChange}
                         onEdit={onEdit}
-                        shareSelection={shareSelection}
                       />
                     </div>
                   );
@@ -2104,7 +2094,6 @@ function ConversationTimelineImpl({
                     onRetry={onRetry}
                     onFeedbackChange={onFeedbackChange}
                     onEdit={onEdit}
-                    shareSelection={shareSelection}
                   />
                 </div>
               ) : null}

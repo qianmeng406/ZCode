@@ -15,7 +15,10 @@ import {
  */
 
 const catalog = JSON.parse(
-  readFileSync(resolve(import.meta.dirname, "../../../config/provider/zcode-builtin.json"), "utf-8"),
+  readFileSync(
+    resolve(import.meta.dirname, "../../../config/provider/zcode-builtin.json"),
+    "utf-8",
+  ),
 ) as {
   schemaVersion: number;
   revision: number;

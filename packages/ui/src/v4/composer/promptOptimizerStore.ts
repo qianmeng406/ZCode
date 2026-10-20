@@ -106,7 +106,10 @@ export function invalidatePromptOptimizerScope(scopeKey: string): void {
   nextPromptOptimizerRequestId(scopeKey);
 }
 
-export function setPromptOptimizerState(scopeKey: string, state: PromptOptimizerState | null): void {
+export function setPromptOptimizerState(
+  scopeKey: string,
+  state: PromptOptimizerState | null,
+): void {
   if (state === null) {
     states.delete(scopeKey);
   } else {
@@ -143,7 +146,10 @@ export function resetPromptOptimizerStoreForTest(): void {
 }
 
 export function usePromptOptimizerState(scopeKey: string): PromptOptimizerState | null {
-  const subscribe = useCallback((listener: () => void) => subscribePromptOptimizerStore(listener), []);
+  const subscribe = useCallback(
+    (listener: () => void) => subscribePromptOptimizerStore(listener),
+    [],
+  );
   const getSnapshot = useCallback(() => getPromptOptimizerState(scopeKey), [scopeKey]);
   const getServerSnapshot = useCallback(() => null, []);
   return useSyncExternalStore(subscribe, getSnapshot, getServerSnapshot);

@@ -8,16 +8,16 @@
 
 **本机已完成标准部署 → 独立桌面 WSL 连接 → 真实 Agent 工具轮次 → 后台与取消 → 关闭重连的完整验收，具备 opt-in 试用条件。** 第八轮 WDIO 为 1 passing、退出码 0，结构化结果为 passed；测试结束后专属用户没有残留服务或回放进程。该结论覆盖本次固定环境和脚本化模型场景，不代表长期稳定性或全部模型兼容性验证。
 
-| 项目 | 实测结果 | 证据 |
-| --- | --- | --- |
-| 本地资产来源与 SHA | 7 个组件核验通过 | asset-verification.json、provenance-summary.json |
-| 空运行时首次标准部署 | 通过，21.18 秒，skipDeploy=false | first-deploy-result.json |
-| 标准 RPC 文件、Git、真实 PTY、重连持久 | 12/12 通过 | standard-smoke-result.json |
-| 连接取消、PTY 中断、断线回收、重连 | 5/5 通过 | lifecycle-final-result.json |
-| 桌面首发、续发、Agent 后台输出与状态、Stop | 全部通过 | desktop-1792135327776-result.json |
-| UI 连接中取消、关闭后同 identity 新 session、文件保留 | 全部通过 | 同上；WDIO 完整用例通过 |
-| 测试结束后的专属用户进程与 replay 脚本 | 无残留 | final-cleanup-result.json |
-| RPC 事件重订阅修复 | 基线 3 条失败，修复后 14 条通过 | rpc-regression-result.json、rpc-red.log、rpc-green.log |
+| 项目                                                  | 实测结果                         | 证据                                                   |
+| ----------------------------------------------------- | -------------------------------- | ------------------------------------------------------ |
+| 本地资产来源与 SHA                                    | 7 个组件核验通过                 | asset-verification.json、provenance-summary.json       |
+| 空运行时首次标准部署                                  | 通过，21.18 秒，skipDeploy=false | first-deploy-result.json                               |
+| 标准 RPC 文件、Git、真实 PTY、重连持久                | 12/12 通过                       | standard-smoke-result.json                             |
+| 连接取消、PTY 中断、断线回收、重连                    | 5/5 通过                         | lifecycle-final-result.json                            |
+| 桌面首发、续发、Agent 后台输出与状态、Stop            | 全部通过                         | desktop-1792135327776-result.json                      |
+| UI 连接中取消、关闭后同 identity 新 session、文件保留 | 全部通过                         | 同上；WDIO 完整用例通过                                |
+| 测试结束后的专属用户进程与 replay 脚本                | 无残留                           | final-cleanup-result.json                              |
+| RPC 事件重订阅修复                                    | 基线 3 条失败，修复后 14 条通过  | rpc-regression-result.json、rpc-red.log、rpc-green.log |
 
 第一阶段仍支持“Linux 本地派发热短命令约快 5 倍”的结论；不能据此声称完整 Agent 任务快 5 倍。源码、依赖和缓存应放在 WSL ext4，同一工作区的文件工具与 Bash 一起在 Linux 执行。Windows 保留桌面 UI，Windows 打包仍留在 Windows。
 
@@ -35,12 +35,12 @@
 
 通过公开 `createRemoteBackend` / `connectRemote` 路径部署，使用本地资产及 `local-download-upload`，没有跳过部署或手写替代握手。
 
-| 测量 | 墙钟 |
-| --- | ---: |
-| 空运行时首次 connectRemote（含部署） | 21179.7 ms |
-| 已装资产的 smoke 首连 | 17998 ms |
-| smoke 再连 | 16189 ms |
-| lifecycle 再连 | 17799.6 ms |
+| 测量                                    |                   墙钟 |
+| --------------------------------------- | ---------------------: |
+| 空运行时首次 connectRemote（含部署）    |             21179.7 ms |
+| 已装资产的 smoke 首连                   |               17998 ms |
+| smoke 再连                              |               16189 ms |
+| lifecycle 再连                          |             17799.6 ms |
 | smoke systemInfo / 文件写读 / PTY / Git | 115 / 36 / 94 / 108 ms |
 
 首部署为单样本；两个显式再连样本为 16.2、17.8 秒，不声明稳定延迟或 P95。连接墙钟包含部署检测和握手，与第一阶段热命令计时分开。内存字段未取得有效数据，不作内存占用结论。
@@ -73,16 +73,16 @@ RPC 写入 `.zcodeignore` 后由真实 PTY 改写，再经 RPC 读回；cwd、�
 
 历次失败均保留，最终通过没有覆盖历史结果：
 
-| 轮次 | 结果及定位 |
-| --- | --- |
-| 1 | 缺开发态 browser-client 等生成产物，补齐部署闭包 |
-| 2 | provider 仍指 Windows 端口而非 Linux replay；另有 WDIO 外层 120s 截断，改正式配置接线和 opt-in 预算 |
-| 3 | 旧 mode helper 的 role=option 与现 UI menuitemradio 不匹配，复用 switchV4Mode |
-| 4 | 首发通过，续发 Read 结果不含预期内容而回放拒绝；改为 Bash 真实再读文件。“缓存导致”未证实 |
-| 5 | 受控用户名输入追加为 zcodewslp2zcodewslp2，修输入及 value 断言；WSL 代理警告不是根因 |
-| 6 | 详情仍为 loading 即断言 running，改为等待真实状态 |
-| 7 | Agent 四项全通过，侧栏动作需 hover 才挂载，补真实悬停 |
-| 8 | 全链路通过，finally 及 WDIO 退出成功 |
+| 轮次 | 结果及定位                                                                                          |
+| ---- | --------------------------------------------------------------------------------------------------- |
+| 1    | 缺开发态 browser-client 等生成产物，补齐部署闭包                                                    |
+| 2    | provider 仍指 Windows 端口而非 Linux replay；另有 WDIO 外层 120s 截断，改正式配置接线和 opt-in 预算 |
+| 3    | 旧 mode helper 的 role=option 与现 UI menuitemradio 不匹配，复用 switchV4Mode                       |
+| 4    | 首发通过，续发 Read 结果不含预期内容而回放拒绝；改为 Bash 真实再读文件。“缓存导致”未证实            |
+| 5    | 受控用户名输入追加为 zcodewslp2zcodewslp2，修输入及 value 断言；WSL 代理警告不是根因                |
+| 6    | 详情仍为 loading 即断言 running，改为等待真实状态                                                   |
+| 7    | Agent 四项全通过，侧栏动作需 hover 才挂载，补真实悬停                                               |
+| 8    | 全链路通过，finally 及 WDIO 退出成功                                                                |
 
 Windows 对 Linux 同 loopback 的探测历轮有 true/false；Linux Agent 到 Linux replay 始终单独验证。本轮两个 probe 均 true，先前 Windows probe=false 的轮次也曾通过首发；不据此要求修改系统网络。
 

@@ -71,10 +71,13 @@ export async function runToolAgentLoop(input: {
     toolCall?: ModelToolCall;
   }) => void;
   maxTurns: number;
-  messages: readonly ModelInputMessage[];
+  request: {
+    messages: readonly ModelInputMessage[];
+    tools: readonly ModelToolContract[];
+    toolSearchEnabled: boolean;
+  };
   model: Model;
   rootDir: string;
-  tools: readonly ModelToolContract[];
   workingDirectory: string;
   workspaceRoot: string;
   /** tool-use 边界策略；拒绝理由会作为错误工具消息回填进下一轮请求。 */
@@ -82,7 +85,7 @@ export async function runToolAgentLoop(input: {
   /** 每轮开始前的软停止判定：返回 true 时正常结束调查循环（区别于 abort 的抛错）。 */
   shouldStop?: () => boolean;
 }): Promise<MemoryAgentLoopResult> {
-  const messages = input.messages.map(cloneModelMessage);
+  const messages = input.request.messages.map(cloneModelMessage);
   let turns = 0;
 
   for (; turns < input.maxTurns; turns += 1) {
@@ -103,7 +106,8 @@ export async function runToolAgentLoop(input: {
         ? input.requestOptions(input.model)
         : auxiliaryModelOptions(input.model),
       // Memory agent 的 provider request 必须保留 Main 的真实工具目录；执行权限只在 tool-use 边界收窄。
-      tools: input.tools as ModelToolContract[],
+      tools: input.request.tools as ModelToolContract[],
+      toolSearchEnabled: input.request.toolSearchEnabled,
     };
     input.onTurn?.({ turn: turns + 1, phase: "generate" });
     const response = await (input.generate
@@ -158,10 +162,13 @@ export async function runMemoryAgentLoop(input: {
     options: { abortSignal?: AbortSignal },
   ) => Promise<ToolExecutionResult>;
   maxTurns: number;
-  messages: readonly ModelInputMessage[];
+  request: {
+    messages: readonly ModelInputMessage[];
+    tools: readonly ModelToolContract[];
+    toolSearchEnabled: boolean;
+  };
   model: Model;
   rootDir: string;
-  tools: readonly ModelToolContract[];
   workingDirectory: string;
   workspaceRoot: string;
 }): Promise<MemoryAgentLoopResult> {
@@ -171,14 +178,14 @@ export async function runMemoryAgentLoop(input: {
       evaluateMemoryAgentToolPolicy({
         rootDir: input.rootDir,
         toolCall,
-        tools: input.tools,
+        tools: input.request.tools,
         workingDirectory: input.workingDirectory,
         workspaceRoot: input.workspaceRoot,
       }),
   });
 }
 
-function evaluateMemoryAgentToolPolicy(
+export function evaluateMemoryAgentToolPolicy(
   input: MemoryAgentToolPolicyInput,
 ): MemoryAgentToolPolicyDecision {
   const contract = input.tools.find((tool) => tool.name === input.toolCall.name);

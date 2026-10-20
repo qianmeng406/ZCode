@@ -1,13 +1,13 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Plus } from "lucide-react";
+import { resolveWorkspaceKey, type ZCodeSavedWorkflowEntry } from "@zcode/shared";
 import {
   TID_WORKFLOWS_CREATE_VIA_CHAT,
   TID_WORKFLOWS_LIST,
   TID_WORKFLOW_PROJECT_GROUP,
-  resolveWorkspaceKey,
-  testId,
-  type ZCodeSavedWorkflowEntry,
 } from "@zcode/shared";
+
+import { testId } from "@zcode/shared/test-ids";
 import { Button } from "@/components/ui/button.js";
 import { toast } from "@/components/ui/toast.js";
 import { useZCodeIntl } from "@/i18n/IntlProvider.js";

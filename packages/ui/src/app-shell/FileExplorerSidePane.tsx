@@ -5,11 +5,7 @@ import { WorkspaceFileTree } from "@/WorkspaceFileTree.js";
 import { ControlHintTooltip } from "@/ControlHintTooltip.js";
 import { shouldRenderPreviewPaneHeavyContent } from "@/app-shell/animatedSidePanePanelModel.js";
 import { Button } from "@/components/ui/button.js";
-import {
-  ResizableHandle,
-  ResizablePanel,
-  ResizablePanelGroup,
-} from "@/components/ui/resizable.js";
+import { ResizableHandle, ResizablePanel, ResizablePanelGroup } from "@/components/ui/resizable.js";
 import { useZCodeIntl } from "@/i18n/IntlProvider.js";
 import { inferMediaPreview, type CodeViewerSource } from "@/lib/codeViewer.js";
 import { getPathLeaf } from "@/lib/path.js";
@@ -102,9 +98,7 @@ export function FileExplorerSidePane({
               >
                 {previewTitle}
               </span>
-              <ControlHintTooltip
-                title={intl.formatMessage({ id: "fileExplorer.openInTab" })}
-              >
+              <ControlHintTooltip title={intl.formatMessage({ id: "fileExplorer.openInTab" })}>
                 <Button
                   type="button"
                   variant="ghost"
@@ -122,9 +116,7 @@ export function FileExplorerSidePane({
                   <Maximize2Icon className="size-3.5" aria-hidden="true" />
                 </Button>
               </ControlHintTooltip>
-              <ControlHintTooltip
-                title={intl.formatMessage({ id: "fileExplorer.closePreview" })}
-              >
+              <ControlHintTooltip title={intl.formatMessage({ id: "fileExplorer.closePreview" })}>
                 <Button
                   type="button"
                   variant="ghost"

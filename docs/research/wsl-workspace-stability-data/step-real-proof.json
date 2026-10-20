@@ -22,11 +22,7 @@
     "turn.completed",
     "result"
   ],
-  "toolsSeen": [
-    "Write",
-    "Bash",
-    "Read"
-  ],
+  "toolsSeen": ["Write", "Bash", "Read"],
   "errorCategory": null,
   "proofVersion": 2,
   "completedTools": [

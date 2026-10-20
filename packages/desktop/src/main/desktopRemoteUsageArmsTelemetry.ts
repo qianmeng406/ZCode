@@ -14,8 +14,7 @@ import {
 
 export const REMOTE_USAGE_ARMS_GROUP = "remote_usage";
 export const REMOTE_USAGE_ARMS_EVENT_CONNECT_RESULT = "remote_connect_result";
-export const REMOTE_USAGE_ARMS_EVENT_ACTIVE_SESSION_COUNT =
-  "remote_active_session_count";
+export const REMOTE_USAGE_ARMS_EVENT_ACTIVE_SESSION_COUNT = "remote_active_session_count";
 export const REMOTE_USAGE_ARMS_EVENT_DISCONNECT = "remote_disconnect";
 export const REMOTE_USAGE_GAUGE_INTERVAL_MS = 300_000;
 
@@ -33,10 +32,9 @@ export type RemoteGaugeTransition =
   | "app-shutdown"
   | "none";
 
-export type RemoteDisconnectReason = Exclude<
-  RemoteGaugeTransition,
-  "connected" | "none"
->;
+export type RemoteDisconnectReason = Exclude<RemoteGaugeTransition, "connected" | "none">;
+
+type IntervalHandle = ReturnType<typeof setInterval> | number;
 
 interface RemoteUsageArmsTelemetryConfig {
   armsCustomContext: {
@@ -49,15 +47,12 @@ interface RemoteUsageArmsTelemetryConfig {
   sendCustom: (payload: FinalArmsCustomEventPayload) => void;
   e2eController?: FinalArmsCustomEventE2EController | null;
   logger: { warn: (...args: unknown[]) => void };
-  setInterval?: (
-    callback: () => void,
-    delayMs: number,
-  ) => ReturnType<typeof setInterval>;
-  clearInterval?: (timer: ReturnType<typeof setInterval>) => void;
+  setInterval?: (callback: () => void, delayMs: number) => IntervalHandle;
+  clearInterval?: (timer: IntervalHandle) => void;
 }
 
 let telemetryConfig: RemoteUsageArmsTelemetryConfig | null = null;
-let periodicTimer: ReturnType<typeof setInterval> | null = null;
+let periodicTimer: IntervalHandle | null = null;
 let lastGaugeRendererId: number | null = null;
 
 export function buildRemoteConnectResultArmsPayload(params: {
@@ -74,8 +69,7 @@ export function buildRemoteConnectResultArmsPayload(params: {
       result: params.result,
       remote_kind: params.remoteKind,
       connect_trigger: params.connectTrigger,
-      error_category:
-        params.result === "success" ? "" : (params.errorCategory ?? "unknown"),
+      error_category: params.result === "success" ? "" : (params.errorCategory ?? "unknown"),
     },
   };
 }
@@ -118,20 +112,17 @@ export function buildRemoteDisconnectArmsPayload(params: {
   };
 }
 
-export function configureRemoteUsageArmsTelemetry(
-  config: RemoteUsageArmsTelemetryConfig,
-): void {
+export function configureRemoteUsageArmsTelemetry(config: RemoteUsageArmsTelemetryConfig): void {
   stopRemoteUsageArmsPeriodicSampling();
   telemetryConfig = config;
   const schedule = config.setInterval ?? setInterval;
   periodicTimer = schedule(reportPeriodicGauge, REMOTE_USAGE_GAUGE_INTERVAL_MS);
-  periodicTimer.unref?.();
+  // Bug 根因：desktop main 同时被 Node 与 DOM lib 检查，setInterval handle 会被推导成
+  // Timeout | number；仅 Node handle 支持 unref，数字 handle 仍需保留给 clearInterval。
+  if (typeof periodicTimer !== "number") periodicTimer.unref?.();
 }
 
-function dispatchSafely(
-  rendererId: number,
-  payload: ArmsCustomEventPayload,
-): void {
+function dispatchSafely(rendererId: number, payload: ArmsCustomEventPayload): void {
   const config = telemetryConfig;
   if (!config) return;
   try {
@@ -156,10 +147,7 @@ export function reportRemoteConnectResultToArms(params: {
   connectTrigger: RemoteWorkspaceConnectTrigger;
   errorCategory?: RemoteUsageErrorCategory;
 }): void {
-  dispatchSafely(
-    params.rendererId,
-    buildRemoteConnectResultArmsPayload(params),
-  );
+  dispatchSafely(params.rendererId, buildRemoteConnectResultArmsPayload(params));
 }
 
 function reportGauge(params: {
@@ -172,10 +160,7 @@ function reportGauge(params: {
   if (!config) return;
   try {
     const stats = config.getRemoteConnectionStats();
-    dispatchSafely(
-      params.rendererId,
-      buildRemoteActiveSessionCountArmsPayload(params, stats),
-    );
+    dispatchSafely(params.rendererId, buildRemoteActiveSessionCountArmsPayload(params, stats));
   } catch (error) {
     config.logger.warn("[remote-usage-arms] read stats failed", { error });
   }

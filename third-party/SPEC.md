@@ -4,13 +4,13 @@
 
 第三方复制内容保留各自许可、版权及适用的文件内修改声明。包元数据不能单独替代上游原始材料。没有取得证据的事项保持阻断，不能通过更新哈希、删除记录或编造权利人关闭。第一方代码的对外许可由开源导出覆盖层提供，不在本目录声明。
 
-| 所有者 | 职责 |
-| --- | --- |
-| `third-party/*.json`、`third-party/upstream/`、`third-party/native-search/`、`third-party/runtime/` | 材料与待核验事项的唯一登记入口和原文快照 |
-| `scripts/third-party-npm.mjs` | 解析锁文件生产图与实际安装图、读取包内原文 |
-| `scripts/generate-third-party-notices.mjs`（`licenses.mjs notices`） | 生成 `THIRD-PARTY-NOTICES.md` 与 `inventory.json` |
-| `scripts/licenses.mjs check [--strict]` | 显式许可标识、新鲜度与材料完整性检查 |
-| `scripts/third-party-notices.mjs` | 构建期读取与分发声明；各构建入口只调用这一模块，不另建许可数据库 |
+| 所有者                                                                                              | 职责                                                             |
+| --------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------- |
+| `third-party/*.json`、`third-party/upstream/`、`third-party/native-search/`、`third-party/runtime/` | 材料与待核验事项的唯一登记入口和原文快照                         |
+| `scripts/third-party-npm.mjs`                                                                       | 解析锁文件生产图与实际安装图、读取包内原文                       |
+| `scripts/generate-third-party-notices.mjs`（`licenses.mjs notices`）                                | 生成 `THIRD-PARTY-NOTICES.md` 与 `inventory.json`                |
+| `scripts/licenses.mjs check [--strict]`                                                             | 显式许可标识、新鲜度与材料完整性检查                             |
+| `scripts/third-party-notices.mjs`                                                                   | 构建期读取与分发声明；各构建入口只调用这一模块，不另建许可数据库 |
 
 ## npm 生产图的范围
 
@@ -22,6 +22,7 @@
   - 内部应用独有且不随产品分发的依赖（当前为 `apps/dev-docs` 的 `elkjs`，按 EPL-2.0 使用）。
   - 其余 LGPL/GPL/EPL 等仍按类别阻断。
 - 开源导出树的工作区与锁文件不同于闭源，其声明与 inventory 由导出流程在开源依赖树上重新生成，不沿用闭源声明。
+- 文档查看器随包分发的 `@fontsource/noto-sans-sc@5.3.1` 单独按精确包名、版本与 `OFL-1.1` 许可登记；其他字体、版本或许可仍阻断。构建原样复制字体分片，并将随包版权及完整许可写入插件 `THIRD_PARTY_NOTICES.txt`。该记录不将 OFL 加入通用宽松许可名单，也不关闭其他材料缺口。
 
 ## 开发、构建与校验边界
 
@@ -37,16 +38,16 @@
 
 ## 交付入口（本仓库已接入）
 
-| 产物 | 位置 | 接入点 |
-| --- | --- | --- |
-| Desktop | `Resources/THIRD-PARTY-NOTICES.md`、`Resources/licenses/electron/` | `electron-builder.config.js` 的 `extraResources` 与 `afterExtract` |
-| Web | 部署根目录 `THIRD-PARTY-NOTICES.md`，HTML `rel="license"` | `packages/web/vite.config.ts` 的 `thirdPartyNoticesVitePlugin` |
-| Server HTTP / remote bundle | `packages/server/dist/`、`dist/remote/` | `tsup.config.ts` 的 `onSuccess`、`build-remote.ts` |
-| CLI | `apps/zcode-cli/packages/cli/dist/THIRD-PARTY-NOTICES.md` | `scripts/build.mjs` |
-| 搜索工具 | 每个工具目录的 `THIRD-PARTY-NOTICES.txt`、`SOURCES.json`；SEA 内嵌同名资产 | `prepare-native-search-tools.mjs`、`sea-runtime-tool-assets.mjs` |
-| 远端组件 | `server/`、`node-pty/<platform>/`、`glm/<platform>/` 的声明，`node/<platform>/LICENSE.node.txt` | `prepare-prebuilds.mjs`，在组件哈希计算前复制 |
-| 独立 Server 发行包 | `runtime/THIRD-PARTY-NOTICES.md`、`LICENSE.node.txt`、`NODE-SOURCES.json`、`licenses/{agent,official-plugins}/`、工具目录声明 | `stageCli.ts` 读取后显式传入 `stage.ts` |
-| 统一分发包 | `agent/THIRD-PARTY-NOTICES.md` | `scripts/build-zcode.mjs` |
+| 产物                        | 位置                                                                                                                          | 接入点                                                             |
+| --------------------------- | ----------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------ |
+| Desktop                     | `Resources/THIRD-PARTY-NOTICES.md`、`Resources/licenses/electron/`                                                            | `electron-builder.config.js` 的 `extraResources` 与 `afterExtract` |
+| Web                         | 部署根目录 `THIRD-PARTY-NOTICES.md`，HTML `rel="license"`                                                                     | `packages/web/vite.config.ts` 的 `thirdPartyNoticesVitePlugin`     |
+| Server HTTP / remote bundle | `packages/server/dist/`、`dist/remote/`                                                                                       | `tsup.config.ts` 的 `onSuccess`、`build-remote.ts`                 |
+| CLI                         | `apps/zcode-cli/packages/cli/dist/THIRD-PARTY-NOTICES.md`                                                                     | `scripts/build.mjs`                                                |
+| 搜索工具                    | 每个工具目录的 `THIRD-PARTY-NOTICES.txt`、`SOURCES.json`；SEA 内嵌同名资产                                                    | `prepare-native-search-tools.mjs`、`sea-runtime-tool-assets.mjs`   |
+| 远端组件                    | `server/`、`node-pty/<platform>/`、`glm/<platform>/` 的声明，`node/<platform>/LICENSE.node.txt`                               | `prepare-prebuilds.mjs`，在组件哈希计算前复制                      |
+| 独立 Server 发行包          | `runtime/THIRD-PARTY-NOTICES.md`、`LICENSE.node.txt`、`NODE-SOURCES.json`、`licenses/{agent,official-plugins}/`、工具目录声明 | `stageCli.ts` 读取后显式传入 `stage.ts`                            |
+| 统一分发包                  | `agent/THIRD-PARTY-NOTICES.md`                                                                                                | `scripts/build-zcode.mjs`                                          |
 
 未接入：`zcode --licenses` 入口与 SEA 内嵌 Node 许可（SEA 基底 Node 版本随构建机浮动，`runtime/sources.json` 只登记固定版本）；producer 归档内嵌声明（会改变已固定 SHA-256 的归档字节）。
 

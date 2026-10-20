@@ -169,7 +169,12 @@ export class ContextBuilder {
       // session guidance、memory、output style、context management、git 段全部不发。
       // 但该模式是自动执行权限，护栏段必须留在场——否则模型手里一条防线都没有。
       sections.push(
-        buildEnvInfoSection(this.config.envInfo, this.config.model, sessionExecutionEnvironment),
+        buildEnvInfoSection(
+          this.config.envInfo,
+          this.config.model,
+          this.config.additionalDirectories,
+          sessionExecutionEnvironment,
+        ),
       );
       sections.push(buildMinimalGuardrailsSection());
     } else if (!hasCustomSystemPrompt) {
@@ -212,7 +217,12 @@ export class ContextBuilder {
         }
       }
       sections.push(
-        buildEnvInfoSection(this.config.envInfo, this.config.model, sessionExecutionEnvironment),
+        buildEnvInfoSection(
+          this.config.envInfo,
+          this.config.model,
+          this.config.additionalDirectories,
+          sessionExecutionEnvironment,
+        ),
       );
 
       // Output Style

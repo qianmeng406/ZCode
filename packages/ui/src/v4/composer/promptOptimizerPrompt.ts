@@ -20,11 +20,7 @@ const EXPANSION_RATIO = 3;
 const EXPANSION_FLOOR = 400;
 const MAX_LITERAL_PROBES = 40;
 
-export type PromptOptimizerWarningCode =
-  | "empty"
-  | "unchanged"
-  | "expanded"
-  | "literal-mismatch";
+export type PromptOptimizerWarningCode = "empty" | "unchanged" | "expanded" | "literal-mismatch";
 
 export interface PromptOptimizerContext {
   /** 已渲染的会话上下文材料；空串表示无。 */
@@ -50,7 +46,7 @@ const RULES_COMMON = [
   "执行顺序、路径/命令/版本号/数字/代码片段等字面量，以及用户已给出的授权范围。不得新增需求、功能、技术栈、权限或工期。",
   "【上下文使用】只用于消解指代（如「这个」「继续」「刚才那个方案」）；上下文中未获用户确认的建议，",
   "不得改写成已确定的要求；无法由材料确认的信息列入 unresolved，不要猜。",
-  "【输出】只输出一个 JSON 对象，形如 {\"optimizedPrompt\":\"...\",\"unresolved\":[\"...\"]}；",
+  '【输出】只输出一个 JSON 对象，形如 {"optimizedPrompt":"...","unresolved":["..."]}；',
   "unresolved 可省略或为空数组。不要输出解释、前后缀、额外字段；JSON 之外不得有任何文字。",
 ] as const;
 

@@ -131,7 +131,7 @@ function onLogicalFrame(store, frame, deliveryKind) {
   if (frame.subscriptionId !== store.subscriptionId) return; // 旧代际
 
   if (frame.payload.kind === "snapshot") {
-    store.replaceAll(frame.payload.snapshot);                // 整体替换
+    store.replaceAll(frame.payload.snapshot); // 整体替换
     store.logEpoch = frame.payload.snapshot.logEpoch;
     store.seq = frame.toSeq;
     store.hasAppliedBase = true;
@@ -143,7 +143,7 @@ function onLogicalFrame(store, frame, deliveryKind) {
   if (frame.toSeq <= store.seq) {
     // aligned `(N,N]` 或已被更新 snapshot 覆盖的 recovery 仍是有效 logical frame。
     if (deliveryKind === "recovery") markRecoveryFrameSeen(store);
-    return;                                                   // 迟到/重复，不改 projection
+    return; // 迟到/重复，不改 projection
   }
 
   if (deliveryKind === "online" && store.recoveryFlight) {
@@ -207,17 +207,17 @@ function onLogicalFrame(store, frame, deliveryKind) {
 
 ## 3. 自动恢复触发矩阵
 
-| 触发 | 客户端/host 动作 | 权威恢复结果 |
-| --- | --- | --- |
-| 页面刷新、新 pane、新设备 | 无合法 base 时 subscribe | snapshot |
-| 短断，内存投影仍在 | 带 `{logEpoch,seq}` subscribe | resume 或 snapshot |
-| delta gap | single-flight `v4/conversation/resync` | resume；再 gap 强制 snapshot |
-| `sendText` 已 `accepted|duplicate`，短暂宽限期后同 `sourceCommandId` 的 queue item / real-user row 仍不可见 | 当前 owned subscription single-flight `v4/conversation/resync` | resume 或 snapshot；只恢复投影，不重放 command |
-| fragment 缺失/checksum 失败 | 丢弃整个 assembly + resync | 不产生半应用状态 |
-| subscriber buffer 超限 | publisher 清空该 sub buffer、标 resync | 下一次只发最新 snapshot |
-| relay/attachment 重建 | 完成 v2 握手后自动重订阅全部活跃 topic | 新 subId；旧帧丢弃 |
-| CLI runtime restart | 新 `logEpoch`；客户端自动重订阅 | snapshot；旧 base 不续传 |
-| port close | host `unsubscribeAll(connectionId)` | 释放 buffer/assembly，不影响其他连接 |
+| 触发                        | 客户端/host 动作                                                                    | 权威恢复结果                                                   |
+| --------------------------- | ----------------------------------------------------------------------------------- | -------------------------------------------------------------- | ---------------------------------------------- |
+| 页面刷新、新 pane、新设备   | 无合法 base 时 subscribe                                                            | snapshot                                                       |
+| 短断，内存投影仍在          | 带 `{logEpoch,seq}` subscribe                                                       | resume 或 snapshot                                             |
+| delta gap                   | single-flight `v4/conversation/resync`                                              | resume；再 gap 强制 snapshot                                   |
+| `sendText` 已 `accepted     | duplicate`，短暂宽限期后同 `sourceCommandId` 的 queue item / real-user row 仍不可见 | 当前 owned subscription single-flight `v4/conversation/resync` | resume 或 snapshot；只恢复投影，不重放 command |
+| fragment 缺失/checksum 失败 | 丢弃整个 assembly + resync                                                          | 不产生半应用状态                                               |
+| subscriber buffer 超限      | publisher 清空该 sub buffer、标 resync                                              | 下一次只发最新 snapshot                                        |
+| relay/attachment 重建       | 完成 v2 握手后自动重订阅全部活跃 topic                                              | 新 subId；旧帧丢弃                                             |
+| CLI runtime restart         | 新 `logEpoch`；客户端自动重订阅                                                     | snapshot；旧 base 不续传                                       |
+| port close                  | host `unsubscribeAll(connectionId)`                                                 | 释放 buffer/assembly，不影响其他连接                           |
 
 手机 relay/main 只透传 payload 与连接生命周期；raw adapter 的 `onSaturated/onDrained` 由 desktop main
 写入 owning attachment 的 `connection-flow-v1` MessagePort sideband，再由 host 以 trusted
@@ -273,3 +273,5 @@ CLI queue 只保证当前进程内可靠。CLI restart 时，已 admitted 但尚
 `fault.command.queryUnavailable`，不能伪装成 `unknown`；`unknown` 本身不缓存。
 
 最终不变量：每条已提交输入必须且只能处于 `queue / guided row / transcript / explicit rejected|failed|discarded` 之一。ACK 丢失、gap、重连或 restart 都不能造成“UI 已清空、权威层无记录”。
+
+镜像不变量（renderer 侧）：一条输入一旦被权威接管（ACK accepted/duplicate，或 queue/row/marker 的 `sourceCommandId` 对账），composer 中属于这次提交的正文必须被清空，且这一义务不随 composer 组件实例消亡。传输层失败（如远端 ChannelClient dispose）只是“ACK 未知”，不是“未 admission”：正文可先恢复回草稿，但要把 `{commandId, text}` 登记到 `composerSubmissionSettlement`（模块级、仅内存），由它持有 registry resolution 订阅；pane 因断连卸载重建后，新 composer 回填草稿时向它认领结算。用户已在回填正文上继续编辑时不清空；failed/unknown/discarded 终态删除登记并保留正文。
