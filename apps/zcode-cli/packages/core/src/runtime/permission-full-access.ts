@@ -5,7 +5,7 @@ import {
   type SessionEvent,
   type SessionModeChangedPayload,
 } from "@zcode/contracts";
-import { resolveContextProfile, resolveExecutionState } from "@zcode/shared";
+import { resolveContextProfile, resolveExecutionState, type ExecutionState } from "@zcode/shared";
 import type { AgentRuntimeInternal } from "./internal.js";
 import {
   buildExecutionStateEntry,
@@ -58,8 +58,12 @@ export async function grantPermissionFullAccess(
       const previous = readRuntimeExecutionState(this);
       // Beta 已是完全访问权限：授权保留 Beta。事件、持久化执行状态与内存安装必须写同一个
       // 值，不能只改内存——否则投影/重启会回 yolo，下一次提交静默退出 Beta。
-      const grantedMode = previous.mode === "beta" ? "beta" : "yolo";
-      const next = { ...previous, mode: grantedMode };
+      // 必须用带 ExecutionState 上下文的对象字面量：条件表达式不是字面量初始化，
+      // 先存到变量会把 "beta" | "yolo" 拓宽成 string，导致 buildExecutionStateEntry 拒绝入参。
+      const next: ExecutionState = {
+        ...previous,
+        mode: previous.mode === "beta" ? "beta" : "yolo",
+      };
       event = this.createEvent(
         SessionEventType.SessionModeChanged,
         {
