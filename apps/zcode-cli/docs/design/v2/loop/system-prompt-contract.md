@@ -31,8 +31,8 @@ path, not a new user-facing context selector.
 Fusion guidance is main-agent behavior: custom system prompts and workflow actor
 identities retain their own contracts and do not receive fusion interaction copy.
 Agent-specific delegation guidance is conditional on the actual available tool
-set. Selecting Beta never grants automatic permissions or exits Plan mode;
-selecting another work mode exits Beta and clears legacy fusion behavior.
+set. Selecting Beta uses full-access (yolo) permissions and does not exit Plan
+mode; selecting another work mode exits Beta and clears legacy fusion behavior.
 
 ## Stable Sections
 

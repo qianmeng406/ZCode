@@ -39,7 +39,7 @@ export type CollaborationMode =
   | "auto"
   | "research"
   | "minimal"
-  // Beta 独立工作模式（提示词融合模式测试版本）：additive，权限复用 build。
+  // Beta 独立工作模式（提示词融合模式测试版本）：additive，权限复用完全访问（yolo）。
   | "beta";
 
 /** 父 guarded 只收紧内部 YOLO 派生；显式的其它子模式保留各自策略。 */

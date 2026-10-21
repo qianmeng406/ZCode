@@ -165,6 +165,8 @@ export function parseModelPickerValue(value: string): ModelSelection {
 
 export function toZCodeTaskMode(mode: ZCodeTaskMode | undefined): ZCodeSessionMode | undefined {
   switch (mode) {
+    case undefined:
+      return undefined;
     case "plan":
       return "plan";
     case "edit":
@@ -184,9 +186,14 @@ export function toZCodeTaskMode(mode: ZCodeTaskMode | undefined): ZCodeSessionMo
       return "build";
     case "research":
     case "minimal":
+    // Beta 是独立工作模式，必须原样透传，不能落到 undefined 被调用方降级为 build。
+    case "beta":
       return mode;
-    default:
-      return undefined;
+    default: {
+      // 穷尽检查：未来新增 ZCodeTaskMode 时强制在这里给出映射。
+      const exhaustive: never = mode;
+      return exhaustive;
+    }
   }
 }
 

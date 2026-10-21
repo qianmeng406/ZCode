@@ -108,7 +108,7 @@ export function getMode(this: AgentRuntimeInternal): CollaborationMode {
   return this.config.mode ?? "build";
 }
 
-/** 权威执行状态读取（恢复语义）：历史组合不静默改权限，build+fusion 升级 Beta。 */
+/** 权威执行状态读取（恢复语义）：历史组合不静默改权限，build+fusion 保持原权限。 */
 export function getExecutionState(this: AgentRuntimeInternal): ResolvedExecutionState {
   return resolveRestoredExecutionState(this.config);
 }

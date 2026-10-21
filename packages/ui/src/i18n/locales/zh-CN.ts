@@ -6987,15 +6987,6 @@ const zhCN: Record<string, string> = {
   "mode.label.glm.beta": "Beta 模式",
   "mode.description.glm.beta":
     "提示词融合模式测试版本：协作、有据推进、按需委派，保留完整上下文与工具集；默认「完全访问」权限（减少确认次数），计划开启时只读。",
-  "chat.toolbar.mode.minimalContext.label": "极简上下文",
-  "chat.toolbar.mode.minimalContext.description":
-    "只保留身份行、环境与短护栏，隐藏技能、记忆、项目指令与 MCP 工具；不改变权限，只影响之后的请求。",
-  "chat.toolbar.mode.standardContext.label": "普通上下文",
-  "chat.toolbar.mode.standardContext.description":
-    "完整上下文：身份、技能、记忆与项目指令全部保留；不改变权限。",
-  "chat.toolbar.mode.fusionContext.label": "Beta 模式",
-  "chat.toolbar.mode.fusionContext.description":
-    "提示词融合模式测试版本（默认确认）。保留给以融合档位渲染的历史会话；新任务请用模式列表中的 Beta 模式入口。",
   "mode.description.glm.build": "改文件前先问我。",
   "mode.description.glm.edit": "自动编辑文件。",
   "mode.description.glm.plan": "编辑前先出计划。",

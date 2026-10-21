@@ -44,8 +44,8 @@ function noop(): void {}
  * Plan 与工作模式（变更前确认/自主/资料查询/极简/Beta）正交；权限仍为单选；
  * 只编辑草稿，不向 Runtime 发切换命令。
  * Beta（提示词融合模式测试版本）是独立模式入口，触发按钮直接显示 Beta 标签，
- * 不再附加上下文档位徽标。历史 fusion 档位草稿仅在旧 build+fusion 组合下回显为
- * Beta（无损映射）；其余权限与 fusion 的组合保持历史语义，不自动扩大或缩小旧权限。
+ * 不再附加上下文档位徽标。历史 fusion 档位只作为读取兼容：build+fusion 等组合
+ * 仍按原权限回显，不自动升级为完全访问的 Beta。
  */
 function V4ComposerModeSwitchImpl({
   provider,
@@ -64,23 +64,17 @@ function V4ComposerModeSwitchImpl({
   | "activeConfigPicker"
   | "onConfigPickerOpenChange"
   | "onSwitchMode"
-  // 历史签名保留：三态档位组已移除，调用方仍传该 prop；组件不再消费。
-  | "onSwitchContextProfile"
 >) {
   const { intl } = useZCodeIntl();
   const displayProvider = provider ?? ZCODE_AGENT_PROVIDER;
   const modeShortcutLabel = useShortcutCommandLabel("cycleSessionMode");
   const modes = getZCodeAgentAvailableModes();
   // Beta 由 shared 模式目录直接提供（mode=beta），UI 不再本地补候选。历史 fusion 档位
-  // 的兼容显示：旧 build+fusion 组合无损映射为 Beta；其余权限与 fusion 的组合保持历史
-  // 语义，不自动扩大或缩小旧权限（shared resolveExecutionState 负责权威归一）。
+  // 只做读取兼容：按原权限回显，不把 build+fusion 自动升级成完全访问的 Beta。
   const permissions = modes.filter((mode) => mode.id !== "plan");
   const selectablePermissions = permissions;
-  // 当前值：旧 build+fusion 无损映射为 Beta 显示；其余历史值原样回显。
-  const currentModeId =
-    draftConfig?.mode === "build" && draftConfig?.contextProfile === "fusion"
-      ? "beta"
-      : draftConfig?.mode;
+  // 当前值：历史 build+fusion 仍回显 build（权限未变）；其余历史值原样回显。
+  const currentModeId = draftConfig?.mode;
   // 新菜单隐藏 Edit/minimal，但历史草稿仍可回显，不能因候选变化隐藏整个权限入口。
   const selected =
     selectablePermissions.find((mode) => mode.id === currentModeId) ??

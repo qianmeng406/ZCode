@@ -3300,8 +3300,10 @@ function parseModelPickerValue(value: string): ModelSelection {
   return parseSharedModelSelection(value);
 }
 
-function toZCodeMode(mode: ZCodeTaskMode | undefined): ZCodeSessionMode | undefined {
+export function toZCodeMode(mode: ZCodeTaskMode | undefined): ZCodeSessionMode | undefined {
   switch (mode) {
+    case undefined:
+      return undefined;
     case "plan":
       return "plan";
     case "edit":
@@ -3320,13 +3322,19 @@ function toZCodeMode(mode: ZCodeTaskMode | undefined): ZCodeSessionMode | undefi
       return "research";
     case "minimal":
       return "minimal";
+    // Beta 是独立工作模式：必须原样透传；漏映射会被调用方的 ?? build 静默降级。
+    case "beta":
+      return "beta";
     case "build":
     case "default":
     case "acceptEdits":
     case "autoEdit":
       return "build";
-    default:
-      return undefined;
+    default: {
+      // 穷尽检查：未来新增 ZCodeTaskMode 时强制在这里给出映射，避免再次静默丢失。
+      const exhaustive: never = mode;
+      return exhaustive;
+    }
   }
 }
 

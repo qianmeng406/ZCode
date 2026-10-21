@@ -12,7 +12,6 @@ import {
 } from "@zcode/shared";
 import type {
   ZCodeConfigOption,
-  ContextProfile,
   ModelSelection,
   ZCodeProvider,
   ZCodeSlashCommand,
@@ -103,8 +102,6 @@ export interface DraftConfigControl {
   handleDraftSelectModel: (modelProvider: string, model: string, reasoningLevel?: string) => void;
   handleDraftSelectThought: (thought: string) => void;
   handleDraftSwitchMode: (mode: string) => void;
-  /** 上下文档位与权限正交：单独切换，只改未来请求的前缀与工具投影。 */
-  handleDraftSwitchContextProfile: (profile: ContextProfile) => void;
 }
 
 interface ComposerState {
@@ -226,10 +223,10 @@ export function useDraftConfigControl(params: {
       planTransitionId: sessionConfig.planTransition?.toolCallId,
     };
     const firstSnapshot = !previous;
-    // Session snapshot 属于恢复/读取边界：旧 build+fusion 完整状态在此无损升级为
-    // Beta；其余 fusion 组合原样保留（restore 归一是 shared 的单一所有者，
-    // 见 execution-state.ts resolveRestoredExecutionState），不能用显式切换语义
-    // 在此清掉历史档位。
+    // Session snapshot 属于恢复/读取边界：只做无损归一（beta+fusion 归一
+    // Beta+standard）；build+fusion 等历史组合保留原权限（restore 归一是 shared 的
+    // 单一所有者，见 execution-state.ts resolveRestoredExecutionState），不能用显式
+    // 切换语义在此清掉历史档位。
     const restored = resolveRestoredExecutionState(sessionConfig ?? {});
     const restoredMode = submissionModeSchema.safeParse(restored.mode);
     const currentMode =
@@ -660,17 +657,6 @@ export function useDraftConfigControl(params: {
     [updateComposerDraft],
   );
 
-  const handleDraftSwitchContextProfile = useCallback(
-    (profile: ContextProfile) => {
-      // 档位与权限正交：只改上下文投影，不动 mode/planEnabled/模型选择。
-      updateComposerDraft((current) => ({
-        ...current,
-        contextProfile: profile,
-      }));
-    },
-    [updateComposerDraft],
-  );
-
   return {
     modelSelectionRead,
     draftConfig,
@@ -684,7 +670,6 @@ export function useDraftConfigControl(params: {
     handleDraftSelectModel,
     handleDraftSelectThought,
     handleDraftSwitchMode,
-    handleDraftSwitchContextProfile,
   };
 }
 

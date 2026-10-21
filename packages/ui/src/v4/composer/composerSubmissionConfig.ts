@@ -36,10 +36,10 @@ export function createComposerSubmissionConfig(
   const selection = composer.modelSelection;
   // Beta 是独立工作模式，shared submissionModeSchema 已含 beta；坏值仍不可提交。
   const draftMode = submissionModeSchema.safeParse(composer.mode);
-  // 提交是重申当前草稿，不是显式切换模式：走恢复/读取语义（build+fusion 升级 Beta、
-  // 其余历史组合原样保留），用户级显式切换已在草稿模式菜单层归一。
+  // 提交是重申当前草稿，不是显式切换模式：走恢复/读取语义（只做无损归一，
+  // build+fusion 等历史组合保留原权限），用户级显式切换已在草稿模式菜单层归一。
   const state = draftMode.success ? resolveRestoredExecutionState(composer) : null;
-  // 读取升级可能把 build+fusion 映射为 beta；plan 在冻结面统一映射为 build。
+  // 读取归一可能把 beta+fusion 归一为 beta；plan 在冻结面统一映射为 build。
   const mode = state ? submissionModeSchema.safeParse(state.mode) : null;
   const model =
     selection &&

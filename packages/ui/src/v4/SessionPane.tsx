@@ -36,7 +36,6 @@ import {
 } from "@zcode/shared";
 import { TID_CHAT_EMPTY, TID_V4_SESSION_PANE, testId } from "@zcode/shared/test-ids";
 import type {
-  ContextProfile,
   ConversationShareAccessMode,
   GitChangeSourceId,
   HighspeedCardSnapshot,
@@ -1760,7 +1759,6 @@ export function SessionPane({
     handleDraftSelectModel,
     handleDraftSelectThought,
     handleDraftSwitchMode,
-    handleDraftSwitchContextProfile,
     promoteComposerDraft,
     captureAcceptedModelSelection,
     replaceComposerDraft,
@@ -4702,12 +4700,6 @@ export function SessionPane({
     },
     [handleDraftSwitchMode],
   );
-  const handleSwitchContextProfile = useCallback(
-    (profile: ContextProfile) => {
-      handleDraftSwitchContextProfile(profile);
-    },
-    [handleDraftSwitchContextProfile],
-  );
 
   // context usage 面板的压缩入口（命令文本 = "/compact"，复用 slash 解析路径）。
   const handleSendCompressionCommand = useCallback(
@@ -5677,7 +5669,6 @@ export function SessionPane({
       onSelectModel={handleSelectModel}
       onSelectThought={handleSelectThought}
       onSwitchMode={handleSwitchMode}
-      onSwitchContextProfile={handleSwitchContextProfile}
       onOpenRunningBackgroundWorks={
         sessionId && runningBackgroundWorkCount > 0 ? handleOpenRunningBackgroundWorks : undefined
       }

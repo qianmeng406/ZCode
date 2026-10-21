@@ -3,7 +3,7 @@ import { z } from "zod";
 /** auto 保留为内部权限；plan 仅在旧格式读取边界接受；research 为只读资料查询模式；
  * minimal 是旧「极简模式」的兼容值：历史会话继续按旧组合语义执行（上下文极简 +
  * 命令与修改免逐项确认）。新任务用独立 contextProfile 表达极简上下文，不再产生 mode=minimal。
- * beta 是独立工作模式（提示词融合模式测试版本）：权限明确复用 build 的逐项确认策略，
+ * beta 是独立工作模式（提示词融合模式测试版本）：权限明确复用完全访问（yolo）策略，
  * 上下文走完整档位、主代理注入融合行为提示词；与权限/Plan 正交的 fusion 档位不再承担
  * Beta 的表达（Beta 只允许 standard 上下文）。zcodeUpdate 已移除，见 docs/upstream-sync.md。 */
 export const executionPermissionModeSchema = z.enum([
@@ -24,7 +24,8 @@ export const executionPermissionModeSchema = z.enum([
  * - fusion：融合档位，保持身份、权限、安全边界、桌面能力、技能、项目指令、记忆与工具集，
  *   只替换默认动态行为与上下文管理规则；权限与 Plan 语义不变。
  *   Beta 模式发布后 fusion 转为历史读取兼容档位：新 UI 用 mode=beta 选择 Beta；
- *   旧 build+fusion 组合读取时映射为 Beta，其余权限组合保持原语义直到显式切模式。
+ *   旧权限+fusion 组合（含 build+fusion）保持原语义直到显式切模式，不升级为 Beta
+ *   （Beta 拥有完全访问权限，自动升级会静默改变历史会话的确认策略）。
  * 它只影响未来请求的前缀与工具投影，不改变权限，也不删除已有历史。
  */
 export const contextProfileSchema = z.enum(["standard", "minimal", "fusion"]);
@@ -83,37 +84,28 @@ function reconcileBetaAndContextProfile(
 }
 
 /**
- * 恢复/读取边界专用：把旧持久化的完整执行状态升级为当前语义（Beta 读取升级）。
- * build+fusion 无损映射为 Beta（权限同为 build 逐项确认、提示词同为融合段）；
- * 其余权限与 fusion 的历史组合不得静默改变权限，原样保留直到用户显式选择工作模式。
- * 恢复不是用户切换，只在此入口升级；resolveExecutionState 不做该迁移。
+ * 恢复/读取边界专用：把旧持久化的完整执行状态归一为当前语义。
+ * - beta+fusion 任何来源都归一为 Beta+standard（Beta 必须拿到完整上下文）；
+ * - build+fusion 等其余权限+fusion 的历史组合原样保留：Beta 拥有完全访问权限，
+ *   把 build+fusion 升级成 Beta 会静默改变旧会话的确认策略，因此不做该迁移；
+ * - 恢复不是用户切换，不在此清除遗留 fusion；显式切模式的清理由 resolveExecutionState 负责。
  */
 export function resolveRestoredExecutionState(
   state: { mode?: string; planEnabled?: boolean; contextProfile?: string },
   current: ExecutionState = { mode: "build", planEnabled: false, contextProfile: "standard" },
 ): ResolvedExecutionState {
-  // 读取升级只在恢复边界判定（恢复不是用户切换）：
-  // - build+fusion 完整历史状态无损映射为 Beta+standard；
-  // - beta+fusion 任何来源都归一 Beta+standard（Beta 强制完整上下文）；
-  // - 其余权限与 fusion 的历史组合原样保留（显式切模式清融合不适用于恢复）；
+  // 读取边界只做无损归一：
+  // - beta+fusion 归一 Beta+standard（Beta 强制完整上下文）；
+  // - 其余权限与 fusion 的历史组合原样保留（含 build+fusion）；
   // - 其余状态走常规解析（含旧 mode=minimal 兼容映射）。
   const profile = contextProfileSchema.safeParse(state.contextProfile);
   if (profile.success && profile.data === "fusion") {
-    if (state.mode === "build" || state.mode === "beta") {
-      return resolveExecutionState(
-        {
-          mode: "beta",
-          planEnabled: state.planEnabled ?? current.planEnabled,
-        },
-        current,
-      );
-    }
     const mode = executionPermissionModeSchema.safeParse(state.mode);
     if (mode.success) {
       return {
         mode: mode.data,
         planEnabled: state.planEnabled ?? current.planEnabled,
-        contextProfile: "fusion",
+        contextProfile: mode.data === "beta" ? "standard" : "fusion",
       };
     }
   }

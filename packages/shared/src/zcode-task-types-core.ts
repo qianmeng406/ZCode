@@ -160,7 +160,7 @@ export type ZCodeTaskMode =
   | "build"
   | "research"
   | "minimal"
-  // Beta 独立工作模式（提示词融合模式测试版本）：additive 值，权限复用 build。
+  // Beta 独立工作模式（提示词融合模式测试版本）：additive 值，权限复用完全访问（yolo）。
   | "beta";
 
 export type ZCodeOffPeakRunType = "init" | "resume";

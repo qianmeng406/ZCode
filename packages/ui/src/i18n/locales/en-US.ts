@@ -7349,15 +7349,6 @@ const enUS: Record<string, string> = {
   "mode.label.glm.beta": "Beta mode",
   "mode.description.glm.beta":
     "Prompt-fusion mode test version: collaborative, evidence-driven and delegation-aware behavior with the full context and toolset. Uses full-access permissions with fewer confirmations; plan stays read-only.",
-  "chat.toolbar.mode.minimalContext.label": "Minimal context",
-  "chat.toolbar.mode.minimalContext.description":
-    "Keep only the identity line, environment and short guardrails; hides skills, memory, project instructions and MCP tools. It does not change permissions and only affects later requests.",
-  "chat.toolbar.mode.standardContext.label": "Standard context",
-  "chat.toolbar.mode.standardContext.description":
-    "Full context: identity, skills, memory and project instructions. Does not change permissions.",
-  "chat.toolbar.mode.fusionContext.label": "Beta mode",
-  "chat.toolbar.mode.fusionContext.description":
-    "Prompt-fusion mode test version with default confirmations. Kept for historical sessions rendered in the fusion profile; new tasks use the Beta mode entry in the mode list.",
   "mode.description.glm.build": "Ask before file changes.",
   "mode.description.glm.edit": "Edit files automatically.",
   "mode.description.glm.plan": "Plan before editing.",

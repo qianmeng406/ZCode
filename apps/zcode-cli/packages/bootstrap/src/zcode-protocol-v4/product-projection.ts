@@ -4215,7 +4215,8 @@ export class ProductProjection {
                 ...this.snapshot.queue,
                 items: this.snapshot.queue.items.map((item) =>
                   payload.permissionGrant!.queueItemIds.includes(item.queueItemId)
-                    ? { ...item, mode: "yolo" as const }
+                    ? // 授权只改本次目标队列的权限；Beta 会话保留 beta，不能硬编码 yolo。
+                      { ...item, mode }
                     : item,
                 ),
               })

@@ -3,7 +3,7 @@ import type { AgentRuntimeInternal } from "../src/runtime/internal.js";
 import { applyRuntimeExecutionState } from "../src/runtime/execution-state.js";
 import { grantPermissionFullAccess } from "../src/runtime/permission-full-access.js";
 
-function fixture() {
+function fixture(config: Record<string, unknown> = {}) {
   const inputs = [
     {
       pendingInputId: "a",
@@ -12,9 +12,10 @@ function fixture() {
     { pendingInputId: "b", intent: { mode: "edit", planEnabled: false } },
   ];
   let receipt: unknown;
+  const executions: unknown[] = [];
   const runtime = {
     sessionId: "session",
-    config: { mode: "edit", planEnabled: true },
+    config: { mode: "edit", planEnabled: true, ...config },
     rootTraceContext: {},
     pendingInputReservations: new Map(),
     activeTurn: {
@@ -31,6 +32,7 @@ function fixture() {
       ),
       commitPermissionFullAccess: vi.fn(async (input) => {
         receipt = input.receipt.data;
+        executions.push(input.execution);
       }),
     },
     createEvent: vi.fn((type, payload) => ({
@@ -48,6 +50,7 @@ function fixture() {
   };
   return {
     runtime,
+    executions,
     grant: () =>
       grantPermissionFullAccess.call(runtime as unknown as AgentRuntimeInternal, "permission-1"),
   };
@@ -69,6 +72,29 @@ describe("审批框完全访问", () => {
     ]);
     expect(runtime.sessionStore.commitPermissionFullAccess).toHaveBeenCalledOnce();
     expect(runtime.appendEvent).toHaveBeenCalledOnce();
+  });
+  it("Beta 会话授予全权时事件、持久化与内存一致保留 Beta", async () => {
+    const { runtime, grant, executions } = fixture({ mode: "beta", planEnabled: false });
+    await grant();
+    expect(runtime.config).toEqual({
+      mode: "beta",
+      planEnabled: false,
+      contextProfile: "standard",
+    });
+    expect(runtime.activeTurn.pendingInputs.map((item) => item.intent)).toEqual([
+      { mode: "beta", planEnabled: true, modelSelection: { modelId: "one" } },
+      { mode: "beta", planEnabled: false },
+    ]);
+    expect(executions).toHaveLength(1);
+    expect((executions[0] as { data: unknown }).data).toEqual({
+      mode: "beta",
+      planEnabled: false,
+      contextProfile: "standard",
+    });
+    const published = runtime.appendEvent.mock.calls[0]?.[0] as {
+      payload: { mode: string };
+    };
+    expect(published.payload.mode).toBe("beta");
   });
   it("授权重试仍严格拒绝损坏 receipt，不重新抓取队列或提交权限", async () => {
     const { runtime, grant } = fixture();

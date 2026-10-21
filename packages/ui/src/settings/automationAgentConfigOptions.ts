@@ -39,6 +39,13 @@ export function buildAutomationModelSelectGroups(params: {
   );
 }
 
+/**
+ * 定时任务与闲时任务共用同一权限 option，但两者协议都只承载
+ * build/edit/plan/yolo/guarded 五档。共享模式目录新增的 research/beta 不能透传到表单，
+ * 否则用户能选中但创建会被协议/服务白名单拒绝（或被执行层静默归位）。
+ */
+const AUTOMATION_PERMISSION_MODES = new Set(["build", "edit", "plan", "yolo", "guarded"]);
+
 export function buildAutomationModeOption(currentValue: string): ZCodeConfigOption {
   return {
     id: "mode",
@@ -46,7 +53,9 @@ export function buildAutomationModeOption(currentValue: string): ZCodeConfigOpti
     category: "mode",
     type: "select",
     currentValue,
-    options: getZCodeAgentModeSelectOptions(),
+    options: getZCodeAgentModeSelectOptions().filter((entry) =>
+      AUTOMATION_PERMISSION_MODES.has(entry.value),
+    ),
   };
 }
 

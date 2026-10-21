@@ -615,7 +615,8 @@ async function commitAtomicConversationFork(
     .reverse()
     .find((message) => message.info.role === "assistant")?.info;
   // 保留原 stable fork 的历史权限选择，不能让新增 entry 把它覆盖成父任务当前权限。
-  // 历史 info 是读取边界：build+fusion 升级 Beta、其余历史组合保留，缺省字段回退父任务当前状态。
+  // 历史 info 是读取边界：只做无损归一（beta+fusion 归一 Beta+standard），其余历史
+  // 组合保留原权限（build+fusion 不升级 Beta），缺省字段回退父任务当前状态。
   const executionState =
     kind === "selection_side_chat" || historicalInfo?.role !== "assistant"
       ? currentExecutionState

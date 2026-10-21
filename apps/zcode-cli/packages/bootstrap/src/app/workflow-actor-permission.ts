@@ -22,7 +22,7 @@ const RECORDABLE_MODES: ReadonlySet<string> = new Set<WorkflowSubagentPermission
   "yolo",
   "guarded",
   "auto",
-  // Beta 独立工作模式：权限复用 build，可被记入 journal 并按同一语义读回。
+  // Beta 独立工作模式：权限复用完全访问（yolo），可被记入 journal 并按同一语义读回。
   "beta",
 ]);
 /** 没有记录时子代理的模式：与本特性之前所有 run 一致。 */
@@ -39,7 +39,7 @@ export function workflowSubagentPermissionModeOf(
 ): WorkflowSubagentPermissionMode | undefined {
   if (sessionMode === undefined) return undefined;
   // 遗留的 plan 枚举值记为 build（与普通子代理拆分 plan 后的回退一致）；
-  // Beta 权限即 build，按原值记录，读回时走同一 build 逐项确认策略。
+  // Beta 权限即完全访问（yolo），按原值记录，读回时走同一完全访问策略。
   return sessionMode === "plan" ? "build" : sessionMode;
 }
 

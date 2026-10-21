@@ -3,6 +3,7 @@ import { useCallback, type Dispatch, type SetStateAction } from "react";
 import type { TuiSetMode } from "./types.js";
 
 // minimal（极简模式）入口已移除：不进入 TUI 切换环，历史值仅保留读取回显。
+// Beta 与桌面模式菜单保持一致：独立工作模式、完全访问权限。
 export const TUI_SWITCHABLE_MODES = [
   "plan",
   "build",
@@ -10,6 +11,7 @@ export const TUI_SWITCHABLE_MODES = [
   "guarded",
   "research",
   "yolo",
+  "beta",
 ] as const;
 
 export type TuiSwitchableMode = (typeof TUI_SWITCHABLE_MODES)[number];

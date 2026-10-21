@@ -249,8 +249,9 @@ function normalizeCronAutomationMode(
     case "acceptEdits":
     case "autoEdit":
       return "build";
-    // Beta 权限复用完全访问（yolo）策略（见 fusion-context-profile.md），
-    // 无人值守自动化与会话内保持同一权限基线，映射到 yolo。
+    // CronAutomation 只承载五档；Beta 是完全访问，来自旧/前向客户端的 beta 归位 yolo。
+    // 表单不再展示 Beta（automationAgentConfigOptions 已按协议五档过滤），避免
+    // “选了 Beta 实际跑 yolo”的误导；这里的映射只作防御性兜底。
     case "beta":
       return "yolo";
     default: {

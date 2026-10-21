@@ -33,7 +33,6 @@ interface StorageLike {
 
 interface ComposerRecent {
   readonly modelSelection?: ModelSelection;
-  // 过渡期：shared 枚举注册 beta 前放宽到 UI 联合；shared 落地后收敛回 SubmissionMode。
   readonly mode?: SubmissionMode;
 }
 
@@ -135,7 +134,6 @@ export function readComposerRecent(
 /** 发起真实 Submission 时捕获；返回函数只在 accepted ACK 后调用。 */
 export function captureComposerRecentSubmission(
   workspacePath: string,
-  // 过渡期：shared 枚举注册 beta 前放宽到 UI 联合；shared 落地后收敛回 SubmissionMode。
   submission: { readonly modelSelection: ModelSelection; readonly mode: SubmissionMode },
   workspaceIdentity?: string,
   storage: StorageLike | null = browserStorage(),

@@ -36,7 +36,7 @@ sequenceDiagram
 ## 历史兼容与能力协商
 
 - 新 UI 写入 `mode=beta`，不再通过 `contextProfile=fusion` 选择 Beta。
-- 保留旧 fusion 档位的读取兼容。build+fusion 可无损映射为 Beta；旧自主/受限权限与 fusion 的组合不得静默改变权限，继续按历史语义执行，直到用户明确选择工作模式。提交正文、同模式重申和恢复/读取边界都不算选择模式，不得借机清掉历史档位。
+- 保留旧 fusion 档位的读取兼容。任何权限与 fusion 的历史组合（含 build+fusion）都保持原权限，继续按历史语义执行，直到用户明确选择工作模式；**不把 build+fusion 自动升级为 Beta**——Beta 使用完全访问（yolo）权限，自动升级会静默改变旧会话的确认策略。`beta+fusion` 归一为 `Beta+standard`（Beta 强制完整上下文）。提交正文、同模式重申和恢复/读取边界都不算选择模式，不得借机清掉历史档位。
 - 显式选择 Beta 时必须获得完整上下文和工具，不能继承旧 minimal/fusion 的过滤（任何来源的 beta+fusion 恢复值都归一为完整上下文）。真正切换到其他模式时清除遗留 fusion，防止退出 Beta 后继续使用融合提示词；菜单选择同时给出目标模式的规范档位（完整上下文为主），不遗留不可见的档位过滤；历史 mode=minimal 会话恢复时保留极简档位读取兼容，但不再提供极简可选入口。
 - 增加独立 additive 能力位 `betaMode`。原有 `fusionContextProfile` 只证明历史档位支持，不能用于放行 Beta。
 - 对旧执行端的 Beta 创建、配置、输入提交明确拒绝，错误为 `proto.betaModeUnsupported`，不静默降级到其他模式或继承当前自主权限。

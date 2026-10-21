@@ -196,14 +196,14 @@ describe("V4ComposerModeSwitch", () => {
     expect(onSwitchMode).toHaveBeenCalledWith("build");
   });
 
-  it("旧 build+fusion 历史草稿无损映射为 Beta 显示，不附加档位徽标", () => {
+  it("旧 build+fusion 历史草稿保留 build 显示，不自动升级为 Beta", () => {
     const html = renderModeSwitch({ mode: "build", contextProfile: "fusion" });
-    expect(captured.permissionProps?.value).toBe("beta");
-    expect(html).toContain("mode.label.glm.beta");
+    expect(captured.permissionProps?.value).toBe("build");
+    expect(html).toContain("mode.label.glm.build");
     expect(html).not.toContain("v4-composer-context-profile-marker");
   });
 
-  it("非 build 权限与 fusion 的历史组合保持原语义，不自动改写权限", () => {
+  it("非 Beta 权限与 fusion 的历史组合保持原语义，不自动改写权限", () => {
     const html = renderModeSwitch({ mode: "guarded", contextProfile: "fusion" });
     expect(captured.permissionProps?.value).toBe("guarded");
     expect(html).toContain("mode.label.glm.guarded");
@@ -233,10 +233,7 @@ describe("V4ComposerModeSwitch", () => {
   });
 
   it("不再渲染普通/极简/融合上下文三态与档位徽标", () => {
-    const html = renderModeSwitch(
-      { mode: "build", contextProfile: "standard" },
-      { onSwitchContextProfile: vi.fn() },
-    );
+    const html = renderModeSwitch({ mode: "build", contextProfile: "standard" });
     expect(html).not.toContain("standard-context");
     expect(html).not.toContain("minimal-context");
     expect(html).not.toContain("fusion-context");

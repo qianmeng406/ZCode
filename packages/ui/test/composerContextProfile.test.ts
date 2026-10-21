@@ -68,14 +68,14 @@ test("beta mode freezes through submission as an independent working mode", () =
   assert.equal(frozen!.contextProfile, "standard", "Beta 使用完整上下文，不写 fusion 档位");
 });
 
-test("legacy build+fusion drafts freeze as beta with full context", () => {
-  // 历史兼容映射：build+fusion 无损映射为 Beta，冻结值携带独立模式而不是旧档位。
+test("legacy build+fusion drafts keep build permissions through submission", () => {
+  // 历史兼容：build+fusion 保留原权限；Beta 是完全访问，自动升级会静默提权。
   const frozen = createComposerSubmissionConfig(
     { mode: "build", planEnabled: false, contextProfile: "fusion", modelSelection: selection },
     view,
   );
-  assert.equal(frozen!.mode, "beta", "build+fusion 读取升级为独立 Beta 模式");
-  assert.equal(frozen!.contextProfile, "standard");
+  assert.equal(frozen!.mode, "build", "build+fusion 不升级为完全访问的 Beta");
+  assert.equal(frozen!.contextProfile, "fusion", "历史融合档位保留到用户明确选模式");
 });
 
 test("legacy minimal drafts resolve to the minimal profile", () => {

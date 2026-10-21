@@ -51,14 +51,14 @@ it("plan/permission patches preserve fusion profile until an explicit mode switc
     "fusion",
     "切 Plan 不改融合档位",
   );
-  // Beta 读取升级：恢复 build+fusion 完整历史状态无损映射为 Beta（专用恢复入口）。
+  // Beta 是完全访问权限：恢复 build+fusion 必须保留原权限，不能自动升级成 Beta。
   expect(
     resolveRestoredExecutionState({
       mode: "build",
       planEnabled: false,
       contextProfile: "fusion",
     }),
-  ).toEqual({ mode: "beta", planEnabled: false, contextProfile: "standard" });
+  ).toEqual({ mode: "build", planEnabled: false, contextProfile: "fusion" });
   // 其余权限 + fusion 的历史组合不静默改权限，恢复时保留。
   expect(
     resolveRestoredExecutionState({

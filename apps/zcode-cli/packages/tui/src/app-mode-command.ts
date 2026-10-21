@@ -14,6 +14,7 @@ const MODE_DESCRIPTIONS: Record<TuiSwitchableMode, string> = {
   research: "Read-only web research; file edits and commands are denied.",
   yolo: "Edit and run commands with fewer confirmations.",
   guarded: "Full access with single-use confirmation for explicit dangerous commands.",
+  beta: "Prompt-fusion mode test version with full-access permissions; plan stays read-only.",
 };
 
 const TUI_MODE_OPTIONS: readonly TuiModeOption[] = TUI_SWITCHABLE_MODES.map((mode) => ({

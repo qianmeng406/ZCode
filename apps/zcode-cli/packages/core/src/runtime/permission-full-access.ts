@@ -56,7 +56,10 @@ export async function grantPermissionFullAccess(
       const projection = await this.rebuildProjection();
       const queueItemIds = projection.pendingSteerInputs.map((item) => item.pendingInputId);
       const previous = readRuntimeExecutionState(this);
-      const next = { ...previous, mode: "yolo" as const };
+      // Beta 已是完全访问权限：授权保留 Beta。事件、持久化执行状态与内存安装必须写同一个
+      // 值，不能只改内存——否则投影/重启会回 yolo，下一次提交静默退出 Beta。
+      const grantedMode = previous.mode === "beta" ? "beta" : "yolo";
+      const next = { ...previous, mode: grantedMode };
       event = this.createEvent(
         SessionEventType.SessionModeChanged,
         {
@@ -97,11 +100,9 @@ export async function grantPermissionFullAccess(
       this.lastPermissionGrantId = interactionId;
       // 统一走已提交状态安装：授权只改权限，但同样要失效工具缓存并推进派生版本，
       // 否则 minimal→yolo 等切换会沿用旧档位的工具表与前缀。payload 经 receipt 校验
-      // 固定为 yolo + 明确 planEnabled；以会话当前状态为基线解析，保留上下文档位。
-      // Beta 本身已是完全访问权限：从 Beta 授予全权时保留 Beta，不因冗余授权退出融合模式。
+      // 固定为 yolo 或 beta（Beta 会话保留 Beta）；以会话当前状态为基线解析，保留上下文档位。
       const previous = readRuntimeExecutionState(this);
-      const grantedMode =
-        previous.mode === "beta" && payload.mode === "yolo" ? "beta" : payload.mode;
+      const grantedMode: "beta" | "yolo" = payload.mode === "beta" ? "beta" : "yolo";
       installRuntimeExecutionState(
         this,
         resolveExecutionState(
@@ -109,8 +110,8 @@ export async function grantPermissionFullAccess(
           previous,
         ),
       );
-      // intent 只接受提交模式值域：授权后排队输入固定为 yolo；保留 Beta 时回写 beta。
-      const intentMode: "beta" | "yolo" = grantedMode === "beta" ? "beta" : "yolo";
+      // intent 只接受提交模式值域：授权后排队输入沿用本次授权目标（Beta 保留 beta）。
+      const intentMode: "beta" | "yolo" = grantedMode;
       for (const item of this.activeTurn?.pendingInputs ?? []) {
         if (ids.has(item.id) && item.intent) item.intent = { ...item.intent, mode: intentMode };
       }

@@ -950,3 +950,12 @@ exceptions:
       - packages/services/src/zcode-agent/independentPlanSupport.ts
       - packages/ui/src/lib/workflowRunLine.ts
     reason: 上游 3.16.1 发布打包（Source Server 组件归档入口）、独立 plan 支持与 workflow 运行行展示新文件，随官方基线合并进入；接管 zcode-server-cli/services/ui 目录不在本次同步范围内。
+  - id: beta-full-access-existing-module-edit
+    rule: unmanaged-new-file
+    paths:
+      - packages/shared/src/execution-state.ts
+      - apps/zcode-cli/packages/contracts/src/interfaces/permission-full-access.ts
+      - apps/zcode-cli/packages/core/src/runtime/execution-state.ts
+      - apps/zcode-cli/packages/core/src/runtime/permission-full-access.ts
+      - apps/zcode-cli/packages/bootstrap/src/app/workflow-actor-permission.ts
+    reason: Beta 权限语义修复（完全访问）只修改已存在的执行状态/授权/工作流权限文件，保持现有 shared/core/bootstrap/contracts 模块边界；接管整个目录不在本次修复范围内。

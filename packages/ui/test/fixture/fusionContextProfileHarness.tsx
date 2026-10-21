@@ -77,9 +77,9 @@ function Harness() {
     setDraftConfig((current) => {
       if (mode === "plan") return { ...current, planEnabled: true };
       if (mode === "plan-off") return { ...current, planEnabled: false };
-      // 与生产 useDraftConfigControl 同语义：显式选非 Beta 即清除遗留融合档位；
-      // 选 Beta 保持档位不变（新 UI 不再写 contextProfile=fusion）。
-      const contextProfile = mode === "beta" ? current.contextProfile : undefined;
+      // 与生产 useDraftConfigControl 同语义：显式选模式即给出规范档位——Beta/其他模式
+      // 使用 standard（退出遗留 fusion），minimal 保持极简。
+      const contextProfile = mode === "minimal" ? "minimal" : "standard";
       return { ...current, mode, contextProfile };
     });
   }, []);

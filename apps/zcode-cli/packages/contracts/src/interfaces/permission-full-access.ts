@@ -21,7 +21,8 @@ export const permissionFullAccessReceiptSchema = z
         sequenceNumber: z.number().int().nonnegative(),
         payload: z
           .object({
-            mode: z.literal("yolo"),
+            // 授权目标是完全访问；Beta 本身已复用完全访问，保留 Beta 以免丢失融合提示词。
+            mode: z.enum(["yolo", "beta"]),
             planEnabled: z.boolean(),
             /** 上下文档位；授权只改权限、保留档位。旧 receipt 无此字段。schema 复用 shared 契约源。 */
             contextProfile: contextProfileSchema.optional(),
@@ -35,7 +36,7 @@ export const permissionFullAccessReceiptSchema = z
               "plan",
               "research",
               "minimal",
-              // Beta 独立工作模式：additive；full-access 授权固定切到 yolo（退出 Beta）。
+              // Beta 独立工作模式：additive；授权时保留 Beta（事件与持久化同样写 beta）。
               "beta",
             ]),
             previousPlanEnabled: z.boolean(),

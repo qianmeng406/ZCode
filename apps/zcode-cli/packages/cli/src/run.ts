@@ -156,7 +156,7 @@ const normalizePromptMode = (value: string | undefined): CliPermissionMode | und
     return mode;
   }
   throw new Error(
-    `Unsupported --mode value: ${value}. Supported modes: build, edit, plan, yolo, guarded, research, minimal.`,
+    `Unsupported --mode value: ${value}. Supported modes: build, edit, plan, yolo, guarded, research, minimal, beta.`,
   );
 };
 
