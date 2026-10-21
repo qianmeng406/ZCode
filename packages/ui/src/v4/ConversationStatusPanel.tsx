@@ -919,9 +919,11 @@ function PlanStatusSection({
 }
 
 function RunningWorkCancelButton({
+  label,
   workId,
   onCancel,
 }: {
+  label?: string;
   workId: string;
   onCancel?: (workId: string) => void;
 }) {
@@ -942,9 +944,9 @@ function RunningWorkCancelButton({
       variant="ghost"
       size="sm"
       data-testid={testId(TID_V4_BACKGROUND_WORK_CANCEL, workId)}
-      aria-label={intl.formatMessage({
-        id: "chat.summaryPanel.stopRunningBackgroundTask",
-      })}
+      aria-label={
+        label ?? intl.formatMessage({ id: "chat.summaryPanel.stopRunningBackgroundTask" })
+      }
       onClick={handleClick}
       className="pointer-events-auto relative z-[2] ml-auto h-6 shrink-0 px-1.5 text-ui-base text-[var(--color-foreground)]"
     >
@@ -1508,17 +1510,21 @@ function SubagentStatusSection({
             subagent,
           });
           const canOpenSubagentSession = Boolean(request && onOpenSubagentSession);
+          // 后台 Agent 用 backgroundWork.workId；前台 Agent 没有 background work，
+          // 但 runtime 任务注册表用 agentId 作为同一个 taskId，Stop 仍可精确到这一行。
+          // 显式 cancellable=false 是唯一的不停信号（类型不支持 / 已不可控）。
+          const stopWorkId =
+            subagent.cancellable === false
+              ? undefined
+              : (subagent.controlWorkId ?? subagent.agentId);
+          const canStop = Boolean(stopWorkId && onCancelBackgroundWork);
           return (
             <li
               key={subagent.childSessionId}
-              data-testid={
-                subagent.controlWorkId
-                  ? testId(TID_V4_BACKGROUND_WORK_ITEM, subagent.controlWorkId)
-                  : undefined
-              }
+              data-testid={stopWorkId ? testId(TID_V4_BACKGROUND_WORK_ITEM, stopWorkId) : undefined}
               data-background-task-kind="agent"
               data-child-session-id={subagent.childSessionId}
-              data-work-id={subagent.controlWorkId}
+              data-work-id={stopWorkId}
               data-work-status="running"
               className={cn(
                 "group relative flex min-w-0 items-start gap-2 rounded-lg px-2 py-2 hover:bg-[var(--color-hover)]",
@@ -1551,9 +1557,10 @@ function SubagentStatusSection({
                       intl.formatMessage,
                     )}
                   </span>
-                  {subagent.controlWorkId && subagent.cancellable !== false ? (
+                  {canStop && stopWorkId ? (
                     <RunningWorkCancelButton
-                      workId={subagent.controlWorkId}
+                      label={intl.formatMessage({ id: "chat.statusPanel.stopRunningSubagent" })}
+                      workId={stopWorkId}
                       onCancel={onCancelBackgroundWork}
                     />
                   ) : null}

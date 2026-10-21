@@ -1563,7 +1563,7 @@ describe("ConversationStatusPanel", () => {
     expect(html).not.toContain("这段 verifier reason 不应出现在右上角灰卡");
   });
 
-  it("restores Stop only for projected Agents with an exact background control match", async () => {
+  it("offers Stop for every projected Agent with a runtime task id", async () => {
     const html = await renderStatusPanel({
       gitSummary: null,
       gitWorktreeChangeSummary: null,
@@ -1604,7 +1604,12 @@ describe("ConversationStatusPanel", () => {
         }),
         runningSubagent({
           childSessionId: "foreground-agent",
-          title: "同名但无 background control",
+          agentId: "foreground-agent",
+          title: "前台 Agent，没有 background control",
+        }),
+        runningSubagent({
+          childSessionId: "no-runtime-id",
+          title: "缺少 runtime task id",
         }),
       ],
     });
@@ -1625,10 +1630,13 @@ describe("ConversationStatusPanel", () => {
     expect(html).not.toContain("bash · 启动开发服务器");
     expect(html).toContain("chat.longRunning.elapsedSeconds 9");
     expect(html).toContain("flex-wrap");
+    expect(html).toContain('data-work-id="foreground-agent"');
     expect(html).toContain('data-testid="v4-background-work-cancel-agent-control-work"');
+    expect(html).toContain('data-testid="v4-background-work-cancel-foreground-agent"');
+    expect(html).toContain('aria-label="chat.statusPanel.stopRunningSubagent"');
     expect(html).not.toContain('data-testid="v4-background-work-cancel-agent-older"');
     expect(html).not.toContain('data-testid="v4-background-work-cancel-agent-disabled-work"');
-    expect(html).not.toContain('data-testid="v4-background-work-cancel-foreground-agent"');
+    expect(html).not.toContain('data-testid="v4-background-work-cancel-no-runtime-id"');
     expect(html).not.toContain('data-testid="v4-background-work-cancel-bash-newer"');
     const terminalSection = html.slice(
       html.indexOf('data-status-section="terminal"'),

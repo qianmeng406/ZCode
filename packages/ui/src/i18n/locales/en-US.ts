@@ -6069,6 +6069,7 @@ const enUS: Record<string, string> = {
   "chat.statusPanel.runningAgentsValue": "{count} running",
   "chat.statusPanel.runningAgentsValuePlural": "{count} running",
   "chat.statusPanel.runningStop": "Stop",
+  "chat.statusPanel.stopRunningSubagent": "Stop this subagent",
   "chat.toolbar.connection.switchFailed": "Could not switch connection. Select again to retry.",
   "chat.toolbar.combined.provider": "Provider",
   "chat.toolbar.combined.models": "Models",

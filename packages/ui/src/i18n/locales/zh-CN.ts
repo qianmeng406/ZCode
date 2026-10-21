@@ -5677,6 +5677,7 @@ const zhCN: Record<string, string> = {
   "chat.statusPanel.runningAgentsValue": "{count} 运行",
   "chat.statusPanel.runningAgentsValuePlural": "{count} 运行",
   "chat.statusPanel.runningStop": "停止",
+  "chat.statusPanel.stopRunningSubagent": "停止这个子智能体",
   "chat.toolbar.connection.switchFailed": "切换连接失败，请重新选择后重试。",
   "chat.toolbar.combined.provider": "供应商",
   "chat.toolbar.combined.models": "模型",
