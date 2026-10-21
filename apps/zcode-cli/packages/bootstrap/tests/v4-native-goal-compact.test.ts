@@ -23,6 +23,7 @@ function makeApp(overrides: Record<string, unknown> = {}) {
     steerTurn: vi.fn().mockResolvedValue({ kind: "queued" }),
     setQueueAutoDrain: vi.fn().mockResolvedValue(undefined),
     readTarget: vi.fn().mockResolvedValue(null),
+    clearTarget: vi.fn().mockResolvedValue(true),
     setTarget: vi.fn().mockImplementation(async (input: { objective: string }) => ({
       targetID: "g1",
       objective: input.objective,
@@ -509,9 +510,40 @@ describe("v4 原生 pauseGoal", () => {
   });
 });
 
+describe("v4 原生 clearGoal", () => {
+  it("清空 target 并触发 goal_cleared 重评（队列可在 target=null 后恢复自动消费）", async () => {
+    const app = makeApp({
+      readTarget: vi
+        .fn()
+        .mockResolvedValue({ targetID: "g1", objective: "旧目标", status: "paused" }),
+    });
+    const host = makeHost(makeRecord({ app }));
+
+    await new V4CommandExecutor(host).execute(envelope("clearGoal", {}));
+
+    expect(app.clearTarget).toHaveBeenCalledTimes(1);
+    expect(host.legacyMutations).toEqual(["goal_cleared"]);
+  });
+
+  it("运行中拒绝，避免删除与 goal 收口竞态", async () => {
+    const app = makeApp();
+    const record = makeRecord({ app, activeAbortController: new AbortController() });
+
+    await expect(
+      new V4CommandExecutor(makeHost(record)).execute(envelope("clearGoal", {})),
+    ).rejects.toMatchObject({ reasonCode: "activeTurn" });
+    expect(app.clearTarget).not.toHaveBeenCalled();
+  });
+});
+
 describe("supports 分流（goal/compact 组）", () => {
   it("pauseGoal 已原生", () => {
     const executor = new V4CommandExecutor(makeHost(makeRecord()));
     expect(executor.supports("pauseGoal")).toBe(true);
+  });
+
+  it("clearGoal 已原生", () => {
+    const executor = new V4CommandExecutor(makeHost(makeRecord()));
+    expect(executor.supports("clearGoal")).toBe(true);
   });
 });

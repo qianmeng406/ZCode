@@ -5623,6 +5623,7 @@ const zhCN: Record<string, string> = {
   "chat.target.pause": "暂停目标",
   "chat.target.resume": "继续目标",
   "chat.target.clear": "清空目标",
+  "chat.target.continueFrom": "从这条继续",
   "chat.summaryPanel.title": "状态",
   "chat.summaryPanel.duration.hours": "小时",
   "chat.summaryPanel.duration.minutes": "分",

@@ -4773,6 +4773,47 @@ export function SessionPane({
     void dispatchGoalAction("resumeGoal");
   }, [dispatchGoalAction]);
 
+  const handleClearGoal = useCallback(() => {
+    const current = snapshotRef.current;
+    if (!sessionId || !current) return;
+    void dispatchCommand("clearGoal", {}, sessionId, current.revision).then((ack) => {
+      if (ack.status !== "accepted" && ack.status !== "noop") {
+        logger.warn(`[v4-pane] clearGoal 被拒绝: ${ack.status} ${ack.reasonCode ?? ""}`);
+      }
+    });
+  }, [dispatchCommand, sessionId]);
+
+  // 历史迭代是 todo/verifier 的事实，不能逐条删除；「从这条继续」的语义是：
+  // 当前未完成迭代 → 恢复暂停的 goal（保留历史）；历史/已完成迭代 → 以该条标题替换
+  // 当前目标，从这条重新开始（reset 进度，符合单目标模型）。
+  const handleContinueGoalFromIteration = useCallback(
+    (iteration: number, title: string | null) => {
+      const current = snapshotRef.current;
+      if (!sessionId || !current?.goal) return;
+      if (current.goal.status === "paused" && iteration === current.goal.iteration) {
+        void dispatchGoalAction("resumeGoal");
+        return;
+      }
+      const objective = title?.trim();
+      if (!objective) return;
+      if (current.config.planEnabled === true) {
+        toast(intl.formatMessage({ id: "chat.goal.planModeBlocked" }));
+        return;
+      }
+      void dispatchCommand(
+        "sendGoalCommand",
+        { text: objective, displayText: `/goal ${objective}` },
+        sessionId,
+        current.revision,
+      ).then((ack) => {
+        if (ack.status !== "accepted" && ack.status !== "noop") {
+          logger.warn(`[v4-pane] continueGoal 被拒绝: ${ack.status} ${ack.reasonCode ?? ""}`);
+        }
+      });
+    },
+    [dispatchCommand, dispatchGoalAction, intl, sessionId, toast],
+  );
+
   // 主、辅对话可同时 focused（各自布局的可见态），不能据此争抢窗口 Esc。
   // 面板打开时按 DOM 归属隔离；关闭时由 Shell 授权主区接收对话外 Esc，避免焦点离开输入框后无法停止。
   // 保留窗口冒泡阶段，让 mention/slash 的 preventDefault 和 dialog 优先处理。
@@ -6027,6 +6068,16 @@ export function SessionPane({
               onResumeGoal={
                 !readOnly && !selectionSideChat && snapshot?.availability.resumeGoal.allowed
                   ? handleResumeGoal
+                  : undefined
+              }
+              onClearGoal={
+                !readOnly && !selectionSideChat && snapshot?.goal && !snapshot.control.canStop
+                  ? handleClearGoal
+                  : undefined
+              }
+              onContinueGoalFromIteration={
+                !readOnly && !selectionSideChat && snapshot?.goal
+                  ? handleContinueGoalFromIteration
                   : undefined
               }
               onOpenPlanDetail={onOpenPlanDetail ? handleOpenPlanDetail : undefined}

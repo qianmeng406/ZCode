@@ -31,6 +31,7 @@ import {
   PlayIcon,
   SquareIcon,
   SquareTerminalIcon,
+  Trash2Icon,
   Workflow,
 } from "lucide-react";
 import {
@@ -144,6 +145,10 @@ export interface ConversationStatusPanelProps {
   onOpenGitReview?: (sourceId?: GitChangeSourceId) => void;
   onPauseGoal?: () => void;
   onResumeGoal?: () => void;
+  /** 删除当前会话目标（整目标；迭代是历史，不支持逐条删除）。 */
+  onClearGoal?: () => void;
+  /** 以某条迭代的标题继续任务；当前未完成条由调用方转成 resume。 */
+  onContinueGoalFromIteration?: (iteration: number, title: string | null) => void;
   onOpenPlanDetail?: (request: OpenPlanDetailSideTabRequest) => void;
   onOpenBackgroundBash?: (work: BackgroundWorkSummary) => void;
   onCancelBackgroundWork?: (workId: string) => void;
@@ -465,11 +470,15 @@ function GoalStatusSection({
   model,
   onPauseGoal,
   onResumeGoal,
+  onClearGoal,
+  onContinueGoalFromIteration,
   separated,
 }: {
   model: ConversationStatusPanelModel;
   onPauseGoal?: () => void;
   onResumeGoal?: () => void;
+  onClearGoal?: () => void;
+  onContinueGoalFromIteration?: (iteration: number, title: string | null) => void;
   separated: boolean;
 }) {
   const { intl } = useZCodeIntl();
@@ -545,6 +554,24 @@ function GoalStatusSection({
           </span>
           {control ? <span className="shrink-0">·</span> : null}
           {control}
+          {onClearGoal ? (
+            <>
+              <span className="shrink-0">·</span>
+              <ControlHintTooltip title={intl.formatMessage({ id: "chat.target.clear" })}>
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="icon-sm"
+                  className="size-6 shrink-0"
+                  data-goal-action="clear"
+                  aria-label={intl.formatMessage({ id: "chat.target.clear" })}
+                  onClick={onClearGoal}
+                >
+                  <Trash2Icon className="size-3.5" />
+                </Button>
+              </ControlHintTooltip>
+            </>
+          ) : null}
         </>
       )}
     >
@@ -579,6 +606,21 @@ function GoalStatusSection({
                 <span className="shrink-0 text-ui-sm tabular-nums text-[var(--color-foreground-subtle)]">
                   {row.completedCount}/{row.totalCount}
                 </span>
+              ) : null}
+              {onContinueGoalFromIteration ? (
+                <ControlHintTooltip title={intl.formatMessage({ id: "chat.target.continueFrom" })}>
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    size="icon-sm"
+                    className="size-6 shrink-0"
+                    data-goal-iteration-action="continue"
+                    aria-label={intl.formatMessage({ id: "chat.target.continueFrom" })}
+                    onClick={() => onContinueGoalFromIteration(row.iteration, row.title)}
+                  >
+                    <ArrowRightIcon className="size-3.5" />
+                  </Button>
+                </ControlHintTooltip>
               ) : null}
             </div>
           );
@@ -1911,6 +1953,8 @@ function ConversationStatusPanelImpl({
   onOpenGitReview,
   onPauseGoal,
   onResumeGoal,
+  onClearGoal,
+  onContinueGoalFromIteration,
   onOpenPlanDetail,
   onOpenBackgroundBash,
   onCancelBackgroundWork,
@@ -2141,6 +2185,8 @@ function ConversationStatusPanelImpl({
                 separated={canRenderGit}
                 onPauseGoal={onPauseGoal}
                 onResumeGoal={onResumeGoal}
+                onClearGoal={onClearGoal}
+                onContinueGoalFromIteration={onContinueGoalFromIteration}
               />
             ) : null}
             {canRenderSessionPlans ? (

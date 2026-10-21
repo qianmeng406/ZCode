@@ -6020,6 +6020,7 @@ const enUS: Record<string, string> = {
   "chat.target.pause": "Pause goal",
   "chat.target.resume": "Resume goal",
   "chat.target.clear": "Clear goal",
+  "chat.target.continueFrom": "Continue from this step",
   "chat.summaryPanel.title": "Status",
   "chat.summaryPanel.duration.hours": "h",
   "chat.summaryPanel.duration.minutes": "m",

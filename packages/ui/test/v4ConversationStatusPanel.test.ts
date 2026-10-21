@@ -1477,6 +1477,8 @@ describe("ConversationStatusPanel", () => {
       gitWorktreeChangeSummary: null,
       summaryPanelVariantOverride: "panel",
       onPauseGoal: vi.fn(),
+      onClearGoal: vi.fn(),
+      onContinueGoalFromIteration: vi.fn(),
       goal: goalState({
         summaryTitle: "第一轮：恢复摘要",
         timeUsedSeconds: 9,
@@ -1516,6 +1518,8 @@ describe("ConversationStatusPanel", () => {
     expect(html).toContain('data-goal-iteration="1"');
     expect(html).toContain('data-goal-iteration-completed="true"');
     expect(html).toContain("0/2");
+    expect(html).toContain('data-goal-action="clear"');
+    expect(html.match(/data-goal-iteration-action="continue"/g)).toHaveLength(2);
   });
 
   it("renders paused play and verified green check as mutually exclusive controls", async () => {
