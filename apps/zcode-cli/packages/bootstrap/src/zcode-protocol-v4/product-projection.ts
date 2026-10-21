@@ -1,4 +1,7 @@
-import { PERMISSION_FULL_ACCESS_OPTION_ID } from "@zcode/shared/zcode-protocol-v4";
+import {
+  PERMISSION_FULL_ACCESS_OPTION_ID,
+  submissionModeSchema,
+} from "@zcode/shared/zcode-protocol-v4";
 // ProductProjection —— CLI 权威投影第二 reducer。
 // 输入：CLI 事件日志（SessionEvent，权威事实源）；输出：ConversationDelta[]。
 // 快照推进复用协议规范 apply（applyConversationDeltas）——投影演进与 delta 流
@@ -4206,6 +4209,9 @@ export class ProductProjection {
       !payload.permissionGrant
     )
       return [];
+    // 队列项 mode 只接受提交模式值域（含 plan）；事件载荷按 string 读取，这里收窄后再写回，
+    // 非法值保持原队列项不变，不把任意字符串灌进投影。
+    const queueMode = submissionModeSchema.safeParse(mode);
     return [
       {
         op: "state.updated",
@@ -4214,9 +4220,10 @@ export class ProductProjection {
             ? this.queuePatch({
                 ...this.snapshot.queue,
                 items: this.snapshot.queue.items.map((item) =>
-                  payload.permissionGrant!.queueItemIds.includes(item.queueItemId)
+                  payload.permissionGrant!.queueItemIds.includes(item.queueItemId) &&
+                  queueMode.success
                     ? // 授权只改本次目标队列的权限；Beta 会话保留 beta，不能硬编码 yolo。
-                      { ...item, mode }
+                      { ...item, mode: queueMode.data }
                     : item,
                 ),
               })
