@@ -958,4 +958,4 @@ exceptions:
       - apps/zcode-cli/packages/core/src/runtime/execution-state.ts
       - apps/zcode-cli/packages/core/src/runtime/permission-full-access.ts
       - apps/zcode-cli/packages/bootstrap/src/app/workflow-actor-permission.ts
-    reason: Beta 权限语义修复（完全访问）只修改已存在的执行状态/授权/工作流权限文件，保持现有 shared/core/bootstrap/contracts 模块边界；接管整个目录不在本次修复范围内。
+    reason: 这 5 个上游已有文件由 2026-09-21 的开源导入提交（872ad960）首次入库，落在 newFilesEnforcedSince 窗口内，规则按“新文件”报错；Beta 权限语义修复（完全访问）仅就地修改其内容，未新增文件或改变 shared/core/bootstrap/contracts 模块边界，接管整个目录不在本次修复范围内。
