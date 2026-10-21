@@ -4742,25 +4742,36 @@ export function SessionPane({
     [dispatchCommand, sessionId],
   );
 
-  const handlePauseGoal = useCallback(() => {
-    const current = snapshotRef.current;
-    if (!sessionId || !current?.availability.pauseGoal.allowed) return;
-    void dispatchCommand("pauseGoal", {}, sessionId, current.revision).then((ack) => {
-      if (ack.status !== "accepted" && ack.status !== "noop") {
-        logger.warn(`[v4-pane] pauseGoal 被拒绝: ${ack.status} ${ack.reasonCode ?? ""}`);
+  // goal 暂停/恢复是 CAS 命令；投影 revision 在 goal 事件/计时更新间可能领先于按钮
+  // 渲染时的值，stale ack 不能静默丢弃（旧实现点了没反应）。用 ack.revisionAtDecision
+  // 有界重试，和 dispatchConfigCas 的收敛策略一致。
+  const dispatchGoalAction = useCallback(
+    async (type: "pauseGoal" | "resumeGoal") => {
+      const current = snapshotRef.current;
+      if (!sessionId || !current?.availability[type].allowed) return;
+      let baseRevision = current.revision;
+      for (let attempt = 0; attempt < 3; attempt += 1) {
+        const ack = await dispatchCommand(type, {}, sessionId, baseRevision);
+        if (ack.status === "stale") {
+          baseRevision = ack.revisionAtDecision;
+          continue;
+        }
+        if (ack.status !== "accepted" && ack.status !== "noop") {
+          logger.warn(`[v4-pane] ${type} 被拒绝: ${ack.status} ${ack.reasonCode ?? ""}`);
+        }
+        return;
       }
-    });
-  }, [dispatchCommand, sessionId]);
+    },
+    [dispatchCommand, sessionId],
+  );
+
+  const handlePauseGoal = useCallback(() => {
+    void dispatchGoalAction("pauseGoal");
+  }, [dispatchGoalAction]);
 
   const handleResumeGoal = useCallback(() => {
-    const current = snapshotRef.current;
-    if (!sessionId || !current?.availability.resumeGoal.allowed) return;
-    void dispatchCommand("resumeGoal", {}, sessionId, current.revision).then((ack) => {
-      if (ack.status !== "accepted" && ack.status !== "noop") {
-        logger.warn(`[v4-pane] resumeGoal 被拒绝: ${ack.status} ${ack.reasonCode ?? ""}`);
-      }
-    });
-  }, [dispatchCommand, sessionId]);
+    void dispatchGoalAction("resumeGoal");
+  }, [dispatchGoalAction]);
 
   // 主、辅对话可同时 focused（各自布局的可见态），不能据此争抢窗口 Esc。
   // 面板打开时按 DOM 归属隔离；关闭时由 Shell 授权主区接收对话外 Esc，避免焦点离开输入框后无法停止。

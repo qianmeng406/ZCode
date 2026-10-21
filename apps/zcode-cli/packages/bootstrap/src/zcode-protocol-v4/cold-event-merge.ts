@@ -763,6 +763,18 @@ export function mergeColdConversationEvents(input: MergeInput): ColdEventMergeRe
           payload: { action: "set", source: "runtime", target: input.target },
         },
         ...transcriptEvents.slice(1),
+        // 历史 verifier 终态会把 goal 状态改写成 verified/notSatisfied，但 session_target
+        // 才是冷恢复的持久权威。历史事实之后必须再落一次 status_updated，把暂停/完成状态
+        // 恢复回来；status_updated 不会重置 iterations/verifications，历史摘要仍保留。
+        {
+          id: "hydrate-goal-status" as SessionEvent["id"],
+          sessionId: input.sessionId as SessionEvent["sessionId"],
+          type: SessionEventType.TargetChanged,
+          timestamp: new Date(input.target.time.updated),
+          traceId: "trace-hydration" as SessionEvent["traceId"],
+          sequenceNumber: 0,
+          payload: { action: "status_updated", source: "runtime", target: input.target },
+        },
       ]
     : transcriptEvents;
   const durableTurnIds = new Set(

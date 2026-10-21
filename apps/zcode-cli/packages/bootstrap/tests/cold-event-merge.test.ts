@@ -607,6 +607,53 @@ describe("cold conversation three-source merge", () => {
     expect(merged.usedDurableTranscript).toBe(true);
   });
 
+  it("keeps the persisted paused status after replaying a historical notSatisfied verification", () => {
+    const target = {
+      sessionID: "s1",
+      targetID: "target-1",
+      objective: "ship the fix",
+      summaryTitle: null,
+      status: "paused",
+      tokenBudget: null,
+      tokensUsed: 7,
+      timeUsedSeconds: 3,
+      time: { created: 1, updated: 2 },
+    };
+    const messages = [
+      userMessage("u1", "continue", 1_000, "turn-1"),
+      assistantMessage("a1", "u1", "done", 1_100, "turn-1"),
+    ];
+    const merged = mergeColdConversationEvents({
+      memoryEvents: [],
+      messages,
+      sessionId: "s1",
+      target,
+      goalVerificationEntries: [
+        {
+          payload: {
+            targetId: "target-1",
+            goalIteration: 1,
+            verificationId: "verify-1",
+            status: "completed",
+            verification: { passed: false, reason: "still open" },
+            anchorAssistantMessageId: "a1",
+          },
+          sequenceNumber: 1,
+          timeCreated: 1_200,
+        },
+      ],
+    } as Parameters<typeof mergeColdConversationEvents>[0]);
+
+    const snapshot = reduce(merged.events).getSnapshot();
+    expect(snapshot.goal).toMatchObject({
+      objective: "ship the fix",
+      status: "paused",
+    });
+    expect(snapshot.goal?.verifications).toEqual([
+      expect.objectContaining({ iteration: 1, outcome: "notSatisfied" }),
+    ]);
+  });
+
   it("uses transcript as completed正文 authority while retaining queue-only memory state", () => {
     const messages = [
       userMessage("u1", "question", 1_000, "turn-1"),
