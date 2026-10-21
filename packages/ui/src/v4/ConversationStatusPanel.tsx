@@ -102,6 +102,7 @@ import {
 import {
   buildConversationGoalIterationSummaries,
   getConversationGoalElapsedSeconds,
+  getCurrentOpenGoalIteration,
 } from "@/v4/conversationGoalSummaryModel.js";
 
 export interface ConversationStatusPanelProps {
@@ -147,8 +148,12 @@ export interface ConversationStatusPanelProps {
   onResumeGoal?: () => void;
   /** 删除当前会话目标（整目标；迭代是历史，不支持逐条删除）。 */
   onClearGoal?: () => void;
-  /** 以某条迭代的标题继续任务；当前未完成条由调用方转成 resume。 */
-  onContinueGoalFromIteration?: (iteration: number, title: string | null) => void;
+  /** 以某条迭代的标题继续任务；当前未完成条由调用方转成 resume/continue。 */
+  onContinueGoalFromIteration?: (
+    iteration: number,
+    title: string | null,
+    isCurrentOpenRow: boolean,
+  ) => void;
   onOpenPlanDetail?: (request: OpenPlanDetailSideTabRequest) => void;
   onOpenBackgroundBash?: (work: BackgroundWorkSummary) => void;
   onCancelBackgroundWork?: (workId: string) => void;
@@ -478,7 +483,11 @@ function GoalStatusSection({
   onPauseGoal?: () => void;
   onResumeGoal?: () => void;
   onClearGoal?: () => void;
-  onContinueGoalFromIteration?: (iteration: number, title: string | null) => void;
+  onContinueGoalFromIteration?: (
+    iteration: number,
+    title: string | null,
+    isCurrentOpenRow: boolean,
+  ) => void;
   separated: boolean;
 }) {
   const { intl } = useZCodeIntl();
@@ -491,6 +500,9 @@ function GoalStatusSection({
     () => (goal ? buildConversationGoalIterationSummaries(goal) : []),
     [goal],
   );
+  // 当前未完成行 = 最大未完成 iteration。paused + notSatisfied 时
+  // requiredIterationCount 会生成 goal.iteration + 1，不能用 iteration === goal.iteration 判定。
+  const currentOpenIteration = getCurrentOpenGoalIteration(iterationRows);
   // 用时秒针只看「有没有在跑」这一个布尔。effect 不能以整个 goal 对象为依赖：
   // 每个 goal 事件都同步 setNow 并重建 interval——落在投影帧的同步提交里，给 React 的嵌套更新计数
   // 记一笔（与工作流卡 React #185 崩溃同形）。
@@ -608,15 +620,33 @@ function GoalStatusSection({
                 </span>
               ) : null}
               {onContinueGoalFromIteration ? (
-                <ControlHintTooltip title={intl.formatMessage({ id: "chat.target.continueFrom" })}>
+                <ControlHintTooltip
+                  title={intl.formatMessage({
+                    id:
+                      row.iteration === currentOpenIteration
+                        ? "chat.target.continueFrom"
+                        : "chat.target.restartFrom",
+                  })}
+                >
                   <Button
                     type="button"
                     variant="ghost"
                     size="icon-sm"
                     className="size-6 shrink-0"
                     data-goal-iteration-action="continue"
-                    aria-label={intl.formatMessage({ id: "chat.target.continueFrom" })}
-                    onClick={() => onContinueGoalFromIteration(row.iteration, row.title)}
+                    aria-label={intl.formatMessage({
+                      id:
+                        row.iteration === currentOpenIteration
+                          ? "chat.target.continueFrom"
+                          : "chat.target.restartFrom",
+                    })}
+                    onClick={() =>
+                      onContinueGoalFromIteration(
+                        row.iteration,
+                        row.title,
+                        row.iteration === currentOpenIteration,
+                      )
+                    }
                   >
                     <ArrowRightIcon className="size-3.5" />
                   </Button>

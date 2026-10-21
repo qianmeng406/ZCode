@@ -116,7 +116,7 @@ export interface AvailabilityContext {
 // 裁决表与 packages/formal-proof/src/model.ts 的 evaluate 逐条对齐
 // （黄金测试 formal-proof-consistency 背书）；reasonCode = product-protocol guard id。
 export function computeAvailability(context: AvailabilityContext): SessionActionAvailability {
-  const { phase, goalStatus, compacting } = context;
+  const { phase, goalStatus, compacting, goalVerifying } = context;
   const running = phase === "running" || phase === "prewarming";
   const compact = compacting
     ? // formal-proof: duplicateCompactRejected —— running/queued compact 操作锁去重。
@@ -152,6 +152,14 @@ export function computeAvailability(context: AvailabilityContext): SessionAction
       goalStatus === "paused"
         ? ALLOWED
         : denied(goalStatus === null ? "noGoalToResume" : "goalNotPaused"),
+    // clearGoal 是破坏性整目标删除：运行中（含 goalVerifier）与 compacting 都拒绝，
+    // 不能用 canStop 近似——verifier 阶段 canStop=true，但 activeAbortController 未必存在。
+    clearGoal:
+      goalStatus === null
+        ? denied("noGoalToClear")
+        : running || compacting || goalVerifying
+          ? denied("goalBusy")
+          : ALLOWED,
   };
 }
 

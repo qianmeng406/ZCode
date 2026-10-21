@@ -77,10 +77,59 @@ export function buildConversationGoalIterationSummaries(
   });
 }
 
+/**
+ * 当前未完成行 = 最大未完成 iteration。paused + notSatisfied 时
+ * requiredIterationCount 会生成 goal.iteration + 1，不能用 iteration === goal.iteration 判定。
+ */
+export function getCurrentOpenGoalIteration(
+  rows: readonly ConversationGoalIterationSummary[],
+): number {
+  return rows.reduce(
+    (current, row) => (!row.completed && row.iteration > current ? row.iteration : current),
+    -1,
+  );
+}
+
 export function getConversationGoalElapsedSeconds(goal: GoalState, now: number): number {
   const baseSeconds = Math.max(0, Math.floor(goal.timeUsedSeconds ?? 0));
   const isRunning =
     goal.status === "active" || goal.status === "verifying" || goal.status === "notSatisfied";
   if (!isRunning || goal.activeRunStartedAtMs == null) return baseSeconds;
   return baseSeconds + Math.max(0, Math.floor((now - goal.activeRunStartedAtMs) / 1000));
+}
+
+/**
+ * 目标迭代行「继续」动作的纯裁决。
+ *
+ * 面板里的迭代行是 goal 的历史展开，不是独立目标：
+ * - 当前未完成行（最大未完成 iteration）才代表“正在做的这件事”；
+ *   paused → resume（保留历史/进度），notSatisfied → continue（不换目标、不重置进度），
+ *   active/verifying → already-running（已在执行）。
+ * - 历史/已完成行只能“从这条重新开始”：以该行标题替换目标，进度会重置。
+ * - Plan 与 Goal 互斥，任何分支都先被 blocked-plan 拦下。
+ */
+export type GoalIterationAction =
+  | "blocked-plan"
+  | "resume"
+  | "continue"
+  | "already-running"
+  | "restart"
+  | "noop";
+
+export function resolveGoalIterationAction(input: {
+  planEnabled: boolean;
+  goalStatus: GoalState["status"];
+  isCurrentOpenRow: boolean;
+  hasTitle: boolean;
+}): GoalIterationAction {
+  if (input.planEnabled) return "blocked-plan";
+  if (input.isCurrentOpenRow) {
+    if (input.goalStatus === "paused") return "resume";
+    if (input.goalStatus === "notSatisfied") return "continue";
+    if (input.goalStatus === "active" || input.goalStatus === "verifying") {
+      return "already-running";
+    }
+    return input.hasTitle ? "restart" : "noop";
+  }
+  return input.hasTitle ? "restart" : "noop";
 }

@@ -3,6 +3,7 @@ import type { GoalState } from "@zcode/shared/zcode-protocol-v4";
 import {
   buildConversationGoalIterationSummaries,
   getConversationGoalElapsedSeconds,
+  getCurrentOpenGoalIteration,
 } from "@/v4/conversationGoalSummaryModel.js";
 
 function goal(overrides: Partial<GoalState> = {}): GoalState {
@@ -70,6 +71,38 @@ describe("conversationGoalSummaryModel", () => {
 
     expect(rows).toHaveLength(2);
     expect(rows[1]).toMatchObject({ iteration: 2, title: null, totalCount: 0, completed: false });
+  });
+
+  it("paused + notSatisfied 时当前未完成行是 goal.iteration + 1，而不是 goal.iteration", () => {
+    const rows = buildConversationGoalIterationSummaries(
+      goal({
+        status: "paused",
+        iteration: 3,
+        verifications: [
+          {
+            iteration: 3,
+            outcome: "notSatisfied",
+            at: 300,
+            anchorRowId: null,
+            nextAction: "第四轮 action",
+          },
+        ],
+        iterations: [
+          {
+            iteration: 3,
+            updatedAt: 300,
+            items: [{ id: "3", content: "继续", status: "pending" }],
+          },
+        ],
+      }),
+    );
+
+    expect(rows.map((row) => row.iteration)).toEqual([1, 2, 3, 4]);
+    expect(getCurrentOpenGoalIteration(rows)).toBe(4);
+    expect(rows.find((row) => row.iteration === 4)).toMatchObject({
+      title: "第四轮 action",
+      completed: false,
+    });
   });
 
   it("adds only the active run delta and freezes paused/verified elapsed", () => {

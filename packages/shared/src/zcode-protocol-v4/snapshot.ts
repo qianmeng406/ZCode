@@ -162,6 +162,8 @@ export const sessionActionAvailabilitySchema = z.object({
   sendQueuedNow: actionAvailabilitySchema,
   pauseGoal: actionAvailabilitySchema,
   resumeGoal: actionAvailabilitySchema,
+  // additive：旧快照没有该字段，UI 按不可用处理（不显示删除入口）。
+  clearGoal: actionAvailabilitySchema.optional(),
 });
 export type SessionActionAvailability = z.infer<typeof sessionActionAvailabilitySchema>;
 

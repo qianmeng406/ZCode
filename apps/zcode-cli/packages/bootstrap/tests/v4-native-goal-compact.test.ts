@@ -14,6 +14,7 @@ function makeApp(overrides: Record<string, unknown> = {}) {
     sessionId: "s1",
     runtime: {
       getActiveTurnInfo: vi.fn().mockReturnValue(undefined),
+      getActiveForegroundExecutionId: vi.fn().mockReturnValue(undefined),
       setExecutionState: vi.fn().mockResolvedValue(undefined),
     },
     getModel: vi.fn().mockReturnValue("primary-provider/default-model"),
@@ -528,6 +529,17 @@ describe("v4 原生 clearGoal", () => {
   it("运行中拒绝，避免删除与 goal 收口竞态", async () => {
     const app = makeApp();
     const record = makeRecord({ app, activeAbortController: new AbortController() });
+
+    await expect(
+      new V4CommandExecutor(makeHost(record)).execute(envelope("clearGoal", {})),
+    ).rejects.toMatchObject({ reasonCode: "activeTurn" });
+    expect(app.clearTarget).not.toHaveBeenCalled();
+  });
+
+  it("goal verifier 前台执行期间也拒绝（不依赖 activeAbortController）", async () => {
+    const app = makeApp();
+    app.runtime.getActiveForegroundExecutionId = vi.fn().mockReturnValue("fg-goal-verifier");
+    const record = makeRecord({ app });
 
     await expect(
       new V4CommandExecutor(makeHost(record)).execute(envelope("clearGoal", {})),

@@ -134,6 +134,7 @@ import {
 import type { SessionOpenTrigger } from "@/lib/sessionOpenArmsTelemetry.js";
 import { useDynamicWorkflowAvailability } from "@/hooks/useDynamicWorkflowAvailability.js";
 import { resolveWorkflowResumeHandler } from "@/v4/workflowResumeGate.js";
+import { resolveGoalIterationAction } from "@/v4/conversationGoalSummaryModel.js";
 import {
   workflowSessionModelOf,
   type WorkflowRunSettingsChange,
@@ -4746,9 +4747,10 @@ export function SessionPane({
   // 渲染时的值，stale ack 不能静默丢弃（旧实现点了没反应）。用 ack.revisionAtDecision
   // 有界重试，和 dispatchConfigCas 的收敛策略一致。
   const dispatchGoalAction = useCallback(
-    async (type: "pauseGoal" | "resumeGoal") => {
+    async (type: "pauseGoal" | "resumeGoal", options?: { requireAvailability?: boolean }) => {
       const current = snapshotRef.current;
-      if (!sessionId || !current?.availability[type].allowed) return;
+      if (!sessionId || !current) return;
+      if (options?.requireAvailability !== false && !current.availability[type].allowed) return;
       let baseRevision = current.revision;
       for (let attempt = 0; attempt < 3; attempt += 1) {
         const ack = await dispatchCommand(type, {}, sessionId, baseRevision);
@@ -4783,33 +4785,51 @@ export function SessionPane({
     });
   }, [dispatchCommand, sessionId]);
 
-  // 历史迭代是 todo/verifier 的事实，不能逐条删除；「从这条继续」的语义是：
-  // 当前未完成迭代 → 恢复暂停的 goal（保留历史）；历史/已完成迭代 → 以该条标题替换
-  // 当前目标，从这条重新开始（reset 进度，符合单目标模型）。
+  // 历史迭代是 todo/verifier 的事实，不能逐条删除。继续动作按“当前未完成行”判定，
+  // 不能用 iteration === goal.iteration：paused+notSatisfied 时当前行的 iteration
+  // 是 goal.iteration + 1。当前行 resume/continue 保留历史；历史行才替换目标并重置进度。
   const handleContinueGoalFromIteration = useCallback(
-    (iteration: number, title: string | null) => {
+    (iteration: number, title: string | null, isCurrentOpenRow: boolean) => {
       const current = snapshotRef.current;
       if (!sessionId || !current?.goal) return;
-      if (current.goal.status === "paused" && iteration === current.goal.iteration) {
-        void dispatchGoalAction("resumeGoal");
-        return;
-      }
       const objective = title?.trim();
-      if (!objective) return;
-      if (current.config.planEnabled === true) {
-        toast(intl.formatMessage({ id: "chat.goal.planModeBlocked" }));
-        return;
-      }
-      void dispatchCommand(
-        "sendGoalCommand",
-        { text: objective, displayText: `/goal ${objective}` },
-        sessionId,
-        current.revision,
-      ).then((ack) => {
-        if (ack.status !== "accepted" && ack.status !== "noop") {
-          logger.warn(`[v4-pane] continueGoal 被拒绝: ${ack.status} ${ack.reasonCode ?? ""}`);
-        }
+      const action = resolveGoalIterationAction({
+        planEnabled: current.config.planEnabled === true,
+        goalStatus: current.goal.status,
+        isCurrentOpenRow,
+        hasTitle: Boolean(objective),
       });
+      switch (action) {
+        case "blocked-plan":
+          toast(intl.formatMessage({ id: "chat.goal.planModeBlocked" }));
+          return;
+        case "resume":
+          void dispatchGoalAction("resumeGoal");
+          return;
+        case "continue":
+          // notSatisfied 仍属当前目标（verifier 未通过），不能替换目标重置进度；
+          // resumeGoal 的 handler 只做 active→continue，这里绕过仅按 paused 计算的可用性位。
+          void dispatchGoalAction("resumeGoal", { requireAvailability: false });
+          return;
+        case "already-running":
+          toast(intl.formatMessage({ id: "chat.target.alreadyRunning" }));
+          return;
+        case "restart":
+          if (!objective) return;
+          void dispatchCommand(
+            "sendGoalCommand",
+            { text: objective, displayText: `/goal ${objective}` },
+            sessionId,
+            current.revision,
+          ).then((ack) => {
+            if (ack.status !== "accepted" && ack.status !== "noop") {
+              logger.warn(`[v4-pane] continueGoal 被拒绝: ${ack.status} ${ack.reasonCode ?? ""}`);
+            }
+          });
+          return;
+        default:
+          return;
+      }
     },
     [dispatchCommand, dispatchGoalAction, intl, sessionId, toast],
   );
@@ -6071,7 +6091,10 @@ export function SessionPane({
                   : undefined
               }
               onClearGoal={
-                !readOnly && !selectionSideChat && snapshot?.goal && !snapshot.control.canStop
+                !readOnly &&
+                !selectionSideChat &&
+                snapshot?.goal &&
+                snapshot.availability.clearGoal?.allowed === true
                   ? handleClearGoal
                   : undefined
               }

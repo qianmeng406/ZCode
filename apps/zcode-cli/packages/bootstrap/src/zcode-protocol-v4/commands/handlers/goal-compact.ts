@@ -500,17 +500,19 @@ async function runGoalContinuationInBackground(
 /**
  * clearGoal：删除当前目标。clearTarget 自身会发 TargetChanged(cleared)，投影据此移除
  * 目标面板；随后 afterLegacyStateMutation 重评队列，target 归 null 后暂停队列可恢复自动消费。
- * 运行中拒绝，避免删除与 verifier/continuation 的收口竞态。
+ * 运行中拒绝：goal verifier 走 runtime foreground execution，不保证 activeAbortController
+ * 存在，因此必须同时检查 getActiveForegroundExecutionId，避免删除与 verifier 收口竞态。
  */
 async function clearGoal(
   host: V4CommandCoreHost,
   envelope: CommandEnvelope,
 ): Promise<CommandResult | undefined> {
   const record = requireRecord(host, envelope.sessionId);
-  if (record.activeAbortController) {
+  const activeForegroundExecutionId = record.app.runtime?.getActiveForegroundExecutionId?.();
+  if (record.activeAbortController || activeForegroundExecutionId !== undefined) {
     throw new V4GoalCompactRejectedError(
       "activeTurn",
-      "Cannot manage goals while a prompt is running",
+      "Cannot manage goals while a prompt or goal verifier is running",
     );
   }
   const cleared = await record.app.clearTarget();
