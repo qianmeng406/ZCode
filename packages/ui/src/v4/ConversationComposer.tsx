@@ -2879,6 +2879,7 @@ function ConversationComposerImpl({
       {oracleReview ? (
         <OracleReviewBanner
           state={oracleReview.state}
+          providers={modelSelectionView?.providers}
           pendingElapsedSeconds={oracleReview.pendingElapsedSeconds}
           pendingOutputChars={oracleReview.pendingOutputChars}
           onRereview={oracleReview.retryReview}

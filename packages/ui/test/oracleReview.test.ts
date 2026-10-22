@@ -16,6 +16,7 @@ import {
   ORACLE_REVIEW_TOOL_EVENT_LIMIT,
   appendOracleReviewToolEvent,
 } from "../src/v4/oracleReview/oracleReviewSupport.js";
+import { formatOracleModelLabel } from "../src/v4/oracleReview/oracleReviewModelLabel.js";
 import {
   assembleOracleTurnMaterial,
   collectTurnRowsFromWindow,
@@ -1393,4 +1394,54 @@ test("恢复结果卡片：未确认记录恢复时标记 restored，并保留�
   assert.equal(restored.status, "result");
   assert.equal(restored.status === "result" && restored.restored, true);
   assert.equal(restored.status === "result" && restored.depth, "standard");
+});
+
+// ── 审查卡片的模型名：providerId 是 UUID 时不能原样上屏 ──
+
+const UUID_PROVIDER_ID = "5c89448a-d736-44ac-9a63-5ebe4819296f";
+
+test("审查模型名：自定义 provider 用目录里的名字替换 UUID", () => {
+  assert.equal(
+    formatOracleModelLabel(`${UUID_PROVIDER_ID}/deepseek/deepseek-v4.1-flash`, [
+      { providerId: UUID_PROVIDER_ID, providerName: "cmd3" },
+    ]),
+    "cmd3/deepseek/deepseek-v4.1-flash",
+  );
+});
+
+test("审查模型名：provider 已删除时只去掉 UUID 段，仍显示模型名", () => {
+  assert.equal(
+    formatOracleModelLabel(`${UUID_PROVIDER_ID}/deepseek/deepseek-v4.1-flash`, []),
+    "deepseek/deepseek-v4.1-flash",
+  );
+});
+
+test("审查模型名：名字缺失或等于 ID 时不把 ID 当名字", () => {
+  assert.equal(
+    formatOracleModelLabel(`${UUID_PROVIDER_ID}/deepseek/deepseek-v4.1-flash`, [
+      { providerId: UUID_PROVIDER_ID },
+    ]),
+    "deepseek/deepseek-v4.1-flash",
+  );
+  assert.equal(
+    formatOracleModelLabel(`${UUID_PROVIDER_ID}/deepseek/deepseek-v4.1-flash`, [
+      { providerId: UUID_PROVIDER_ID, providerName: UUID_PROVIDER_ID },
+    ]),
+    "deepseek/deepseek-v4.1-flash",
+  );
+});
+
+test("审查模型名：内置连接只显示模型名", () => {
+  assert.equal(
+    formatOracleModelLabel("account:zai-individual-coding-plan/glm-5", [
+      { providerId: "account:zai-individual-coding-plan", providerName: "Z.ai" },
+    ]),
+    "glm-5",
+  );
+});
+
+test("审查模型名：空值与无可解析前缀原样返回", () => {
+  assert.equal(formatOracleModelLabel(undefined, []), undefined);
+  assert.equal(formatOracleModelLabel("   ", []), undefined);
+  assert.equal(formatOracleModelLabel("glm-5", []), "glm-5");
 });

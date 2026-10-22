@@ -17,6 +17,7 @@ import {
 import { useZCodeIntl } from "@/i18n/IntlProvider.js";
 import { buildOracleFixPrompt } from "./oracleReviewSupport.js";
 import type { OracleReviewState } from "./oracleReviewSupport.js";
+import { formatOracleModelLabel, type OracleModelLabelProvider } from "./oracleReviewModelLabel.js";
 import {
   VERDICT_PRESETS,
   failureDetail,
@@ -36,6 +37,7 @@ const SLOW_REVIEW_HINT_SECONDS = 120;
 
 export function OracleReviewBanner({
   state,
+  providers,
   pendingElapsedSeconds = 0,
   pendingOutputChars = 0,
   onRereview,
@@ -43,6 +45,8 @@ export function OracleReviewBanner({
   onFix,
 }: {
   state: OracleReviewState;
+  /** provider 目录：把审查记录里的 `providerId/modelId` 显示成可读名字（UUID 不上屏）。 */
+  providers?: readonly OracleModelLabelProvider[];
   /** pending 已等待秒数（宿主每秒更新）；驱动时长跳动与慢渠道提示。 */
   pendingElapsedSeconds?: number;
   /** pending 期间模型已累计输出字符数（CLI 流式进度推送，宿主按 500ms 节流）；0 表示尚无产出。 */
@@ -54,6 +58,10 @@ export function OracleReviewBanner({
   const { intl } = useZCodeIntl();
   const [findingsOpen, setFindingsOpen] = useState(false);
   const [toolLogOpen, setToolLogOpen] = useState(false);
+  // 摘要默认展开：审查结论是用户最关心的一段，单行省略号下无法看全（用户实测）。
+  const [summaryOpen, setSummaryOpen] = useState(true);
+  const modelLabelOf = (label: string | undefined): string | undefined =>
+    formatOracleModelLabel(label, providers ?? []);
   const pending = state.status === "pending";
   const result = state.status === "result" ? state : null;
   const verdictPreset = result ? VERDICT_PRESETS[result.verdict] : null;
@@ -102,7 +110,7 @@ export function OracleReviewBanner({
                         : "chat.oracleReview.pending",
                   },
                   {
-                    model: state.modelLabel,
+                    model: modelLabelOf(state.modelLabel) ?? state.modelLabel,
                     // 深度审查附当前轮次；标准审查不插值 round。
                     round: String(state.round ?? 1),
                     minutes: String(Math.floor(pendingElapsedSeconds / 60)),
@@ -166,7 +174,7 @@ export function OracleReviewBanner({
                         className="hidden shrink-0 font-mono text-ui-xs text-foreground-subtle md:inline"
                         title={state.modelLabel}
                       >
-                        {state.modelLabel}
+                        {modelLabelOf(state.modelLabel) ?? state.modelLabel}
                       </span>
                     ) : null}
                   </>
@@ -181,7 +189,10 @@ export function OracleReviewBanner({
               >
                 {intl.formatMessage({ id: verdictPreset.labelKey })}
               </span>
-              <span className="min-w-0 flex-1 truncate text-ui-base text-foreground">
+              <span
+                className="min-w-0 flex-1 truncate text-ui-base text-foreground"
+                title={result.summary || undefined}
+              >
                 {result.summary ||
                   intl.formatMessage({ id: "chat.oracleReview.verdict.unknownSummary" })}
               </span>
@@ -199,7 +210,7 @@ export function OracleReviewBanner({
                 className="hidden shrink-0 font-mono text-ui-xs text-foreground-subtle md:inline"
                 title={result.modelLabel}
               >
-                {result.modelLabel}
+                {modelLabelOf(result.modelLabel) ?? result.modelLabel}
               </span>
             </>
           ) : null}
@@ -288,6 +299,32 @@ export function OracleReviewBanner({
         ) : null}
         {result ? (
           <>
+            {result.summary ? (
+              <Collapsible open={summaryOpen} onOpenChange={setSummaryOpen}>
+                <CollapsibleTrigger asChild>
+                  <button
+                    type="button"
+                    className="flex w-full items-center gap-1.5 border-t border-border/60 px-3 py-1.5 text-left text-ui-sm text-foreground-subtle transition-colors hover:text-foreground"
+                    aria-label={intl.formatMessage({ id: "chat.oracleReview.summaryToggle" })}
+                    data-testid="v4-oracle-review-summary"
+                  >
+                    <ChevronRightIcon
+                      aria-hidden
+                      className={cn(
+                        "size-3.5 shrink-0 transition-transform",
+                        summaryOpen ? "rotate-90" : "rotate-0",
+                      )}
+                    />
+                    <span>{intl.formatMessage({ id: "chat.oracleReview.summary" })}</span>
+                  </button>
+                </CollapsibleTrigger>
+                <CollapsibleContent>
+                  <p className="max-h-96 overflow-y-auto whitespace-pre-wrap break-words border-t border-border/60 px-3 py-2 text-ui-sm leading-relaxed text-foreground">
+                    {result.summary}
+                  </p>
+                </CollapsibleContent>
+              </Collapsible>
+            ) : null}
             <Collapsible open={findingsOpen} onOpenChange={setFindingsOpen}>
               <CollapsibleTrigger asChild>
                 <button

@@ -547,6 +547,8 @@ const enUS: Record<string, string> = {
   "chat.oracleReview.findings": "Findings",
   "chat.oracleReview.findingsEmpty": "(no findings)",
   "chat.oracleReview.findingsToggle": "Toggle findings",
+  "chat.oracleReview.summary": "Review summary",
+  "chat.oracleReview.summaryToggle": "Toggle review summary",
   "chat.oracleReview.requirements": "Requirement verification",
   "chat.oracleReview.scope": "Review scope",
   "chat.oracleReview.limits": "Review limits",

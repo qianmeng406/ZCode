@@ -984,3 +984,8 @@ exceptions:
       - packages/ui/src/settings/DynamicWorkflowModeSetting.tsx
       - packages/ui/src/store/dynamicWorkflowAvailabilityStore.ts
     reason: Admitted upstream files edited only to let the user's dynamic workflow mode choice always win and keep the settings row visible; adopting packages/shared/src and packages/ui/src needs a separate module boundary refactor.
+  - id: oracle-review-model-label-unmanaged-file
+    rule: unmanaged-new-file
+    paths:
+      - packages/ui/src/v4/oracleReview/oracleReviewModelLabel.ts
+    reason: fork 定制在既有未受管 packages/ui/src/v4/oracleReview 目录新增的模型名格式化纯函数；接管该目录的模块边界不在本次卡片修复范围内。

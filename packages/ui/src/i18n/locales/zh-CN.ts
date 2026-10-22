@@ -499,6 +499,8 @@ const zhCN: Record<string, string> = {
   "chat.oracleReview.findings": "问题清单",
   "chat.oracleReview.findingsEmpty": "（无问题清单）",
   "chat.oracleReview.findingsToggle": "展开或收起问题清单",
+  "chat.oracleReview.summary": "审查总结",
+  "chat.oracleReview.summaryToggle": "展开或收起审查总结",
   "chat.oracleReview.requirements": "需求核验",
   "chat.oracleReview.scope": "审查范围",
   "chat.oracleReview.limits": "审查限制",
