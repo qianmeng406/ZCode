@@ -1,4 +1,4 @@
-# Myzcode
+# ZCode (Personal Fork)
 
 > **This repository is a community fork / secondary development of the official ZCode open-source project. It is NOT an official release.**
 >
@@ -11,10 +11,11 @@
   <a href="README.md">简体中文</a> | English
 </p>
 
-Myzcode is a personal customization of ZCode, an AI coding workspace with desktop, browser, and terminal interfaces. This repository contains the clients, backend services, shared UI, and Agent CLI and runtime source code.
+This repository is a personal customization of ZCode, an AI coding workspace with desktop, browser, and terminal interfaces. It contains the clients, backend services, shared UI, and Agent CLI and runtime source code.
 
 ## Upstream Version and Sync Status
 
+- **2026-10-21**: Added goal controls (pause/resume, deleting the current goal, and continuing from a specific iteration), per-subagent stop, and moved prompt-optimizer/review settings into the Settings page; the session execution environment can now use the WSL distribution's default user and shows the active environment in the composer.
 - **2026-10-16**: Updated to ZCode v3.16.1.
 - 2026-10-16: Added three session-experience features: **upstream model fetching** (the add-model dialog pulls model IDs from the provider's `/models` endpoint into a searchable picker), a **compact-context button** in the context usage panel (one click triggers the existing `/compact` flow), and a **composer main-turn metrics capsule** (persistent TTFT, generation speed, and output tokens below the input box, counting main-turn requests only); produced a new `ZCode Preview` installer.
 - 2026-10-15: Added **Beta mode** (prompt-fusion mode test version), then revised it into an independent work mode (minimal-mode entry removed; Beta uses full-access permissions) and produced a new `ZCode Preview` installer (`dist-new/`; the running old instance is untouched).
@@ -22,13 +23,13 @@ Myzcode is a personal customization of ZCode, an AI coding workspace with deskto
 - 2026-10-10: Updated to ZCode v3.15.1.
 - 2026-9-23: Updated to ZCode v3.14.3.
 
-- **Latest official source**: As of 2026-10-13, official `main` points to [the v3.15.1 commit `aac47556`](https://github.com/zai-org/ZCode/commit/aac4755666d09fdcd70272fcf063c077a639015f), updated on 2026-10-10. That update adds UI plugins and inline Gen UI experiences, and expands desktop, remote workspace, Agent capabilities, and regression coverage.
-- **This fork's upstream baseline**: This repository is based on [the official v3.15.1 commit `aac47556`](https://github.com/zai-org/ZCode/commit/aac4755666d09fdcd70272fcf063c077a639015f); the root `package.json` version is `3.15.1`. The customizations are applied as a series of commits on top of the official baseline (migration plus later feature commits); see [docs/upstream-sync.md](docs/upstream-sync.md) for the follow-up sync workflow.
+- **Latest official source**: As of 2026-10-20, official `main` points to [the v3.16.1 commit `0a1fc56d`](https://github.com/zai-org/ZCode/commit/0a1fc56d279fd1001f78387bd81aec1c26767411) (Source-Commit `1f4d7f01`). Upstream does not tag v3.16.1; it is published from `main`.
+- **This fork's upstream baseline**: This repository is based on the official v3.16.1 commit `0a1fc56d`; the root `package.json` version is `3.16.1`. The customizations are applied as a series of commits on top of the official baseline (migration plus later feature commits); see [docs/upstream-sync.md](docs/upstream-sync.md) for the follow-up sync workflow.
 - **Official documentation**: [Chinese README](https://github.com/zai-org/ZCode/blob/main/README.md), [English README](https://github.com/zai-org/ZCode/blob/main/README.en.md), and [UI Plugin development guide](https://github.com/zai-org/ZCode/blob/aac4755666d09fdcd70272fcf063c077a639015f/UI_PLUGIN.en.md). Features, directories, and commands in newer official versions may not exist in this fork. Use the checked-out source and `package.json` as the source of truth.
 
 ## Fork Customizations
 
-This fork adds dual-model review (Oracle), execution-model selection during plan approval, turn navigation, permission modes, prompt optimization, and bundled SSH/WSL runtime assets. See [README.md](README.md) for details.
+This fork adds dual-model review (Oracle), execution-model selection during plan approval, turn navigation, goal controls, per-subagent stop, permission modes, prompt optimization, and a per-session WSL execution environment. See [README.md](README.md) for details.
 
 **Beta mode (prompt-fusion mode test version)** is an independent, mutually exclusive work mode (`mode=beta`) in the composer menu, alongside the confirmation, autonomous, research, and full-access modes. It combines progress within authorization, minimal complete changes, purposeful delegation, and evidence-based verification while retaining skills, memory, and project instructions. It uses full-access permissions with fewer confirmations. Plan remains an independent switch (read-only while on); selecting another work mode exits Beta. See the [Beta mode specification](apps/zcode-cli/docs/design/v2/loop/fusion-context-profile.md).
 
@@ -38,7 +39,15 @@ This fork adds dual-model review (Oracle), execution-model selection during plan
 
 **Composer main-turn metrics capsule** persistently shows the latest main-turn (`main_turn`) request's time to first token, generation speed (tok/s), and output tokens below the input box. Subagents, compaction, and title generation never affect the metrics; missing facts render an `--` placeholder instead of an estimate. Specifications live in [docs/features/](docs/features/).
 
-These customizations are described relative to the official v3.15.1 baseline, not as a claim of exclusive features. Later official versions may offer similar capabilities.
+**Goal controls** add pause/resume, deletion of the current goal, and "continue from this iteration" to the goal panel. A running goal cannot be deleted; continuing a historical iteration restarts the goal with that iteration's title, and pause/resume retries a bounded number of times when the snapshot revision is stale instead of silently doing nothing.
+
+**Per-subagent stop** lets foreground subagents be stopped individually from the status panel. The action appears only for rows that resolve to a background handle or runtime task id; rows explicitly marked non-cancellable stay disabled.
+
+**Settings consolidation** moves the prompt optimizer (model, reasoning level, optimization method, and context range) and the review model into the Settings page. The composer keeps only the optimize, standard-review, and deep-review actions, and the previous locally stored model selection is migrated once.
+
+**Session execution environment** can run a single chat session in a local WSL distribution while the project files remain the same files on disk. The WSL user is optional: leaving it empty uses the distribution's default user without changing the system-wide default, and the composer/header shows the currently effective environment.
+
+These customizations are described relative to the official v3.16.1 baseline, not as a claim of exclusive features. Later official versions may offer similar capabilities.
 
 The development and packaging instructions below describe this fork's current commands, including its runtime asset preparation changes; they are not a complete mirror of the latest official README.
 
@@ -229,7 +238,7 @@ Open `http://127.0.0.1:3030` to validate the complete flow, with one backend ser
 
 ## Repository Structure
 
-The following lists this fork's main directories, not the complete latest upstream source tree. Fork additions are identified relative to the v3.15.1 baseline.
+The following lists this fork's main directories, not the complete latest upstream source tree. Fork additions are identified relative to the v3.16.1 baseline.
 
 | Directory                                            | Responsibility                                                                          |
 | ---------------------------------------------------- | --------------------------------------------------------------------------------------- |
@@ -255,8 +264,8 @@ The following lists this fork's main directories, not the complete latest upstre
 ## Disclaimer
 
 1. **No warranty**: This project is provided "AS IS", without warranty of any kind, express or implied, including but not limited to merchantability, fitness for a particular purpose, and non-infringement. The authors are not liable for any direct or indirect damages arising from the use of, or inability to use, this project (including data loss, service interruption, device damage, or lost profits).
-2. **Use at your own risk**: This fork includes **remote-control** capabilities that let a phone trigger side-effecting actions on ZCode running on a computer (creating tasks, sending input, stopping execution, resolving approvals, and so on). Enable it only on **your own devices** and in environments where you have **lawful authorization**, and keep pairing codes, tokens, and server credentials secure. You are responsible for the consequences of misuse, misconfiguration, or credential leakage.
-3. **No data collection**: This project provides no official backend service and the authors collect no data from you. You must **self-host** the server and network environment for the remote-control link; logs, data, and traffic in that environment are yours to manage and keep compliant.
+2. **Use at your own risk**: This fork includes capabilities that can perform side-effecting actions on the ZCode instance running on your computer (creating tasks, sending input, stopping execution, resolving approvals, and so on). Assess the risks first, use it only on **your own devices** and in environments where you have **lawful authorization**, and keep credentials secure. You are responsible for the consequences of misuse, misconfiguration, or credential leakage.
+3. **No data collection**: This project provides no official backend service and the authors collect no data from you.
 4. **Lawful use**: You are responsible for ensuring your use complies with applicable laws and regulations, the upstream project's terms, and the terms of any third-party services (model providers, cloud providers, etc.). Using this project for unauthorized intrusion, surveillance, data theft, or any other illegal purpose is **strictly prohibited**.
 5. **Models and costs**: This project may call third-party model services. Accounts, quotas, costs, and content compliance are your own responsibility; no official keys or quota are bundled with this repository.
 6. **Relationship with upstream**: This fork may lag behind upstream, may contain changes not merged upstream or already removed upstream, and may contain defects. Do not hold the upstream project or the official team responsible for problems in this fork.
