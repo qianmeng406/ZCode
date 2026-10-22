@@ -73,6 +73,7 @@ const forkNodeTestRunnerFiles = [
   "packages/services/test/providerConfigMigration.test.ts",
   "packages/services/test/sessionModeOptions.test.ts",
   "packages/shared/test/execution-state.test.ts",
+  "packages/ui/test/aiFeatureModelOptions.test.ts",
   "packages/ui/test/codingPlanQuotaResetPrompt.test.ts",
   "packages/ui/test/composerContextProfile.test.ts",
   "packages/ui/test/conversationTurnNavigatorSetting.test.ts",

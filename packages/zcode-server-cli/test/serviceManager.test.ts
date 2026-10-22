@@ -50,12 +50,23 @@ describe("service manager adapters", () => {
     try {
       await exited;
       expect(descendantPid).toBeGreaterThan(0);
-      expect(process.kill(descendantPid, 0)).toBe(true);
+      // Windows 上超时收口会连带结束后代（与 POSIX 管道继承语义不同），后代存活无法稳定断言；
+      // 有界收口与 returned false 仍在本用例覆盖范围内。
+      if (process.platform !== "win32") {
+        expect(process.kill(descendantPid, 0)).toBe(true);
+      }
       // 只等待执行器完成收口；后代退出由 finally 控制，不以延长 timeout 掩盖阻塞。
       await vi.waitFor(() => expect(settled).toBe(true), { timeout: 500 });
       expect(await probe).toBe(false);
     } finally {
-      if (descendantPid > 0) process.kill(descendantPid, "SIGKILL");
+      if (descendantPid > 0) {
+        // 探测收口时执行器可能已连带结束后代（Windows 进程树终止）；已消失不算失败。
+        try {
+          process.kill(descendantPid, "SIGKILL");
+        } catch (error) {
+          if ((error as NodeJS.ErrnoException).code !== "ESRCH") throw error;
+        }
+      }
       await probe;
     }
   });
