@@ -16,6 +16,7 @@ This repository is a personal customization of ZCode, an AI coding workspace wit
 ## Upstream Version and Sync Status
 
 - **2026-10-21**: Added goal controls (pause/resume, deleting the current goal, and continuing from a specific iteration), per-subagent stop, and moved prompt-optimizer/review settings into the Settings page; the session execution environment can now use the WSL distribution's default user and shows the active environment in the composer.
+- **2026-10-19**: Updated to ZCode v3.16.2.
 - **2026-10-16**: Updated to ZCode v3.16.1.
 - 2026-10-16: Added three session-experience features: **upstream model fetching** (the add-model dialog pulls model IDs from the provider's `/models` endpoint into a searchable picker), a **compact-context button** in the context usage panel (one click triggers the existing `/compact` flow), and a **composer main-turn metrics capsule** (persistent TTFT, generation speed, and output tokens below the input box, counting main-turn requests only); produced a new `ZCode Preview` installer.
 - 2026-10-15: Added **Beta mode** (prompt-fusion mode test version), then revised it into an independent work mode (minimal-mode entry removed; Beta uses full-access permissions) and produced a new `ZCode Preview` installer (`dist-new/`; the running old instance is untouched).

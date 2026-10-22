@@ -22,7 +22,6 @@ import {
   type CodingPlanQuotaResetAutoPlayReservationAttempt,
   type CodingPlanQuotaResetAutoPlayedSlot,
 } from "@/store/codingPlanQuotaResetState.js";
-import { DEFAULT_CODE_PREVIEW_SETTINGS } from "@/lib/codePreviewSettings.js";
 import { readSafeLocalStorage, writeSafeLocalStorage } from "@/lib/browserEnvironment.js";
 import {
   applyUiFontSizePx,
@@ -79,6 +78,27 @@ export interface LoginEntryAttempt {
   status: LoginEntryAttemptStatus;
 }
 
+export const FILE_MANAGER_NAVIGATION_PREFERENCES_STORAGE_KEY =
+  "zcode-file-manager-navigation-preferences";
+
+function loadFileManagerNavigationPreferences(): Record<string, boolean> {
+  try {
+    const raw = readSafeLocalStorage(FILE_MANAGER_NAVIGATION_PREFERENCES_STORAGE_KEY);
+    if (!raw) return {};
+    const parsed = JSON.parse(raw) as unknown;
+    if (!parsed || typeof parsed !== "object" || Array.isArray(parsed)) return {};
+
+    return Object.fromEntries(
+      Object.entries(parsed).filter(
+        (entry): entry is [string, boolean] =>
+          entry[0].trim().length > 0 && typeof entry[1] === "boolean",
+      ),
+    );
+  } catch {
+    return {};
+  }
+}
+
 // ============================================================================
 // State 定义
 // ============================================================================
@@ -99,6 +119,10 @@ export interface ZCodeState {
   /** 代码预览设置 */
   codePreviewSettings: CodePreviewSettings;
   setCodePreviewSettings: (patch: Partial<CodePreviewSettings>) => void;
+
+  /** 各 workspace 的文件导航显隐偏好；缺席时默认展开。 */
+  fileManagerNavigationOpenByWorkspace: Record<string, boolean>;
+  setFileManagerNavigationOpen: (workspaceKey: string, open: boolean) => void;
 
   /** UI 根 rem 字号（px） */
   uiFontSizePx: number;
@@ -210,6 +234,7 @@ const BROADCAST_FIELDS = new Set([
   "interfaceMode",
   "conversationTurnNavigatorEnabled",
   "assistantAutoFilePreviewEnabled",
+  "notificationEnabled",
 ]);
 
 type BroadcastField =
@@ -218,7 +243,10 @@ type BroadcastField =
   | "uiFontSizePx"
   | "interfaceMode"
   | "conversationTurnNavigatorEnabled"
-  | "assistantAutoFilePreviewEnabled";
+  | "assistantAutoFilePreviewEnabled"
+  // 任务通知开关跨窗口同步：角标是应用级表面，A 窗口关通知而 B 窗口仍上报未读时，
+  // 主进程 max 聚合会让任务栏/托盘继续亮，设置与提醒状态错位。
+  | "notificationEnabled";
 
 /** 广播频道名前缀 */
 const STATE_CHANNEL_PREFIX = "state:";
@@ -289,6 +317,23 @@ export function createZCodeStore(
         persistCodePreviewSettings(next);
         return { codePreviewSettings: next };
       }),
+
+    fileManagerNavigationOpenByWorkspace: loadFileManagerNavigationPreferences(),
+    setFileManagerNavigationOpen: (workspaceKey, open) => {
+      const normalizedWorkspaceKey = workspaceKey.trim();
+      if (!normalizedWorkspaceKey) return;
+      set((state) => {
+        const next = {
+          ...state.fileManagerNavigationOpenByWorkspace,
+          [normalizedWorkspaceKey]: open,
+        };
+        writeSafeLocalStorage(
+          FILE_MANAGER_NAVIGATION_PREFERENCES_STORAGE_KEY,
+          JSON.stringify(next),
+        );
+        return { fileManagerNavigationOpenByWorkspace: next };
+      });
+    },
 
     uiFontSizePx: loadUiFontSizePx(),
     setUiFontSizePx: (fontSizePx: number) => {
@@ -503,6 +548,8 @@ export function createZCodeStore(
         state.setConversationTurnNavigatorEnabled(msg.payload);
       } else if (field === "assistantAutoFilePreviewEnabled" && typeof msg.payload === "boolean") {
         state.setAssistantAutoFilePreviewEnabled(msg.payload);
+      } else if (field === "notificationEnabled" && typeof msg.payload === "boolean") {
+        state.setNotificationEnabled(msg.payload);
       }
     } finally {
       applyingBroadcast = false;
