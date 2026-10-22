@@ -20,12 +20,12 @@
   },
   "currentBase": {
     "tag": null,
-    "commit": "0a1fc56d279fd1001f78387bd81aec1c26767411",
-    "sourceCommit": "1f4d7f01beb143df0ec1224f0ed4236f42d0fd13",
-    "note": "3.16.1 未打 tag，以上游 main 提交发布；后续同步的 --is-ancestor 校验改用该 commit SHA。"
+    "commit": "3c5b227649371507ddc4eb46ac5133afe6db1cab",
+    "sourceCommit": "5a082039a1a3b1edfe8364a33c8978689c0d68bf",
+    "note": "3.16.2 未打 tag，以上游 main 提交发布；后续同步的 --is-ancestor 校验改用该 commit SHA。"
   },
   "versions": {
-    "desktop": "3.16.1",
+    "desktop": "3.16.2",
     "cli": "0.17.0"
   },
   "retiredFeatures": [

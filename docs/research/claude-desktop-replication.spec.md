@@ -150,5 +150,5 @@
 - `Desktop/agent/ZCode-会话加载机制与性能占用审查报告.md`(ZCode 现状与实测)
 - 本机解包物:`Desktop/agent/.tmp/cck/`(asar-x、ion-dist、worker 源)
 - 本机会话样本:`~/.claude/projects/**/*.jsonl`
-- 上游基线:`docs/upstream-sync.md` / `docs/upstream-sync.json`(3.16.1 = `0a1fc56d`,无 tag)
+- 上游基线:`docs/upstream-sync.md` / `docs/upstream-sync.json`(当前 3.16.2 = `3c5b2276`,无 tag;3.16.1 = `0a1fc56d` 为上一基线)
 - 3.16.1 代码证据:`packages/shared/src/zcode-protocol-v4/core.ts`(限额)、`conversation-topic-publisher.ts`(尾窗/2000 delta)、`v4-gateway.ts`(historyFirst)、`apps/zcode-cli/packages/adapters/src/storage/session-store/sqlite-session-store.ts:642`(全量 `messages`)、`packages/ui/src/v4/conversationProjectionStore.ts`(loadOlder/mergeOlderRows)

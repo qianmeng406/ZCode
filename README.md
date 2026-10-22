@@ -20,10 +20,11 @@
 
 ## 上游基线
 
-- 上游项目为 [zai-org/ZCode](https://github.com/zai-org/ZCode)（Apache-2.0）；本仓库基于官方 **v3.16.1**（提交 [`0a1fc56d`](https://github.com/zai-org/ZCode/commit/0a1fc56d279fd1001f78387bd81aec1c26767411)，上游未打 tag，3.16.1 以 `main` 提交发布，Source-Commit `1f4d7f01`），根目录 `package.json` 版本同为 `3.16.1`。
+- 上游项目为 [zai-org/ZCode](https://github.com/zai-org/ZCode)（Apache-2.0）；本仓库基于官方 **v3.16.2**（提交 [`3c5b2276`](https://github.com/zai-org/ZCode/commit/3c5b227649371507ddc4eb46ac5133afe6db1cab)，上游未打 tag，3.16.2 以 `main` 提交发布，Source-Commit `5a082039`），根目录 `package.json` 版本同为 `3.16.2`。
 - 跟进官方新版本时如何保留定制能力，见 [docs/upstream-sync.md](docs/upstream-sync.md)。
 - 官方文档：[中文 README](https://github.com/zai-org/ZCode/blob/main/README.md)、[英文 README](https://github.com/zai-org/ZCode/blob/main/README.en.md)、[UI Plugin 开发说明](https://github.com/zai-org/ZCode/blob/aac4755666d09fdcd70272fcf063c077a639015f/UI_PLUGIN.md)。官方新版中的功能、目录和命令不一定存在于本定制版，请以当前检出的源码与 `package.json` 为准。
 
+- **2026-10-22**：合并官方 v3.16.2 基线，保留既有定制能力。
 - **2026-10-19**：更新至 ZCode v3.16.2 版本。
 - **2026-10-16**：更新至 ZCode v3.16.1 版本。
 - 2026-10-10：更新至 ZCode v3.15.1 版本。
@@ -31,7 +32,7 @@
 
 ## 本定制版的新增与改动
 
-以下列出本仓库在官方 v3.16.1 基线之上的定制能力与修改，不表示这些能力全部为本项目独有。官方后续版本可能提供相似功能。
+以下列出本仓库在官方 v3.16.2 基线之上的定制能力与修改，不表示这些能力全部为本项目独有。官方后续版本可能提供相似功能。
 
 ### 一、新增功能
 
@@ -274,7 +275,7 @@ node dist/zcode/debug/zcode/bin/zcode.mjs --web \
 
 ## 仓库结构
 
-以下为本定制仓库的主要目录；`本定制版新增` 表示相对上游 v3.16.1 基线新增，不是官方最新源码树的完整目录清单。
+以下为本定制仓库的主要目录；`本定制版新增` 表示相对上游 v3.16.2 基线新增，不是官方最新源码树的完整目录清单。
 
 | 目录                                                 | 职责                                       |
 | ---------------------------------------------------- | ------------------------------------------ |
