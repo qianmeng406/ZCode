@@ -41,10 +41,6 @@ vi.mock("@/store/taskQueryCacheStore.js", () => ({
   useTaskQueryCacheStore: (select: (state: unknown) => unknown) =>
     select({ taskMetaByEntityKey: {} }),
 }));
-vi.mock("@/hooks/useTaskNativeSessionLogFile.js", () => ({
-  useTaskNativeSessionLogFile: () => null,
-}));
-vi.mock("@/hooks/useTaskSessionFilePath.js", () => ({ useTaskSessionFilePath: () => null }));
 const meta = (title = "1111"): ZCodeTaskMeta => ({
   taskId: "s",
   title,

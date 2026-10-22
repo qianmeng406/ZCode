@@ -12,7 +12,6 @@ import { useGitRepository } from "@/hooks/useGitRepository.js";
 import { useAppKeyboard } from "@/hooks/useAppKeyboard.js";
 import { useSidePaneFullView } from "@/side-pane-full-view/index.js";
 import { usePlatform } from "@/hooks/usePlatform.js";
-import { useWorkspaceProviderConfigFile } from "@/hooks/useWorkspaceProviderConfigFile.js";
 import { useWorkspaceActiveTaskState } from "@/hooks/useWorkspaceActiveTaskState.js";
 import { useEnsureWorkspaceMcpLoaded } from "@/hooks/useEnsureWorkspaceMcpLoaded.js";
 import { useTabStore } from "@/store/TabStoreProvider.js";
@@ -396,11 +395,8 @@ export function App({
     activeTraceId,
     activeSessionId,
     activeTaskProvider,
-    workspaceHeaderProvider,
     activeTaskChangeSummary,
     activeTaskTitle,
-    taskNativeSessionLogFile,
-    taskSessionFile,
   } = useWorkspaceActiveTaskState({
     workspaceAbsPath,
     activeTaskId,
@@ -409,12 +405,6 @@ export function App({
     selectedProvider: workspaceShellZCodeState.selectedProvider,
     intl,
   });
-  const providerConfigFile = useWorkspaceProviderConfigFile(
-    workspaceAbsPath,
-    workspaceHeaderProvider,
-    workspaceRemoteSessionId,
-    workspaceIdentity,
-  );
   const workspaceTabs = useMemo(
     () =>
       tabs.filter(isWorkspaceTab).map((tab) => ({
@@ -1268,9 +1258,6 @@ export function App({
           gitWorktreeChangeSummary={gitWorktreeChangeSummary}
           activeGitSourceId={activeGitSourceId}
           gitState={gitState}
-          providerConfigFile={providerConfigFile}
-          taskNativeSessionLogFile={taskNativeSessionLogFile}
-          taskSessionFile={taskSessionFile}
           browserNavigationRequest={browserNavigationRequest}
           browserRestoreUrls={browserRestoreUrls}
           conversationFindActiveIndex={conversationFindState.activeIndex}

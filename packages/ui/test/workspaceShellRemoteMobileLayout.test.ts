@@ -350,11 +350,6 @@ function createWorkspaceShellProps() {
     onSelectRemoteProject: vi.fn(async () => {}),
     platform: {},
     projectName: "project",
-    providerConfigFile: {
-      exists: false,
-      loading: false,
-      path: null,
-    },
     reconnectingRemoteWorkspaceKeys: [],
     reloadSessionDisabled: false,
     reloadSessionPending: false,
@@ -367,15 +362,6 @@ function createWorkspaceShellProps() {
     shellPanelIds: ["sidebar", "content"],
     sidePaneState: null,
     sidebarContainerRef: { current: null },
-    taskNativeSessionLogFile: {
-      exists: false,
-      loading: false,
-      path: null,
-      provider: null,
-    },
-    taskSessionFile: {
-      path: null,
-    },
     testMessages: null,
     theme: "light" as const,
     toggleSidebarShortcutLabel: "",

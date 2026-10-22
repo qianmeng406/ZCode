@@ -137,6 +137,7 @@ async function computeDevelopmentAgentAssetsSha256(params: {
     await hashDevelopmentOfficialPluginPackage(hash, packageRoot, packageName);
   }
   const bundledSkillsRoot = join(params.repoRoot, "apps/zcode-cli/packages/bundled-skills");
+  // bundled-skills 是随仓库提交的源文件：缺失按上游语义硬失败，不参与插件资产的落回。
   await assertDevelopmentOfficialPluginRequiredAssets(bundledSkillsRoot, "bundled-skills");
   await hashLocalPath(hash, bundledSkillsRoot, "bundled-skills");
   return hash.digest("hex");
@@ -192,8 +193,10 @@ async function hashLocalPath(
 }
 
 /**
- * 枚举本地开发态官方插件缺失的必需资产（REMOTE_AGENT_OFFICIAL_PLUGIN_REQUIRED_RELATIVE_PATHS）。
- * dev 资产多为 .gitignore 的构建产物：缺失属可自愈状态（落回生产资产部署），不是硬失败。
+ * 枚举本地开发态缺失的必需资产（REMOTE_AGENT_OFFICIAL_PLUGIN_REQUIRED_RELATIVE_PATHS，含上游
+ * 3.16.2 新增的 bundled-skills 动态工作流技能）。是否落回生产资产由调用方按类别决定：
+ * 插件 dev 资产多为 .gitignore 的构建产物，缺失可自愈；bundled-skills 是随仓库提交的源文件，
+ * 缺失说明检出或打包不完整，保持上游的硬失败。
  */
 export function findMissingDevelopmentOfficialPluginAssetPaths(repoRoot: string): string[] {
   const missing: string[] = [];
@@ -344,6 +347,7 @@ async function stageDevelopmentOfficialPluginPackages(params: {
   }
   // 修复原因：内置技能不再是插件，单独复制完整包，不能要求 plugin.json 或按插件白名单裁剪。
   const bundledSkillsRoot = join(params.repoRoot, "apps/zcode-cli/packages/bundled-skills");
+  // 与 hash 阶段同口径：随仓库提交的源文件缺失时硬失败（不参与插件构建产物的落回）。
   await assertDevelopmentOfficialPluginRequiredAssets(bundledSkillsRoot, "bundled-skills");
   await cp(bundledSkillsRoot, join(params.packagesDir, "bundled-skills"), { recursive: true });
 }
@@ -439,9 +443,11 @@ export async function deployDevelopmentZCodeAgentRuntime(
   // 未打包运行或 fresh clone 时这些 dev 资产常缺：dev 部署不能整体硬失败，否则 prepare 报
   // generic「preparation failed」。这里探测必需资产，缺失时 logWarn 并返回 false，让调用方
   // 落回标准生产资产部署（manifest/components 路径）。
+  // bundled-skills 是随仓库提交的源文件（skills/dynamic-workflows/*），缺失不是构建产物问题，
+  // 因此不参与落回：交给 computeDevelopmentAgentAssetsSha256 的必需资产断言按上游语义硬失败。
   const missingDevAssetPaths = findMissingDevelopmentOfficialPluginAssetPaths(
     developmentBundle.repoRoot,
-  );
+  ).filter((relativePath) => !relativePath.startsWith("bundled-skills/"));
   if (missingDevAssetPaths.length > 0) {
     loggers.logWarn(
       `[zcode-agent-deploy] dev: 本地开发态官方插件缺少必需资产，落回标准生产资产部署。` +

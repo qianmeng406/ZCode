@@ -2154,6 +2154,56 @@ describe("deployServer legacy agent node-script bundle deployment", () => {
     expect(installed.length).toBeGreaterThan(0);
   });
 
+  it("开发态缺少 bundled-skills 内置技能资产时应在上传前拒绝", async () => {
+    const rootDir = await mkdtemp(join(tmpdir(), "zcode-remote-dev-agent-missing-bundled-skills-"));
+    tempDirs.push(rootDir);
+    const repoDir = join(rootDir, "z-code");
+    const cliBundlePath = join(
+      repoDir,
+      "apps",
+      "zcode-cli",
+      "packages",
+      "cli",
+      "dist",
+      "zcode.cjs",
+    );
+    await mkdir(dirname(cliBundlePath), { recursive: true });
+    await writeFile(cliBundlePath, "console.log('dev zcode agent');\n", "utf8");
+    await writeTestOfficialPluginPackages(repoDir);
+    // 内置技能是随仓库提交的源文件，缺失说明检出/打包不完整：与插件构建产物不同，不落回生产资产。
+    await rm(
+      join(repoDir, "apps/zcode-cli/packages/bundled-skills/skills/dynamic-workflows/SKILL.md"),
+    );
+    process.chdir(repoDir);
+    process.env.ZCODE_REMOTE_DEV_AGENT_BUNDLE = "1";
+    process.env[ZCODE_RUNTIME_ENV_KEY] = "development";
+
+    const backend = new FakeRemoteBackend();
+    const installer: RemoteAssetInstaller = {
+      mode: "remote-download",
+      async installFile() {
+        throw new Error("installFile should not be called");
+      },
+      async installDirectory() {
+        throw new Error("installDirectory should not be called");
+      },
+    };
+
+    await expect(
+      deployZCodeAgentRuntime(
+        backend,
+        { platform: "linux", arch: "arm64" },
+        {
+          platformArch: "linux-arm64",
+          installer,
+          selectedResourcePackageIds: ["glm"],
+        },
+        { log: () => undefined, logWarn: () => undefined },
+      ),
+    ).rejects.toThrow(/missing official plugin required asset/iu);
+    expect(backend.uploads).toEqual([]);
+  });
+
   it("开发态 SSH 部署应上传本地 zcode.cjs 并生成远端 wrapper", async () => {
     const rootDir = await mkdtemp(join(tmpdir(), "zcode-remote-dev-agent-"));
     tempDirs.push(rootDir);
