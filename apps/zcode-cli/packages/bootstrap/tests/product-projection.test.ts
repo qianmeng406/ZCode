@@ -10653,3 +10653,36 @@ describe("ProductProjection main-turn metrics", () => {
     expect(snapshot.usage.cumulative).not.toHaveProperty("timeToFirstTokenSamples");
   });
 });
+
+describe("turnHeader turnOrdinal（可见轮编号）", () => {
+  it("按可见轮递增；模型内部轮不占号", () => {
+    const log = new EventLog();
+    log.push(SessionEventType.SessionCreated, { mode: "default", contextWindow: 200_000 });
+    log.push(
+      SessionEventType.TurnStarted,
+      { turnNumber: 1, input: "第一轮", messageId: "user-1" },
+      { turnId: "turn-1" },
+    );
+    log.push(
+      SessionEventType.TurnStarted,
+      {
+        turnNumber: 2,
+        input: "goal continuation",
+        inputVisibility: "model-only",
+        messageId: "user-2",
+      },
+      { turnId: "turn-2" },
+    );
+    log.push(
+      SessionEventType.TurnStarted,
+      { turnNumber: 3, input: "第三轮", messageId: "user-3" },
+      { turnId: "turn-3" },
+    );
+    const snapshot = runAll(log.events).projection.getSnapshot();
+    const ordinals = snapshot.rows.window
+      .filter((row) => row.kind === "turnHeader")
+      .map((row) => row.turnOrdinal);
+    // 序号只看用户可见轮：模型内部轮（goal continuation）不参与编号。
+    expect(ordinals).toEqual([1, undefined, 2]);
+  });
+});

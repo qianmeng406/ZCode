@@ -39,4 +39,12 @@ describe("zcode protocol v4 turnHeader turn metrics", () => {
     );
     expect(turnHeaderRowSchema.safeParse({ ...baseRow, outputTokens: -5 }).success).toBe(false);
   });
+
+  it("accepts an optional positive turnOrdinal and rejects zero or fractional values", () => {
+    const parsed = turnHeaderRowSchema.parse({ ...baseRow, turnOrdinal: 12 });
+    expect(parsed.turnOrdinal).toBe(12);
+    expect(turnHeaderRowSchema.parse(baseRow).turnOrdinal).toBeUndefined();
+    expect(turnHeaderRowSchema.safeParse({ ...baseRow, turnOrdinal: 0 }).success).toBe(false);
+    expect(turnHeaderRowSchema.safeParse({ ...baseRow, turnOrdinal: 1.5 }).success).toBe(false);
+  });
 });

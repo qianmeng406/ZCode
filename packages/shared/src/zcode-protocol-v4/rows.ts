@@ -81,6 +81,10 @@ export const turnHeaderRowSchema = z.object({
   // 当前 query 的命令归因与历史轮次数；optional 兼容旧 transcript/snapshot。
   sourceCommandId: z.string().optional(),
   historyRoundCount: z.number().int().nonnegative().optional(),
+  // 会话内可见产品轮序号（1 起）：CLI 投影在创建 turnHeader 时按可见轮分配，
+  // 模型内部轮（goal continuation / background wake 等）不占号。
+  // optional 只用于兼容旧快照——缺席时 UI 不显示轮次位置，也不按窗口行数自行推断。
+  turnOrdinal: z.number().int().positive().optional(),
   state: z.enum(["running", "completedSuccess", "completedInterrupted", "failed"]),
   startedAt: timestampSchema,
   endedAt: timestampSchema.optional(),

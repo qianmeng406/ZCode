@@ -1,10 +1,10 @@
 // @vitest-environment jsdom
 
 // Composer 会话指标卡片黄金测试：
-// - 单行八段：会话五项（平均首 token / 平均速度 / 总输入 / 总输出 / 缓存命中率）
+// - 单行七段：轮次位置（第 N 轮 · 第 M 步）+ 会话三项（总输入 / 总输出 / 缓存命中率）
 //   + 上次请求三项（首 token / 速度 / 缓存命中率）；
-// - 会话级取自 usage.cumulative，单请求取自最近带 lastRequest 的 turnHeader；
-// - 缺失字段 → `--` 占位，绝不估算；平均首 token 只在有累计采样时求均值；
+// - 会话级取自 usage.cumulative，单请求与轮次位置取自同一个带 lastRequest 的 turnHeader；
+// - 缺失字段 → `--` 占位，绝不估算；轮次/步数缺一即整段不渲染；
 // - 缓存命中率 = cacheRead / input，脏数据夹到 100%；
 // - 共享 test-id 锚点（TID_COMPOSER_TURN_METRICS / _ITEM）。
 import { createElement } from "react";
@@ -45,10 +45,7 @@ const sessionUsage = {
   inputTokens: 5_000,
   outputTokens: 1_234,
   cacheReadTokens: 4_000,
-  generationDurationMs: 2_000,
   requestCount: 2,
-  timeToFirstTokenTotalMs: 640,
-  timeToFirstTokenSamples: 2,
 };
 
 const lastRequest = {
@@ -59,14 +56,17 @@ const lastRequest = {
   cacheReadTokens: 400,
 };
 
+const lastRequestTurn = { ordinal: 12, step: 3 };
+
 describe("ComposerTurnMetricsCapsule", () => {
-  it("renders the eight inline segments with shared test-id anchors", () => {
-    const { container, getByTestId } = renderCapsule({ session: sessionUsage, lastRequest });
+  it("renders the seven inline segments with shared test-id anchors", () => {
+    const { container, getByTestId } = renderCapsule({
+      session: sessionUsage,
+      lastRequest,
+      lastRequestTurn,
+    });
     expect(getByTestId(TID_COMPOSER_TURN_METRICS)).toBeTruthy();
-    // 会话平均首 token = 640ms / 2 次请求 = 320ms。
-    expect(item(container, "average-ttft")?.textContent).toContain("0.3s");
-    // 会话平均速度 = 1234 tokens / 2s。
-    expect(item(container, "average-tokens-per-second")?.textContent).toContain("617");
+    expect(item(container, "turn-step")?.textContent).toContain("第 12 轮 · 第 3 步");
     expect(item(container, "input-tokens")?.textContent).toContain("5,000");
     expect(item(container, "output-tokens")?.textContent).toContain("1,234");
     // 会话缓存命中率 = 4000 / 5000。
@@ -79,15 +79,11 @@ describe("ComposerTurnMetricsCapsule", () => {
 
   it("shows -- placeholders for every session segment instead of estimates", () => {
     const { container } = renderCapsule({});
-    for (const key of [
-      "average-ttft",
-      "average-tokens-per-second",
-      "input-tokens",
-      "output-tokens",
-      "cache-hit-rate",
-    ]) {
+    for (const key of ["input-tokens", "output-tokens", "cache-hit-rate"]) {
       expect(item(container, key)?.textContent).toContain("--");
     }
+    // 没有单请求事实就没有轮次位置，不按窗口行数猜一个序号。
+    expect(item(container, "turn-step")).toBeNull();
   });
 
   it("treats an untouched cumulative (0 requests, 0 tokens) as unavailable, not zero", () => {
@@ -104,22 +100,17 @@ describe("ComposerTurnMetricsCapsule", () => {
     expect(item(container, "cache-hit-rate")?.textContent).toContain("--");
   });
 
-  it("omits tok/s when the generation duration denominator is missing or zero", () => {
-    const missing = renderCapsule({ session: { outputTokens: 100, requestCount: 1 } });
-    expect(item(missing.container, "average-tokens-per-second")?.textContent).toContain("--");
-    const zero = renderCapsule({
-      session: { outputTokens: 100, generationDurationMs: 0, requestCount: 1 },
+  it("omits the turn position when the header lacks an ordinal or a valid step", () => {
+    // 旧快照没有 turnOrdinal：位置整段不渲染。
+    const withoutOrdinal = renderCapsule({ session: sessionUsage, lastRequest });
+    expect(item(withoutOrdinal.container, "turn-step")).toBeNull();
+    // 步数为 0 同样不渲染，绝不回退成“第 12 轮”。
+    const zeroStep = renderCapsule({
+      session: sessionUsage,
+      lastRequest,
+      lastRequestTurn: { ordinal: 12, step: 0 },
     });
-    expect(item(zero.container, "average-tokens-per-second")?.textContent).toContain("--");
-  });
-
-  it("never derives the session average from a single request TTFT", () => {
-    // 没有 TTFT 采样累计时，宁可不可用，也不拿某个请求的耗时冒充会话均值。
-    const { container } = renderCapsule({
-      session: { outputTokens: 100, generationDurationMs: 1_000, requestCount: 3 },
-      lastRequest: { timeToFirstTokenMs: 500 },
-    });
-    expect(item(container, "average-ttft")?.textContent).toContain("--");
+    expect(item(zeroStep.container, "turn-step")).toBeNull();
   });
 
   it("clamps a dirty cache read ratio to 100%", () => {
@@ -133,20 +124,20 @@ describe("ComposerTurnMetricsCapsule", () => {
     const { container } = renderCapsule({
       session: { ...sessionUsage, requestCount: 1 },
       lastRequest,
+      lastRequestTurn,
     });
     expect(item(container, "last-request-ttft")).toBeNull();
     expect(item(container, "last-request-cache-hit-rate")).toBeNull();
+    // 轮次位置描述的是最近一次请求，单请求会话仍然保留。
+    expect(item(container, "turn-step")?.textContent).toContain("第 12 轮 · 第 3 步");
   });
 
   it("formats session aggregates from CLI sums without a second aggregation", () => {
-    // CLI 已求和/计数；UI 只做除法与百分比，不做二次聚合。
+    // CLI 已求和/计数；UI 只做格式化与百分比，不做二次聚合。
     expect(
       formatComposerSessionUsage(
         {
           outputTokens: 50,
-          generationDurationMs: 2_000,
-          timeToFirstTokenTotalMs: 640,
-          timeToFirstTokenSamples: 2,
           inputTokens: 1_000,
           cacheReadTokens: 250,
           requestCount: 2,
@@ -154,8 +145,6 @@ describe("ComposerTurnMetricsCapsule", () => {
         "en-US",
       ),
     ).toEqual({
-      averageTimeToFirstToken: "0.3s",
-      averageTokensPerSecond: "25",
       inputTokens: "1,000",
       outputTokens: "50",
       cacheHitRate: "25%",
@@ -195,22 +184,36 @@ describe("ComposerTurnMetricsCapsule", () => {
 
 describe("deriveComposerTurnMetricsFact", () => {
   const usage = { ...sessionUsage };
-  const completedHeader = { kind: "turnHeader", lastRequest };
+  const completedHeader = {
+    kind: "turnHeader",
+    turnOrdinal: 12,
+    requestCount: 3,
+    lastRequest,
+  };
   const userRow = { kind: "userInput" };
 
-  it("combines the session cumulative with the latest request facts", () => {
+  it("combines the session cumulative with the latest request facts and position", () => {
     expect(deriveComposerTurnMetricsFact([userRow, completedHeader], usage)).toEqual({
       session: sessionUsage,
       lastRequest,
+      lastRequestTurn,
     });
   });
 
-  it("keeps the previous turn's last request while the new turn has none yet", () => {
+  it("keeps the previous turn's position while the new turn has none yet", () => {
     // 新主轮 header 已建但 ModelComplete 未到：lastRequest 缺席，必须回落上一轮。
-    const newRunningHeader = { kind: "turnHeader" };
+    const newRunningHeader = { kind: "turnHeader", turnOrdinal: 13 };
     expect(
       deriveComposerTurnMetricsFact([completedHeader, userRow, newRunningHeader], usage),
-    ).toEqual({ session: sessionUsage, lastRequest });
+    ).toEqual({ session: sessionUsage, lastRequest, lastRequestTurn });
+  });
+
+  it("omits the position when the header has no ordinal or step", () => {
+    const legacyHeader = { kind: "turnHeader", lastRequest };
+    expect(deriveComposerTurnMetricsFact([legacyHeader], usage)).toEqual({
+      session: sessionUsage,
+      lastRequest,
+    });
   });
 
   it("returns the session alone when no turn header carries a last request", () => {
@@ -218,7 +221,10 @@ describe("deriveComposerTurnMetricsFact", () => {
   });
 
   it("returns the last request alone when the snapshot has no session usage yet", () => {
-    expect(deriveComposerTurnMetricsFact([completedHeader])).toEqual({ lastRequest });
+    expect(deriveComposerTurnMetricsFact([completedHeader])).toEqual({
+      lastRequest,
+      lastRequestTurn,
+    });
   });
 
   it("returns null when neither source has facts", () => {

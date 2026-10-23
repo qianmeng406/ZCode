@@ -15,6 +15,10 @@ import type {
 
 interface TurnHeaderLike {
   kind: string;
+  /** 可见产品轮序号（CLI 投影分配）；旧快照缺席。 */
+  turnOrdinal?: number;
+  /** 该轮已完成的 main 请求数 = 最近一次请求所在的"步"。 */
+  requestCount?: number;
   lastRequest?: {
     outputTokens?: number;
     timeToFirstTokenMs?: number;
@@ -28,10 +32,7 @@ interface SessionUsageLike {
   inputTokens?: number;
   outputTokens?: number;
   cacheReadTokens?: number;
-  generationDurationMs?: number;
   requestCount?: number;
-  timeToFirstTokenTotalMs?: number;
-  timeToFirstTokenSamples?: number;
 }
 
 function pickSessionUsage(usage: SessionUsageLike | undefined): ComposerSessionUsage | undefined {
@@ -40,16 +41,7 @@ function pickSessionUsage(usage: SessionUsageLike | undefined): ComposerSessionU
     ...(usage.inputTokens !== undefined ? { inputTokens: usage.inputTokens } : {}),
     ...(usage.outputTokens !== undefined ? { outputTokens: usage.outputTokens } : {}),
     ...(usage.cacheReadTokens !== undefined ? { cacheReadTokens: usage.cacheReadTokens } : {}),
-    ...(usage.generationDurationMs !== undefined
-      ? { generationDurationMs: usage.generationDurationMs }
-      : {}),
     ...(usage.requestCount !== undefined ? { requestCount: usage.requestCount } : {}),
-    ...(usage.timeToFirstTokenTotalMs !== undefined
-      ? { timeToFirstTokenTotalMs: usage.timeToFirstTokenTotalMs }
-      : {}),
-    ...(usage.timeToFirstTokenSamples !== undefined
-      ? { timeToFirstTokenSamples: usage.timeToFirstTokenSamples }
-      : {}),
   };
   return Object.keys(session).length > 0 ? session : undefined;
 }
@@ -60,12 +52,19 @@ export function deriveComposerTurnMetricsFact(
 ): ComposerTurnMetricsFact | null {
   const session = pickSessionUsage(usage);
   let lastRequest: ComposerTurnMetricsFact["lastRequest"];
+  let lastRequestTurn: ComposerTurnMetricsFact["lastRequestTurn"];
   if (rows) {
     for (let index = rows.length - 1; index >= 0; index -= 1) {
       const row = rows[index];
       if (row?.kind !== "turnHeader") continue;
       if (!row.lastRequest) continue;
       lastRequest = row.lastRequest;
+      // 位置与单请求事实必须来自同一个 turnHeader：只剩一侧事实时位置留空，
+      // 不拿别的轮去拼一个看似合理的"第 N 轮"。
+      const step = row.requestCount;
+      if (row.turnOrdinal !== undefined && step !== undefined && step > 0) {
+        lastRequestTurn = { ordinal: row.turnOrdinal, step };
+      }
       break;
     }
   }
@@ -73,5 +72,6 @@ export function deriveComposerTurnMetricsFact(
   return {
     ...(session ? { session } : {}),
     ...(lastRequest ? { lastRequest } : {}),
+    ...(lastRequestTurn ? { lastRequestTurn } : {}),
   };
 }

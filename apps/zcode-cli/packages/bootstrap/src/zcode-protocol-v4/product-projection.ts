@@ -2054,6 +2054,20 @@ export class ProductProjection {
     ];
   }
 
+  /**
+   * 可见产品轮序号：投影持有全量 rows，按既有最大序号 +1 分配。
+   * 用 max+1 而不是行数，保证 hydration replay / rewind 重建后仍与既有行单调一致；
+   * 模型内部轮不调用本方法，因此它们不占号（与时间线里用户能看到的轮次一致）。
+   */
+  private nextVisibleTurnOrdinal(): number {
+    let max = 0;
+    for (const row of this.snapshot.rows.window) {
+      if (row.kind !== "turnHeader") continue;
+      if (row.turnOrdinal !== undefined && row.turnOrdinal > max) max = row.turnOrdinal;
+    }
+    return max + 1;
+  }
+
   private onTurnStarted(fact: CanonicalUserIntentFact): ConversationDelta[] {
     const event = fact.event;
     const runtimeTurnId = fact.runtimeTurnId;
@@ -2158,6 +2172,10 @@ export class ProductProjection {
       kind: "turnHeader",
       origin: fact.turnHeaderOrigin,
       executionKind: fact.executionKind,
+      // 只看可见轮：模型内部轮不占号，避免用户看到的时间线轮次被系统轮插空。
+      ...(fact.visibility === "visible"
+        ? { turnOrdinal: this.nextVisibleTurnOrdinal() }
+        : {}),
       ...(fact.sourceCommandId ? { sourceCommandId: fact.sourceCommandId } : {}),
       ...(fact.originMeta ? { originMeta: fact.originMeta } : {}),
       ...(fact.workflowLaunch ? { workflowLaunch: fact.workflowLaunch } : {}),
@@ -4055,10 +4073,14 @@ export class ProductProjection {
     this.productTurnIdByRuntimeTurnId.set(runtimeTurnId, productTurnId);
     this.runtimeTurnIdByProductTurnId.set(productTurnId, runtimeTurnId);
     this.currentProductTurnStartedAtMs = this.ms(event);
-    const header = buildTurnHeaderRow(this.rowBase(event, productTurnId, productTurnId), {
-      turnNumber: 0,
-      input: "",
-    });
+    const header = {
+      ...buildTurnHeaderRow(this.rowBase(event, productTurnId, productTurnId), {
+        turnNumber: 0,
+        input: "",
+      }),
+      // queue drain 切出的新轮来自已接纳用户输入，属于可见产品轮，占用下一个序号。
+      turnOrdinal: this.nextVisibleTurnOrdinal(),
+    };
     this.turnHeaderRowIdByTurnId.set(productTurnId, header.rowId);
     deltas.push({ op: "row.appended", row: header });
     return deltas;

@@ -2,14 +2,15 @@
  * Composer 输入框下方的会话指标卡片（单行）。
  *
  * 事实源：v4 ConversationSnapshot。
- * - 前半段是**会话级**累计：`usage.cumulative` 的 token / 请求数 / 生成时长 / TTFT 采样，
+ * - 前半段是**会话级**累计：`usage.cumulative` 的 token / 缓存读 / 请求数，
  *   由 CLI 投影在权威 ModelComplete 处累加（仅 main_turn）；
- * - 后半段是**单请求**事实：最近一个带 `lastRequest` 的 turnHeader。
+ * - 后半段是**单请求**事实：最近一个带 `lastRequest` 的 turnHeader；
+ * - 轮次位置（第 N 轮 · 第 M 步）与单请求事实取自同一个 turnHeader。
  * 本组件只做格式化与呈现：不维护第二份状态、不做浏览器时钟估算、不用字符数冒充 token。
  *
- * 排版：一行八段——会话五项（平均首 token / 平均速度 / 总输入 / 总输出 / 缓存命中率），
- * 竖线后接上次请求三项（首 token / 速度 / 缓存命中率）。会话五项恒定渲染，缺值 `--`；
- * 会话只有一次请求时上次请求与前半段完全重复，直接隐藏。
+ * 排版：一行——轮次位置 + 会话三项（总输入 / 总输出 / 缓存命中率），
+ * 竖线后接上次请求三项（首 token / 速度 / 缓存命中率）。会话三项恒定渲染，缺值 `--`；
+ * 轮次位置缺任一侧事实时整段不渲染；会话只有一次请求时上次请求组隐藏。
  */
 import { memo, useCallback, useMemo } from "react";
 import { useZCodeIntl } from "@/i18n/IntlProvider.js";
@@ -33,10 +34,7 @@ export interface ComposerSessionUsage {
   inputTokens?: number;
   outputTokens?: number;
   cacheReadTokens?: number;
-  generationDurationMs?: number;
   requestCount?: number;
-  timeToFirstTokenTotalMs?: number;
-  timeToFirstTokenSamples?: number;
 }
 
 export interface ComposerTurnMetricsFact {
@@ -44,11 +42,11 @@ export interface ComposerTurnMetricsFact {
   session?: ComposerSessionUsage;
   /** 最近一次 main model request 的单请求事实（覆盖，不累计）。 */
   lastRequest?: ComposerLastRequestMetrics;
+  /** 上次请求所在的产品轮位置；与 lastRequest 同源，缺一侧事实时不渲染。 */
+  lastRequestTurn?: { ordinal: number; step: number };
 }
 
 export interface TurnMetricsDisplay {
-  averageTimeToFirstToken: string | null;
-  averageTokensPerSecond: string | null;
   inputTokens: string | null;
   outputTokens: string | null;
   cacheHitRate: string | null;
@@ -141,17 +139,8 @@ function formatCacheHitRate(
 }
 
 /**
- * 会话平均首 token = TTFT 总和 / 有效采样数。
- * 两个字段都缺席时返回 undefined：宁可显示不可用，也不拿某个请求的耗时冒充会话均值。
+ * 会话是否已有可用累计：旧快照只有 token 字段、没有 requestCount。
  */
-function resolveAverageTtftMs(session: ComposerSessionUsage | undefined): number | undefined {
-  const total = session?.timeToFirstTokenTotalMs;
-  const samples = session?.timeToFirstTokenSamples;
-  if (total === undefined || samples === undefined || samples <= 0) return undefined;
-  return total / samples;
-}
-
-/** 会话是否已有可用累计：旧快照只有 token 字段、没有 requestCount。 */
 function hasSessionUsage(session: ComposerSessionUsage | undefined): boolean {
   if (!session) return false;
   return (
@@ -167,8 +156,6 @@ export function formatComposerSessionUsage(
 ): TurnMetricsDisplay {
   if (!session || !hasSessionUsage(session)) {
     return {
-      averageTimeToFirstToken: null,
-      averageTokensPerSecond: null,
       inputTokens: null,
       outputTokens: null,
       cacheHitRate: null,
@@ -176,7 +163,6 @@ export function formatComposerSessionUsage(
       outputTokensExact: null,
     };
   }
-  const averageTtftMs = resolveAverageTtftMs(session);
   const inputTokens =
     session.inputTokens !== undefined && session.inputTokens > 0
       ? formatTokenCount(session.inputTokens, locale)
@@ -186,17 +172,6 @@ export function formatComposerSessionUsage(
       ? formatTokenCount(session.outputTokens, locale)
       : null;
   return {
-    averageTimeToFirstToken:
-      averageTtftMs !== undefined && averageTtftMs >= 0
-        ? formatDurationMs(averageTtftMs, locale)
-        : null,
-    // speed = sum(outputTokens) / sum(generationDurationMs)，跨请求同口径聚合；
-    // 分母缺失或为 0 时不展示导数，宁可显示不可用也不估算。
-    averageTokensPerSecond: formatTokensPerSecond(
-      session.outputTokens,
-      session.generationDurationMs,
-      locale,
-    ),
     inputTokens,
     outputTokens,
     cacheHitRate: formatCacheHitRate(session.cacheReadTokens, session.inputTokens, locale),
@@ -253,21 +228,22 @@ export const ComposerTurnMetricsCapsule = memo(function ComposerTurnMetricsCapsu
     [intl],
   );
 
+  // 轮次位置只由事实派生：turnOrdinal / requestCount 必须同时在场，
+  // 否则整段留空——不按窗口行数或时间戳猜一个"第 N 轮"。
+  const turnStepText = useMemo(() => {
+    const position = fact?.lastRequestTurn;
+    // 序号与步数都必须是正整数；不合法的输入整段不渲染，不产出"第 0 轮"。
+    if (!position || position.ordinal <= 0 || position.step <= 0) return null;
+    return intl.formatMessage(
+      { id: "chat.composer.turnMetrics.turnStep" },
+      { turn: String(position.ordinal), step: String(position.step) },
+    );
+  }, [fact?.lastRequestTurn, intl]);
+
   const sessionItems = useMemo<MetricItem[]>(() => {
     const display = formatComposerSessionUsage(fact?.session, locale);
-    // 五项恒定渲染：缺值是明确的 `--` 占位，不显示假 live 值，行宽也不随事实到达跳动。
+    // 三项恒定渲染：缺值是明确的 `--` 占位，不显示假 live 值，行宽也不随事实到达跳动。
     return [
-      {
-        key: "average-ttft",
-        label: label("averageTtft"),
-        value: display.averageTimeToFirstToken ?? UNAVAILABLE_PLACEHOLDER,
-      },
-      {
-        key: "average-tokens-per-second",
-        label: label("averageSpeed"),
-        value: display.averageTokensPerSecond ?? UNAVAILABLE_PLACEHOLDER,
-        ...(display.averageTokensPerSecond !== null ? { suffix: " tok/s" } : {}),
-      },
       {
         key: "input-tokens",
         label: label("totalInput"),
@@ -329,6 +305,14 @@ export const ComposerTurnMetricsCapsule = memo(function ComposerTurnMetricsCapsu
         className,
       )}
     >
+      {turnStepText ? (
+        <span
+          data-testid={testId(TID_COMPOSER_TURN_METRICS_ITEM, "turn-step")}
+          className="inline-flex shrink-0 items-baseline whitespace-nowrap tabular-nums text-foreground-subtle"
+        >
+          {turnStepText}
+        </span>
+      ) : null}
       {sessionItems.map((item) => (
         <TurnMetricsItem key={item.key} item={item} />
       ))}
