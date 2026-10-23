@@ -35,3 +35,10 @@ Installed Strip 排序时，内置/inline 插件必须整体排在市场安装�
 
 当前内置插件：`android-emulator`、`document-skills`、`ios-simulator`、
 `restore-legacy-sessions`、`skill-creator`、`zcode-guide`。
+
+## 本地市场的内联图标
+
+开发市场没有 CDN 可挂图标，因此 `listing.icon` 除 HTTPS 外还接受
+`data:image/{png,jpeg,webp,gif,svg+xml};base64,...`（≤64 KiB），由
+`resolvePluginIconSource` / `isTrustedPluginIconUrl` 放行。`<img>` 中的 data: 图片
+不执行脚本，边界仍是“只允许图片”；官方 CDN 优先、内置图标覆盖、缺省回退的行为不变。

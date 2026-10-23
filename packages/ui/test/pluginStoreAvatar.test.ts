@@ -51,4 +51,34 @@ describe("PluginStoreAvatar", () => {
     expect(html).toContain('src="https://cdn.example.com/example.png"');
     expect(html).not.toContain("lucide-blocks");
   });
+
+  it("accepts an inline image icon from a local marketplace listing", () => {
+    const inlineIcon = `data:image/svg+xml;base64,${Buffer.from(
+      '<svg xmlns="http://www.w3.org/2000/svg"></svg>',
+    ).toString("base64")}`;
+    const html = renderToStaticMarkup(
+      createElement(PluginStoreAvatar, {
+        item: { name: "example-plugin", listing: { icon: inlineIcon } },
+      }),
+    );
+
+    expect(html).toContain(inlineIcon);
+    expect(html).not.toContain("lucide-blocks");
+  });
+
+  it("rejects non-image data URLs and oversized inline icons", () => {
+    for (const icon of [
+      "data:text/html;base64,PHNjcmlwdD4=",
+      `data:image/svg+xml;base64,${"A".repeat(70 * 1024)}`,
+    ]) {
+      const html = renderToStaticMarkup(
+        createElement(PluginStoreAvatar, {
+          item: { name: "example-plugin", listing: { icon } },
+        }),
+      );
+
+      expect(html).not.toContain("data:");
+      expect(html).toContain("lucide-blocks");
+    }
+  });
 });
