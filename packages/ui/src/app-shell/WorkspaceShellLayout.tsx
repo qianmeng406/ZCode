@@ -1,7 +1,19 @@
 /* eslint-disable max-lines -- workspace shell 当前集中编排 sidebar、chat、terminal 和 browser pane 的布局联动，先保持单文件收口，避免为满足行数限制打散关键布局状态。*/
-import { memo, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
+import {
+  Suspense,
+  lazy,
+  memo,
+  useCallback,
+  useEffect,
+  useLayoutEffect,
+  useMemo,
+  useRef,
+  useState,
+} from "react";
 import type {
+  ComponentProps,
   CSSProperties,
+  ReactElement,
   ReactNode,
   KeyboardEvent as ReactKeyboardEvent,
   PointerEvent as ReactPointerEvent,
@@ -50,14 +62,16 @@ import { useIsOfficeMode } from "@/hooks/useInterfaceMode.js";
 import { GitBranchSwitcher } from "@/GitBranchSwitcher.js";
 import { ScopedErrorBoundary } from "@/ErrorBoundary.js";
 
-import { AUTOMATIONS_TOAST_ANCHOR_ID, AutomationsSection } from "@/settings/AutomationsSection.js";
+import { AUTOMATIONS_TOAST_ANCHOR_ID } from "@/settings/automationsAnchor.js";
 import type {
   SavedWorkflowLaunchTarget,
   SavedWorkflowsOpenArtifactParams,
   SavedWorkflowsOpenRunParams,
 } from "@/settings/saved-workflows/SavedWorkflowsSection.js";
-import { AutomationsMainBreadcrumbFrame } from "@/settings/AutomationsMainBreadcrumbFrame.js";
-import { PluginStorePage } from "@/settings/PluginStorePage.js";
+import {
+  AutomationsBreadcrumbBoundary,
+  PluginStorePageBoundary,
+} from "@/app-shell/lazyWorkspaceViews.js";
 import { TaskFindDialog } from "@/quickpick/TaskFindDialog.js";
 import { WebRemoteControlMobileShell } from "@/WebRemoteControlMobileShell.js";
 import { resolveTopOverlayLeadingPaddingClass, WorkspaceHeader } from "@/WorkspaceHeader.js";
@@ -116,6 +130,22 @@ import { isWorkspaceTab } from "@/store/tabStore.js";
 import { useTabStore, useTabStoreApi } from "@/store/TabStoreProvider.js";
 import { useZCodeSessionStore } from "@/store/zcodeSessionStore.js";
 import type { ComposerMentionPrefill } from "@/store/zcodeSessionStoreTypes.js";
+
+// 自动化页依赖编辑器、定时规则与插件能力，只有切到自动化 tab 才需要，按需加载。
+const LazyAutomationsSection = lazy(async () => {
+  const module = await import("@/settings/AutomationsSection.js");
+  return { default: module.AutomationsSection };
+});
+
+function AutomationsSectionBoundary(
+  props: ComponentProps<typeof LazyAutomationsSection>,
+): ReactElement {
+  return (
+    <Suspense fallback={null}>
+      <LazyAutomationsSection {...props} />
+    </Suspense>
+  );
+}
 
 const WEB_REMOTE_CONTROL_MOBILE_QUERY = "(max-width: 767px)";
 const WEB_REMOTE_CONTROL_COLLAPSE_ONCE_SESSION_KEY =
@@ -2085,7 +2115,7 @@ const WorkspaceShellLayoutContent = memo(function WorkspaceShellLayoutComponent(
               id={AUTOMATIONS_TOAST_ANCHOR_ID}
               className="flex h-full min-h-0 flex-1 flex-col bg-background"
             >
-              <AutomationsMainBreadcrumbFrame
+              <AutomationsBreadcrumbBoundary
                 isDesktop={Boolean(isDesktop)}
                 sectionLabel={intl.formatMessage({
                   id: "settings.automations.title",
@@ -2106,7 +2136,7 @@ const WorkspaceShellLayoutContent = memo(function WorkspaceShellLayoutComponent(
                     className="min-h-full"
                   >
                     <div className="mx-auto flex w-full max-w-5xl flex-col px-4 py-4 md:px-6 md:py-6">
-                      <AutomationsSection
+                      <AutomationsSectionBoundary
                         workspacePath={workspaceAbsPath}
                         workspaceIdentity={workspaceIdentity}
                         onCreateViaChat={handleCreateAutomationInChat}
@@ -2125,11 +2155,11 @@ const WorkspaceShellLayoutContent = memo(function WorkspaceShellLayoutComponent(
                     </div>
                   </ScopedErrorBoundary>
                 </div>
-              </AutomationsMainBreadcrumbFrame>
+              </AutomationsBreadcrumbBoundary>
             </main>
           ) : workspaceMainView === "plugin-store" && !isWebRemoteControlShell ? (
             <main className="flex h-full min-h-0 flex-1 flex-col bg-background">
-              <AutomationsMainBreadcrumbFrame
+              <AutomationsBreadcrumbBoundary
                 isDesktop={Boolean(isDesktop)}
                 sectionLabel={intl.formatMessage({
                   id: "workspace.openPluginsSettings",
@@ -2140,7 +2170,7 @@ const WorkspaceShellLayoutContent = memo(function WorkspaceShellLayoutComponent(
               >
                 <div className="min-h-0 flex-1 overflow-y-auto [scrollbar-gutter:stable]">
                   <div className="mx-auto flex w-full max-w-4xl flex-col px-4 py-4 md:px-6 md:py-6">
-                    <PluginStorePage
+                    <PluginStorePageBoundary
                       isDesktop={isDesktop}
                       isMacDesktop={isMacDesktop}
                       isWindowsDesktop={isWindowsDesktop}
@@ -2156,7 +2186,7 @@ const WorkspaceShellLayoutContent = memo(function WorkspaceShellLayoutComponent(
                     />
                   </div>
                 </div>
-              </AutomationsMainBreadcrumbFrame>
+              </AutomationsBreadcrumbBoundary>
             </main>
           ) : (
             <div className="relative flex h-full min-h-0 min-w-0 flex-1 flex-col">
@@ -2514,7 +2544,7 @@ const WorkspaceShellLayoutContent = memo(function WorkspaceShellLayoutComponent(
                             id={AUTOMATIONS_TOAST_ANCHOR_ID}
                             className="flex h-full min-h-0 flex-1 flex-col bg-background"
                           >
-                            <AutomationsMainBreadcrumbFrame
+                            <AutomationsBreadcrumbBoundary
                               isDesktop={Boolean(isDesktop)}
                               sectionLabel={intl.formatMessage({
                                 id: "settings.automations.title",
@@ -2535,7 +2565,7 @@ const WorkspaceShellLayoutContent = memo(function WorkspaceShellLayoutComponent(
                                   className="min-h-full"
                                 >
                                   <div className="mx-auto flex w-full max-w-5xl flex-col px-4 py-4 md:px-6 md:py-6">
-                                    <AutomationsSection
+                                    <AutomationsSectionBoundary
                                       workspacePath={workspaceAbsPath}
                                       workspaceIdentity={workspaceIdentity}
                                       onCreateViaChat={handleCreateAutomationInChat}
@@ -2562,11 +2592,11 @@ const WorkspaceShellLayoutContent = memo(function WorkspaceShellLayoutComponent(
                                   </div>
                                 </ScopedErrorBoundary>
                               </div>
-                            </AutomationsMainBreadcrumbFrame>
+                            </AutomationsBreadcrumbBoundary>
                           </main>
                         ) : workspaceMainView === "plugin-store" && !isWebRemoteControlShell ? (
                           <main className="flex h-full min-h-0 flex-1 flex-col bg-background">
-                            <AutomationsMainBreadcrumbFrame
+                            <AutomationsBreadcrumbBoundary
                               isDesktop={Boolean(isDesktop)}
                               sectionLabel={intl.formatMessage({
                                 id: "workspace.openPluginsSettings",
@@ -2577,7 +2607,7 @@ const WorkspaceShellLayoutContent = memo(function WorkspaceShellLayoutComponent(
                             >
                               <div className="min-h-0 flex-1 overflow-y-auto [scrollbar-gutter:stable]">
                                 <div className="mx-auto flex w-full max-w-4xl flex-col px-4 py-4 md:px-6 md:py-6">
-                                  <PluginStorePage
+                                  <PluginStorePageBoundary
                                     isDesktop={isDesktop}
                                     isMacDesktop={isMacDesktop}
                                     isWindowsDesktop={isWindowsDesktop}
@@ -2591,7 +2621,7 @@ const WorkspaceShellLayoutContent = memo(function WorkspaceShellLayoutComponent(
                                   />
                                 </div>
                               </div>
-                            </AutomationsMainBreadcrumbFrame>
+                            </AutomationsBreadcrumbBoundary>
                           </main>
                         ) : (
                           <main className="relative flex h-full min-h-0 flex-1 flex-col overflow-hidden">

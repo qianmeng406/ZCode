@@ -1,4 +1,5 @@
 import { useCodingPlanEntryGate } from "@/settings/CodingPlanEntryButton.js";
+import { AUTOMATIONS_TOAST_ANCHOR_ID } from "@/settings/automationsAnchor.js";
 /* eslint-disable max-lines -- 定时任务主视图集中维护列表、创建/编辑整页路由与启停/删除操作，集中更利于交互一致。 */
 import {
   useCallback,
@@ -174,7 +175,7 @@ interface AutomationsSectionProps {
   }) => void;
 }
 
-export const AUTOMATIONS_TOAST_ANCHOR_ID = "automations-main-toast-anchor";
+export { AUTOMATIONS_TOAST_ANCHOR_ID };
 
 function toast(message: string, options?: ToastOptions): number {
   return showToast(message, {

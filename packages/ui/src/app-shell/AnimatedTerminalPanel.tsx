@@ -1,12 +1,17 @@
-import { useCallback, useEffect, useState } from "react";
+import { lazy, Suspense, useCallback, useEffect, useState } from "react";
 import type { PointerEvent as ReactPointerEvent } from "react";
 import type { RefObject } from "react";
 import type { PanelImperativeHandle } from "react-resizable-panels";
 import type { IServiceAccessor } from "@zcode/services";
-import { Terminal } from "@/Terminal.js";
 import { ScopedErrorBoundary } from "@/ErrorBoundary.js";
 import { cn } from "@/components/lib/utils.js";
 import { ResizableHandle, ResizablePanel } from "@/components/ui/resizable.js";
+
+// xterm 及其 addon 只在终端面板首次展开时才有意义；静态导入会把它带进应用入口包。
+const LazyTerminal = lazy(async () => {
+  const module = await import("@/Terminal.js");
+  return { default: module.Terminal };
+});
 
 export function AnimatedTerminalPanel({
   services,
@@ -133,17 +138,19 @@ export function AnimatedTerminalPanel({
                 variant="panel"
                 className="h-full"
               >
-                <Terminal
-                  services={services}
-                  cwd={workspaceAbsPath}
-                  workspaceIdentity={workspaceIdentity}
-                  openWorkspaceKeys={openWorkspaceKeys}
-                  isVisible={isVisible}
-                  isPanelResizing={isTerminalPanelResizing}
-                  isWindowsDesktop={isWindowsDesktop}
-                  onClose={onClose}
-                  onOpenBrowserUrl={onOpenBrowserUrl}
-                />
+                <Suspense fallback={null}>
+                  <LazyTerminal
+                    services={services}
+                    cwd={workspaceAbsPath}
+                    workspaceIdentity={workspaceIdentity}
+                    openWorkspaceKeys={openWorkspaceKeys}
+                    isVisible={isVisible}
+                    isPanelResizing={isTerminalPanelResizing}
+                    isWindowsDesktop={isWindowsDesktop}
+                    onClose={onClose}
+                    onOpenBrowserUrl={onOpenBrowserUrl}
+                  />
+                </Suspense>
               </ScopedErrorBoundary>
             </div>
           ) : null}

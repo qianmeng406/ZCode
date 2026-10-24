@@ -234,6 +234,10 @@ export default defineConfig(({ mode }) => {
     build: {
       outDir: "../../out/renderer",
       emptyOutDir: true,
+      // 默认的 modulepreload 会给入口能到达的每个动态 chunk 都插入 <link>，
+      // 于是设置页、终端、图标这些按需代码在启动时就被全部读盘并解析。
+      // Electron 从本地 file:// 加载，预取没有收益，按需加载才是这里的语义。
+      modulePreload: false,
       // 生产包若直接暴露 sourceMappingURL，攻击者可在客户端侧还原业务源码。
       // 生产使用 hidden sourcemap：本地/发布流程保留 .map，不在产物里暴露映射入口。
       sourcemap: mode === "production" ? "hidden" : true,

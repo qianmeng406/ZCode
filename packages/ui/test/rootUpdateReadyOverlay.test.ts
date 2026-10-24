@@ -348,7 +348,9 @@ describe("Root update ready overlay", () => {
 
     const html = renderRoot();
 
-    expect(html).toContain('data-testid="settings-page"');
+    // 设置页按需加载：静态渲染只能看到 Suspense 占位，真正内容由异步 chunk 渲染。
+    expect(html).toContain('data-testid="settings-page-loading"');
+    expect(html).not.toContain('data-testid="settings-page"');
     expect(html).not.toContain('data-testid="update-ready-button"');
   });
 });

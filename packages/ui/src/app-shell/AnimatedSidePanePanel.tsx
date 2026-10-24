@@ -1,7 +1,17 @@
 /* eslint-disable max-lines -- Side pane 当前集中承载 tabs、browser/git/code-viewer 内容；完整拆分需按 pane 功能边界继续推进。 */
 import type { CreateTaskRequest } from "@/app-shell/types.js";
 import { ServiceProvider, useComposerClientNamespace } from "@/hooks/useServices.js";
-import { useEffect, useMemo, useRef, useState, type CSSProperties, type RefObject } from "react";
+import {
+  Suspense,
+  lazy,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+  type ComponentProps,
+  type CSSProperties,
+  type RefObject,
+} from "react";
 import type { PanelImperativeHandle } from "react-resizable-panels";
 import type { IServiceAccessor } from "@zcode/services";
 import {
@@ -16,13 +26,18 @@ import {
 } from "@dnd-kit/core";
 import { horizontalListSortingStrategy, SortableContext } from "@dnd-kit/sortable";
 import type { BrowserViewScreenshotSurfacePreparePayload, GitChangeSourceId } from "@zcode/shared";
-import { FileManagerPane } from "@/WorkspaceFileTree.js";
+
 import type { FileManagerTarget } from "@/lib/workspaceSidePane.js";
 import { useZCodeSessionStore } from "@/store/zcodeSessionStore.js";
 import { composerScopeKey, resolveComposerScope } from "@/v4/composer/composerDraftStore.js";
-import { SidePaneTerminalPane } from "@/SidePaneTerminalPane.js";
 import { useIsOfficeMode } from "@/hooks/useInterfaceMode.js";
 import { WorkspaceSidePaneToggleButton } from "@/WorkspaceSidePaneToggleButton.js";
+import {
+  FileManagerPaneBoundary,
+  GitPaneBoundary,
+  ModelTrajectoryPaneBoundary,
+} from "@/app-shell/lazySidePaneViews.js";
+import { PluginStorePageBoundary } from "@/app-shell/lazyWorkspaceViews.js";
 import {
   SIDE_PANE_FULL_VIEW_CONVERSATION_TAB_VALUE,
   SidePaneFullViewConversationTab,
@@ -35,11 +50,10 @@ import { BrowserSitePermissionsPage } from "@/browser-use/BrowserSitePermissions
 import { findScreenshotSurfaceTabForRender } from "@/browser-use/useBrowserScreenshotSurfaceRequest.js";
 import { HumanBrowserView } from "@/browser-use/HumanBrowserView.js";
 import { ScopedErrorBoundary } from "@/ErrorBoundary.js";
-import { GitPane } from "@/GitPane.js";
+
 import { TreemappingPane } from "@/TreemappingPane.js";
 import { WhiteboardPane } from "@/WhiteboardPane.js";
-import { ModelTrajectoryPane } from "@/ModelTrajectoryPane.js";
-import { PluginStorePage } from "@/settings/PluginStorePage.js";
+
 import { DeveloperToolsPane } from "@/DeveloperToolsPane.js";
 import { cn } from "@/components/lib/utils.js";
 import { Button } from "@/components/ui/button.js";
@@ -120,6 +134,20 @@ import {
   SquareTerminalIcon,
   type LucideIcon,
 } from "lucide-react";
+
+// 侧栏终端依赖 xterm 与其 addon；只有用户打开终端 tab 时才需要，按需加载。
+const LazySidePaneTerminalPane = lazy(async () => {
+  const module = await import("@/SidePaneTerminalPane.js");
+  return { default: module.SidePaneTerminalPane };
+});
+
+function SidePaneTerminalPaneBoundary(props: ComponentProps<typeof LazySidePaneTerminalPane>) {
+  return (
+    <Suspense fallback={null}>
+      <LazySidePaneTerminalPane {...props} />
+    </Suspense>
+  );
+}
 
 const SIDE_PANE_CONTENT_WIDTH_LOCK_DURATION_MS = 200;
 const PREVIEW_PANE_RESIZE_SETTLE_DELAY_MS = 220;
@@ -1316,7 +1344,7 @@ export function AnimatedSidePanePanel({
                             onOpenCodeViewer={onOpenCodeViewer}
                           />
                         ) : tab.type === "code-viewer" || tab.type === "file-manager" ? (
-                          <FileManagerPane
+                          <FileManagerPaneBoundary
                             markdownSelectionTarget={{
                               sessionId: activeTaskId,
                               workspaceKey,
@@ -1360,7 +1388,7 @@ export function AnimatedSidePanePanel({
                             })}
                           />
                         ) : tab.type === "git" ? (
-                          <GitPane
+                          <GitPaneBoundary
                             workspacePath={workspaceAbsPath}
                             workspaceIdentity={workspaceIdentity}
                             workspaceRemoteSessionId={workspaceRemoteSessionId}
@@ -1392,7 +1420,7 @@ export function AnimatedSidePanePanel({
                             boardId={tab.boardId}
                           />
                         ) : tab.type === "model-trajectory" ? (
-                          <ModelTrajectoryPane
+                          <ModelTrajectoryPaneBoundary
                             taskId={tab.taskId}
                             title={tab.title}
                             workspacePath={workspaceAbsPath}
@@ -1404,7 +1432,7 @@ export function AnimatedSidePanePanel({
                         ) : tab.type === "plugin-market" ? (
                           <ServiceProvider services={services}>
                             <div className="h-full min-w-0 overflow-y-auto p-4">
-                              <PluginStorePage
+                              <PluginStorePageBoundary
                                 onBack={
                                   marketReturnTarget?.workspaceKey === workspaceKey &&
                                   marketReturnTarget.ownerId === (sidePaneOwnerId ?? null)
@@ -1443,7 +1471,7 @@ export function AnimatedSidePanePanel({
                             />
                           </ServiceProvider>
                         ) : tab.type === "terminal" ? (
-                          <SidePaneTerminalPane
+                          <SidePaneTerminalPaneBoundary
                             services={services}
                             sessionId={tab.id}
                             workspaceKey={workspaceKey}

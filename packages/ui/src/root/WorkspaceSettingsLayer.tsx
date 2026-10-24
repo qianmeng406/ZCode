@@ -1,7 +1,7 @@
-import { useEffect } from "react";
-import { SettingsPage } from "@/SettingsPage.js";
+import { Suspense, useEffect } from "react";
 import { ServiceProvider } from "@/hooks/useServices.js";
 import { logger } from "@/logger.js";
+import { LazySettingsPage, SettingsPageLoading } from "@/root/lazySettingsPage.js";
 import type { WorkspaceSettingsLayerProps } from "@/root/types.js";
 
 export function WorkspaceSettingsLayer({
@@ -32,7 +32,28 @@ export function WorkspaceSettingsLayer({
     <div className="absolute inset-0 z-10">
       {workspaceScopedServices ? (
         <ServiceProvider services={workspaceScopedServices}>
-          <SettingsPage
+          <Suspense fallback={<SettingsPageLoading />}>
+            <LazySettingsPage
+              isDesktop={isDesktop}
+              isMacDesktop={isMacDesktop}
+              isWindowsDesktop={isWindowsDesktop}
+              isWebRemoteControl={isWebRemoteControl}
+              windowsWindowControlsRightPaddingPx={windowsWindowControlsRightPaddingPx}
+              captionWorkspacePath={captionWorkspacePath}
+              onBack={onBack}
+              onCreateTask={onCreateTask}
+              onOpenWorkspace={onOpenWorkspace}
+              onOpenRemoteWorkspace={onOpenRemoteWorkspace}
+              allowOpenWorkspace={allowOpenWorkspace}
+              onLogin={onLogin}
+              onLogout={onLogout}
+              user={user}
+            />
+          </Suspense>
+        </ServiceProvider>
+      ) : (
+        <Suspense fallback={<SettingsPageLoading />}>
+          <LazySettingsPage
             isDesktop={isDesktop}
             isMacDesktop={isMacDesktop}
             isWindowsDesktop={isWindowsDesktop}
@@ -48,24 +69,7 @@ export function WorkspaceSettingsLayer({
             onLogout={onLogout}
             user={user}
           />
-        </ServiceProvider>
-      ) : (
-        <SettingsPage
-          isDesktop={isDesktop}
-          isMacDesktop={isMacDesktop}
-          isWindowsDesktop={isWindowsDesktop}
-          isWebRemoteControl={isWebRemoteControl}
-          windowsWindowControlsRightPaddingPx={windowsWindowControlsRightPaddingPx}
-          captionWorkspacePath={captionWorkspacePath}
-          onBack={onBack}
-          onCreateTask={onCreateTask}
-          onOpenWorkspace={onOpenWorkspace}
-          onOpenRemoteWorkspace={onOpenRemoteWorkspace}
-          allowOpenWorkspace={allowOpenWorkspace}
-          onLogin={onLogin}
-          onLogout={onLogout}
-          user={user}
-        />
+        </Suspense>
       )}
     </div>
   );

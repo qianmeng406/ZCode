@@ -42,7 +42,6 @@ import { useTokenRefresh } from "@/hooks/useTokenRefresh.js";
 import { useWorkspaceServices } from "@/hooks/useWorkspaceServices.js";
 import { useZCodeIntl } from "@/i18n/IntlProvider.js";
 import { SSHDialog } from "@/SSHDialog.js";
-import { SettingsPage } from "@/SettingsPage.js";
 import { setPendingSettingsSectionIntent } from "@/lib/settingsNavigation.js";
 import { CodingPlanUpgradeDialogProvider } from "@/settings/CodingPlanUpgradeDialogProvider.js";
 import { RewardsProvider } from "@/rewards/RewardsProvider.js";
@@ -105,6 +104,7 @@ import { MarketingTouchProvider } from "@/components/marketing-touch/MarketingTo
 import { setUiPerfArmsReporter } from "@/lib/uiPerfArmsTelemetry.js";
 import { setSessionOpenArmsReporter } from "@/lib/sessionOpenArmsTelemetry.js";
 import { setSendFunnelArmsReporter } from "@/lib/sendFunnelArmsTelemetry.js";
+import { LazySettingsPage, SettingsPageLoading } from "@/root/lazySettingsPage.js";
 import { RootStartupLoading } from "@/root/RootStartupLoading.js";
 import { resolveProviderAvailabilityState } from "@/lib/modelProviderAvailability.js";
 import { useProviderAvailabilityLoginEntryGuard } from "@/root/useProviderAvailabilityLoginEntryGuard.js";
@@ -1524,7 +1524,9 @@ function RootInner({
           variant="panel"
           className="h-full"
         >
-          <SettingsPage {...settingsLayerProps} />
+          <Suspense fallback={<SettingsPageLoading />}>
+            <LazySettingsPage {...settingsLayerProps} />
+          </Suspense>
         </ScopedErrorBoundary>
       </RootShell>
     );
@@ -1579,7 +1581,9 @@ function RootInner({
               variant="panel"
               className="h-full"
             >
-              <SettingsPage {...settingsLayerProps} />
+              <Suspense fallback={<SettingsPageLoading />}>
+                <LazySettingsPage {...settingsLayerProps} />
+              </Suspense>
             </ScopedErrorBoundary>
           ) : null
         ) : (
