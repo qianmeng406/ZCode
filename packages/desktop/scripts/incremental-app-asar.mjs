@@ -14,6 +14,7 @@ import { pathToFileURL } from "node:url";
 import { runCommand } from "../../../scripts/spawn-command.mjs";
 import { replaceAppAsarFromStaging } from "./app-asar-repack.mjs";
 import { resolveDesktopProductIdentity } from "./desktop-product-identity.mjs";
+import { createPackagedPackageJson } from "./packaging-app-metadata.mjs";
 import {
   collectPackagingRuntimeModules,
   createRuntimeModuleLookupRoots,
@@ -151,7 +152,13 @@ export async function refreshPackagedAppAsar({
   logger.log("[incremental] 刷新 out/ 与 package.json");
   rmSync(resolve(appDir, "out"), { force: true, recursive: true });
   cpSync(sourceOutDir, resolve(appDir, "out"), { recursive: true });
-  cpSync(resolve(desktopRoot, "package.json"), resolve(appDir, "package.json"));
+  // 不能直接 copy 源 package.json：它没有 version，运行时靠 electron-builder 的
+  // extraMetadata 注入。缺了它 app.getVersion() 会退化到 exe 的四段文件版本。
+  const sourcePackageJson = JSON.parse(readFileSync(resolve(desktopRoot, "package.json"), "utf8"));
+  writeFileSync(
+    resolve(appDir, "package.json"),
+    `${JSON.stringify(createPackagedPackageJson(sourcePackageJson), null, 2)}\n`,
+  );
 
   const lookupRoots = createRuntimeModuleLookupRoots({
     desktopRoot,

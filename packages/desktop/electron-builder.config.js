@@ -10,6 +10,7 @@ import { loadBuiltinProviderConfig } from "../../scripts/builtin-provider-config
 import { noticesFileName, stageElectronNotices } from "../../scripts/third-party-notices.mjs";
 import { resolveNativeSearchReleasePlan } from "../../scripts/native-search-tools-config.mjs";
 import { getBuildMetadata } from "./scripts/build-metadata.mjs";
+import { createPackagedExtraMetadata } from "./scripts/packaging-app-metadata.mjs";
 import {
   collectPackagingRuntimeModules,
   createRuntimeModuleLookupRoots,
@@ -585,15 +586,8 @@ export default {
   appId: desktopProductIdentity.appId,
   // Linux deb 打包（fpm）会校验 package metadata 中的 homepage、author.email、maintainer。
   // CI 环境下若这些字段缺失会在产物阶段直接失败。这里统一在构建配置补齐，避免依赖外部注入。
-  extraMetadata: {
-    version: buildMetadata.appVersion,
-    zcodeProductFlavor: desktopProductIdentity.flavor,
-    homepage: "https://zcode.z.ai",
-    author: {
-      name: "ZCode",
-      email: "dev@zcode.z.ai",
-    },
-  },
+  // 增量打包也要写同一份元数据，所以统一由 createPackagedExtraMetadata 提供。
+  extraMetadata: createPackagedExtraMetadata({ buildMetadata, identity: desktopProductIdentity }),
   // macOS 签名阶段会对 Electron Framework 下每个语言包逐个 codesign。
   // 默认全量语言会产生大量 locale.pak 签名调用，显著拉长打包时长。
   // 这里仅保留当前产品必需语言，减少签名文件数并缩短 CI 总耗时。
