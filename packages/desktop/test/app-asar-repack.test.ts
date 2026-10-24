@@ -24,6 +24,8 @@ describe("app asar repack", () => {
       const oldUnpackedPath = `${appAsarPath}.unpacked`;
       mkdirSync(targetPrebuildDir, { recursive: true });
       mkdirSync(oldUnpackedPath, { recursive: true });
+      // 换包第一步是把旧 archive 改名挪走，fixture 需要提供真实的 app.asar。
+      writeFileSync(appAsarPath, "old-archive");
       writeFileSync(resolve(targetPrebuildDir, "pty.node"), "native-binary");
       writeFileSync(resolve(targetPrebuildDir, "spawn-helper"), "helper-binary");
       writeFileSync(resolve(oldUnpackedPath, "stale-native.node"), "stale");

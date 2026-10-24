@@ -54,10 +54,26 @@ export async function replaceAppAsarFromStaging({
     }
 
     // 先完整生成候选文件，再替换旧 archive 和 sidecar；不会把上一次打包的跨平台 native 留在 unpacked。
+    // 第一步就把旧 app.asar 改名挪走：改名只需要 DELETE 权限，比 rm+rename 更容易成功；
+    // 若产物正被运行中的应用占用（EBUSY/EPERM），在这里就失败，unpacked 与 archive 都还没动，
+    // 不会留下「新 unpacked + 旧 asar」的半换状态。
+    const retiredAsarPath = `${appAsarPath}.retired`;
+    await rm(retiredAsarPath, { force: true, recursive: true });
+    try {
+      await rename(appAsarPath, retiredAsarPath);
+    } catch (error) {
+      if (error.code === "EBUSY" || error.code === "EPERM") {
+        throw new Error(
+          `app.asar 被占用（可能是正在运行的 ZCode），请先退出应用再打包: ${appAsarPath}`,
+        );
+      }
+      throw error;
+    }
     await rm(unpackedPath, { force: true, recursive: true });
     await rename(candidateUnpackedPath, unpackedPath);
-    await rm(appAsarPath, { force: true });
     await rename(candidateAsarPath, appAsarPath);
+    // 旧 archive 此时已无引用；删除失败不阻塞打包，只留下一个待清理文件。
+    await rm(retiredAsarPath, { force: true }).catch(() => {});
   } finally {
     await Promise.all([
       rm(candidateAsarPath, { force: true, recursive: true }),

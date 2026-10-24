@@ -262,6 +262,7 @@ function printHelp() {
   --skip-prepare               跳过 prepare:runtime-assets
   --skip-build                 跳过 pnpm build
   --dir                        只产出解包目录（win-unpacked 等），不构建安装器
+  --incremental                复用已有解包目录，只刷新 app.asar（要求先完整打包过一次）
   --no-retry                   electron-builder 失败时不重试（本地快速迭代）
   --dry-run                    只打印最终命令，不执行打包
   -h, --help                   查看帮助
@@ -295,6 +296,7 @@ function parseArgs(argv) {
     skipPrepare: process.env.ZCODE_SKIP_PREPARE === "1",
     skipBuild: process.env.ZCODE_SKIP_BUILD === "1",
     dir: false,
+    incremental: false,
     noRetry: false,
     dryRun: false,
     positionals: [],
@@ -330,6 +332,12 @@ function parseArgs(argv) {
     if (arg === "--dir") {
       // 只产出 win-unpacked，不构建安装器。
       options.dir = true;
+      continue;
+    }
+
+    if (arg === "--incremental") {
+      // 复用已有 win-unpacked，只重建 app.asar；必须配合一次完整打包产生的基线。
+      options.incremental = true;
       continue;
     }
 
@@ -384,6 +392,7 @@ function parseArgs(argv) {
     skipBuild: options.skipBuild,
     dryRun: options.dryRun,
     dir: options.dir,
+    incremental: options.incremental,
     noRetry: options.noRetry,
   };
 }
@@ -726,7 +735,7 @@ function verifyPackagedRuntimeDependencies(os, arch) {
 }
 
 async function main() {
-  const { os, arch, skipPrepare, skipBuild, dryRun, dir, noRetry } = parseArgs(
+  const { os, arch, skipPrepare, skipBuild, dryRun, dir, incremental, noRetry } = parseArgs(
     process.argv.slice(2),
   );
   const buildArgs = [
@@ -744,7 +753,7 @@ async function main() {
 
   console.log(`[bundle] target=${os}/${arch}`);
   console.log(
-    `[bundle] skipPrepare=${skipPrepare} skipBuild=${skipBuild} dir=${dir} noRetry=${noRetry}`,
+    `[bundle] skipPrepare=${skipPrepare} skipBuild=${skipBuild} dir=${dir} incremental=${incremental} noRetry=${noRetry}`,
   );
 
   const buildEnv = {
@@ -755,7 +764,10 @@ async function main() {
   };
 
   if (dryRun) {
-    console.log(`[bundle] dry-run: ${pnpmCommand} ${buildArgs.join(" ")}`);
+    const dryRunCommand = incremental
+      ? `node scripts/incremental-app-asar.mjs (dist=${desktopDistDir})`
+      : `${pnpmCommand} ${buildArgs.join(" ")}`;
+    console.log(`[bundle] dry-run: ${dryRunCommand}`);
     process.exit(0);
   }
 
@@ -767,16 +779,34 @@ async function main() {
     run(pnpmCommand, ["build"], buildEnv);
   }
 
-  await runTimedAsync("bundle:electron-builder", () =>
-    runElectronBuilderWithRetry(buildArgs, buildEnv, noRetry ? 1 : electronBuilderRetryCount),
-  );
+  if (incremental) {
+    // 完整打包的耗时集中在把 Electron 运行时与 node_modules 复制进 dist；
+    // 代码改动只影响 out/**，所以复用已有解包目录、只重建 app.asar。
+    await runTimedAsync("bundle:incremental-app-asar", async () => {
+      const { refreshPackagedAppAsar } = await import("./incremental-app-asar.mjs");
+      await refreshPackagedAppAsar({
+        desktopRoot,
+        distRoot: desktopDistRoot,
+        targetOs: os,
+        arch,
+      });
+    });
+  } else {
+    await runTimedAsync("bundle:electron-builder", () =>
+      runElectronBuilderWithRetry(buildArgs, buildEnv, noRetry ? 1 : electronBuilderRetryCount),
+    );
+  }
 
   runTimedSync("bundle:verify-runtime-dependencies", () =>
     verifyPackagedRuntimeDependencies(os, arch),
   );
 
-  if (dir) {
-    console.log("[bundle] --dir：没有安装器产物，跳过体积审计");
+  if (dir || incremental) {
+    console.log(
+      incremental
+        ? "[bundle] --incremental：已刷新 app.asar，跳过安装器与体积审计"
+        : "[bundle] --dir：没有安装器产物，跳过体积审计",
+    );
     return;
   }
 
