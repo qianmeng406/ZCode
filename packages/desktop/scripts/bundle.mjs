@@ -261,6 +261,8 @@ function printHelp() {
   --arch, -a <x64|arm64>       目标 CPU 架构，默认 arm64
   --skip-prepare               跳过 prepare:runtime-assets
   --skip-build                 跳过 pnpm build
+  --dir                        只产出解包目录（win-unpacked 等），不构建安装器
+  --no-retry                   electron-builder 失败时不重试（本地快速迭代）
   --dry-run                    只打印最终命令，不执行打包
   -h, --help                   查看帮助
 
@@ -292,6 +294,8 @@ function parseArgs(argv) {
     arch: process.env.ZCODE_TARGET_ARCH ?? null,
     skipPrepare: process.env.ZCODE_SKIP_PREPARE === "1",
     skipBuild: process.env.ZCODE_SKIP_BUILD === "1",
+    dir: false,
+    noRetry: false,
     dryRun: false,
     positionals: [],
   };
@@ -320,6 +324,17 @@ function parseArgs(argv) {
 
     if (arg === "--skip-build") {
       options.skipBuild = true;
+      continue;
+    }
+
+    if (arg === "--dir") {
+      // 只产出 win-unpacked，不构建安装器。
+      options.dir = true;
+      continue;
+    }
+
+    if (arg === "--no-retry") {
+      options.noRetry = true;
       continue;
     }
 
@@ -368,6 +383,8 @@ function parseArgs(argv) {
     skipPrepare: options.skipPrepare,
     skipBuild: options.skipBuild,
     dryRun: options.dryRun,
+    dir: options.dir,
+    noRetry: options.noRetry,
   };
 }
 
@@ -458,6 +475,9 @@ async function runTimedAsync(label, fn) {
 }
 
 function shouldRetryElectronBuilderFailure(output) {
+  // 安装器/产物自身执行失败（NSIS 生成后 electron-builder 会再跑一遍安装器）不是网络抖动，
+  // 重试只会把整包重打一遍。命中这类信号直接失败。
+  if (/\.exe process failed|command failed: .*\.exe/i.test(output)) return false;
   const normalizedOutput = output.toLowerCase();
   const transientSignals = [
     "github.com/electron-userland/electron-builder-binaries/releases/download",
@@ -478,13 +498,13 @@ function shouldRetryElectronBuilderFailure(output) {
   return transientSignals.some((signal) => normalizedOutput.includes(signal));
 }
 
-async function runElectronBuilderWithRetry(args, envPatch) {
+async function runElectronBuilderWithRetry(args, envPatch, retryCount = electronBuilderRetryCount) {
   const retryEnvPatch = { ...envPatch };
   let didFallbackElectronBuilderMirror = false;
 
-  for (let attempt = 1; attempt <= electronBuilderRetryCount; attempt += 1) {
+  for (let attempt = 1; attempt <= retryCount; attempt += 1) {
     console.log(
-      `[bundle] > ${pnpmCommand} ${args.join(" ")} ${attempt > 1 ? `(retry ${attempt}/${electronBuilderRetryCount})` : ""}`.trim(),
+      `[bundle] > ${pnpmCommand} ${args.join(" ")} ${attempt > 1 ? `(retry ${attempt}/${retryCount})` : ""}`.trim(),
     );
 
     const mergedEnv = {
@@ -566,7 +586,7 @@ async function runElectronBuilderWithRetry(args, envPatch) {
       process.env,
     );
     if (
-      attempt < electronBuilderRetryCount &&
+      attempt < retryCount &&
       !didFallbackElectronBuilderMirror &&
       fallbackElectronBuilderMirror
     ) {
@@ -579,14 +599,13 @@ async function runElectronBuilderWithRetry(args, envPatch) {
       );
       didFallbackElectronBuilderMirror = true;
       console.warn(
-        `[bundle] electron-builder 二进制镜像缺文件，切换到 registry.npmmirror 后重试 (${attempt}/${electronBuilderRetryCount})`,
+        `[bundle] electron-builder 二进制镜像缺文件，切换到 registry.npmmirror 后重试 (${attempt}/${retryCount})`,
       );
       await sleep(electronBuilderRetryDelayMs);
       continue;
     }
 
-    const shouldRetry =
-      attempt < electronBuilderRetryCount && shouldRetryElectronBuilderFailure(failureOutput);
+    const shouldRetry = attempt < retryCount && shouldRetryElectronBuilderFailure(failureOutput);
     if (!shouldRetry) {
       if (result.error) {
         throw result.error;
@@ -601,7 +620,7 @@ async function runElectronBuilderWithRetry(args, envPatch) {
     // 统一折叠成 ERR_ELECTRON_BUILDER_CANNOT_EXECUTE，导致流水线把可恢复抖动误判成配置失败。
     // 这里仅对下载类信号做有限次重试，既提高首轮 cache miss 时的稳定性，也避免把真实构建错误无限吞掉。
     console.warn(
-      `[bundle] electron-builder 下载资源失败，${electronBuilderRetryDelayMs}ms 后重试 (${attempt}/${electronBuilderRetryCount})`,
+      `[bundle] electron-builder 下载资源失败，${electronBuilderRetryDelayMs}ms 后重试 (${attempt}/${retryCount})`,
     );
     await sleep(electronBuilderRetryDelayMs);
   }
@@ -707,7 +726,9 @@ function verifyPackagedRuntimeDependencies(os, arch) {
 }
 
 async function main() {
-  const { os, arch, skipPrepare, skipBuild, dryRun } = parseArgs(process.argv.slice(2));
+  const { os, arch, skipPrepare, skipBuild, dryRun, dir, noRetry } = parseArgs(
+    process.argv.slice(2),
+  );
   const buildArgs = [
     "exec",
     "electron-builder",
@@ -716,9 +737,15 @@ async function main() {
     osBuilderFlagMap[os],
     archBuilderFlagMap[arch],
   ];
+  if (dir) {
+    // 只产出解包目录，不构建安装器；安装器在本地无权签名时必然失败。
+    buildArgs.push("--dir");
+  }
 
   console.log(`[bundle] target=${os}/${arch}`);
-  console.log(`[bundle] skipPrepare=${skipPrepare} skipBuild=${skipBuild}`);
+  console.log(
+    `[bundle] skipPrepare=${skipPrepare} skipBuild=${skipBuild} dir=${dir} noRetry=${noRetry}`,
+  );
 
   const buildEnv = {
     ZCODE_TARGET_OS: os,
@@ -741,12 +768,17 @@ async function main() {
   }
 
   await runTimedAsync("bundle:electron-builder", () =>
-    runElectronBuilderWithRetry(buildArgs, buildEnv),
+    runElectronBuilderWithRetry(buildArgs, buildEnv, noRetry ? 1 : electronBuilderRetryCount),
   );
 
   runTimedSync("bundle:verify-runtime-dependencies", () =>
     verifyPackagedRuntimeDependencies(os, arch),
   );
+
+  if (dir) {
+    console.log("[bundle] --dir：没有安装器产物，跳过体积审计");
+    return;
+  }
 
   const artifactPath = findBuiltArtifact(os, arch);
   runTimedSync("bundle:audit-bundle-size", () =>

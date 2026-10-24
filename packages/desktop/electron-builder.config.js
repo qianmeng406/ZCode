@@ -15,7 +15,11 @@ import {
   resolvePackagedNodePtyPrebuildPath,
   restoreTargetNodePtyPrebuild,
 } from "./scripts/node-pty-package-assets.mjs";
-import { cleanupPackagedSourcemaps } from "./scripts/packaged-sourcemap-cleanup.mjs";
+import {
+  cleanupPackagedSourcemaps,
+  removeSourceMapFilesInDirectory,
+  stripSourceMappingUrlCommentsInDirectory,
+} from "./scripts/packaged-sourcemap-cleanup.mjs";
 import { getTargetPlatform } from "./scripts/target-platform.mjs";
 import {
   resolveDesktopArtifactSuffix,
@@ -93,6 +97,8 @@ const requireFromConfig = createRequire(import.meta.url);
 let nsisInstallSectionPatched = false;
 let nsisInstallSectionOriginalSource = null;
 let nsisInstallSectionPath = null;
+// 注入流程在 staging 里清理过 sourcemap 后置为 true，避免后续再解包 app.asar 一次。
+let appAsarSourcemapsStrippedInStaging = false;
 const desktopElectronVersion = requireFromConfig("./package.json").devDependencies.electron;
 const asarCliPath = resolve(
   dirname(requireFromConfig.resolve("@electron/asar/package.json")),
@@ -423,6 +429,18 @@ async function injectHoistedRuntimeModulesIntoAsar(context) {
       }
     });
 
+    // 既然已经解包了，就顺手把 sourcemap 引用一起清掉，避免后面再解包/重打一次。
+    runTimedSync("afterPack:asar-sourcemap-cleanup-in-staging", () => {
+      const stripSummary = stripSourceMappingUrlCommentsInDirectory(stagingDir);
+      const mapSummary = removeSourceMapFilesInDirectory(stagingDir);
+      if (stripSummary.referencesRemoved > 0 || mapSummary.filesRemoved > 0) {
+        console.log(
+          `[afterPack] staged sourcemap cleanup references=${stripSummary.referencesRemoved} files=${stripSummary.filesChanged} maps=${mapSummary.filesRemoved}`,
+        );
+        appAsarSourcemapsStrippedInStaging = true;
+      }
+    });
+
     await runTimedAsync("afterPack:asar-pack", () =>
       replaceAppAsarFromStaging({
         sourceDir: stagingDir,
@@ -440,7 +458,9 @@ async function stripPackagedSourcemapReferences(context) {
   // electron-builder 的 files 规则能排除 .map 文件，但无法删除 JS/CSS 末尾
   // 指向 sourcemap 的注释；afterPack 注入运行时依赖后也可能重新带入第三方 sourceMappingURL。
   // 这里统一清理 app.asar 与 unpacked/extraResources，保证最终发布包不暴露 sourcemap 路径入口。
+  // 注入流程已经顺带清理过 app.asar 时跳过再次解包，只处理 unpacked/extraResources。
   await cleanupPackagedSourcemaps({
+    skipAppAsar: appAsarSourcemapsStrippedInStaging,
     appAsarPath: resolveAppAsarPath(context),
     resourcesDir: resolvePackagedResourcesDir(context),
     runAsarCommand,
@@ -574,6 +594,51 @@ function signWindowsBrowserImportHelper(context) {
   ]);
 }
 
+/**
+ * electron-builder 只按 package.json 依赖图收集 node_modules，pnpm hoisted 的传递依赖经常
+ * 落在 workspace 根目录而不是本包，导致 app.asar 缺包。旧方案是在 afterPack 里解包整个
+ * asar、补包、再重新打包，本机实测单次约 18 分钟。
+ *
+ * 这里改为打包前把闭包依赖放进 .cache/runtime-node-modules，并用显式 FileSet（from/to）
+ * 映射到 app 内的 node_modules。glob 形式的 files 规则会被依赖图过滤，FileSet 不会。
+ *
+ * 暂存目录用 .cache 而不是 build：build/ 是 electron-builder 的 buildResources 目录，
+ * 里面混进 node_modules 副本既容易被打进产物，也有误提交的风险（.cache 已被 .gitignore 覆盖）。
+ */
+const RUNTIME_NODE_MODULES_STAGING_DIR = resolve(
+  desktopPackageRoot,
+  ".cache",
+  "runtime-node-modules",
+);
+
+function runtimeModuleFileSets() {
+  return collectRuntimeModuleClosureEntries(REQUIRED_ASAR_RUNTIME_MODULES, runtimeModuleLookupRoots)
+    .filter((entry) => Boolean(entry.sourceModulePath))
+    .map((entry) => ({
+      from: join(".cache", "runtime-node-modules", entry.moduleName),
+      to: join("node_modules", entry.moduleName),
+      filter: ["**/*"],
+    }));
+}
+
+function materializeRuntimeModulesForPackaging() {
+  rmSync(RUNTIME_NODE_MODULES_STAGING_DIR, { force: true, recursive: true });
+  for (const entry of collectRuntimeModuleClosureEntries(
+    REQUIRED_ASAR_RUNTIME_MODULES,
+    runtimeModuleLookupRoots,
+  )) {
+    if (!entry.sourceModulePath) continue;
+    const targetPath = resolve(RUNTIME_NODE_MODULES_STAGING_DIR, entry.moduleName);
+    mkdirSync(dirname(targetPath), { recursive: true });
+    // 复制真实文件而不是软链：Windows 上指向 pnpm store 的软链在打包器里解析不稳定。
+    cpSync(entry.sourceModulePath, targetPath, { recursive: true, dereference: true });
+  }
+}
+
+function removeMaterializedRuntimeModules() {
+  rmSync(RUNTIME_NODE_MODULES_STAGING_DIR, { force: true, recursive: true });
+}
+
 /** @type {import("electron-builder").Configuration} */
 export default {
   appId: desktopProductIdentity.appId,
@@ -617,6 +682,9 @@ export default {
   files: [
     "out/**/*",
     "package.json",
+    // 补进 build/runtime-node-modules 的闭包依赖用 FileSet 显式映射到 app 内 node_modules，
+    // glob 形式会被 electron-builder 的依赖图过滤掉。
+    ...runtimeModuleFileSets(),
     // app.asar 会把桌面端运行时 node_modules 一并打进去，依赖包自带的 .map / README
     // 默认也会原样进入安装包。这里统一在主包层做一次裁剪，只移除非运行时文件，LICENSE 继续保留。
     ...PACKAGING_PRUNE_PATTERNS,
@@ -631,6 +699,9 @@ export default {
     `node_modules/node-pty/prebuilds/${targetPlatform.key}/**`,
   ],
   beforePack: async (context) => {
+    runTimedSync("beforePack:materializeRuntimeModules", () =>
+      materializeRuntimeModulesForPackaging(),
+    );
     runTimedSync("beforePack:restoreTargetNodePtyPrebuild", () =>
       restoreTargetNodePtyPrebuild({ desktopPackageRoot, targetPlatform }),
     );
@@ -678,9 +749,16 @@ export default {
             configuredTargetPlatform: targetPlatform,
           })
         : null;
-    await runTimedAsync("afterPack:injectHoistedRuntimeModulesIntoAsar", () =>
-      injectHoistedRuntimeModulesIntoAsar(context),
-    );
+    try {
+      await runTimedAsync("afterPack:injectHoistedRuntimeModulesIntoAsar", () =>
+        injectHoistedRuntimeModulesIntoAsar(context),
+      );
+    } finally {
+      // 打进 asar 之后就不需要本包 node_modules 里的临时副本了；失败也要清理，避免残留影响下次。
+      runTimedSync("afterPack:removeMaterializedRuntimeModules", () =>
+        removeMaterializedRuntimeModules(),
+      );
+    }
     await runTimedAsync("afterPack:stripPackagedSourcemapReferences", () =>
       stripPackagedSourcemapReferences(context),
     );
@@ -886,7 +964,9 @@ export default {
   win: {
     target: ["nsis"],
     artifactName: buildDesktopArtifactName("win"),
-    signExts: [".node", ".dll"],
+    // 只有显式开启签名时才逐个签 .node/.dll；本地预览没有证书，逐个调用 signtool
+    // 既签不出结果，也会在 koffi 这类多平台原生包上白花几分钟。
+    signExts: shouldEnableWindowsVsign ? [".node", ".dll"] : [],
     // Bugfix: Windows CI 之前完全依赖 electron-builder 内置 signtool.exe，
     // 一旦 runner 的证书链路要求改走 vsigntool，打包阶段就会在内置签名环节卡死。
     // 这里通过自定义 sign hook 把所有 Windows 可执行文件统一切到仓库内的 vsigntool 封装，
