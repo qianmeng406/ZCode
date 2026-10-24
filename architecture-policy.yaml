@@ -834,6 +834,14 @@ exceptions:
     rule: unmanaged-new-file
     paths: [packages/ui/src/lib/pluginIconSource.ts]
     reason: 已有插件图标来源解析只增加内联 data:image 放行（本地开发市场无 CDN 可挂 listing 图标），MIME 白名单与 64 KiB 上限仍把边界限制为“只允许图片”；官方 CDN 优先、内置图标覆盖与缺省回退的顺序不变，接管 packages/ui/src/lib 不在本次范围内。
+  - id: renderer-lazy-view-boundaries-unmanaged-new
+    rule: unmanaged-new-file
+    paths:
+      - packages/ui/src/app-shell/lazySidePaneViews.tsx
+      - packages/ui/src/app-shell/lazyWorkspaceViews.tsx
+      - packages/ui/src/root/lazySettingsPage.tsx
+      - packages/ui/src/settings/automationsAnchor.ts
+    reason: 渲染层按需加载的接线文件：只声明 lazy 边界、Suspense 占位与自动化 toast 锚点常量，不含业务逻辑，也不改变被延迟模块的契约。它们所在的 app-shell、root、settings 仍是遗留未受管目录，整体 adopt 需要单独的边界梳理，不在本次首屏性能改造内展开。
   - id: connection-log-secret-token-unmanaged-edit
     rule: unmanaged-new-file
     paths: [packages/shared/src/source-server/connectionLog.ts]
