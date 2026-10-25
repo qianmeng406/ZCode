@@ -82,10 +82,22 @@ export function createPluginUiPagePlane(events: {
   };
   const track = (node: HTMLElement, update: () => void) => {
     // 承载层尺寸完全由锚点决定；反向观察承载层会在 popover 切换时形成 ResizeObserver 回环。
-    const stop = autoUpdate(node, root, update, { elementResize: false });
-    const resize = new ResizeObserver(update);
+    // 滚动/resize 事件会以事件频率直调 position() 的强制布局读+样式写（会话流式滚动时尤甚）；
+    // 合并到帧内至多执行一次。锚点的增删仍走同步 layout()，不受此影响。
+    let frame = 0;
+    const schedule = () => {
+      if (frame) return;
+      frame = requestAnimationFrame(() => {
+        frame = 0;
+        update();
+      });
+    };
+    const stop = autoUpdate(node, root, schedule, { elementResize: false });
+    const resize = new ResizeObserver(schedule);
     resize.observe(node);
     return () => {
+      if (frame) cancelAnimationFrame(frame);
+      frame = 0;
       resize.disconnect();
       stop();
     };
