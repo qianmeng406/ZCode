@@ -1018,3 +1018,8 @@ exceptions:
     paths:
       - packages/ui/src/v4/oracleReview/oracleReviewModelLabel.ts
     reason: fork 定制在既有未受管 packages/ui/src/v4/oracleReview 目录新增的模型名格式化纯函数；接管该目录的模块边界不在本次卡片修复范围内。
+  - id: plugin-ui-instance-recovery-policy-unmanaged-new
+    rule: unmanaged-new-file
+    paths:
+      - packages/ui/src/plugin-ui/domain/instanceRecoveryPolicy.ts
+    reason: MCP App 实例失效自动重建的退避策略纯状态机（无 IO、有界重试、窗口遗忘），与同目录 pluginUiLogicalScope 等既有 domain 纯函数模块同模式；宿主接线只在 pluginUiManagedPage 的 onInstanceClosed 分支内消费，接管 plugin-ui 模块边界不在本次性能修复范围内。

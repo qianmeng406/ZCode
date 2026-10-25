@@ -30,6 +30,7 @@ import {
 } from "../contract.js";
 import { buildPluginUiHostCapabilities } from "../domain/buildPluginUiHostCapabilities.js";
 import { buildPluginUiHostContext } from "../domain/buildPluginUiHostContext.js";
+import { createInstanceRecoveryPolicy } from "../domain/instanceRecoveryPolicy.js";
 
 import { acquireWorkspaceConnection } from "@/v4/workspaceConnectionRegistry.js";
 import type { IServiceAccessor } from "@zcode/services";
@@ -84,6 +85,10 @@ export function createPage(
   let lastFeed = "";
   let lastContext = "";
   let appIdentity: string | undefined;
+  // 实例失效多数来自后端连接换源（server/runtime 重启后的失效通知）：
+  // 有界自动重建保持面板无感，持续失效才退回显式错误态。
+  const instanceRecovery = createInstanceRecoveryPolicy();
+  let recoveryTimer: ReturnType<typeof setTimeout> | null = null;
   const notify = () => {
     for (const listener of listeners) listener();
   };
@@ -275,7 +280,10 @@ export function createPage(
       },
       onPhase: (next, detail) => {
         if (controller !== nextController) return;
-        if (next === "running" && snapshot.phase !== "running") reportUsage("ui_ready");
+        if (next === "running" && snapshot.phase !== "running") {
+          reportUsage("ui_ready");
+          instanceRecovery.reset();
+        }
         if (next === "error" && snapshot.phase !== "error") reportUsage("ui_open_request", true);
         // 生命周期事件每个沙箱只有几条，走 lifecycle 才能进主日志（排查用户现场用）。
         logger.lifecycle.info("[plugin-ui] lifecycle", {
@@ -307,9 +315,21 @@ export function createPage(
         if (detail?.error) setError(detail.error);
       },
       onInstanceClosed: () => {
-        void page.suspend(true);
-        clearPluginUiWidgetState(key);
-        patch({ phase: "error", error: "MCP App connection is no longer available" });
+        const decision = instanceRecovery.registerFailure(Date.now());
+        if (!decision.retry) {
+          void page.suspend(true);
+          clearPluginUiWidgetState(key);
+          patch({ phase: "error", error: "MCP App connection is no longer available" });
+          return;
+        }
+        // 后端连接换源（server/runtime 重启）导致的失效：退避后透明重建，保留 widgetState。
+        void page.suspend(true).then(() => {
+          if (disposed) return;
+          recoveryTimer = setTimeout(() => {
+            recoveryTimer = null;
+            ensure();
+          }, decision.delayMs);
+        });
       },
       onBusyChange: () => {
         if (controller === nextController) pluginUiPages.settled(page);
@@ -449,6 +469,10 @@ export function createPage(
       workspaceEvents.dispose();
       clearPluginUiSurfaceFeed(key);
       disposed = true;
+      if (recoveryTimer) {
+        clearTimeout(recoveryTimer);
+        recoveryTimer = null;
+      }
       void page.suspend(true).finally(() => plane.dispose());
       clearPluginUiWidgetState(key);
       listeners.clear();
