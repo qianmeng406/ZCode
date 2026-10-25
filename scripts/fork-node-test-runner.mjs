@@ -3,8 +3,8 @@
 // 这些文件不被 vitest 收集（见 vitest.config.ts 的 forkNodeTestRunnerFiles 排除），
 // 必须由本模块用 `node --import tsx --test` 在各自 package 目录内运行，才能解析 tsconfig paths。
 import { spawnSync } from "node:child_process";
-import { existsSync, readdirSync, readFileSync, statSync } from "node:fs";
-import { dirname, join, relative, resolve } from "node:path";
+import { existsSync, readdirSync, readFileSync } from "node:fs";
+import { join, relative, resolve } from "node:path";
 
 const NODE_TEST_MARKER = 'from "node:test"';
 
@@ -52,18 +52,22 @@ function packageDirOf(root, file) {
 
 /**
  * 运行给定（或全部）fork Node-runner 测试文件；返回 { status, ran }。
- * - files: 可选的过滤集合（绝对或相对 root 路径）；命中集合内的 node:test 文件才运行。
+ * - files: 可选的过滤集合（绝对或相对 root 路径，支持文件与目录前缀）；
+ *   命中集合内的 node:test 文件才运行。
  * - 逐个文件在各自 package 目录内 spawn，全量失败仍继续（不 early-exit），聚合非零退出码。
  */
 export function runForkNodeTests(root, files) {
   const discovered = discoverForkNodeTestFiles(root);
-  const filterSet =
+  const filters =
     files && files.length > 0
-      ? new Set(files.map((file) => resolve(root, file).split("\\").join("/")))
+      ? files.map((file) => resolve(root, file).split("\\").join("/"))
       : null;
-  const targets = filterSet
-    ? discovered.filter((file) => filterSet.has(file.split("\\").join("/")))
-    : discovered;
+  const isMatch = (file) => {
+    if (!filters) return true;
+    const normalized = file.split("\\").join("/");
+    return filters.some((filter) => normalized === filter || normalized.startsWith(`${filter}/`));
+  };
+  const targets = discovered.filter(isMatch);
 
   if (targets.length === 0) {
     return { status: 0, ran: 0 };

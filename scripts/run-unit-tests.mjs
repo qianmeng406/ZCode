@@ -11,6 +11,13 @@ import { runForkNodeTests } from "./fork-node-test-runner.mjs";
 const root = process.cwd();
 const E2E_GLOB = "packages/desktop/test/e2e/**/*.test.ts";
 
+// 可选过滤：pnpm test:unit -- <文件或目录...>。vitest 收位置参数过滤，
+// fork node:test 按同一路径过滤；不带参数时行为与全量完全一致。
+const filterArgs = process.argv
+  .slice(2)
+  .map((arg) => arg.split("\\").join("/"))
+  .filter((arg) => !arg.startsWith("-"));
+
 function resolvePnpmCliPath() {
   const npmExecPath = process.env.npm_execpath;
   if (
@@ -35,7 +42,7 @@ function runVitest() {
 
   // 优先直接调用 vitest JS 入口，避免 Windows 下 shell 字符串展开问题。
   const vitestCli = join(root, "node_modules", "vitest", "vitest.mjs");
-  const args = ["run", "--exclude", E2E_GLOB];
+  const args = ["run", "--exclude", E2E_GLOB, ...filterArgs];
   const result = existsSync(vitestCli)
     ? spawnSync(process.execPath, [vitestCli, ...args], { cwd: root, stdio: "inherit" })
     : spawnSync(resolvePnpmCliPath() ?? "pnpm", ["exec", "vitest", ...args], {
@@ -53,7 +60,7 @@ console.log("[unit] 1/2 vitest");
 const vitestStatus = runVitest();
 
 console.log("[unit] 2/2 fork node:test");
-const nodeResult = runForkNodeTests(root);
+const nodeResult = runForkNodeTests(root, filterArgs.length > 0 ? filterArgs : undefined);
 
 if (nodeResult.ran === 0) {
   console.log("[unit] 未发现 fork node:test 文件");

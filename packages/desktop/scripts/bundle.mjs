@@ -671,7 +671,8 @@ function resolveAppAsarPath(os, arch) {
   throw new Error(`不支持的目标操作系统: ${os}`);
 }
 
-function verifyPackagedRuntimeDependencies(os, arch) {
+// dev:package 的增量路径复用同一份机械校验；bundle.mjs 自身在 main() 里调用。
+export function verifyPackagedRuntimeDependencies(os, arch) {
   const appAsarPath = resolveAppAsarPath(os, arch);
   if (!existsSync(appAsarPath)) {
     throw new Error(`打包产物缺少 app.asar: ${appAsarPath}`);
