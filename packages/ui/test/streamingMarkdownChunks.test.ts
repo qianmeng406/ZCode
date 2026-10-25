@@ -158,6 +158,38 @@ describe("createIncrementalMarkdownSplitter", () => {
     expect(withFootnote).toEqual(["段落一。\n\n段落二。\n\n正文里的脚注[^1]。\n\n[^1]: 定义。"]);
   });
 
+  it("脚注增量扫描：长流追加中的脚注仍命中整篇单块，且持续存在期间保持", () => {
+    const splitter = createIncrementalMarkdownSplitter();
+    splitter.split("第一段。\n\n第二段。\n\n第三段。");
+    expect(splitter.committedLength).toBeGreaterThan(0);
+    // 新脚注只出现在追加尾段：增量扫描必须命中（不能因前缀已验证而漏检）。
+    const withFootnote = "第一段。\n\n第二段。\n\n第三段。\n\n正文[^1] 继续输出";
+    expect(splitter.split(withFootnote)).toEqual([withFootnote]);
+    // 脚注持续存在：后续帧仍整篇单块（验证前缀未推进，全文重扫）。
+    const longer = `${withFootnote}，更多内容。`;
+    expect(splitter.split(longer)).toEqual([longer]);
+  });
+
+  it("脚注增量扫描：`[^` 恰被劈在前缀末尾时由 2 字符重叠命中", () => {
+    const splitter = createIncrementalMarkdownSplitter();
+    splitter.split("段落一\n\n段落二\n\n");
+    const partial = "段落一\n\n段落二\n\n引言[^";
+    // `[^` 单独不构成标记（正则要求后跟至少 1 个 id 字符）：仍正常分块。
+    const chunks = splitter.split(partial);
+    expect(chunks.join("")).toBe(partial);
+    expect(chunks.length).toBeGreaterThan(1);
+    // 尾段补上 id 与右括号：跨界标记必须被识别为脚注。
+    const full = `${partial}1] 脚注内容。`;
+    expect(splitter.split(full)).toEqual([full]);
+  });
+
+  it("脚注增量扫描：重写（非前缀扩展）后退化为整篇重扫，新增脚注仍命中", () => {
+    const splitter = createIncrementalMarkdownSplitter();
+    splitter.split("AAAA\n\nBBBB\n\n");
+    const rewritten = "XXXX\n\nBBBB\n\n注[^x]";
+    expect(splitter.split(rewritten)).toEqual([rewritten]);
+  });
+
   it("非前缀变化（改写/截断）：重置状态并保持拼接不变量与整篇 parity", () => {
     const splitter = createIncrementalMarkdownSplitter();
     splitter.split("原始段落 A。\n\n原始段落 B。");

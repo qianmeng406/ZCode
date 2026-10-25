@@ -33,20 +33,37 @@ export interface IncrementalMarkdownSplitter {
 export function createIncrementalMarkdownSplitter(): IncrementalMarkdownSplitter {
   let committedPrefix = "";
   let committedChunks: string[] = [];
+  // 已验证无脚注标记的整篇前缀：追加式流式下只扫「前缀末 2 字符 + 新增尾段」，
+  // 每帧脚注检查从 O(整篇) 降为 O(增量)。2 字符重叠覆盖唯一跨界劈开情形——
+  // 标记要求 `[^` 后至少 1 个 id 字符，更长的截断（`[^x`）在前缀内即可整段命中，
+  // 只有恰好停在 `[^` 的边界需要重叠参与匹配（重叠串始终是原文的连续子串）。
+  let footnoteFreePrefix = "";
 
   const reset = () => {
     committedPrefix = "";
     committedChunks = [];
+    footnoteFreePrefix = "";
+  };
+
+  const hasFootnoteMarker = (markdown: string): boolean => {
+    if (footnoteFreePrefix.length >= 2 && markdown.startsWith(footnoteFreePrefix)) {
+      return FOOTNOTE_MARKER_RE.test(
+        `${footnoteFreePrefix.slice(-2)}${markdown.slice(footnoteFreePrefix.length)}`,
+      );
+    }
+    return FOOTNOTE_MARKER_RE.test(markdown);
   };
 
   const split = (markdown: string): string[] => {
-    if (FOOTNOTE_MARKER_RE.test(markdown)) {
+    if (hasFootnoteMarker(markdown)) {
+      // 命中脚注不推进验证前缀：脚注持续存在期间每帧全文重扫、保持整篇单块。
       reset();
       return [markdown];
     }
     if (committedPrefix !== "" && !markdown.startsWith(committedPrefix)) {
       reset();
     }
+    footnoteFreePrefix = markdown;
 
     const tail = markdown.slice(committedPrefix.length);
     const tailChunks = parseMarkdownIntoBlocks(tail);
