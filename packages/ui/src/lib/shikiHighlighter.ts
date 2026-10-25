@@ -2,6 +2,11 @@ import type { BundledLanguage, BundledTheme, HighlighterGeneric, ThemedToken } f
 import { bundledLanguages, bundledLanguagesInfo, createHighlighter } from "shiki";
 import { logger } from "@/logger.js";
 import { uiMemoryDiagnosticsRegistry } from "@/lib/memoryDiagnostics.js";
+import { createTokensCacheLimiter, type TokensCacheLimiter } from "@/lib/shikiTokensCachePolicy.js";
+import {
+  loadPerformanceSettings,
+  subscribePerformanceSettings,
+} from "@/lib/performancePreferences.js";
 
 export interface TokenizedCode {
   tokens: ThemedToken[][];
@@ -59,10 +64,23 @@ const highlighterCache = new Map<
 >();
 const tokensCache = new Map<string, TokenizedCode>();
 const subscribers = new Map<string, Set<(result: TokenizedCode) => void>>();
-// 内存诊断计数器：tokensCache 目前无淘汰，是审计里
-// renderer 最可疑的增长点，先把条数落到日志里。
+// boundedHighlightCacheEnabled（默认关闭）：开启后按条数+字符量 LRU 淘汰；null 即无界（原行为）。
+// 这里不依赖 store（避免把 shiki 拉进 store 依赖图）：模块载入读一次偏好，
+// 之后经 performancePreferences 的写入通知跟随开关翻转（含跨窗口广播接收路径的落盘）。
+let tokensCacheLimiter: TokensCacheLimiter | null = null;
+export function setShikiTokensCacheBound(enabled: boolean): void {
+  tokensCacheLimiter = enabled ? createTokensCacheLimiter() : null;
+}
+const applyBoundedHighlightCachePreference = () => {
+  setShikiTokensCacheBound(loadPerformanceSettings().boundedHighlightCacheEnabled);
+};
+applyBoundedHighlightCachePreference();
+subscribePerformanceSettings(applyBoundedHighlightCachePreference);
+// 内存诊断计数器：tokensCache 无淘汰时是审计里 renderer 最可疑的增长点，
+// 条数与（受限时的）近似字符量都落到日志里。
 uiMemoryDiagnosticsRegistry.register("shiki", () => ({
   tokensCache: tokensCache.size,
+  ...(tokensCacheLimiter ? { tokensCacheChars: tokensCacheLimiter.totalApproxChars } : {}),
   highlighters: highlighterCache.size,
 }));
 
@@ -78,11 +96,22 @@ const getResolvedCodeTheme = (theme?: BundledTheme): BundledTheme => {
   return "github-light";
 };
 
-const getCodeTokensCacheKey = (code: string, language: BundledLanguage, theme: BundledTheme) => {
-  const start = code.slice(0, 100);
-  const end = code.length > 100 ? code.slice(-100) : "";
-  return `${theme}:${language}:${code.length}:${start}:${end}`;
+// FNV-1a 32 位：O(n) 单次扫描，远低于 tokenize 成本。旧 key 只取首尾各 100 字符，
+// 中段不同的等长代码会碰撞命中同一条缓存返回错误高亮；这里用全文哈希消除该隐患。
+const hashCodeContents = (code: string): string => {
+  let hash = 0x811c9dc5;
+  for (let index = 0; index < code.length; index += 1) {
+    hash ^= code.charCodeAt(index);
+    hash = Math.imul(hash, 0x01000193);
+  }
+  return (hash >>> 0).toString(36);
 };
+
+export const getCodeTokensCacheKey = (
+  code: string,
+  language: BundledLanguage,
+  theme: BundledTheme,
+) => `${theme}:${language}:${code.length}:${hashCodeContents(code)}`;
 const getHighlighter = (
   language: BundledLanguage,
   theme: BundledTheme,
@@ -138,6 +167,7 @@ export const highlightCode = (
 
   const cached = tokensCache.get(tokensCacheKey);
   if (cached) {
+    tokensCacheLimiter?.onAccess(tokensCacheKey);
     // 缓存命中时也需要通知 effect，但不能同步触发 setState。
     // 历史消息恢复时大量代码块会在同一次提交后挂载；同步 callback 会把 cache-hit 变成嵌套更新，
     // 和 Streamdown 的重渲染叠在一起时容易触发 React #185。推迟到微任务后再交给幂等 setter。
@@ -174,6 +204,13 @@ export const highlightCode = (
       };
 
       tokensCache.set(tokensCacheKey, tokenized);
+      if (tokensCacheLimiter) {
+        // 超限时按 LRU 淘汰（in-flight 订阅的 key 跳过，tokenize 完成后下轮再评估）。
+        const evicted = tokensCacheLimiter.onInsert(tokensCacheKey, code.length, (key) =>
+          subscribers.has(key),
+        );
+        for (const key of evicted) tokensCache.delete(key);
+      }
 
       const subs = subscribers.get(tokensCacheKey);
       if (subs) {

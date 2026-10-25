@@ -1028,3 +1028,8 @@ exceptions:
     paths:
       - packages/ui/src/components/ui/particleRunState.ts
     reason: 粒子层空闲收敛（性能开关 idleParticlePauseEnabled）的纯决策模块：运行资格状态机 + 排程计划裁决，无 IO 无 React 依赖，配套单测；组件侧 rAF/setTimeout 接线保持薄层，关闭开关时走 legacy 计划与原实现逐字节一致。
+  - id: shiki-tokens-cache-policy-unmanaged-new
+    rule: unmanaged-new-file
+    paths:
+      - packages/ui/src/lib/shikiTokensCachePolicy.ts
+    reason: shiki tokensCache 容量策略纯逻辑模块（性能开关 boundedHighlightCacheEnabled）：LRU 淘汰裁决与缓存 Map 解耦，配套单测；shikiHighlighter 只在写入/命中回调消费，避免 store 反向依赖 shiki 重模块。

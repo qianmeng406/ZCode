@@ -61,8 +61,23 @@ export function loadPerformanceSettings(): PerformanceSettings {
   return parsePerformanceSettings(readSafeLocalStorage(PERFORMANCE_SETTINGS_STORAGE_KEY));
 }
 
+type PerformanceSettingsListener = (settings: PerformanceSettings) => void;
+const listeners = new Set<PerformanceSettingsListener>();
+
+/**
+ * 偏好写入通知（同一窗口内即时生效的通道；跨窗口由 store 广播接收路径再次落盘触发）。
+ * 供无法反向依赖 store 的底层模块（如 shiki 缓存策略）订阅开关变化。
+ */
+export function subscribePerformanceSettings(listener: PerformanceSettingsListener): () => void {
+  listeners.add(listener);
+  return () => {
+    listeners.delete(listener);
+  };
+}
+
 function persistPerformanceSettings(settings: PerformanceSettings): void {
   writeSafeLocalStorage(PERFORMANCE_SETTINGS_STORAGE_KEY, JSON.stringify(settings));
+  for (const listener of listeners) listener(settings);
 }
 
 /** 逐字段写入：调用方持有当前值（store 初始化时读一次），避免每个 setter 重读解析。 */
