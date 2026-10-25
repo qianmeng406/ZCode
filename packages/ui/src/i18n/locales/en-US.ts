@@ -3283,6 +3283,24 @@ const enUS: Record<string, string> = {
   "settings.conversationWindowCollapse": "Conversation window collapse",
   "settings.conversationWindowCollapseDescription":
     "Keep only a recent window of the conversation and collapse earlier history behind a “Load earlier” entry at the top. Turn on for long sessions to greatly reduce memory and CPU usage.",
+  "settings.performanceTitle": "Performance",
+  "settings.performance.description":
+    "Streaming-rendering and long-session optimizations, all off by default. With a switch off, rendering behaves exactly like the standard path; enable items individually as needed.",
+  "settings.performance.streamingMarkdownIncremental": "Incremental streaming Markdown",
+  "settings.performance.streamingMarkdownIncrementalDescription":
+    "While streaming, only the trailing block is re-parsed; completed paragraphs are reused. Reduces per-frame parsing cost for long replies with identical output.",
+  "settings.performance.stableRenderUnits": "Reuse render units",
+  "settings.performance.stableRenderUnitsDescription":
+    "Turn render units are reused when unchanged, so unchanged turns are no longer rebuilt every frame. Greatly reduces per-frame cost in long sessions while streaming.",
+  "settings.performance.scopedPresentationClock": "Scoped running-duration refresh",
+  "settings.performance.scopedPresentationClockDescription":
+    "The per-second running-duration clock only refreshes turns that are still working, instead of re-rendering every visible turn each second. Best enabled together with “Reuse render units”.",
+  "settings.performance.coalescedBottomScroll": "Coalesced bottom scrolling",
+  "settings.performance.coalescedBottomScrollDescription":
+    "While following streaming output, multiple bottom-scroll requests within a frame are coalesced into a single write. Smoother following with unchanged scroll semantics.",
+  "settings.performance.coalescedDeltaFrames": "Coalesced streaming frames",
+  "settings.performance.coalescedDeltaFramesDescription":
+    "Streaming deltas arriving within the same render frame are committed together, aligning render rate with the display refresh. Text may appear at most one frame later; no content is lost.",
   "settings.assistantAutoFilePreview": "Auto-load file previews",
   "settings.assistantAutoFilePreviewDescription":
     "Automatically load preview cards for Markdown/HTML files referenced in replies. Turn off to load them manually via the “Load preview” action.",

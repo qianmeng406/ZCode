@@ -127,6 +127,7 @@ import { SourceServerManagementPanel } from "@/settings/SourceServerManagementPa
 import { useSourceServerManagementSnapshot } from "@/hooks/useSourceServerManagementSnapshot.js";
 import { useOptionalRemoteWorkspaceController } from "@/remote/useRemoteWorkspaceController.js";
 import { AppearanceSectionContent } from "./settingsCodePreview.js";
+import { PerformanceSectionContent } from "./settings/PerformanceSection.js";
 import type { SettingsSectionId } from "@/lib/settingsNavigation.js";
 import { requestPluginStoreOpen } from "@/lib/pluginStoreNavigation.js";
 import {
@@ -432,6 +433,28 @@ export function SettingsPage({
   );
   const setConversationWindowCollapseEnabled = useZCodeStore(
     (state) => state.setConversationWindowCollapseEnabled,
+  );
+  const streamingMarkdownIncrementalEnabled = useZCodeStore(
+    (state) => state.streamingMarkdownIncrementalEnabled,
+  );
+  const setStreamingMarkdownIncrementalEnabled = useZCodeStore(
+    (state) => state.setStreamingMarkdownIncrementalEnabled,
+  );
+  const stableRenderUnitsEnabled = useZCodeStore((state) => state.stableRenderUnitsEnabled);
+  const setStableRenderUnitsEnabled = useZCodeStore((state) => state.setStableRenderUnitsEnabled);
+  const scopedPresentationClockEnabled = useZCodeStore(
+    (state) => state.scopedPresentationClockEnabled,
+  );
+  const setScopedPresentationClockEnabled = useZCodeStore(
+    (state) => state.setScopedPresentationClockEnabled,
+  );
+  const coalescedBottomScrollEnabled = useZCodeStore((state) => state.coalescedBottomScrollEnabled);
+  const setCoalescedBottomScrollEnabled = useZCodeStore(
+    (state) => state.setCoalescedBottomScrollEnabled,
+  );
+  const coalescedDeltaFramesEnabled = useZCodeStore((state) => state.coalescedDeltaFramesEnabled);
+  const setCoalescedDeltaFramesEnabled = useZCodeStore(
+    (state) => state.setCoalescedDeltaFramesEnabled,
   );
   const assistantAutoFilePreviewEnabled = useZCodeStore(
     (state) => state.assistantAutoFilePreviewEnabled,
@@ -2130,11 +2153,30 @@ export function SettingsPage({
                                   failureStage: "local_commit",
                                 })
                               }
+                              assistantAutoFilePreviewEnabled={assistantAutoFilePreviewEnabled}
+                              setAssistantAutoFilePreviewEnabled={(enabled) =>
+                                runUserAction({
+                                  input: {
+                                    featureId: "settings.appearance",
+                                    action: "toggle_assistant_auto_file_preview",
+                                    trigger: "switch",
+                                  },
+                                  operation: () => setAssistantAutoFilePreviewEnabled(enabled),
+                                  completed: {
+                                    resultSource: "local_commit",
+                                    valueAfter: enabled ? "enabled" : "disabled",
+                                  },
+                                  failureStage: "local_commit",
+                                })
+                              }
+                            />
+                          ) : activeSection === "performance" ? (
+                            <PerformanceSectionContent
                               conversationWindowCollapseEnabled={conversationWindowCollapseEnabled}
                               setConversationWindowCollapseEnabled={(enabled) =>
                                 runUserAction({
                                   input: {
-                                    featureId: "settings.appearance",
+                                    featureId: "settings.performance",
                                     action: "toggle_conversation_window_collapse",
                                     trigger: "switch",
                                   },
@@ -2146,15 +2188,81 @@ export function SettingsPage({
                                   failureStage: "local_commit",
                                 })
                               }
-                              assistantAutoFilePreviewEnabled={assistantAutoFilePreviewEnabled}
-                              setAssistantAutoFilePreviewEnabled={(enabled) =>
+                              streamingMarkdownIncrementalEnabled={
+                                streamingMarkdownIncrementalEnabled
+                              }
+                              setStreamingMarkdownIncrementalEnabled={(enabled) =>
                                 runUserAction({
                                   input: {
-                                    featureId: "settings.appearance",
-                                    action: "toggle_assistant_auto_file_preview",
+                                    featureId: "settings.performance",
+                                    action: "toggle_streaming_markdown_incremental",
                                     trigger: "switch",
                                   },
-                                  operation: () => setAssistantAutoFilePreviewEnabled(enabled),
+                                  operation: () => setStreamingMarkdownIncrementalEnabled(enabled),
+                                  completed: {
+                                    resultSource: "local_commit",
+                                    valueAfter: enabled ? "enabled" : "disabled",
+                                  },
+                                  failureStage: "local_commit",
+                                })
+                              }
+                              stableRenderUnitsEnabled={stableRenderUnitsEnabled}
+                              setStableRenderUnitsEnabled={(enabled) =>
+                                runUserAction({
+                                  input: {
+                                    featureId: "settings.performance",
+                                    action: "toggle_stable_render_units",
+                                    trigger: "switch",
+                                  },
+                                  operation: () => setStableRenderUnitsEnabled(enabled),
+                                  completed: {
+                                    resultSource: "local_commit",
+                                    valueAfter: enabled ? "enabled" : "disabled",
+                                  },
+                                  failureStage: "local_commit",
+                                })
+                              }
+                              scopedPresentationClockEnabled={scopedPresentationClockEnabled}
+                              setScopedPresentationClockEnabled={(enabled) =>
+                                runUserAction({
+                                  input: {
+                                    featureId: "settings.performance",
+                                    action: "toggle_scoped_presentation_clock",
+                                    trigger: "switch",
+                                  },
+                                  operation: () => setScopedPresentationClockEnabled(enabled),
+                                  completed: {
+                                    resultSource: "local_commit",
+                                    valueAfter: enabled ? "enabled" : "disabled",
+                                  },
+                                  failureStage: "local_commit",
+                                })
+                              }
+                              coalescedBottomScrollEnabled={coalescedBottomScrollEnabled}
+                              setCoalescedBottomScrollEnabled={(enabled) =>
+                                runUserAction({
+                                  input: {
+                                    featureId: "settings.performance",
+                                    action: "toggle_coalesced_bottom_scroll",
+                                    trigger: "switch",
+                                  },
+                                  operation: () => setCoalescedBottomScrollEnabled(enabled),
+                                  completed: {
+                                    resultSource: "local_commit",
+                                    valueAfter: enabled ? "enabled" : "disabled",
+                                  },
+                                  failureStage: "local_commit",
+                                })
+                              }
+                              coalescedDeltaFramesEnabled={coalescedDeltaFramesEnabled}
+                              setCoalescedDeltaFramesEnabled={(enabled) =>
+                                runUserAction({
+                                  input: {
+                                    featureId: "settings.performance",
+                                    action: "toggle_coalesced_delta_frames",
+                                    trigger: "switch",
+                                  },
+                                  operation: () => setCoalescedDeltaFramesEnabled(enabled),
                                   completed: {
                                     resultSource: "local_commit",
                                     valueAfter: enabled ? "enabled" : "disabled",

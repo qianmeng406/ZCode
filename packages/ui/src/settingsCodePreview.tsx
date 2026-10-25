@@ -87,8 +87,6 @@ export function AppearanceSectionContent({
   setUiFontSizePx,
   conversationTurnNavigatorEnabled,
   setConversationTurnNavigatorEnabled,
-  conversationWindowCollapseEnabled,
-  setConversationWindowCollapseEnabled,
   assistantAutoFilePreviewEnabled,
   setAssistantAutoFilePreviewEnabled,
 }: {
@@ -100,8 +98,6 @@ export function AppearanceSectionContent({
   setUiFontSizePx: (fontSizePx: number) => void;
   conversationTurnNavigatorEnabled: boolean;
   setConversationTurnNavigatorEnabled: (enabled: boolean) => void;
-  conversationWindowCollapseEnabled: boolean;
-  setConversationWindowCollapseEnabled: (enabled: boolean) => void;
   assistantAutoFilePreviewEnabled: boolean;
   setAssistantAutoFilePreviewEnabled: (enabled: boolean) => void;
 }) {
@@ -173,18 +169,6 @@ export function AppearanceSectionContent({
                 <Switch
                   checked={conversationTurnNavigatorEnabled}
                   onCheckedChange={setConversationTurnNavigatorEnabled}
-                />
-              }
-            />
-            <SettingsRow
-              label={intl.formatMessage({ id: "settings.conversationWindowCollapse" })}
-              description={intl.formatMessage({
-                id: "settings.conversationWindowCollapseDescription",
-              })}
-              control={
-                <Switch
-                  checked={conversationWindowCollapseEnabled}
-                  onCheckedChange={setConversationWindowCollapseEnabled}
                 />
               }
             />

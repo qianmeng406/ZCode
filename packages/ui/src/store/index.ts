@@ -44,6 +44,11 @@ import {
   persistConversationWindowCollapseEnabled,
 } from "@/lib/conversationWindowCollapsePreference.js";
 import {
+  loadPerformanceSettings,
+  persistPerformanceSetting,
+  type PerformanceSettings,
+} from "@/lib/performancePreferences.js";
+import {
   loadAssistantAutoFilePreviewEnabled,
   persistAssistantAutoFilePreviewEnabled,
 } from "@/lib/assistantAutoFilePreviewPreference.js";
@@ -144,6 +149,26 @@ export interface ZCodeState {
   conversationWindowCollapseEnabled: boolean;
   setConversationWindowCollapseEnabled: (enabled: boolean) => void;
 
+  /** 性能优化：流式 Markdown 增量分块（消除每帧整篇重切块）；默认关闭。 */
+  streamingMarkdownIncrementalEnabled: boolean;
+  setStreamingMarkdownIncrementalEnabled: (enabled: boolean) => void;
+
+  /** 性能优化：renderUnit 按 turn 复用（未变轮引用稳定）；默认关闭。 */
+  stableRenderUnitsEnabled: boolean;
+  setStableRenderUnitsEnabled: (enabled: boolean) => void;
+
+  /** 性能优化：运行时钟只传 running 回合（每秒 tick 不击穿全部 memo）；默认关闭。 */
+  scopedPresentationClockEnabled: boolean;
+  setScopedPresentationClockEnabled: (enabled: boolean) => void;
+
+  /** 性能优化：贴底滚动 rAF 合并（每帧至多一次滚动写）；默认关闭。 */
+  coalescedBottomScrollEnabled: boolean;
+  setCoalescedBottomScrollEnabled: (enabled: boolean) => void;
+
+  /** 性能优化：流式 delta 帧合并提交；默认关闭。 */
+  coalescedDeltaFramesEnabled: boolean;
+  setCoalescedDeltaFramesEnabled: (enabled: boolean) => void;
+
   /** 消息 Markdown/HTML 文件预览自动加载；纯展示偏好，默认开启（仅显式 false 关闭）。 */
   assistantAutoFilePreviewEnabled: boolean;
   setAssistantAutoFilePreviewEnabled: (enabled: boolean) => void;
@@ -242,6 +267,11 @@ const BROADCAST_FIELDS = new Set([
   "interfaceMode",
   "conversationTurnNavigatorEnabled",
   "conversationWindowCollapseEnabled",
+  "streamingMarkdownIncrementalEnabled",
+  "stableRenderUnitsEnabled",
+  "scopedPresentationClockEnabled",
+  "coalescedBottomScrollEnabled",
+  "coalescedDeltaFramesEnabled",
   "assistantAutoFilePreviewEnabled",
   "notificationEnabled",
 ]);
@@ -253,6 +283,11 @@ type BroadcastField =
   | "interfaceMode"
   | "conversationTurnNavigatorEnabled"
   | "conversationWindowCollapseEnabled"
+  | "streamingMarkdownIncrementalEnabled"
+  | "stableRenderUnitsEnabled"
+  | "scopedPresentationClockEnabled"
+  | "coalescedBottomScrollEnabled"
+  | "coalescedDeltaFramesEnabled"
   | "assistantAutoFilePreviewEnabled"
   // 任务通知开关跨窗口同步：角标是应用级表面，A 窗口关通知而 B 窗口仍上报未读时，
   // 主进程 max 聚合会让任务栏/托盘继续亮，设置与提醒状态错位。
@@ -281,6 +316,9 @@ export function createZCodeStore(
   let loginEntryRequestSeq = 0;
   let cleanupSystemThemeListener: (() => void) | null = null;
   let syncSystemThemeListener = (_theme: Theme) => {};
+
+  // 性能偏好整体存单个 JSON key：这里持有一份快照，逐字段写入时避免重复解析。
+  let performanceSettingsSnapshot: PerformanceSettings = loadPerformanceSettings();
 
   const useStore = create<ZCodeState>()((set, get) => ({
     interfaceMode: normalizeInterfaceMode(readSafeLocalStorage(INTERFACE_MODE_STORAGE_KEY)),
@@ -369,6 +407,73 @@ export function createZCodeStore(
     setConversationWindowCollapseEnabled: (enabled: boolean) => {
       persistConversationWindowCollapseEnabled(enabled);
       set({ conversationWindowCollapseEnabled: enabled });
+    },
+
+    streamingMarkdownIncrementalEnabled:
+      performanceSettingsSnapshot.streamingMarkdownIncrementalEnabled,
+    setStreamingMarkdownIncrementalEnabled: (enabled: boolean) => {
+      persistPerformanceSetting(
+        "streamingMarkdownIncrementalEnabled",
+        enabled,
+        performanceSettingsSnapshot,
+      );
+      performanceSettingsSnapshot = {
+        ...performanceSettingsSnapshot,
+        streamingMarkdownIncrementalEnabled: enabled,
+      };
+      set({ streamingMarkdownIncrementalEnabled: enabled });
+    },
+
+    stableRenderUnitsEnabled: performanceSettingsSnapshot.stableRenderUnitsEnabled,
+    setStableRenderUnitsEnabled: (enabled: boolean) => {
+      persistPerformanceSetting("stableRenderUnitsEnabled", enabled, performanceSettingsSnapshot);
+      performanceSettingsSnapshot = {
+        ...performanceSettingsSnapshot,
+        stableRenderUnitsEnabled: enabled,
+      };
+      set({ stableRenderUnitsEnabled: enabled });
+    },
+
+    scopedPresentationClockEnabled: performanceSettingsSnapshot.scopedPresentationClockEnabled,
+    setScopedPresentationClockEnabled: (enabled: boolean) => {
+      persistPerformanceSetting(
+        "scopedPresentationClockEnabled",
+        enabled,
+        performanceSettingsSnapshot,
+      );
+      performanceSettingsSnapshot = {
+        ...performanceSettingsSnapshot,
+        scopedPresentationClockEnabled: enabled,
+      };
+      set({ scopedPresentationClockEnabled: enabled });
+    },
+
+    coalescedBottomScrollEnabled: performanceSettingsSnapshot.coalescedBottomScrollEnabled,
+    setCoalescedBottomScrollEnabled: (enabled: boolean) => {
+      persistPerformanceSetting(
+        "coalescedBottomScrollEnabled",
+        enabled,
+        performanceSettingsSnapshot,
+      );
+      performanceSettingsSnapshot = {
+        ...performanceSettingsSnapshot,
+        coalescedBottomScrollEnabled: enabled,
+      };
+      set({ coalescedBottomScrollEnabled: enabled });
+    },
+
+    coalescedDeltaFramesEnabled: performanceSettingsSnapshot.coalescedDeltaFramesEnabled,
+    setCoalescedDeltaFramesEnabled: (enabled: boolean) => {
+      persistPerformanceSetting(
+        "coalescedDeltaFramesEnabled",
+        enabled,
+        performanceSettingsSnapshot,
+      );
+      performanceSettingsSnapshot = {
+        ...performanceSettingsSnapshot,
+        coalescedDeltaFramesEnabled: enabled,
+      };
+      set({ coalescedDeltaFramesEnabled: enabled });
     },
 
     assistantAutoFilePreviewEnabled: loadAssistantAutoFilePreviewEnabled(),
@@ -567,6 +672,19 @@ export function createZCodeStore(
         typeof msg.payload === "boolean"
       ) {
         state.setConversationWindowCollapseEnabled(msg.payload);
+      } else if (
+        field === "streamingMarkdownIncrementalEnabled" &&
+        typeof msg.payload === "boolean"
+      ) {
+        state.setStreamingMarkdownIncrementalEnabled(msg.payload);
+      } else if (field === "stableRenderUnitsEnabled" && typeof msg.payload === "boolean") {
+        state.setStableRenderUnitsEnabled(msg.payload);
+      } else if (field === "scopedPresentationClockEnabled" && typeof msg.payload === "boolean") {
+        state.setScopedPresentationClockEnabled(msg.payload);
+      } else if (field === "coalescedBottomScrollEnabled" && typeof msg.payload === "boolean") {
+        state.setCoalescedBottomScrollEnabled(msg.payload);
+      } else if (field === "coalescedDeltaFramesEnabled" && typeof msg.payload === "boolean") {
+        state.setCoalescedDeltaFramesEnabled(msg.payload);
       } else if (field === "assistantAutoFilePreviewEnabled" && typeof msg.payload === "boolean") {
         state.setAssistantAutoFilePreviewEnabled(msg.payload);
       } else if (field === "notificationEnabled" && typeof msg.payload === "boolean") {

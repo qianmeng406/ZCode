@@ -6,13 +6,13 @@ import {
 } from "../src/lib/userActionTraceCatalog.js";
 
 describe("user action trace catalog", () => {
-  it("固定 24 个 Core 与 15 个 Settings 叶子 feature", () => {
+  it("固定 24 个 Core 与 16 个 Settings 叶子 feature", () => {
     expect(Object.keys(CORE_USER_ACTION_FEATURES)).toHaveLength(24);
-    expect(Object.keys(SETTINGS_USER_ACTION_FEATURES)).toHaveLength(15);
+    expect(Object.keys(SETTINGS_USER_ACTION_FEATURES)).toHaveLength(16);
     expect(USER_ACTION_CATALOG.filter((entry) => entry.group === "core")).toHaveLength(94);
-    // fork 新增「会话轮导航」「助手文件自动预览」两个设置动作，settings 组条目由官方 44 增至 46；
-    // feature 叶子仍为 15，组合唯一性断言继续约束。
-    expect(USER_ACTION_CATALOG.filter((entry) => entry.group === "settings")).toHaveLength(46);
+    // fork 新增性能页 6 个开关动作（含从外观迁来的收纳开关），settings 组条目由 46 增至 52；
+    // 收纳开关此前未登记（遥测静默 NOOP），这次随迁移一并补上。
+    expect(USER_ACTION_CATALOG.filter((entry) => entry.group === "settings")).toHaveLength(52);
   });
 
   it("feature/action 组合唯一且不使用动态标识", () => {

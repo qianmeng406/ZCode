@@ -1,5 +1,6 @@
 import {
   Archive,
+  Gauge,
   Monitor,
   Moon,
   Settings,
@@ -67,6 +68,13 @@ const BASE_SETTINGS_SECTIONS: SettingsSectionDefinition[] = [
     id: "appearance",
     icon: Palette,
     titleId: "settings.appearanceTitle",
+    groupId: "basics",
+  },
+  // 性能：流式渲染/长会话的优化开关集中页（默认全部关闭，逐项独立启用）。
+  {
+    id: "performance",
+    icon: Gauge,
+    titleId: "settings.performanceTitle",
     groupId: "basics",
   },
   {

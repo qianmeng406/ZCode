@@ -40,6 +40,7 @@ describe("settingsPageConfig", () => {
         sections: [
           "general",
           "appearance",
+          "performance",
           "modelProvider",
           "browser",
           "remoteDevices",
@@ -55,6 +56,7 @@ describe("settingsPageConfig", () => {
     expect(settingsSections.map((section) => section.id)).toEqual([
       "general",
       "appearance",
+      "performance",
       "modelProvider",
       "memory",
       "subagents",
@@ -97,6 +99,7 @@ describe("settingsPageConfig", () => {
     expect(basics?.sections.map((section) => section.id)).toEqual([
       "general",
       "appearance",
+      "performance",
       "modelProvider",
       "browser",
       "remoteDevices",

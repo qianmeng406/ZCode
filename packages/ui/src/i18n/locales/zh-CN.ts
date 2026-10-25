@@ -3069,6 +3069,24 @@ const zhCN: Record<string, string> = {
   "settings.conversationWindowCollapse": "会话窗口收纳",
   "settings.conversationWindowCollapseDescription":
     "只保留最近的会话窗口，更早的内容收纳为顶部“加载更早”入口，按需增量查看。长会话中开启可显著降低内存与 CPU 占用。",
+  "settings.performanceTitle": "性能",
+  "settings.performance.description":
+    "流式渲染与长会话的性能优化开关，全部默认关闭；关闭时行为与标准渲染完全一致，可按需逐项开启。",
+  "settings.performance.streamingMarkdownIncremental": "流式 Markdown 增量解析",
+  "settings.performance.streamingMarkdownIncrementalDescription":
+    "流式输出时只重新解析正在生成的末尾块，已完成的段落直接复用。长回复期间可降低每帧解析开销，显示结果不变。",
+  "settings.performance.stableRenderUnits": "渲染单元复用",
+  "settings.performance.stableRenderUnitsDescription":
+    "回合渲染单元按内容复用，未变化的回合不再重复重建。流式期间长会话的每帧渲染开销显著下降。",
+  "settings.performance.scopedPresentationClock": "运行计时局部刷新",
+  "settings.performance.scopedPresentationClockDescription":
+    "每秒运行计时只刷新正在工作的回合，不再让全部可见回合每秒重渲染。建议与“渲染单元复用”一起开启。",
+  "settings.performance.coalescedBottomScroll": "贴底滚动合并",
+  "settings.performance.coalescedBottomScrollDescription":
+    "流式输出贴底跟随时，同一帧内多次滚动合并为一次写入。跟随流畅度提升，滚动语义不变。",
+  "settings.performance.coalescedDeltaFrames": "流式帧合并",
+  "settings.performance.coalescedDeltaFramesDescription":
+    "同一渲染帧内到达的多条流式增量合并为一次提交，渲染节奏与显示刷新率对齐。文本显示最多延迟一帧，内容不丢。",
   "settings.assistantAutoFilePreview": "自动加载文件预览",
   "settings.assistantAutoFilePreviewDescription":
     "自动识别回复中引用的 Markdown/HTML 文件并加载预览卡片。关闭后改为点击“加载预览”手动获取。",
