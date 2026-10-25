@@ -85,7 +85,10 @@ import { DEFAULT_CODE_PREVIEW_SETTINGS } from "@/lib/codePreviewSettings.js";
 import type { CodeViewerSource } from "@/lib/codeViewer.js";
 import type { OpenAutomationsMain } from "@/lib/taskNavigationHistory.js";
 import { WORKSPACE_FILE_DRAG_MIME } from "@/lib/workspaceFileDrag.js";
-import { buildChatSessionScrollMemoryKey } from "@/lib/chatSessionScrollMemory.js";
+import {
+  buildChatSessionScrollMemoryKey,
+  readChatSessionScrollMemoryState,
+} from "@/lib/chatSessionScrollMemory.js";
 import type { MessageFileLinkTarget } from "@/components/ai-elements/message.js";
 import { useServices } from "@/hooks/useServices.js";
 import { useOptionalPlatform } from "@/hooks/usePlatform.js";
@@ -4970,7 +4973,23 @@ export function SessionPane({
 
   useEffect(() => {
     lease?.store.setWindowCollapseEnabled?.(conversationWindowCollapseEnabled);
-  }, [conversationWindowCollapseEnabled, lease]);
+    // 冷加载收纳前置：store 尚未拿到任何快照（pristine）时，按滚动记忆种子化跟随状态，
+    // 让首帧快照在 store 内先裁剪到软上限再进入渲染——否则会先全量渲染一次再折叠。
+    // 判定与 Timeline 的 restore 同源：无滚动记忆或上次贴底 ⇒ 打开后贴底跟随（可收纳）；
+    // 存在中部位置的记忆 ⇒ 不种子化（保持全量历史，位置恢复需要完整窗口）。
+    // 只在 pristine 时种子化：会话中途开开关沿用既有门控（等 Timeline 上报跟随状态），
+    // 避免用过期的记忆覆盖正在阅读的视口。
+    if (
+      conversationWindowCollapseEnabled &&
+      lease &&
+      (lease.store.getState?.().snapshot ?? null) === null
+    ) {
+      const memory = readChatSessionScrollMemoryState(timelineScrollMemoryKey);
+      if (!memory || memory.wasPinnedToBottom === true) {
+        lease.store.setHistoryViewportState?.({ pinnedToBottom: true });
+      }
+    }
+  }, [conversationWindowCollapseEnabled, lease, timelineScrollMemoryKey]);
 
   // 性能开关：流式帧合并。开启后 online delta 帧按渲染帧合并提交；关闭时同步
   // 冲刷缓冲，回到逐帧 apply。可选调用与收纳开关同因（增量能力，非契约必需）。

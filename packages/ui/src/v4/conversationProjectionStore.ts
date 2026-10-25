@@ -821,10 +821,18 @@ export class ConversationProjectionStore {
     });
   }
 
+  /** 收纳判据（快照前置裁剪与帧后评估共用）：开关 + 贴底跟随 + 无在途分页。 */
+  private windowCollapseAllowed(): boolean {
+    return (
+      this.windowCollapseEnabled &&
+      this.historyViewportState.pinnedToBottom &&
+      !this.state.loadingOlder &&
+      !this.fullHistoryJob
+    );
+  }
+
   private maybeCollapseWindow(): void {
-    if (!this.windowCollapseEnabled) return;
-    if (!this.historyViewportState.pinnedToBottom) return;
-    if (this.state.loadingOlder || this.fullHistoryJob) return;
+    if (!this.windowCollapseAllowed()) return;
     const snapshot = this.state.snapshot;
     if (!snapshot || snapshot.rows.window.length <= CONVERSATION_WINDOW_SOFT_CAP) return;
     this.collapseOlder();
@@ -902,7 +910,20 @@ export class ConversationProjectionStore {
   ): void {
     if (frame.payload.kind === "snapshot") {
       const hadAppliedBase = this.subscriptionHasAppliedBase;
-      const snapshot = this.shareSnapshotRows(frame.payload.snapshot);
+      // 冷加载收纳前置：种子化贴底时快照先裁剪到软上限再入 state——否则长会话
+      // 重进会先全量渲染一次再折叠（deltas 路径的帧后评估只覆盖直播追加）。
+      // firstRowId/totalCount 保持原值，"加载更早"语义不受影响。
+      const collapsed = this.windowCollapseAllowed()
+        ? collapseWindowRows(frame.payload.snapshot.rows.window)
+        : null;
+      const snapshot = this.shareSnapshotRows(
+        collapsed
+          ? {
+              ...frame.payload.snapshot,
+              rows: { ...frame.payload.snapshot.rows, window: collapsed.rows },
+            }
+          : frame.payload.snapshot,
+      );
       logSubagentProjectionTransition(this.topic, this.state.snapshot, snapshot, "snapshot");
       // 规则 1：整体替换，扔掉手里的一切换新的（行对象按值复用旧引用，语义仍是整体替换）。
       this.setState({

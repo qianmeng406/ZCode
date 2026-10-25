@@ -2328,6 +2328,78 @@ describe("ConversationProjectionStore.collapseOlder", () => {
   });
 });
 
+describe("ConversationProjectionStore 冷加载收纳前置（pristine 种子化 pinnedToBottom）", () => {
+  /** 420 行、每 3 行一个 turn 的窗口；与 collapseOlder 组的 bigSnapshot 同构，seq 对齐首帧。 */
+  function bigSnapshot(): ConversationSnapshot {
+    const window: ConversationRow[] = [];
+    for (let group = 0; group < 140; group++) {
+      window.push(turnHeaderRow(group * 3 + 1, `turn-${group}`));
+      window.push(assistantRow(group * 3 + 2, `a${group}`));
+      window.push(assistantRow(group * 3 + 3, `b${group}`));
+    }
+    return makeSnapshot({
+      seq: 5,
+      rows: { window, totalCount: 420, firstRowId: 1 },
+    });
+  }
+
+  function createStore(): {
+    transport: FakeTransport;
+    store: ConversationProjectionStore;
+  } {
+    const transport = new FakeTransport();
+    const store = new ConversationProjectionStore("conversation/s1", transport);
+    transport.onFrame((frame) => store.handleFrame(frame));
+    return { transport, store };
+  }
+
+  function wireBigSnapshotInitial(transport: FakeTransport): void {
+    transport.subscribeImpl = (params, subscriptionId) => ({
+      ack: { subscriptionId, mode: "snapshot", logEpoch: "epoch-1" },
+      initialFrame: makeFrame(
+        subscriptionId,
+        0,
+        5,
+        { kind: "snapshot", snapshot: bigSnapshot() },
+        params.topic,
+      ),
+    });
+  }
+
+  it("pristine 时种子化贴底：首帧快照直接进收纳窗口，全量窗口从未进入状态", async () => {
+    const { transport, store } = createStore();
+    store.setWindowCollapseEnabled(true);
+    // SessionPane 在订阅前种子化（无滚动记忆 / 上次贴底）。
+    store.setHistoryViewportState({ pinnedToBottom: true });
+    wireBigSnapshotInitial(transport);
+    await store.connect();
+    const snapshot = store.getState().snapshot!;
+    expect(snapshot.rows.window).toHaveLength(399);
+    expect(snapshot.rows.window[0]!.rowId).toBe(22);
+    expect(snapshot.rows.window[0]!.kind).toBe("turnHeader");
+    expect(snapshot.rows.totalCount).toBe(420);
+    expect(snapshot.rows.firstRowId).toBe(1);
+    expect(hasOlderRows(snapshot)).toBe(true);
+  });
+
+  it("种子化未贴底（存在中部滚动记忆）→ 冷加载保持全量窗口", async () => {
+    const { transport, store } = createStore();
+    store.setWindowCollapseEnabled(true);
+    store.setHistoryViewportState({ pinnedToBottom: false });
+    wireBigSnapshotInitial(transport);
+    await store.connect();
+    expect(store.getState().snapshot!.rows.window).toHaveLength(420);
+  });
+
+  it("开关关闭时即使种子化贴底也不裁剪（fail-closed 回归护栏）", async () => {
+    const { transport, store } = createStore();
+    store.setHistoryViewportState({ pinnedToBottom: true });
+    wireBigSnapshotInitial(transport);
+    await store.connect();
+    expect(store.getState().snapshot!.rows.window).toHaveLength(420);
+  });
+});
+
 describe("ConversationProjectionStore 流式帧合并（coalescedDeltaFramesEnabled，默认关闭）", () => {
   let transport: FakeTransport;
   let store: ConversationProjectionStore;
