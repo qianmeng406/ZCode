@@ -834,6 +834,10 @@ exceptions:
     rule: unmanaged-new-file
     paths: [packages/ui/src/lib/pluginIconSource.ts]
     reason: 已有插件图标来源解析只增加内联 data:image 放行（本地开发市场无 CDN 可挂 listing 图标），MIME 白名单与 64 KiB 上限仍把边界限制为“只允许图片”；官方 CDN 优先、内置图标覆盖与缺省回退的顺序不变，接管 packages/ui/src/lib 不在本次范围内。
+  - id: conversation-window-collapse-preference-unmanaged-new
+    rule: unmanaged-new-file
+    paths: [packages/ui/src/lib/conversationWindowCollapsePreference.ts]
+    reason: 会话窗口收纳开关的 localStorage 偏好文件，与同目录的会话回合导航偏好（conversationTurnNavigatorPreference.ts）同一模式：纯客户端展示偏好、fail-closed 默认关闭、不含业务逻辑；接管 packages/ui/src/lib 需要单独的模块边界梳理，不在收纳功能范围内。
   - id: renderer-lazy-view-boundaries-unmanaged-new
     rule: unmanaged-new-file
     paths:
