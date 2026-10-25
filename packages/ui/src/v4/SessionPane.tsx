@@ -2203,6 +2203,11 @@ export function SessionPane({
     (state) => state.coalescedDeltaFramesEnabled,
     false,
   );
+  // 性能开关（默认关闭）：空闲期每秒扫描收敛（highspeed 到期候选 + find 空查询计数）。
+  const idleTickScanReductionEnabled = useZCodeStoreWithDefault(
+    (state) => state.idleTickScanReductionEnabled,
+    false,
+  );
   // 消息文件预览自动加载开关（默认开启）：关闭后改为回合内「加载预览」手动触发。
   const assistantAutoFilePreviewEnabled = useZCodeStoreWithDefault(
     (state) => state.assistantAutoFilePreviewEnabled,
@@ -6382,6 +6387,7 @@ export function SessionPane({
                   stableRenderUnitsEnabled={stableRenderUnitsEnabled}
                   scopedPresentationClockEnabled={scopedPresentationClockEnabled}
                   coalescedBottomScrollEnabled={coalescedBottomScrollEnabled}
+                  idleTickScanReductionEnabled={idleTickScanReductionEnabled}
                   onHistoryViewportStateChange={
                     conversationWindowCollapseEnabled ? handleHistoryViewportStateChange : undefined
                   }

@@ -79,6 +79,19 @@ function createTarget(
   };
 }
 
+/**
+ * 空 query 的行数计数快路径（性能开关 idleTickScanReductionEnabled）：
+ * loadedRowCount 与 target 数量一一对应（代码注释投影只改写文本不减行数），
+ * 无需物化 target、也无需跑投影即可得到与 buildConversationFindIndex 完全相等的计数。
+ */
+export function countConversationFindTargets(units: readonly ConversationTurnRenderUnit[]): number {
+  let count = 0;
+  for (const unit of units) {
+    count += unit.visibleUserInputs.length + unit.assistantTextRows.length;
+  }
+  return count;
+}
+
 export function buildConversationFindIndex(
   units: readonly ConversationTurnRenderUnit[],
   query: string,

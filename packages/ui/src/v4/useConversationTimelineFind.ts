@@ -9,6 +9,7 @@ import {
 } from "@/v4/conversationFindHighlightDom.js";
 import {
   buildConversationFindIndex,
+  countConversationFindTargets,
   findConversationMatchIndexByKey,
   getConversationFindMatchKey,
   resolveConversationFindActiveIndex,
@@ -42,6 +43,8 @@ export interface UseConversationTimelineFindOptions {
   searchResultHighlightRequest?: ChatSearchResultHighlightRequest | null;
   onSearchResultHighlightDone?: (requestId: number) => void;
   scrollToUnit: (unitIndex: number) => void;
+  /** 性能开关 idleTickScanReductionEnabled：空查询走计数快路径（默认关闭走原路径）。 */
+  idleTickScanReductionEnabled?: boolean;
 }
 
 function normalizeSearchResultSnippet(text: string): string {
@@ -76,6 +79,7 @@ export function useConversationTimelineFind({
   searchResultHighlightRequest,
   onSearchResultHighlightDone,
   scrollToUnit,
+  idleTickScanReductionEnabled = false,
 }: UseConversationTimelineFindOptions) {
   const codeCommentCardsEnabled = useAssistantCodeCommentFeatureEnabled();
   const findStable = sessionPhase !== "running" && sessionPhase !== "prewarming";
@@ -89,6 +93,17 @@ export function useConversationTimelineFind({
     if (unitFindCacheQueryRef.current !== normalizedQuery) {
       unitFindCacheRef.current.clear();
       unitFindCacheQueryRef.current = normalizedQuery;
+    }
+    if (idleTickScanReductionEnabled && !normalizedQuery) {
+      // 空查询快路径：matches 恒空，loadedRowCount 用零成本计数得到（与逐 unit
+      // 构建索引逐字节相等）；跳过 target 物化与代码注释投影，空闲期每秒 tick
+      // 不再随 renderUnits 变化扫描全部文本。
+      return {
+        query: normalizedQuery,
+        matches: [],
+        matchCount: 0,
+        loadedRowCount: countConversationFindTargets(renderUnits),
+      };
     }
     const matches: ConversationFindMatch[] = [];
     let loadedRowCount = 0;
@@ -114,7 +129,7 @@ export function useConversationTimelineFind({
       }
     });
     return { query: normalizedQuery, matches, matchCount: matches.length, loadedRowCount };
-  }, [codeCommentCardsEnabled, conversationFindQuery, renderUnits]);
+  }, [codeCommentCardsEnabled, conversationFindQuery, idleTickScanReductionEnabled, renderUnits]);
   const searchResultFindIndex = useMemo(
     () =>
       findStable && searchResultHighlightRequest

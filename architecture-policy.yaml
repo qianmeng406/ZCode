@@ -1033,3 +1033,8 @@ exceptions:
     paths:
       - packages/ui/src/lib/shikiTokensCachePolicy.ts
     reason: shiki tokensCache 容量策略纯逻辑模块（性能开关 boundedHighlightCacheEnabled）：LRU 淘汰裁决与缓存 Map 解耦，配套单测；shikiHighlighter 只在写入/命中回调消费，避免 store 反向依赖 shiki 重模块。
+  - id: highspeed-expiry-candidates-unmanaged-new
+    rule: unmanaged-new-file
+    paths:
+      - packages/ui/src/highspeed/highspeedExpiryCandidates.ts
+    reason: highspeed 到期候选集纯函数（性能开关 idleTickScanReductionEnabled）：rows 变化时收集升序候选、每秒只在候选里推进，与 resolveNextHighspeedExpiryMs 语义逐点一致的 parity 由单测固化；消费点仅 ConversationTimeline 的一个 gated memo。

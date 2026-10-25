@@ -60,6 +60,10 @@ import {
 } from "@/v4/conversationTimelineLiveTail.js";
 import { armHighspeedFooterExpiryClock } from "@/highspeed/highspeedFooterExpiryClock.js";
 import {
+  collectHighspeedExpiryCandidates,
+  resolveNextHighspeedExpiryFromCandidates,
+} from "@/highspeed/highspeedExpiryCandidates.js";
+import {
   getConversationContentWidthClassName,
   getConversationStatusPanelOffsetClassName,
 } from "@/v4/conversationLayout.js";
@@ -332,6 +336,11 @@ export interface ConversationTimelineProps {
    */
   coalescedBottomScrollEnabled?: boolean;
   /**
+   * 性能开关（默认关闭）：空闲期每秒扫描收敛——highspeed 到期候选只随 rows
+   * 变化重算，find 空查询走零成本计数；关闭时两条路径与原全量扫描一致。
+   */
+  idleTickScanReductionEnabled?: boolean;
+  /**
    * 视口状态上报（仅开启收纳时传入）：pinnedToBottom = 贴底跟随（following）。
    * store 只在贴底跟随时允许头部裁剪——底部锚定接管滚动位置，裁剪不可见；
    * 用户向上滚动后跟随解除，收纳冻结，绝不会与滚动手势打架。
@@ -449,6 +458,7 @@ function ConversationTimelineImpl({
   stableRenderUnitsEnabled = false,
   scopedPresentationClockEnabled = false,
   coalescedBottomScrollEnabled = false,
+  idleTickScanReductionEnabled = false,
   onHistoryViewportStateChange,
   turnNavigatorDirectoryRevision = 0,
   bottomDock,
@@ -617,9 +627,18 @@ function ConversationTimelineImpl({
     };
     onLatestTurnSummaryChange(latestTurnSummary);
   }, [latestTurnSummary, onLatestTurnSummaryChange]);
+  // idleTickScanReductionEnabled（默认关闭）：候选集只随 rows 变化重算；每秒 tick
+  // 只在候选数组里推进（通常个位数），空闲期不再对全量 rows 线性扫描。
+  const highspeedExpiryCandidates = useMemo(
+    () => (idleTickScanReductionEnabled ? collectHighspeedExpiryCandidates(rows) : null),
+    [idleTickScanReductionEnabled, rows],
+  );
   const nextHighspeedExpiryMs = useMemo(
-    () => resolveNextHighspeedExpiryMs(rows, liveNowMs),
-    [liveNowMs, rows],
+    () =>
+      highspeedExpiryCandidates !== null
+        ? resolveNextHighspeedExpiryFromCandidates(highspeedExpiryCandidates, liveNowMs)
+        : resolveNextHighspeedExpiryMs(rows, liveNowMs),
+    [highspeedExpiryCandidates, liveNowMs, rows],
   );
   // 导航资格 = 功能开启且未被分享流程独占 rail。停用时导航专属计算全部短路，
   // 但正文渲染单元、消息 mask、普通向上分页与分享数据构建不受影响。
@@ -1918,6 +1937,7 @@ function ConversationTimelineImpl({
     searchResultHighlightRequest,
     onSearchResultHighlightDone,
     scrollToUnit,
+    idleTickScanReductionEnabled,
   });
 
   const saveCurrentScrollMemoryRef = useRef(saveCurrentScrollMemory);
