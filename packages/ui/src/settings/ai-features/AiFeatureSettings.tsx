@@ -65,9 +65,7 @@ export function PromptOptimizerSetting() {
         value={settings?.promptOptimizerModel}
         onChange={(selection) => save({ promptOptimizerModel: selection })}
         followLabel={intl.formatMessage({ id: "settings.aiFeature.followSession" })}
-        defaultLevelLabel={intl.formatMessage({ id: "settings.aiFeature.reasoningDefault" })}
         levelLabel={intl.formatMessage({ id: "settings.aiFeature.reasoningLevel" })}
-        levelPolicy="lowest"
         disabled={disabled}
         testIdPrefix="settings-prompt-optimizer"
       />
@@ -153,9 +151,7 @@ export function OracleReviewModelSetting() {
       value={settings?.oracleReviewModel}
       onChange={(selection) => save({ oracleReviewModel: selection })}
       followLabel={intl.formatMessage({ id: "settings.aiFeature.followSession" })}
-      defaultLevelLabel={intl.formatMessage({ id: "settings.aiFeature.reasoningDefault" })}
       levelLabel={intl.formatMessage({ id: "settings.aiFeature.reasoningLevel" })}
-      levelPolicy="none"
       disabled={!settings || saving}
       testIdPrefix="settings-oracle-review"
     />

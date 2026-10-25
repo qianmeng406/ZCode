@@ -13,14 +13,14 @@ import { useModelSelectionServiceView } from "@/hooks/useModelSelectionView.js";
 import { useBaseWorkspaceServices } from "@/hooks/useWorkspaceServices.js";
 import { SettingsRow } from "@/settings/SettingsPageParts.js";
 import {
-  AI_FEATURE_DEFAULT_LEVEL_VALUE,
   AI_FEATURE_FOLLOW_MODEL_VALUE,
+  buildAiFeatureModelChoice,
   buildAiFeatureModelGroups,
   buildAiFeatureSelection,
   findAiFeatureModel,
   formatAiFeatureModelValue,
+  resolveAiFeatureDisplayLevel,
   type AiFeatureModelGroup,
-  type AiFeatureReasoningLevelPolicy,
 } from "./aiFeatureModelOptions.js";
 
 export interface AiFeatureModelSettingProps {
@@ -29,10 +29,7 @@ export interface AiFeatureModelSettingProps {
   value: ModelSelection | null | undefined;
   onChange: (selection: ModelSelection | null) => void | Promise<void>;
   followLabel: string;
-  defaultLevelLabel?: string;
   levelLabel?: string;
-  /** lowest = 选中模型时带最低公开档（提示词优化）；none = 保持模型默认档（审查）。 */
-  levelPolicy?: AiFeatureReasoningLevelPolicy;
   disabled?: boolean;
   testIdPrefix: string;
 }
@@ -40,6 +37,8 @@ export interface AiFeatureModelSettingProps {
 /**
  * 设置页的「模型 + 推理档位」两行控件。
  * 只负责展示与归一化，不直接写设置；由调用方决定落到哪个 AppSettings 字段。
+ * 档位恒为显式值：选模型落盘最低公开档，下拉只列真实档位（无「默认档」哨兵项）；
+ * 缺档/失效档在显示上回落最低档，与实际执行语义一致。
  */
 export function AiFeatureModelSetting({
   label,
@@ -47,9 +46,7 @@ export function AiFeatureModelSetting({
   value,
   onChange,
   followLabel,
-  defaultLevelLabel,
   levelLabel,
-  levelPolicy = "none",
   disabled,
   testIdPrefix,
 }: AiFeatureModelSettingProps) {
@@ -73,7 +70,8 @@ export function AiFeatureModelSetting({
     ];
   }, [groups, selectedModelMissing, selection]);
   const levels = selectedModel?.levels ?? [];
-  const currentLevel = selection?.options?.reasoningLevel ?? "";
+  // 缺档/失效档显示回落最低档（与落盘/迁移/优化器同一解析规则），不留空选中态。
+  const displayLevel = resolveAiFeatureDisplayLevel(selectedModel, selection) ?? "";
 
   const handleModelChange = (rawValue: string) => {
     if (rawValue === AI_FEATURE_FOLLOW_MODEL_VALUE) {
@@ -84,15 +82,13 @@ export function AiFeatureModelSetting({
     if (separator <= 0 || separator >= rawValue.length - 1) return;
     const providerId = rawValue.slice(0, separator);
     const modelId = rawValue.slice(separator + 1);
-    const model = findAiFeatureModel(groups, { providerId, modelId });
-    const reasoningLevel = levelPolicy === "lowest" ? model?.levels[0] : undefined;
-    void onChange(buildAiFeatureSelection(providerId, modelId, reasoningLevel));
+    void onChange(buildAiFeatureModelChoice(groups, providerId, modelId));
   };
 
   const handleLevelChange = (rawValue: string) => {
     if (!selection) return;
-    const reasoningLevel = rawValue === AI_FEATURE_DEFAULT_LEVEL_VALUE ? undefined : rawValue;
-    void onChange(buildAiFeatureSelection(selection.providerId, selection.modelId, reasoningLevel));
+    // 下拉只列目录内的真实档位，rawValue 即合法档位。
+    void onChange(buildAiFeatureSelection(selection.providerId, selection.modelId, rawValue));
   };
 
   return (
@@ -145,16 +141,12 @@ export function AiFeatureModelSetting({
           </Select>
         }
       />
-      {selection && levels.length > 0 && levelLabel && defaultLevelLabel ? (
+      {selection && levels.length > 0 && levelLabel ? (
         <SettingsRow
           label={levelLabel}
           controlLayout="wide"
           control={
-            <Select
-              value={currentLevel || AI_FEATURE_DEFAULT_LEVEL_VALUE}
-              onValueChange={handleLevelChange}
-              disabled={disabled}
-            >
+            <Select value={displayLevel} onValueChange={handleLevelChange} disabled={disabled}>
               <SelectTrigger
                 size="lg"
                 className="w-[280px] min-w-0 justify-between"
@@ -169,12 +161,6 @@ export function AiFeatureModelSetting({
                 sideOffset={4}
                 className="w-(--radix-select-trigger-width)"
               >
-                <SelectItem
-                  value={AI_FEATURE_DEFAULT_LEVEL_VALUE}
-                  data-testid={`${testIdPrefix}-level-default`}
-                >
-                  {defaultLevelLabel}
-                </SelectItem>
                 {levels.map((level) => (
                   <SelectItem
                     key={level}

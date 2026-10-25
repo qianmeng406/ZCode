@@ -135,12 +135,38 @@ describe("AI feature settings", () => {
     );
   });
 
-  it("keeps the oracle model on the model default level", async () => {
+  it("writes the lowest reasoning level when picking an oracle model", async () => {
     render(createElement(OracleReviewModelSetting));
     fireEvent.click(screen.getByTestId("settings-oracle-review-model-openai-gpt-5"));
     await waitFor(() =>
       expect(mocks.update).toHaveBeenCalledWith({
-        oracleReviewModel: { providerId: "openai", modelId: "gpt-5" },
+        oracleReviewModel: {
+          providerId: "openai",
+          modelId: "gpt-5",
+          options: { reasoningLevel: "low" },
+        },
+      }),
+    );
+  });
+
+  it("writes an explicit oracle reasoning level and shows the effective level for legacy no-level picks", async () => {
+    mocks.settings = {
+      oracleReviewModel: { providerId: "openai", modelId: "gpt-5" },
+    };
+    render(createElement(OracleReviewModelSetting));
+    // 无档存量选择在下拉中显示为最低档（与实际执行语义一致），不出现永不选中的哨兵项。
+    const levelSelect = screen
+      .getByTestId("settings-oracle-review-level-trigger")
+      .closest("[data-select-value]");
+    expect(levelSelect?.getAttribute("data-select-value")).toBe("low");
+    fireEvent.click(screen.getByTestId("settings-oracle-review-level-high"));
+    await waitFor(() =>
+      expect(mocks.update).toHaveBeenCalledWith({
+        oracleReviewModel: {
+          providerId: "openai",
+          modelId: "gpt-5",
+          options: { reasoningLevel: "high" },
+        },
       }),
     );
   });

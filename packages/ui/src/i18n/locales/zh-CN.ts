@@ -3220,7 +3220,6 @@ const zhCN: Record<string, string> = {
     "优化时是否参考当前对话；仅当前输入更快，结合对话更准确。",
   "settings.aiFeature.followSession": "跟随会话模型",
   "settings.aiFeature.reasoningLevel": "推理档位",
-  "settings.aiFeature.reasoningDefault": "模型默认档位",
   "settings.aiFeature.saveError": "保存 AI 功能设置失败",
   "settings.messageStreamShowReasoning": "显示思考过程",
   "settings.messageStreamShowReasoningDescription":

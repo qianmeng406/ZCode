@@ -314,6 +314,7 @@ import {
   readStoredOptimizerModelSelection,
   writeStoredOptimizerModelSelection,
 } from "@/v4/composer/usePromptOptimizer.js";
+import { migrateAiFeatureSelectionLevel } from "@/settings/ai-features/aiFeatureModelOptions.js";
 import {
   readStoredOracleModelSelection,
   writeStoredOracleModelSelection,
@@ -1978,6 +1979,38 @@ export function SessionPane({
       if (failed) legacyAiSettingsMigratedRef.current = false;
     })();
   }, [sharedSettings, storedOptimizerModel, storedOracleModel, updateSharedSettings]);
+  // 旧「默认档」语义落盘的无档/失效档模型偏好在 Registry 执行侧非法（缺档请求被
+  // "Reasoning level is required" 拒绝），执行侧不做静默补档：模型目录就绪后一次性
+  // 迁移为显式最低公开档写回设置；写失败保留旧值，等下次会话重试。仅处理存量数据，
+  // 设置页新落盘的偏好恒为显式档位。
+  const aiFeatureLevelMigratedRef = useRef(false);
+  useEffect(() => {
+    if (!sharedSettings || aiFeatureLevelMigratedRef.current) return;
+    if (!modelSelectionView) return;
+    const patch: {
+      oracleReviewModel?: ModelSelection;
+      promptOptimizerModel?: ModelSelection;
+    } = {};
+    const oracleFix = migrateAiFeatureSelectionLevel(
+      sharedSettings.oracleReviewModel,
+      modelSelectionView,
+    );
+    if (oracleFix) patch.oracleReviewModel = oracleFix;
+    const optimizerFix = migrateAiFeatureSelectionLevel(
+      sharedSettings.promptOptimizerModel,
+      modelSelectionView,
+    );
+    if (optimizerFix) patch.promptOptimizerModel = optimizerFix;
+    aiFeatureLevelMigratedRef.current = true;
+    if (!oracleFix && !optimizerFix) return;
+    void (async () => {
+      try {
+        await updateSharedSettings(patch);
+      } catch {
+        aiFeatureLevelMigratedRef.current = false;
+      }
+    })();
+  }, [modelSelectionView, sharedSettings, updateSharedSettings]);
   // Oracle 把关：hook 挂在 pane 层——同一份状态既喂 composer（横幅/盾牌），
   // 也经 row context 喂轮尾工具栏的「审查这一回合」。模型偏好来自设置页。
   const oracleReview = useOracleReview({

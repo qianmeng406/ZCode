@@ -3443,7 +3443,6 @@ const enUS: Record<string, string> = {
     "Whether optimization also reads this conversation. Draft only is faster; with conversation is more accurate.",
   "settings.aiFeature.followSession": "Follow session model",
   "settings.aiFeature.reasoningLevel": "Reasoning level",
-  "settings.aiFeature.reasoningDefault": "Model default",
   "settings.aiFeature.saveError": "Could not save AI feature settings",
   "settings.messageStreamShowReasoning": "Show reasoning",
   "settings.messageStreamShowReasoningDescription":

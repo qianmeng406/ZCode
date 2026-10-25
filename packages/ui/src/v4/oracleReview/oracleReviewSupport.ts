@@ -296,9 +296,10 @@ export function writeStoredOracleModelSelection(selection: ModelSelection | null
 /**
  * 解析把关请求的执行选项：模型选择 + 输出预算。
  *
- * 档位（reasoningLevel）**跟随用户选择/模型默认，本函数不补档、不升级**：实测
- * 把关模型在最高档上单轮思考可达 10 分钟（慢渠道），多轮深度审查在 20 分钟
- * deadline 内结构性无法收敛。要更高强度的把关，请在设置页显式选档。
+ * 档位（reasoningLevel）**跟随用户显式选择，本函数不补档、不升级**：实测把关模型
+ * 在最高档上单轮思考可达 10 分钟（慢渠道），多轮深度审查在 20 分钟 deadline 内
+ * 结构性无法收敛。落盘偏好恒为显式档位（设置页写入 + 会话层一次性迁移保证）；
+ * 模型缺席视图等无法解析的情况让错误如实上报。
  *
  * maxOutputTokens 跟随模型声明的上限（optionSpecs.maxOutputTokens.max，与主回合
  * 「打满模型声明上限」同语义）：省略会被 adapters 的 validateOptions 以
