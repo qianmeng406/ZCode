@@ -98,6 +98,12 @@ export class PluginUiBridgeError extends Error {
 }
 
 /**
+ * 面板轮询（如 dsh 的 dsh_poll ~3 次/秒）会把每次成功调用都变成一条遥测事件；
+ * 成功事件按插件限频到 1 条/分钟，失败与取消不埋点不抽样，永远全量上报。
+ */
+const PLUGIN_UI_TOOL_CALL_SUCCESS_REPORT_INTERVAL_MS = 60_000;
+
+/**
  * `ui://` 资源 URI 的 server 归属由 agent 侧 catalog 校验；这里只负责把 URI 拆成 server 名。
  * 约定：`ui://<plugin-name>/<path>` 对应 namespaced server 由 params.serverName 显式给出，
  * 不从 URI 猜测。
@@ -110,6 +116,7 @@ export function createPluginUiBridgeService(
   // 顶层 createServiceLogger 会在 import 时读 process.pid，renderer 里直接 ReferenceError，整个主界面起不来。
   const log = createServiceLogger("plugin-ui-bridge");
   const preparing = new Map<string, Promise<PluginSandboxHandle>>();
+  const lastSuccessReportAt = new Map<string, number>();
   const prepareSandboxOnce = async (
     params: PluginUiPrepareSandboxParams,
     instance: import("@zcode/shared/mcp-apps").McpAppInstance,
@@ -234,6 +241,12 @@ export function createPluginUiBridgeService(
       }
       const startedAt = Date.now();
       const report = (result: "success" | "failure" | "cancelled") => {
+        if (result === "success") {
+          const now = Date.now();
+          const last = lastSuccessReportAt.get(params.pluginId) ?? -Infinity;
+          if (now - last < PLUGIN_UI_TOOL_CALL_SUCCESS_REPORT_INTERVAL_MS) return;
+          lastSuccessReportAt.set(params.pluginId, now);
+        }
         try {
           void Promise.resolve(
             dependencies.reportTelemetryEvent?.({

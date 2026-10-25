@@ -111,7 +111,8 @@ export function createMcpUiHandlers(options: CreateMcpUiHandlersOptions = {}): M
         });
         signal?.throwIfAborted();
         // UI 调用复用宿主权限链，结果保留原始 MCP 形状，不生成对话回合。
-        logger?.info("MCP UI tool call completed", {
+        // 面板轮询（dsh_poll 等）会以每秒数条的频率到达；成功走 debug，失败仍 warn 保留现场。
+        logger?.debug("MCP UI tool call completed", {
           event: "mcp.ui.tool.call",
           pluginId: params.pluginId,
           mcpServerName: params.serverName,
