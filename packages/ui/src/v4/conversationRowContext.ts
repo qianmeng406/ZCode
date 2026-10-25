@@ -63,6 +63,8 @@ export interface ConversationRowRenderContext {
   messageStreamShowReasoning?: boolean;
   /** 常规设置：Markdown/HTML 文件预览是否自动加载权威 fileChanges（默认 true）。 */
   assistantAutoFilePreviewEnabled?: boolean;
+  /** 性能设置：流式 Markdown 增量分块（MessageResponse 的 chunkedStreaming）；默认关闭。 */
+  streamingMarkdownIncrementalEnabled?: boolean;
   /** 展示可见性（默认 true）：隐藏视图不发起自动预览查询。 */
   presentationVisible?: boolean;
   /** 当前 assistant 轮次的第一条 reasoning row；关闭完整思考时仍需展示。 */

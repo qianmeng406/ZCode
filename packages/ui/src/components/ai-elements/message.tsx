@@ -49,6 +49,7 @@ import {
   ContextMenuTrigger,
 } from "@/components/ui/context-menu.js";
 import { MarkdownBlockquote } from "@/components/ai-elements/markdown-blockquote.js";
+import { createIncrementalMarkdownSplitter } from "@/components/ai-elements/markdown-streaming-chunks.js";
 import {
   MarkdownListItem,
   MarkdownOrderedList,
@@ -384,6 +385,11 @@ export type MessageResponseProps = {
   onOpenExternalUrl?: (url: string) => void;
   /** 仅 Assistant 正文开启：把完整 zcode-file-citation 投影为现有文件链接。 */
   renderZCodeFileCitations?: boolean;
+  /**
+   * 性能开关（默认关闭）：流式期间用增量分块器替换 Streamdown 的整篇切块，
+   * 已稳定块不再每帧重新解析。关闭时走原路径，行为与默认完全一致。
+   */
+  chunkedStreaming?: boolean;
 };
 
 export interface MessageFileLinkTarget {
@@ -1309,13 +1315,15 @@ export const messageResponsePropsAreEqual = (
   nextProps.codePreviewSettings === prevProps.codePreviewSettings &&
   nextProps.onOpenCodeViewer === prevProps.onOpenCodeViewer &&
   nextProps.onOpenFileLink === prevProps.onOpenFileLink &&
-  nextProps.onOpenExternalUrl === prevProps.onOpenExternalUrl;
+  nextProps.onOpenExternalUrl === prevProps.onOpenExternalUrl &&
+  nextProps.chunkedStreaming === prevProps.chunkedStreaming;
 
 export const MessageResponse = memo(
   ({
     className,
     streaming = false,
     forceCodeWrap = false,
+    chunkedStreaming = false,
     onOpenCodeViewer,
     onOpenFileLink,
     onOpenExternalUrl,
@@ -1424,6 +1432,13 @@ export const MessageResponse = memo(
       workspaceIdentity,
       workspaceRemoteSessionId,
     ]);
+    // 性能开关（默认关闭）：流式期间用增量分块器替换整篇切块。开关切换或渲染键
+    // 变化（会话/主题/字体等）时重建 splitter，已提交前缀随之重置。
+    const enableChunkedStreaming = chunkedStreaming && renderStreaming;
+    const chunkSplitter = useMemo(
+      () => (enableChunkedStreaming ? createIncrementalMarkdownSplitter() : null),
+      [enableChunkedStreaming, streamdownRenderKey],
+    );
     const messageComponents = useMemo(
       () => ({
         a: ({
@@ -1618,7 +1633,7 @@ export const MessageResponse = memo(
         scope={boundaryScope}
       >
         <Streamdown
-          key={streamdownRenderKey}
+          key={enableChunkedStreaming ? `${streamdownRenderKey}:chunked` : streamdownRenderKey}
           className={responseClassName}
           // Streamdown 自身是 memo，比较函数不看 components。app light/dark 切换时
           // codeBlockTheme 只存在于自定义 code renderer 闭包里，若不改 key，当前 task 已挂载的
@@ -1633,6 +1648,9 @@ export const MessageResponse = memo(
           mode={streamdownMode}
           components={messageComponents}
           parseIncompleteMarkdown={streaming}
+          // chunkedStreaming 开启时换用增量分块器：稳定块 content 不变即可命中
+          // Streamdown 的 Block memo；关闭时为 undefined，完全走默认整篇切块。
+          parseMarkdownIntoBlocksFn={chunkSplitter?.split}
           // Streamdown 内置 code renderer 的 highlighted-body 会在代码高亮结果和 raw fallback
           // 之间反复 setState，部分历史消息恢复时会触发 React #185。这里保留 markdown 解析能力，
           // 但代码块改走本项目自己的稳定 CodeBlock 渲染器。

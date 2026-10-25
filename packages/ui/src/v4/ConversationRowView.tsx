@@ -1739,6 +1739,7 @@ const AssistantTextRowView = memo(function AssistantTextRowView({
           messageKey={`${row.rowId}:${row.entityId ?? ""}`}
           renderZCodeFileCitations
           streaming={streaming}
+          chunkedStreaming={context.streamingMarkdownIncrementalEnabled === true}
           workspacePath={context.workspacePath}
           workspaceIdentity={context.workspaceIdentity}
           workspaceRemoteSessionId={context.workspaceRemoteSessionId}
