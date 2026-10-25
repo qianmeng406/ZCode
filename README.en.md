@@ -49,6 +49,10 @@ This fork adds dual-model review (Oracle), execution-model selection during plan
 
 **Session execution environment** can run a single chat session in a local WSL distribution while the project files remain the same files on disk. The WSL user is optional: leaving it empty uses the distribution's default user without changing the system-wide default, and the composer/header shows the currently effective environment.
 
+**Conversation window collapse** keeps only the most recent conversation windows; earlier content is folded into a "load earlier" entry at the top and fetched incrementally on demand. Enabling it noticeably lowers memory and CPU usage in long sessions. The toggle lives in Settings → Performance.
+
+**Streaming render performance settings** add a dedicated Settings → Performance page for streaming-render optimizations. **Every toggle is off by default**; when off, the render path is identical to the standard one, and each option can be enabled individually: streaming Markdown incremental parsing (only the tail block being generated is re-parsed; finished paragraphs are reused), render-unit reuse (unchanged turns are not rebuilt), scoped run-clock refresh (the per-second timer only refreshes the turn that is actually working; best enabled together with render-unit reuse), coalesced bottom-follow scrolling (multiple scroll writes within one frame merge into one), and coalesced delta frames (multiple streaming deltas arriving within one render frame commit once; text may lag by at most one frame). Parsing/render cost per frame drops noticeably for long replies and long sessions, with no change to the displayed result.
+
 These customizations are described relative to the official v3.16.2 baseline, not as a claim of exclusive features. Later official versions may offer similar capabilities.
 
 The development and packaging instructions below describe this fork's current commands, including its runtime asset preparation changes; they are not a complete mirror of the latest official README.
@@ -155,6 +159,18 @@ node apps/zcode-cli/packages/cli/dist/zcode.cjs --help
 ```
 
 This entry runs the Agent CLI directly and does not handle the distribution's `--web` switch. Use `pnpm dev:web` for Web development, or the extracted `bin/zcode.mjs` shown below to test the unified command.
+
+### Dev-loop verification and packaging
+
+The dev-time "change → verify → package" entry points mirror the git gates: one change-scope resolution drives typecheck selection, test selection, and packaging decisions, and **nothing runs a blind full sweep**. dev-loop installs no hooks and does not alter pre-commit / pre-push / CI behavior.
+
+| Command            | Purpose                                                                                       |
+| ------------------ | --------------------------------------------------------------------------------------------- |
+| `pnpm dev:check`   | In-scope typecheck (tsconfig reverse-dependency closure) + strongly related tests             |
+| `pnpm dev:package` | Scope-driven desktop packaging (outputs `dist-preview-perf`, incremental asar first, minutes) |
+| `pnpm dev:gate`    | Chained: package automatically based on impact after checks pass (daily default entry)        |
+
+`--base <ref>` selects an explicit scope and `--dry-run` only prints the selection. See [docs/dev-loop.md](docs/dev-loop.md) (Chinese) for scope resolution, flags, and fail-closed semantics, and [docs/git-gate.md](docs/git-gate.md) (Chinese) for the layered commit/push/CI gates. Note: incremental packaging rewrites `app.asar` in place — **fully exit ZCode Preview first**; the artifact is an unsigned exe, launch it from its original path and never copy it to a new directory (Windows blocks unsigned copies).
 
 ### UI Plugin development
 
