@@ -169,6 +169,22 @@ export interface ZCodeState {
   coalescedDeltaFramesEnabled: boolean;
   setCoalescedDeltaFramesEnabled: (enabled: boolean) => void;
 
+  /** 性能优化：空闲粒子动画收敛（稳态降频 + 隐身停画）；默认关闭。 */
+  idleParticlePauseEnabled: boolean;
+  setIdleParticlePauseEnabled: (enabled: boolean) => void;
+
+  /** 性能优化：代码高亮 tokens 缓存加上限（LRU 淘汰）；默认关闭。 */
+  boundedHighlightCacheEnabled: boolean;
+  setBoundedHighlightCacheEnabled: (enabled: boolean) => void;
+
+  /** 性能优化：空闲期每秒全行扫描收敛（highspeed 到期候选 + find 空查询计数）；默认关闭。 */
+  idleTickScanReductionEnabled: boolean;
+  setIdleTickScanReductionEnabled: (enabled: boolean) => void;
+
+  /** 性能优化：空闲轮询去重（远控状态合并 + TTFT 定时器随配置启停）；默认关闭。 */
+  dedupedIdlePollingEnabled: boolean;
+  setDedupedIdlePollingEnabled: (enabled: boolean) => void;
+
   /** 消息 Markdown/HTML 文件预览自动加载；纯展示偏好，默认开启（仅显式 false 关闭）。 */
   assistantAutoFilePreviewEnabled: boolean;
   setAssistantAutoFilePreviewEnabled: (enabled: boolean) => void;
@@ -272,6 +288,10 @@ const BROADCAST_FIELDS = new Set([
   "scopedPresentationClockEnabled",
   "coalescedBottomScrollEnabled",
   "coalescedDeltaFramesEnabled",
+  "idleParticlePauseEnabled",
+  "boundedHighlightCacheEnabled",
+  "idleTickScanReductionEnabled",
+  "dedupedIdlePollingEnabled",
   "assistantAutoFilePreviewEnabled",
   "notificationEnabled",
 ]);
@@ -288,6 +308,10 @@ type BroadcastField =
   | "scopedPresentationClockEnabled"
   | "coalescedBottomScrollEnabled"
   | "coalescedDeltaFramesEnabled"
+  | "idleParticlePauseEnabled"
+  | "boundedHighlightCacheEnabled"
+  | "idleTickScanReductionEnabled"
+  | "dedupedIdlePollingEnabled"
   | "assistantAutoFilePreviewEnabled"
   // 任务通知开关跨窗口同步：角标是应用级表面，A 窗口关通知而 B 窗口仍上报未读时，
   // 主进程 max 聚合会让任务栏/托盘继续亮，设置与提醒状态错位。
@@ -474,6 +498,54 @@ export function createZCodeStore(
         coalescedDeltaFramesEnabled: enabled,
       };
       set({ coalescedDeltaFramesEnabled: enabled });
+    },
+
+    idleParticlePauseEnabled: performanceSettingsSnapshot.idleParticlePauseEnabled,
+    setIdleParticlePauseEnabled: (enabled: boolean) => {
+      persistPerformanceSetting("idleParticlePauseEnabled", enabled, performanceSettingsSnapshot);
+      performanceSettingsSnapshot = {
+        ...performanceSettingsSnapshot,
+        idleParticlePauseEnabled: enabled,
+      };
+      set({ idleParticlePauseEnabled: enabled });
+    },
+
+    boundedHighlightCacheEnabled: performanceSettingsSnapshot.boundedHighlightCacheEnabled,
+    setBoundedHighlightCacheEnabled: (enabled: boolean) => {
+      persistPerformanceSetting(
+        "boundedHighlightCacheEnabled",
+        enabled,
+        performanceSettingsSnapshot,
+      );
+      performanceSettingsSnapshot = {
+        ...performanceSettingsSnapshot,
+        boundedHighlightCacheEnabled: enabled,
+      };
+      set({ boundedHighlightCacheEnabled: enabled });
+    },
+
+    idleTickScanReductionEnabled: performanceSettingsSnapshot.idleTickScanReductionEnabled,
+    setIdleTickScanReductionEnabled: (enabled: boolean) => {
+      persistPerformanceSetting(
+        "idleTickScanReductionEnabled",
+        enabled,
+        performanceSettingsSnapshot,
+      );
+      performanceSettingsSnapshot = {
+        ...performanceSettingsSnapshot,
+        idleTickScanReductionEnabled: enabled,
+      };
+      set({ idleTickScanReductionEnabled: enabled });
+    },
+
+    dedupedIdlePollingEnabled: performanceSettingsSnapshot.dedupedIdlePollingEnabled,
+    setDedupedIdlePollingEnabled: (enabled: boolean) => {
+      persistPerformanceSetting("dedupedIdlePollingEnabled", enabled, performanceSettingsSnapshot);
+      performanceSettingsSnapshot = {
+        ...performanceSettingsSnapshot,
+        dedupedIdlePollingEnabled: enabled,
+      };
+      set({ dedupedIdlePollingEnabled: enabled });
     },
 
     assistantAutoFilePreviewEnabled: loadAssistantAutoFilePreviewEnabled(),
@@ -685,6 +757,14 @@ export function createZCodeStore(
         state.setCoalescedBottomScrollEnabled(msg.payload);
       } else if (field === "coalescedDeltaFramesEnabled" && typeof msg.payload === "boolean") {
         state.setCoalescedDeltaFramesEnabled(msg.payload);
+      } else if (field === "idleParticlePauseEnabled" && typeof msg.payload === "boolean") {
+        state.setIdleParticlePauseEnabled(msg.payload);
+      } else if (field === "boundedHighlightCacheEnabled" && typeof msg.payload === "boolean") {
+        state.setBoundedHighlightCacheEnabled(msg.payload);
+      } else if (field === "idleTickScanReductionEnabled" && typeof msg.payload === "boolean") {
+        state.setIdleTickScanReductionEnabled(msg.payload);
+      } else if (field === "dedupedIdlePollingEnabled" && typeof msg.payload === "boolean") {
+        state.setDedupedIdlePollingEnabled(msg.payload);
       } else if (field === "assistantAutoFilePreviewEnabled" && typeof msg.payload === "boolean") {
         state.setAssistantAutoFilePreviewEnabled(msg.payload);
       } else if (field === "notificationEnabled" && typeof msg.payload === "boolean") {

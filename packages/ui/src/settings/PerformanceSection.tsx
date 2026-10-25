@@ -18,6 +18,14 @@ export interface PerformanceSectionContentProps {
   setCoalescedBottomScrollEnabled: (enabled: boolean) => void;
   coalescedDeltaFramesEnabled: boolean;
   setCoalescedDeltaFramesEnabled: (enabled: boolean) => void;
+  idleParticlePauseEnabled: boolean;
+  setIdleParticlePauseEnabled: (enabled: boolean) => void;
+  boundedHighlightCacheEnabled: boolean;
+  setBoundedHighlightCacheEnabled: (enabled: boolean) => void;
+  idleTickScanReductionEnabled: boolean;
+  setIdleTickScanReductionEnabled: (enabled: boolean) => void;
+  dedupedIdlePollingEnabled: boolean;
+  setDedupedIdlePollingEnabled: (enabled: boolean) => void;
 }
 
 export function PerformanceSectionContent({
@@ -33,6 +41,14 @@ export function PerformanceSectionContent({
   setCoalescedBottomScrollEnabled,
   coalescedDeltaFramesEnabled,
   setCoalescedDeltaFramesEnabled,
+  idleParticlePauseEnabled,
+  setIdleParticlePauseEnabled,
+  boundedHighlightCacheEnabled,
+  setBoundedHighlightCacheEnabled,
+  idleTickScanReductionEnabled,
+  setIdleTickScanReductionEnabled,
+  dedupedIdlePollingEnabled,
+  setDedupedIdlePollingEnabled,
 }: PerformanceSectionContentProps) {
   const { intl } = useZCodeIntl();
   const text = (id: string) => intl.formatMessage({ id });
@@ -105,6 +121,46 @@ export function PerformanceSectionContent({
             <Switch
               checked={coalescedDeltaFramesEnabled}
               onCheckedChange={setCoalescedDeltaFramesEnabled}
+            />
+          }
+        />
+        <SettingsRow
+          label={text("settings.performance.idleParticlePause")}
+          description={text("settings.performance.idleParticlePauseDescription")}
+          control={
+            <Switch
+              checked={idleParticlePauseEnabled}
+              onCheckedChange={setIdleParticlePauseEnabled}
+            />
+          }
+        />
+        <SettingsRow
+          label={text("settings.performance.boundedHighlightCache")}
+          description={text("settings.performance.boundedHighlightCacheDescription")}
+          control={
+            <Switch
+              checked={boundedHighlightCacheEnabled}
+              onCheckedChange={setBoundedHighlightCacheEnabled}
+            />
+          }
+        />
+        <SettingsRow
+          label={text("settings.performance.idleTickScanReduction")}
+          description={text("settings.performance.idleTickScanReductionDescription")}
+          control={
+            <Switch
+              checked={idleTickScanReductionEnabled}
+              onCheckedChange={setIdleTickScanReductionEnabled}
+            />
+          }
+        />
+        <SettingsRow
+          label={text("settings.performance.dedupedIdlePolling")}
+          description={text("settings.performance.dedupedIdlePollingDescription")}
+          control={
+            <Switch
+              checked={dedupedIdlePollingEnabled}
+              onCheckedChange={setDedupedIdlePollingEnabled}
             />
           }
         />

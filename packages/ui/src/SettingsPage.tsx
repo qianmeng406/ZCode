@@ -456,6 +456,18 @@ export function SettingsPage({
   const setCoalescedDeltaFramesEnabled = useZCodeStore(
     (state) => state.setCoalescedDeltaFramesEnabled,
   );
+  const idleParticlePauseEnabled = useZCodeStore((state) => state.idleParticlePauseEnabled);
+  const setIdleParticlePauseEnabled = useZCodeStore((state) => state.setIdleParticlePauseEnabled);
+  const boundedHighlightCacheEnabled = useZCodeStore((state) => state.boundedHighlightCacheEnabled);
+  const setBoundedHighlightCacheEnabled = useZCodeStore(
+    (state) => state.setBoundedHighlightCacheEnabled,
+  );
+  const idleTickScanReductionEnabled = useZCodeStore((state) => state.idleTickScanReductionEnabled);
+  const setIdleTickScanReductionEnabled = useZCodeStore(
+    (state) => state.setIdleTickScanReductionEnabled,
+  );
+  const dedupedIdlePollingEnabled = useZCodeStore((state) => state.dedupedIdlePollingEnabled);
+  const setDedupedIdlePollingEnabled = useZCodeStore((state) => state.setDedupedIdlePollingEnabled);
   const assistantAutoFilePreviewEnabled = useZCodeStore(
     (state) => state.assistantAutoFilePreviewEnabled,
   );
@@ -2263,6 +2275,70 @@ export function SettingsPage({
                                     trigger: "switch",
                                   },
                                   operation: () => setCoalescedDeltaFramesEnabled(enabled),
+                                  completed: {
+                                    resultSource: "local_commit",
+                                    valueAfter: enabled ? "enabled" : "disabled",
+                                  },
+                                  failureStage: "local_commit",
+                                })
+                              }
+                              idleParticlePauseEnabled={idleParticlePauseEnabled}
+                              setIdleParticlePauseEnabled={(enabled) =>
+                                runUserAction({
+                                  input: {
+                                    featureId: "settings.performance",
+                                    action: "toggle_idle_particle_pause",
+                                    trigger: "switch",
+                                  },
+                                  operation: () => setIdleParticlePauseEnabled(enabled),
+                                  completed: {
+                                    resultSource: "local_commit",
+                                    valueAfter: enabled ? "enabled" : "disabled",
+                                  },
+                                  failureStage: "local_commit",
+                                })
+                              }
+                              boundedHighlightCacheEnabled={boundedHighlightCacheEnabled}
+                              setBoundedHighlightCacheEnabled={(enabled) =>
+                                runUserAction({
+                                  input: {
+                                    featureId: "settings.performance",
+                                    action: "toggle_bounded_highlight_cache",
+                                    trigger: "switch",
+                                  },
+                                  operation: () => setBoundedHighlightCacheEnabled(enabled),
+                                  completed: {
+                                    resultSource: "local_commit",
+                                    valueAfter: enabled ? "enabled" : "disabled",
+                                  },
+                                  failureStage: "local_commit",
+                                })
+                              }
+                              idleTickScanReductionEnabled={idleTickScanReductionEnabled}
+                              setIdleTickScanReductionEnabled={(enabled) =>
+                                runUserAction({
+                                  input: {
+                                    featureId: "settings.performance",
+                                    action: "toggle_idle_tick_scan_reduction",
+                                    trigger: "switch",
+                                  },
+                                  operation: () => setIdleTickScanReductionEnabled(enabled),
+                                  completed: {
+                                    resultSource: "local_commit",
+                                    valueAfter: enabled ? "enabled" : "disabled",
+                                  },
+                                  failureStage: "local_commit",
+                                })
+                              }
+                              dedupedIdlePollingEnabled={dedupedIdlePollingEnabled}
+                              setDedupedIdlePollingEnabled={(enabled) =>
+                                runUserAction({
+                                  input: {
+                                    featureId: "settings.performance",
+                                    action: "toggle_deduped_idle_polling",
+                                    trigger: "switch",
+                                  },
+                                  operation: () => setDedupedIdlePollingEnabled(enabled),
                                   completed: {
                                     resultSource: "local_commit",
                                     valueAfter: enabled ? "enabled" : "disabled",

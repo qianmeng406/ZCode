@@ -3301,6 +3301,18 @@ const enUS: Record<string, string> = {
   "settings.performance.coalescedDeltaFrames": "Coalesced streaming frames",
   "settings.performance.coalescedDeltaFramesDescription":
     "Streaming deltas arriving within the same render frame are committed together, aligning render rate with the display refresh. Text may appear at most one frame later; no content is lost.",
+  "settings.performance.idleParticlePause": "Idle particle animation throttling",
+  "settings.performance.idleParticlePauseDescription":
+    "The Highspeed composer background particles drop to a low redraw rate once settled, and stop entirely while the window is hidden or the canvas is off-screen, cutting idle CPU usage.",
+  "settings.performance.boundedHighlightCache": "Bounded highlight cache",
+  "settings.performance.boundedHighlightCacheDescription":
+    "Caps the syntax-highlight token cache by entry count and total characters, evicting least-recently-used entries so long sessions no longer grow it without bound.",
+  "settings.performance.idleTickScanReduction": "Idle scan reduction",
+  "settings.performance.idleTickScanReductionDescription":
+    "The per-second idle clock stops rescanning every conversation row (Highspeed expiry candidates and the find index), turning periodic idle cost into a constant-time lookup.",
+  "settings.performance.dedupedIdlePolling": "Deduped idle polling",
+  "settings.performance.dedupedIdlePollingDescription":
+    "Merges duplicate per-second status polling into one shared subscription, and stops the resident telemetry timer when telemetry is disabled (fully effective after an app restart).",
   "settings.assistantAutoFilePreview": "Auto-load file previews",
   "settings.assistantAutoFilePreviewDescription":
     "Automatically load preview cards for Markdown/HTML files referenced in replies. Turn off to load them manually via the “Load preview” action.",

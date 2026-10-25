@@ -12,6 +12,10 @@ export interface PerformanceSettings {
   scopedPresentationClockEnabled: boolean;
   coalescedBottomScrollEnabled: boolean;
   coalescedDeltaFramesEnabled: boolean;
+  idleParticlePauseEnabled: boolean;
+  boundedHighlightCacheEnabled: boolean;
+  idleTickScanReductionEnabled: boolean;
+  dedupedIdlePollingEnabled: boolean;
 }
 
 export const DEFAULT_PERFORMANCE_SETTINGS: PerformanceSettings = {
@@ -20,6 +24,10 @@ export const DEFAULT_PERFORMANCE_SETTINGS: PerformanceSettings = {
   scopedPresentationClockEnabled: false,
   coalescedBottomScrollEnabled: false,
   coalescedDeltaFramesEnabled: false,
+  idleParticlePauseEnabled: false,
+  boundedHighlightCacheEnabled: false,
+  idleTickScanReductionEnabled: false,
+  dedupedIdlePollingEnabled: false,
 };
 
 export function parsePerformanceSettings(raw: string | null | undefined): PerformanceSettings {
@@ -42,6 +50,10 @@ export function parsePerformanceSettings(raw: string | null | undefined): Perfor
     scopedPresentationClockEnabled: flag("scopedPresentationClockEnabled"),
     coalescedBottomScrollEnabled: flag("coalescedBottomScrollEnabled"),
     coalescedDeltaFramesEnabled: flag("coalescedDeltaFramesEnabled"),
+    idleParticlePauseEnabled: flag("idleParticlePauseEnabled"),
+    boundedHighlightCacheEnabled: flag("boundedHighlightCacheEnabled"),
+    idleTickScanReductionEnabled: flag("idleTickScanReductionEnabled"),
+    dedupedIdlePollingEnabled: flag("dedupedIdlePollingEnabled"),
   };
 }
 

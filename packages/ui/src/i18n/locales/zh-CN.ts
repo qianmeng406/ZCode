@@ -3087,6 +3087,18 @@ const zhCN: Record<string, string> = {
   "settings.performance.coalescedDeltaFrames": "流式帧合并",
   "settings.performance.coalescedDeltaFramesDescription":
     "同一渲染帧内到达的多条流式增量合并为一次提交，渲染节奏与显示刷新率对齐。文本显示最多延迟一帧，内容不丢。",
+  "settings.performance.idleParticlePause": "空闲粒子动画收敛",
+  "settings.performance.idleParticlePauseDescription":
+    "极速模式输入框的背景粒子在稳定阶段降为低频绘制，窗口隐藏或移出视口时完全暂停，空闲 CPU 占用显著下降。",
+  "settings.performance.boundedHighlightCache": "代码高亮缓存上限",
+  "settings.performance.boundedHighlightCacheDescription":
+    "为语法高亮结果缓存设置容量上限（按条数与字符量淘汰最久未用的条目），避免长时间使用后缓存无限增长拖慢整体响应。",
+  "settings.performance.idleTickScanReduction": "空闲扫描收敛",
+  "settings.performance.idleTickScanReductionDescription":
+    "空闲期的每秒计时不再重复扫描全部会话行（极速到期候选与查找索引），长会话空闲时的周期性开销降为常数级。",
+  "settings.performance.dedupedIdlePolling": "空闲轮询去重",
+  "settings.performance.dedupedIdlePollingDescription":
+    "合并重复的秒级状态轮询为单份共享订阅，遥测未启用时停止其常驻定时器（该项重启应用后完全生效）。",
   "settings.assistantAutoFilePreview": "自动加载文件预览",
   "settings.assistantAutoFilePreviewDescription":
     "自动识别回复中引用的 Markdown/HTML 文件并加载预览卡片。关闭后改为点击“加载预览”手动获取。",
