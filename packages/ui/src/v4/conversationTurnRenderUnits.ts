@@ -332,6 +332,112 @@ function createDraftUnit(turnId: string): DraftTurnRenderUnit {
   };
 }
 
+interface TurnRenderUnitCacheEntry {
+  header: TurnHeaderRow | undefined;
+  orderedRowRefs: readonly ConversationRow[];
+  sessionPhase: SessionPhase | undefined;
+  /** pluginUiPinResolver 身份（=== 比较）；undefined 也是一个合法且稳定的取值。 */
+  resolver: unknown;
+  /** materializeDraftUnit 的 isLastTurn = index === drafts.length - 1（过滤前）。 */
+  isLastMaterialize: boolean;
+  unit: ConversationTurnRenderUnit;
+}
+
+/**
+ * 性能开关 stableRenderUnitsEnabled 的按 turn 缓存（实例级，由 Timeline 持有；
+ * 不能做模块级——多 session / 分享视图会串用）。
+ *
+ * 协议 apply 是不可变的：未变行保持引用 ⇒ 「行引用一致 = 内容一致」。命中条件
+ * 覆盖 materializeDraftUnit 的全部输入维度（行引用、sessionPhase、resolver 身份、
+ * 轮位标志）；running 轮永不缓存（workDurationMs/workSegments 依赖 nowMs）。
+ * normalizeRenderUnitPosition 自带无变化早退，缓存的是 materialize 结果，
+ * 位置变化由 normalize 兜底。Highspeed footer 打标与最终数组另有二级 memo。
+ */
+export class TurnRenderUnitCache {
+  private static readonly MAX_ENTRIES = 2000;
+  private entries = new Map<string, TurnRenderUnitCacheEntry>();
+  /** 打标结果按源 unit 引用复用：过期是单调的、card 元数据不可变。 */
+  private footerMarks = new WeakMap<object, ConversationTurnRenderUnit>();
+  private lastOutput: ConversationTurnRenderUnit[] | null = null;
+
+  reset(): void {
+    this.entries = new Map();
+    this.footerMarks = new WeakMap();
+    this.lastOutput = null;
+  }
+
+  get size(): number {
+    return this.entries.size;
+  }
+
+  lookup(
+    turnId: string,
+    draft: DraftTurnRenderUnit,
+    options: BuildConversationTurnRenderUnitsOptions,
+    isLastMaterialize: boolean,
+  ): ConversationTurnRenderUnit | undefined {
+    const entry = this.entries.get(turnId);
+    if (!entry) return undefined;
+    if (
+      entry.header === draft.header &&
+      entry.sessionPhase === options.sessionPhase &&
+      entry.resolver === options.pluginUiPinResolver &&
+      entry.isLastMaterialize === isLastMaterialize &&
+      entry.orderedRowRefs.length === draft.orderedRows.length &&
+      entry.orderedRowRefs.every((ref, index) => ref === draft.orderedRows[index])
+    ) {
+      return entry.unit;
+    }
+    return undefined;
+  }
+
+  store(
+    turnId: string,
+    draft: DraftTurnRenderUnit,
+    options: BuildConversationTurnRenderUnitsOptions,
+    isLastMaterialize: boolean,
+    unit: ConversationTurnRenderUnit,
+  ): void {
+    if (this.entries.size >= TurnRenderUnitCache.MAX_ENTRIES) {
+      this.entries = new Map();
+    }
+    this.entries.set(turnId, {
+      header: draft.header,
+      // 复制一份引用数组：draft 是本次构建的临时对象，随后会被复用/丢弃。
+      orderedRowRefs: [...draft.orderedRows],
+      sessionPhase: options.sessionPhase,
+      resolver: options.pluginUiPinResolver,
+      isLastMaterialize,
+      unit,
+    });
+  }
+
+  /** Highspeed footer 打标复用：同源 unit 的打标结果跨 tick 稳定。 */
+  reuseFooterMark(
+    source: ConversationTurnRenderUnit,
+    marked: ConversationTurnRenderUnit,
+  ): ConversationTurnRenderUnit {
+    const cached = this.footerMarks.get(source);
+    if (cached) return cached;
+    this.footerMarks.set(source, marked);
+    return marked;
+  }
+
+  /** 全命中时返回上一次的数组引用，让下游 useMemo（liveTail/summary 等）不再重算。 */
+  reuseLastOutput(units: ConversationTurnRenderUnit[]): ConversationTurnRenderUnit[] {
+    const previous = this.lastOutput;
+    if (
+      previous &&
+      previous.length === units.length &&
+      units.every((unit, index) => unit === previous[index])
+    ) {
+      return previous;
+    }
+    this.lastOutput = units;
+    return units;
+  }
+}
+
 function shouldKeepRenderUnit(unit: ConversationTurnRenderUnit): boolean {
   // 隐形行清零后（投影不再产不可渲染 marker），任何工作行都可渲染；
   // 「哪些 marker 可渲染」不再是 UI 的判断。
@@ -432,12 +538,37 @@ export function buildConversationTurnRenderUnits(
     unit.assistantWorkRows.push(row);
   }
 
-  const materializedUnits = units.map((unit, index) =>
-    materializeDraftUnit(unit, index, units.length, options),
-  );
+  // stableRenderUnitsEnabled（默认关闭）：unitCache 缺省时与原路径逐字节一致。
+  const unitCache = options.unitCache ?? null;
+  const totalDrafts = units.length;
+  const materializedUnits = units.map((unit, index) => {
+    const isLastMaterialize = index === totalDrafts - 1;
+    if (unitCache) {
+      // running 轮的 workDurationMs/workSegments 依赖 nowMs，永不缓存。
+      if (!resolveTurnRunning(unit, options)) {
+        const cached = unitCache.lookup(unit.turnId, unit, options, isLastMaterialize);
+        if (cached) return cached;
+        const materialized = materializeDraftUnit(unit, index, totalDrafts, options);
+        unitCache.store(unit.turnId, unit, options, isLastMaterialize, materialized);
+        return materialized;
+      }
+    }
+    return materializeDraftUnit(unit, index, totalDrafts, options);
+  });
   const keptUnits = materializedUnits.filter(shouldKeepRenderUnit);
   const normalizedUnits = keptUnits.map((unit, index) =>
     normalizeRenderUnitPosition(unit, index, keptUnits.length, options),
   );
-  return markHighspeedOutputFooterUnits(normalizedUnits, options.nowMs ?? Date.now());
+  if (!unitCache) {
+    return markHighspeedOutputFooterUnits(normalizedUnits, options.nowMs ?? Date.now());
+  }
+  // footer 打标 + 最终数组二级复用：打标过的 unit 跨 tick 引用稳定；全命中时
+  // 返回上一次的数组引用（下游 useMemo 不再因每秒 tick 重算）。
+  const marked = markHighspeedOutputFooterUnits(normalizedUnits, options.nowMs ?? Date.now());
+  const stabilized = marked.map((unit, index) =>
+    unit === normalizedUnits[index]
+      ? unit
+      : unitCache.reuseFooterMark(normalizedUnits[index]!, unit),
+  );
+  return unitCache.reuseLastOutput(stabilized);
 }

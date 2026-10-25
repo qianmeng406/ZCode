@@ -11,6 +11,8 @@ import type {
   WorkflowLaunchMeta,
 } from "@zcode/shared/zcode-protocol-v4";
 import type { AssistantWorkRow, ConversationTurnFlowItem } from "@/v4/conversationTurnFlowItems.js";
+// type-only 回引（运行时被擦除，不构成真实循环依赖）。
+import type { TurnRenderUnitCache } from "@/v4/conversationTurnRenderUnits.js";
 import type {
   ConversationTurnWorkSegment,
   ConversationTurnWorkStatus,
@@ -64,4 +66,9 @@ export interface BuildConversationTurnRenderUnitsOptions {
   sessionPhase?: SessionPhase;
   /** 插件卡片折叠裁决（时间线由推导结果 + 手动状态组装）。 */
   pluginUiPinResolver?: PluginUiRowPinResolver;
+  /**
+   * 性能开关 stableRenderUnitsEnabled（默认关闭）：按 turn 复用 materialize 结果。
+   * 缺省时构建路径与原实现完全一致。
+   */
+  unitCache?: TurnRenderUnitCache;
 }

@@ -13,6 +13,7 @@ import type {
 import {
   buildConversationTurnRenderUnits,
   resolveNextHighspeedExpiryMs,
+  TurnRenderUnitCache,
 } from "@/v4/conversationTurnRenderUnits.js";
 import { resolveAssistantCopyText } from "@/v4/ConversationTurnRow.js";
 
@@ -1056,5 +1057,122 @@ describe("buildConversationTurnRenderUnits", () => {
     expect(unit?.assistantTailRows.map((row) => row.rowId)).toEqual([6]);
     expect(unit?.workSegments?.[0]?.assistantHistoryRows.map((row) => row.rowId)).toEqual([3, 4]);
     expect(unit?.workSegments?.[0]?.assistantHistoryDefaultOpen).toBe(false);
+  });
+});
+
+describe("TurnRenderUnitCache（stableRenderUnitsEnabled，默认关闭）", () => {
+  const completedTurns = () => [
+    turnHeader(1, { turnId: "turn-1" }),
+    userInput(2, "Q1", { turnId: "turn-1" }),
+    assistantText(3, "A1", { turnId: "turn-1" }),
+    turnHeader(4, { turnId: "turn-2" }),
+    userInput(5, "Q2", { turnId: "turn-2" }),
+    assistantText(6, "A2", { turnId: "turn-2" }),
+  ];
+
+  it("完成态 unit 跨 tick 引用复用；running unit 每次重建", () => {
+    const rows = [
+      ...completedTurns(),
+      turnHeader(7, { turnId: "turn-live", state: "running" }),
+      userInput(8, "Q3", { turnId: "turn-live" }),
+      assistantText(9, "流式", { turnId: "turn-live", state: "streaming" }),
+    ];
+    const cache = new TurnRenderUnitCache();
+    const first = buildConversationTurnRenderUnits(rows, { nowMs: 1_000, unitCache: cache });
+    const second = buildConversationTurnRenderUnits(rows, { nowMs: 2_000, unitCache: cache });
+    expect(second[0]).toBe(first[0]);
+    expect(second[1]).toBe(first[1]);
+    // running 轮（最后一个）依赖 nowMs 的工时，永不缓存。
+    expect(second[2]).not.toBe(first[2]);
+    expect(second.map((unit) => unit.key)).toEqual(["turn-1", "turn-2", "turn-live"]);
+  });
+
+  it("行引用变化只重建受影响 turn，其余复用（模拟 delta 只替换流式行）", () => {
+    const rows = completedTurns();
+    const appendedRow = {
+      ...rows[rows.length - 1]!,
+      text: "A2 续写",
+    } as never;
+    const nextRows = [...rows.slice(0, -1), appendedRow];
+    const cache = new TurnRenderUnitCache();
+    const first = buildConversationTurnRenderUnits(rows, { unitCache: cache });
+    const second = buildConversationTurnRenderUnits(nextRows, { unitCache: cache });
+    expect(second[0]).toBe(first[0]);
+    expect(second[1]).not.toBe(first[1]);
+  });
+
+  it("resolver / sessionPhase 变化使缓存失效（保守重建，不误复用）", () => {
+    const rows = completedTurns();
+    const cache = new TurnRenderUnitCache();
+    const resolverA = () => ({ disposition: undefined, manualPinned: false });
+    const resolverB = () => ({ disposition: undefined, manualPinned: false });
+    const first = buildConversationTurnRenderUnits(rows, {
+      unitCache: cache,
+      pluginUiPinResolver: resolverA,
+    });
+    const second = buildConversationTurnRenderUnits(rows, {
+      unitCache: cache,
+      pluginUiPinResolver: resolverB,
+    });
+    expect(second[0]).not.toBe(first[0]);
+    const third = buildConversationTurnRenderUnits(rows, {
+      unitCache: cache,
+      pluginUiPinResolver: resolverB,
+      sessionPhase: "completedSuccess",
+    });
+    expect(third[0]).not.toBe(second[0]);
+    // 相同输入再次命中。
+    const fourth = buildConversationTurnRenderUnits(rows, {
+      unitCache: cache,
+      pluginUiPinResolver: resolverB,
+      sessionPhase: "completedSuccess",
+    });
+    expect(fourth[0]).toBe(third[0]);
+  });
+
+  it("全命中时返回上一次的数组引用（下游 useMemo 不再重算）", () => {
+    const rows = completedTurns();
+    const cache = new TurnRenderUnitCache();
+    const first = buildConversationTurnRenderUnits(rows, { nowMs: 1_000, unitCache: cache });
+    const second = buildConversationTurnRenderUnits(rows, { nowMs: 2_000, unitCache: cache });
+    expect(second).toBe(first);
+  });
+
+  it("不传 unitCache（开关关闭）时每次全新对象，内容与缓存路径一致", () => {
+    const rows = completedTurns();
+    const first = buildConversationTurnRenderUnits(rows, { nowMs: 1_000 });
+    const second = buildConversationTurnRenderUnits(rows, { nowMs: 1_000 });
+    expect(second).not.toBe(first);
+    expect(second[0]).not.toBe(first[0]);
+    expect(second).toEqual(first);
+    const cached = buildConversationTurnRenderUnits(rows, {
+      nowMs: 1_000,
+      unitCache: new TurnRenderUnitCache(),
+    });
+    expect(cached).toEqual(first);
+  });
+
+  it("Highspeed footer 过期打标后跨 tick 引用稳定（修掉现状每秒新建对象）", () => {
+    const card = {
+      schemaVersion: 1 as const,
+      cardId: "card-a",
+      taskId: "session-highspeed-cache",
+      provider: "zai",
+      model: "glm-5",
+      issuedAt: 1_000,
+      expiresAt: 10_000,
+    };
+    const rows = [
+      turnHeader(1, { turnId: "turn-hs" }),
+      userInput(2, "Q", { turnId: "turn-hs", highspeed: card }),
+      assistantText(3, "A", { turnId: "turn-hs" }),
+    ];
+    const cache = new TurnRenderUnitCache();
+    const first = buildConversationTurnRenderUnits(rows, { nowMs: 10_001, unitCache: cache });
+    expect(first[0]?.showHighspeedOutputFooter).toBe(true);
+    const second = buildConversationTurnRenderUnits(rows, { nowMs: 10_500, unitCache: cache });
+    expect(second[0]?.showHighspeedOutputFooter).toBe(true);
+    expect(second[0]).toBe(first[0]);
+    expect(second).toBe(first);
   });
 });
