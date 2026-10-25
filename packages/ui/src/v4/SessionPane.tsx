@@ -2141,6 +2141,12 @@ export function SessionPane({
     (state) => state.conversationTurnNavigatorEnabled,
     false,
   );
+  // 会话窗口收纳开关（默认关闭）：开启后 store 在直播追加使窗口超过软上限时
+  // 从头部裁剪更早的行，Timeline 渲染顶部"加载更早"入口；关闭时行为与历史版本一致。
+  const conversationWindowCollapseEnabled = useZCodeStoreWithDefault(
+    (state) => state.conversationWindowCollapseEnabled,
+    false,
+  );
   // 消息文件预览自动加载开关（默认开启）：关闭后改为回合内「加载预览」手动触发。
   const assistantAutoFilePreviewEnabled = useZCodeStoreWithDefault(
     (state) => state.assistantAutoFilePreviewEnabled,
@@ -4926,6 +4932,20 @@ export function SessionPane({
     return lease?.store.loadOlder();
   }, [lease]);
 
+  // 会话窗口收纳：开关同步进 store；跟随状态（pinnedToBottom）由 Timeline 滚动回调喂入，
+  // store 只在贴底跟随时允许头部裁剪。开关关闭时不喂状态、不裁剪。
+  // 可选调用：测试替身/旧宿主注入的 store 可能没有这两个方法（增量能力，非契约必需）。
+  const handleHistoryViewportStateChange = useCallback(
+    (viewport: { pinnedToBottom: boolean }) => {
+      lease?.store.setHistoryViewportState?.(viewport);
+    },
+    [lease],
+  );
+
+  useEffect(() => {
+    lease?.store.setWindowCollapseEnabled?.(conversationWindowCollapseEnabled);
+  }, [conversationWindowCollapseEnabled, lease]);
+
   // 导航目录补拉：以 navigator 身份持有需求；signal 由 Timeline per-attempt
   // controller 提供，资格撤销/卸载即 abort，store 据此停止后续分页。
   const handleLoadAllOlder = useCallback(
@@ -6250,6 +6270,10 @@ export function SessionPane({
                   loadingOlder={timelineSnapshot ? state.loadingOlder : false}
                   onLoadOlder={handleLoadOlder}
                   onLoadAllOlder={handleLoadAllOlder}
+                  windowCollapseEnabled={conversationWindowCollapseEnabled}
+                  onHistoryViewportStateChange={
+                    conversationWindowCollapseEnabled ? handleHistoryViewportStateChange : undefined
+                  }
                   turnNavigatorDirectoryRevision={state.turnNavigatorDirectoryRevision}
                   bottomDock={conversationBottomDock}
                   hideTurnNavigator={shareSelectionPanelVisible && !compactForRemoteControl}

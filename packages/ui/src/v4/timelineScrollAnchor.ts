@@ -265,7 +265,10 @@ export function shouldTriggerLoadOlder(input: {
   canLoadOlder: boolean;
   loadingOlder: boolean;
   triggerPx?: number;
+  /** 窗口收纳开启时禁用自动预取（顶部按钮是唯一入口）；省略/false 保持既有行为。 */
+  autoPrefetchDisabled?: boolean;
 }): boolean {
+  if (input.autoPrefetchDisabled === true) return false;
   return (
     input.canLoadOlder &&
     !input.loadingOlder &&

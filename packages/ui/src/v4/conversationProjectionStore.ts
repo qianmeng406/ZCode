@@ -278,6 +278,35 @@ export function mergeOlderRows(
 }
 
 /**
+ * 会话窗口收纳软上限（行）。开启收纳后窗口超过此值即从头部裁剪；
+ * 400 行 ≈ 6-7 个 loadOlder 页，足以覆盖 2 视口滚动预取 + 直播追加的余量。
+ */
+export const CONVERSATION_WINDOW_SOFT_CAP = 400;
+
+/**
+ * 头部裁剪到最近 cap 行的纯函数（收纳更早的会话）。
+ * 裁剪点必须落在 turnHeader 边界上——把一个 turn 劈成两半会让渲染单元破碎，
+ * 且"前导不完整 turn 自动补齐"会立刻把头部行重新拉回来形成循环。
+ * 向右找最近的 turnHeader（宁可多留）；找不到边界或无需裁剪返回 null。
+ * firstRowId/totalCount 不在函数职责内：调用方保持原值，hasOlderRows 语义不变。
+ */
+export function collapseWindowRows(
+  window: readonly ConversationRow[],
+  cap: number = CONVERSATION_WINDOW_SOFT_CAP,
+): { rows: ConversationRow[]; removed: number } | null {
+  if (window.length <= cap) return null;
+  const targetStart = window.length - cap;
+  for (let index = targetStart; index < window.length; index += 1) {
+    const row = window[index];
+    if (row?.kind === "turnHeader") {
+      if (index === 0) return null;
+      return { rows: window.slice(index), removed: index };
+    }
+  }
+  return null;
+}
+
+/**
  * 外部 store（useSyncExternalStore 兼容：subscribe + getState 返回稳定引用）。
  * 生命周期由 SessionDataLayer 管（引用计数 + keep-warm），组件不直接 new。
  */
@@ -353,6 +382,15 @@ export class ConversationProjectionStore {
    * 后到调用者 cursor/epoch 一致时加入在途 job，禁止重复分页。
    */
   private fullHistoryJob: ConversationFullHistoryJob | null = null;
+  /**
+   * 会话窗口收纳（设置开关，默认关闭）。开启后直播 delta 持续追加使窗口超过
+   * 软上限时从头部裁剪；关闭时窗口行为与历史版本一致（只增不减）。
+   */
+  private windowCollapseEnabled = false;
+  /** 渲染层视口状态：仅贴底跟随（pinnedToBottom，正在追最新输出）时允许收纳。
+   * 用户向上滚动后跟随立即解除，收纳冻结——裁剪绝不出现在阅读或滚动手势中，
+   * 也就不会与虚拟器位移补偿、滚动锚定打架。 */
+  private historyViewportState = { pinnedToBottom: false };
   private closed = false;
 
   constructor(
@@ -641,6 +679,45 @@ export class ConversationProjectionStore {
     this.requestRecovery();
   }
 
+  /** 设置页开关；关闭时不改动任何现有行为（窗口只增不减）。 */
+  setWindowCollapseEnabled(enabled: boolean): void {
+    if (this.windowCollapseEnabled === enabled) return;
+    this.windowCollapseEnabled = enabled;
+    if (enabled) this.maybeCollapseWindow();
+  }
+
+  /**
+   * 渲染层上报视口状态：pinnedToBottom = 贴底跟随（滚动锚定状态机的 following）。
+   * 仅贴底时收纳是安全的：底部锚定 effect 在同一 commit 贴底，裁剪对用户不可见；
+   * 一旦解除跟随（哪怕只上滚一像素），收纳冻结直到重新贴底。
+   */
+  setHistoryViewportState(state: { pinnedToBottom?: boolean }): void {
+    if (state.pinnedToBottom !== undefined) {
+      this.historyViewportState.pinnedToBottom = state.pinnedToBottom;
+    }
+    this.maybeCollapseWindow();
+  }
+
+  /** 头部裁剪到软上限（turn 边界对齐）。firstRowId/totalCount 保持原值。 */
+  collapseOlder(): void {
+    const snapshot = this.state.snapshot;
+    if (!snapshot) return;
+    const collapsed = collapseWindowRows(snapshot.rows.window);
+    if (!collapsed) return;
+    this.setState({
+      snapshot: { ...snapshot, rows: { ...snapshot.rows, window: collapsed.rows } },
+    });
+  }
+
+  private maybeCollapseWindow(): void {
+    if (!this.windowCollapseEnabled) return;
+    if (!this.historyViewportState.pinnedToBottom) return;
+    if (this.state.loadingOlder || this.fullHistoryJob) return;
+    const snapshot = this.state.snapshot;
+    if (!snapshot || snapshot.rows.window.length <= CONVERSATION_WINDOW_SOFT_CAP) return;
+    this.collapseOlder();
+  }
+
   /** SessionDataLayer 帧路由入口。 */
   handleFrame(
     frame: ConversationTopicFrame,
@@ -794,6 +871,8 @@ export class ConversationProjectionStore {
     this.reconcileAcceptedInputProjection(next);
     this.observeModelTransition(next, context.online);
     if (context.recovery) this.markRecoveryFrameSeen();
+    // 直播追加是窗口增长的主路径；收纳在帧应用后评估（快照帧本身是 60 行尾窗，无需评估）。
+    this.maybeCollapseWindow();
     for (const listener of this.liveDeltaListeners) listener(frame.payload.deltas);
   }
 

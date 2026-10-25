@@ -393,6 +393,25 @@ describe("prependScrollAdjustment", () => {
 });
 
 describe("shouldTriggerLoadOlder", () => {
+  it("窗口收纳开启（autoPrefetchDisabled）→ 自动预取一律不触发，按钮成为唯一入口", () => {
+    expect(
+      shouldTriggerLoadOlder({
+        scrollTop: 0,
+        canLoadOlder: true,
+        loadingOlder: false,
+        autoPrefetchDisabled: true,
+      }),
+    ).toBe(false);
+    // 省略参数保持既有默认行为。
+    expect(
+      shouldTriggerLoadOlder({
+        scrollTop: 0,
+        canLoadOlder: true,
+        loadingOlder: false,
+      }),
+    ).toBe(true);
+  });
+
   it("HLP02：提前两个视口进入预取区，未知视口回落到顶边阈值", () => {
     const triggerPx = historyPrefetchTriggerPx(700);
     expect(triggerPx).toBe(700 * LOAD_OLDER_PREFETCH_VIEWPORTS);

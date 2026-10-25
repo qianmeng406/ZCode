@@ -79,7 +79,10 @@ export function shouldHydrateConversationTurnNavigatorDirectory(params: {
   containerWidthPx: number;
   hasLoadHandler: boolean;
   loadingOlder: boolean;
+  /** 窗口收纳开启时禁用自动全量补拉；省略/false 保持既有默认行为。 */
+  autoHydrationDisabled?: boolean;
 }): boolean {
+  if (params.autoHydrationDisabled === true) return false;
   return (
     params.canLoadOlder &&
     !params.loadingOlder &&

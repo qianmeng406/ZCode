@@ -3021,6 +3021,7 @@ const enUS: Record<string, string> = {
   "terminal.contextMenu.paste": "Paste",
   "chat.history.loadingOlderMessages": "Loading earlier messages...",
   "chat.history.loadOlderMessages": "Load earlier messages",
+  "chat.history.loadOlderWithCount": "Load earlier · ~{count} more rows",
   "chat.pendingCommand.discarded":
     "An input submitted before the CLI restarted did not reach the conversation. Confirm whether to send it again.",
   "chat.pendingCommand.resend": "Send again",
@@ -3154,6 +3155,8 @@ const enUS: Record<string, string> = {
   "chat.previewCards.openFileFailed": "Could not open this file",
   "chat.previewCards.noOpenApps": "No apps found",
   "chat.turnNavigator.label": "Conversation query map",
+  "chat.turnNavigator.loadFullDirectory": "Load full directory",
+  "chat.turnNavigator.loadingFullDirectory": "Loading directory…",
   "chat.turnNavigator.jumpToQuery": "Jump to query {index}",
   "chat.turnNavigator.emptyAssistant": "No assistant text yet",
   "chat.turnNavigator.runningAssistant": "Assistant is still working",
@@ -3277,6 +3280,9 @@ const enUS: Record<string, string> = {
   "settings.conversationTurnNavigator": "Conversation turn navigator",
   "settings.conversationTurnNavigatorDescription":
     "Show the turn index beside the chat and auto-load full history. Turn off for long sessions to reduce loading and computation.",
+  "settings.conversationWindowCollapse": "Conversation window collapse",
+  "settings.conversationWindowCollapseDescription":
+    "Keep only a recent window of the conversation and collapse earlier history behind a “Load earlier” entry at the top. Turn on for long sessions to greatly reduce memory and CPU usage.",
   "settings.assistantAutoFilePreview": "Auto-load file previews",
   "settings.assistantAutoFilePreviewDescription":
     "Automatically load preview cards for Markdown/HTML files referenced in replies. Turn off to load them manually via the “Load preview” action.",

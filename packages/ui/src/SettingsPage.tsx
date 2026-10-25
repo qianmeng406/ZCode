@@ -427,6 +427,12 @@ export function SettingsPage({
   const setConversationTurnNavigatorEnabled = useZCodeStore(
     (state) => state.setConversationTurnNavigatorEnabled,
   );
+  const conversationWindowCollapseEnabled = useZCodeStore(
+    (state) => state.conversationWindowCollapseEnabled,
+  );
+  const setConversationWindowCollapseEnabled = useZCodeStore(
+    (state) => state.setConversationWindowCollapseEnabled,
+  );
   const assistantAutoFilePreviewEnabled = useZCodeStore(
     (state) => state.assistantAutoFilePreviewEnabled,
   );
@@ -2117,6 +2123,22 @@ export function SettingsPage({
                                     trigger: "switch",
                                   },
                                   operation: () => setConversationTurnNavigatorEnabled(enabled),
+                                  completed: {
+                                    resultSource: "local_commit",
+                                    valueAfter: enabled ? "enabled" : "disabled",
+                                  },
+                                  failureStage: "local_commit",
+                                })
+                              }
+                              conversationWindowCollapseEnabled={conversationWindowCollapseEnabled}
+                              setConversationWindowCollapseEnabled={(enabled) =>
+                                runUserAction({
+                                  input: {
+                                    featureId: "settings.appearance",
+                                    action: "toggle_conversation_window_collapse",
+                                    trigger: "switch",
+                                  },
+                                  operation: () => setConversationWindowCollapseEnabled(enabled),
                                   completed: {
                                     resultSource: "local_commit",
                                     valueAfter: enabled ? "enabled" : "disabled",

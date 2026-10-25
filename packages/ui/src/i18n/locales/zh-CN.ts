@@ -2812,6 +2812,7 @@ const zhCN: Record<string, string> = {
   "terminal.contextMenu.paste": "粘贴",
   "chat.history.loadingOlderMessages": "正在加载更早消息...",
   "chat.history.loadOlderMessages": "加载更早消息",
+  "chat.history.loadOlderWithCount": "加载更早 · 还有约 {count} 行",
   "chat.pendingCommand.discarded": "CLI 重启前已提交的输入没有进入对话。请确认是否重新发送。",
   "chat.pendingCommand.resend": "重新发送",
   "chat.pendingCommand.dismiss": "稍后",
@@ -2946,6 +2947,8 @@ const zhCN: Record<string, string> = {
   "chat.previewCards.openFileFailed": "无法打开此文件",
   "chat.previewCards.noOpenApps": "未找到可用 App",
   "chat.turnNavigator.label": "对话问题导航",
+  "chat.turnNavigator.loadFullDirectory": "加载完整目录",
+  "chat.turnNavigator.loadingFullDirectory": "目录补齐中…",
   "chat.turnNavigator.jumpToQuery": "跳转到第 {index} 条问题",
   "chat.turnNavigator.emptyAssistant": "暂无助手正文",
   "chat.turnNavigator.runningAssistant": "助手仍在工作",
@@ -3063,6 +3066,9 @@ const zhCN: Record<string, string> = {
   "settings.conversationTurnNavigator": "会话回合导航",
   "settings.conversationTurnNavigatorDescription":
     "在聊天左侧显示回合索引，并自动补齐完整历史。长会话中关闭可减少加载与计算开销。",
+  "settings.conversationWindowCollapse": "会话窗口收纳",
+  "settings.conversationWindowCollapseDescription":
+    "只保留最近的会话窗口，更早的内容收纳为顶部“加载更早”入口，按需增量查看。长会话中开启可显著降低内存与 CPU 占用。",
   "settings.assistantAutoFilePreview": "自动加载文件预览",
   "settings.assistantAutoFilePreviewDescription":
     "自动识别回复中引用的 Markdown/HTML 文件并加载预览卡片。关闭后改为点击“加载预览”手动获取。",

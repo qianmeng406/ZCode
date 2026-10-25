@@ -40,6 +40,10 @@ import {
   persistConversationTurnNavigatorEnabled,
 } from "@/lib/conversationTurnNavigatorPreference.js";
 import {
+  loadConversationWindowCollapseEnabled,
+  persistConversationWindowCollapseEnabled,
+} from "@/lib/conversationWindowCollapsePreference.js";
+import {
   loadAssistantAutoFilePreviewEnabled,
   persistAssistantAutoFilePreviewEnabled,
 } from "@/lib/assistantAutoFilePreviewPreference.js";
@@ -135,6 +139,10 @@ export interface ZCodeState {
   /** 会话回合导航开关（rail + 完整历史补拉）；纯展示偏好，默认关闭。 */
   conversationTurnNavigatorEnabled: boolean;
   setConversationTurnNavigatorEnabled: (enabled: boolean) => void;
+
+  /** 会话窗口收纳开关（更早历史收纳 + 顶部"加载更早"增量入口）；纯展示偏好，默认关闭。 */
+  conversationWindowCollapseEnabled: boolean;
+  setConversationWindowCollapseEnabled: (enabled: boolean) => void;
 
   /** 消息 Markdown/HTML 文件预览自动加载；纯展示偏好，默认开启（仅显式 false 关闭）。 */
   assistantAutoFilePreviewEnabled: boolean;
@@ -233,6 +241,7 @@ const BROADCAST_FIELDS = new Set([
   "uiFontSizePx",
   "interfaceMode",
   "conversationTurnNavigatorEnabled",
+  "conversationWindowCollapseEnabled",
   "assistantAutoFilePreviewEnabled",
   "notificationEnabled",
 ]);
@@ -243,6 +252,7 @@ type BroadcastField =
   | "uiFontSizePx"
   | "interfaceMode"
   | "conversationTurnNavigatorEnabled"
+  | "conversationWindowCollapseEnabled"
   | "assistantAutoFilePreviewEnabled"
   // 任务通知开关跨窗口同步：角标是应用级表面，A 窗口关通知而 B 窗口仍上报未读时，
   // 主进程 max 聚合会让任务栏/托盘继续亮，设置与提醒状态错位。
@@ -353,6 +363,12 @@ export function createZCodeStore(
     setConversationTurnNavigatorEnabled: (enabled: boolean) => {
       persistConversationTurnNavigatorEnabled(enabled);
       set({ conversationTurnNavigatorEnabled: enabled });
+    },
+
+    conversationWindowCollapseEnabled: loadConversationWindowCollapseEnabled(),
+    setConversationWindowCollapseEnabled: (enabled: boolean) => {
+      persistConversationWindowCollapseEnabled(enabled);
+      set({ conversationWindowCollapseEnabled: enabled });
     },
 
     assistantAutoFilePreviewEnabled: loadAssistantAutoFilePreviewEnabled(),
@@ -546,6 +562,11 @@ export function createZCodeStore(
         state.setUiFontSizePx(msg.payload);
       } else if (field === "conversationTurnNavigatorEnabled" && typeof msg.payload === "boolean") {
         state.setConversationTurnNavigatorEnabled(msg.payload);
+      } else if (
+        field === "conversationWindowCollapseEnabled" &&
+        typeof msg.payload === "boolean"
+      ) {
+        state.setConversationWindowCollapseEnabled(msg.payload);
       } else if (field === "assistantAutoFilePreviewEnabled" && typeof msg.payload === "boolean") {
         state.setAssistantAutoFilePreviewEnabled(msg.payload);
       } else if (field === "notificationEnabled" && typeof msg.payload === "boolean") {

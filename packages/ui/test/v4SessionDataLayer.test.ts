@@ -30,7 +30,9 @@ import {
 } from "@/v4/sessionDataLayer.js";
 import {
   ACCEPTED_INPUT_PROJECTION_GRACE_MS,
+  CONVERSATION_WINDOW_SOFT_CAP,
   ConversationProjectionStore,
+  collapseWindowRows,
   hasOlderRows,
   mergeOlderRows,
   shouldAutoLoadIncompleteLeadingTurn,
@@ -2172,5 +2174,156 @@ describe("ConversationProjectionStore.loadOlder", () => {
     // 无可并入行 → null（引用不换）。
     expect(mergeOlderRows(window, olderRows(41, 45))).toBeNull();
     expect(mergeOlderRows(window, [])).toBeNull();
+  });
+});
+
+// ── 会话窗口收纳（collapseOlder）：设置开关 + nearBottom 守卫 + turn 边界对齐 ──
+
+describe("collapseWindowRows", () => {
+  /** 每 3 行一个 turn（header + assistant×2），rowId 连续。 */
+  function turnWindow(groupCount: number): ConversationRow[] {
+    const window: ConversationRow[] = [];
+    for (let group = 0; group < groupCount; group++) {
+      window.push(turnHeaderRow(group * 3 + 1, `turn-${group}`));
+      window.push(assistantRow(group * 3 + 2, `a${group}`));
+      window.push(assistantRow(group * 3 + 3, `b${group}`));
+    }
+    return window;
+  }
+
+  it("窗口不超过上限时不裁剪", () => {
+    expect(collapseWindowRows(turnWindow(100), CONVERSATION_WINDOW_SOFT_CAP)).toBeNull();
+  });
+
+  it("超上限时裁剪点向右对齐到最近 turnHeader（宁可多留）", () => {
+    const window = turnWindow(140); // 420 行，cap 400 → targetStart = 20（assistant），下一个 header 在索引 21。
+    const result = collapseWindowRows(window, CONVERSATION_WINDOW_SOFT_CAP);
+    expect(result).not.toBeNull();
+    expect(result!.removed).toBe(21);
+    expect(result!.rows).toHaveLength(399);
+    expect(result!.rows[0]!.rowId).toBe(22);
+    expect(result!.rows[0]!.kind).toBe("turnHeader");
+  });
+
+  it("窗口内找不到 turnHeader 边界（单个超长 turn）→ null，绝不把 turn 劈成两半", () => {
+    const window = Array.from({ length: 401 }, (_, index) => assistantRow(index + 1, "x"));
+    expect(collapseWindowRows(window, CONVERSATION_WINDOW_SOFT_CAP)).toBeNull();
+  });
+});
+
+describe("ConversationProjectionStore.collapseOlder", () => {
+  let transport: FakeTransport;
+  let store: ConversationProjectionStore;
+
+  /** 420 行、每 3 行一个 turn 的窗口；全序首行 1（不可再收敛）。 */
+  function bigSnapshot(): ConversationSnapshot {
+    const window: ConversationRow[] = [];
+    for (let group = 0; group < 140; group++) {
+      window.push(turnHeaderRow(group * 3 + 1, `turn-${group}`));
+      window.push(assistantRow(group * 3 + 2, `a${group}`));
+      window.push(assistantRow(group * 3 + 3, `b${group}`));
+    }
+    return makeSnapshot({
+      // 快照帧 seq 取 payload.seq 而非帧 toSeq；必须与 applyBigSnapshot 的 toSeq 对齐，
+      // 否则后续 delta 帧按断档丢弃。
+      seq: 6,
+      rows: { window, totalCount: 420, firstRowId: 1 },
+    });
+  }
+
+  beforeEach(async () => {
+    transport = new FakeTransport();
+    store = new ConversationProjectionStore("conversation/s1", transport);
+    transport.onFrame((frame) => store.handleFrame(frame));
+    transport.subscribeImpl = (params, subscriptionId) => ({
+      ack: { subscriptionId, mode: "snapshot", logEpoch: "epoch-1" },
+      initialFrame: makeFrame(
+        subscriptionId,
+        0,
+        5,
+        { kind: "snapshot", snapshot: makeSnapshot({ seq: 5 }) },
+        params.topic,
+      ),
+    });
+    await store.connect();
+  });
+
+  function applyBigSnapshot(): void {
+    transport.emit(makeFrame("sub-1", 5, 6, { kind: "snapshot", snapshot: bigSnapshot() }));
+  }
+
+  it("默认关闭：窗口超过软上限也不裁剪", () => {
+    applyBigSnapshot();
+    store.setHistoryViewportState({ pinnedToBottom: true });
+    expect(store.getState().snapshot!.rows.window).toHaveLength(420);
+  });
+
+  it("开启 + pinnedToBottom：立即评估并裁剪到 turn 边界，firstRowId/totalCount 不变", () => {
+    applyBigSnapshot();
+    store.setWindowCollapseEnabled(true);
+    store.setHistoryViewportState({ pinnedToBottom: true });
+    const snapshot = store.getState().snapshot!;
+    expect(snapshot.rows.window).toHaveLength(399);
+    expect(snapshot.rows.window[0]!.rowId).toBe(22);
+    expect(snapshot.rows.totalCount).toBe(420);
+    expect(snapshot.rows.firstRowId).toBe(1);
+    // 收纳后仍有更早历史可拉（firstRowId 语义未被收纳破坏）。
+    expect(hasOlderRows(snapshot)).toBe(true);
+  });
+
+  it("开启 + 未贴底（阅读历史/向上滚动）→ 不裁剪", () => {
+    applyBigSnapshot();
+    store.setWindowCollapseEnabled(true);
+    store.setHistoryViewportState({ pinnedToBottom: false });
+    expect(store.getState().snapshot!.rows.window).toHaveLength(420);
+  });
+
+  it("收纳后 loadOlder 以新窗口首行为游标续拉", async () => {
+    applyBigSnapshot();
+    store.setWindowCollapseEnabled(true);
+    store.setHistoryViewportState({ pinnedToBottom: true });
+    transport.rowsRangeImpl = (params) => {
+      expect(params.beforeRowId).toBe(22);
+      return {
+        rows: [
+          turnHeaderRow(1, "turn-0"),
+          assistantRow(2, "a0"),
+          assistantRow(3, "b0"),
+          turnHeaderRow(4, "turn-1"),
+          assistantRow(5, "a1"),
+          assistantRow(6, "b1"),
+        ],
+        atSeq: 6,
+        atRevision: 6,
+        atLogEpoch: "epoch-1",
+        hasMore: false,
+      };
+    };
+    await store.loadOlder();
+    const snapshot = store.getState().snapshot!;
+    expect(snapshot.rows.window[0]!.rowId).toBe(1);
+    expect(snapshot.rows.window).toHaveLength(399 + 6);
+    expect(hasOlderRows(snapshot)).toBe(false);
+  });
+
+  it("直播 delta 追加后再次评估收纳", () => {
+    applyBigSnapshot();
+    store.setWindowCollapseEnabled(true);
+    store.setHistoryViewportState({ pinnedToBottom: true });
+    expect(store.getState().snapshot!.rows.window).toHaveLength(399);
+    // 399 行 + 追加 3 行 = 402 行 > 400 → delta 帧应用后再裁剪。
+    transport.emit(
+      makeFrame("sub-1", 6, 7, {
+        kind: "deltas",
+        deltas: [
+          { op: "row.appended", row: turnHeaderRow(421, "turn-new") },
+          { op: "row.appended", row: assistantRow(422, "new-a") },
+          { op: "row.appended", row: assistantRow(423, "new-b") },
+        ],
+      }),
+    );
+    const snapshot = store.getState().snapshot!;
+    expect(snapshot.rows.window.length).toBeLessThanOrEqual(400);
+    expect(snapshot.rows.window.at(-1)!.rowId).toBe(423);
   });
 });

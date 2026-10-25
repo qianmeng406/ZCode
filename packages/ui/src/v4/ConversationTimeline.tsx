@@ -305,6 +305,18 @@ export interface ConversationTimelineProps {
   /** 拉取更早一窗历史（接近顶部时自动预取）。 */
   onLoadOlder?: () => Promise<void> | void;
   /**
+   * 会话窗口收纳（设置开关，默认关闭）。开启后：顶部渲染"加载更早"显式入口、
+   * 跳过轨道自动全量补拉（改为 rail 内手动入口）、上报跟随状态供 store 安全收纳。
+   * 关闭时不渲染任何新 UI、不上报、不改变既有行为。
+   */
+  windowCollapseEnabled?: boolean;
+  /**
+   * 视口状态上报（仅开启收纳时传入）：pinnedToBottom = 贴底跟随（following）。
+   * store 只在贴底跟随时允许头部裁剪——底部锚定接管滚动位置，裁剪不可见；
+   * 用户向上滚动后跟随解除，收纳冻结，绝不会与滚动手势打架。
+   */
+  onHistoryViewportStateChange?: (state: { pinnedToBottom: boolean }) => void;
+  /**
    * 宽屏问题目录挂载后一次补齐当前有效分支的全部历史。signal 表达本次导航
    * attempt 的需求存续：资格撤销/卸载时 abort，store 据此协作停止后续分页。
    */
@@ -412,6 +424,8 @@ function ConversationTimelineImpl({
   loadingOlder = false,
   onLoadOlder,
   onLoadAllOlder,
+  windowCollapseEnabled = false,
+  onHistoryViewportStateChange,
   turnNavigatorDirectoryRevision = 0,
   bottomDock,
   selectionPanelLayoutContainerRef,
@@ -465,6 +479,27 @@ function ConversationTimelineImpl({
     return () => observer.disconnect();
   }, [hasHeaderSlot]);
   const [liveNowMs, setLiveNowMs] = useState(() => Date.now());
+  // "加载更早"入口槽位（窗口收纳开启时渲染）。与 headerSlot 同一机制：
+  // 高度参与 scrollMargin 换算，必须随内容/宽度实时跟进，否则虚拟窗口整体错位。
+  const showLoadOlderEntry = windowCollapseEnabled && canLoadOlder;
+  const loadOlderSlotRef = useRef<HTMLDivElement>(null);
+  const [loadOlderSlotHeight, setLoadOlderSlotHeight] = useState(0);
+  useEffect(() => {
+    const element = loadOlderSlotRef.current;
+    if (!showLoadOlderEntry || !element) {
+      setLoadOlderSlotHeight((current) => (current === 0 ? current : 0));
+      return;
+    }
+    const sync = () => {
+      const next = element.getBoundingClientRect().height;
+      setLoadOlderSlotHeight((current) => (Math.abs(current - next) < 0.5 ? current : next));
+    };
+    sync();
+    if (typeof ResizeObserver === "undefined") return;
+    const observer = new ResizeObserver(sync);
+    observer.observe(element);
+    return () => observer.disconnect();
+  }, [showLoadOlderEntry]);
   // 插件卡片展示模型——同资源替代 + 最近三回合自动展开 + 手动固定；推导结果发布给卡片自己读。
   const pluginUiDerivation = useMemo(() => deriveLogicalUiInstances(rows), [rows]);
   useEffect(() => {
@@ -575,9 +610,31 @@ function ConversationTimelineImpl({
     );
   }, []);
   // loadOlder 相关值经 ref 读取，保持 handleScroll 稳定引用。
-  const loadOlderRef = useRef({ canLoadOlder, loadingOlder, onLoadOlder });
-  loadOlderRef.current = { canLoadOlder, loadingOlder, onLoadOlder };
+  // collapseEnabled 下关闭滚动自动预取：顶部边界 + "加载更早"按钮是唯一增量入口，
+  // 否则预取阈值（顶下 2 视口）总是先于用户抵达顶部触发，顶部边界永远够不着。
+  const loadOlderRef = useRef({
+    canLoadOlder,
+    loadingOlder,
+    onLoadOlder,
+    collapseEnabled: windowCollapseEnabled,
+  });
+  loadOlderRef.current = {
+    canLoadOlder,
+    loadingOlder,
+    onLoadOlder,
+    collapseEnabled: windowCollapseEnabled,
+  };
   const followingRef = useRef(initialFollowing());
+  // 窗口收纳的跟随状态上报（回调经 ref，保持 handleScroll 稳定引用）。
+  // 只上报 following：贴底跟随时收纳才安全（底部锚定接管滚动位置），
+  // 向上滚动后跟随解除，store 冻结收纳，绝不在滚动手势中裁剪。
+  const onHistoryViewportStateChangeRef = useRef(onHistoryViewportStateChange);
+  onHistoryViewportStateChangeRef.current = onHistoryViewportStateChange;
+  const reportHistoryViewportState = useCallback(() => {
+    const handler = onHistoryViewportStateChangeRef.current;
+    if (!handler) return;
+    handler({ pinnedToBottom: followingRef.current });
+  }, []);
   const programmaticScrollFrameRef = useRef<number | null>(null);
   const userScrollIntentRef = useRef<{
     intent: TimelineUserScrollIntent;
@@ -804,6 +861,9 @@ function ConversationTimelineImpl({
         containerWidthPx: turnNavigatorContainerWidthPx,
         hasLoadHandler: Boolean(onLoadAllOlder),
         loadingOlder,
+        // 窗口收纳开启：自动全量补拉正是把长会话全量灌进渲染层的主路径，
+        // 改为 rail 内手动"加载完整目录"入口触发。
+        autoHydrationDisabled: windowCollapseEnabled,
       })
     ) {
       return;
@@ -859,6 +919,7 @@ function ConversationTimelineImpl({
     turnNavigatorDirectoryRevision,
     turnNavigatorEligible,
     turnNavigatorHydrationRetryRevision,
+    windowCollapseEnabled,
   ]);
 
   useEffect(
@@ -906,10 +967,10 @@ function ConversationTimelineImpl({
     overscan: ROW_OVERSCAN,
     getItemKey,
     measureElement,
-    // headerSlot（分享导入的只读块）与虚拟列表同处一个滚动容器，
-    // 且高度可观。不告知这段偏移，虚拟窗口会按 scrollTop 直接索引 item，
-    // 渲染窗口整体偏移一个 header 高度，用户滚到的区域会是空白。
-    scrollMargin: headerSlotHeight,
+    // headerSlot（分享导入的只读块）与"加载更早"槽位都和虚拟列表同处一个滚动
+    // 容器，且高度可观。不告知这段偏移，虚拟窗口会按 scrollTop 直接索引 item，
+    // 渲染窗口整体偏移一个槽位高度，用户滚到的区域会是空白。
+    scrollMargin: headerSlotHeight + loadOlderSlotHeight,
   });
   virtualizer.shouldAdjustScrollPositionOnItemSizeChange = (item) => {
     return shouldAdjustVirtualizerForItemSizeChange({
@@ -1516,8 +1577,13 @@ function ConversationTimelineImpl({
       userAdjustedScrollSinceRestoreRef.current = true;
       saveCurrentScrollMemory();
     }
+    // 跟随状态上报：收纳只在贴底跟随时安全，判定随每次滚动更新；
+    // store 侧在裁剪条件满足时才 setState，无高频开销。
+    reportHistoryViewportState();
     // 只在 64px 顶边才补页时，用户会先撞到窗口边界再看到内容跳入；提前两个
     // 视口预取，让桌面和手机 Web 共用的 renderer 在用户抵达边界前完成补页。
+    // 收纳开启时跳过：预取阈值总在用户抵达顶部之前触发，会把顶部边界无限推高，
+    // "加载更早"按钮永远不可达；此时按钮点击是唯一增量入口，窗口保持有界。
     const loadOlder = loadOlderRef.current;
     const triggerPx = historyPrefetchTriggerPx(element.clientHeight);
     if (
@@ -1526,6 +1592,7 @@ function ConversationTimelineImpl({
         canLoadOlder: loadOlder.canLoadOlder,
         loadingOlder: loadOlder.loadingOlder,
         triggerPx,
+        autoPrefetchDisabled: loadOlder.collapseEnabled,
       })
     ) {
       // 前插超过 viewport + overscan 后旧可见 turn 会被卸载，DOM 不能作为跨
@@ -1551,10 +1618,18 @@ function ConversationTimelineImpl({
   }, [
     commitFollowing,
     getActiveUserScrollIntent,
+    reportHistoryViewportState,
     saveCurrentScrollMemory,
     syncTurnNavigatorViewport,
     virtualizer,
   ]);
+
+  // 窗口收纳开启时 rail 的手动全量目录入口：不经宽屏自动补拉 effect，
+  // 由用户显式触发；owner/signal 生命周期由 store 的 job 模型接管。
+  const handleLoadFullDirectory = useCallback(() => {
+    if (!onLoadAllOlder) return;
+    void onLoadAllOlder(new AbortController().signal);
+  }, [onLoadAllOlder]);
 
   const handleBackToBottom = useCallback(() => {
     pendingDetachedScrollRestoreRef.current = null;
@@ -1729,6 +1804,13 @@ function ConversationTimelineImpl({
   const rowWindowKey = `${rows.length}:${rows[0]?.rowId ?? "none"}:${rows[rows.length - 1]?.rowId ?? "none"}`;
   const pendingGuideKey = pendingGuides.map((item) => item.queueItemId).join(":");
 
+  // 程序化滚动（贴底/锚定平移/收纳收缩）不产生用户 scroll 意图，但会改变视口与
+  // 保留区的相对位置；内容或开关变化时主动上报一次，收纳判定不因缺 scroll 事件而滞后。
+  useEffect(() => {
+    if (!windowCollapseEnabled) return;
+    reportHistoryViewportState();
+  }, [reportHistoryViewportState, rowCount, totalSize, windowCollapseEnabled]);
+
   // V4 迁移删除旧 ChatView 滚动 hook 后，sessionKey effect 仍固定滚到底部，
   // 导致残留的 renderer-local 记忆模块彻底断线。这里在清测高并重新 measure 后按 scope
   // 恢复；首个 layout 立即写入防闪动，下一帧再校正异步测高，但必须把滚动权让给用户。
@@ -1852,6 +1934,8 @@ function ConversationTimelineImpl({
   // 既有 turn key=turnId 且测量缓存不失效 → 前插只把总高度撑高 delta，scrollTop += delta
   // 即恢复锚点（绘制前完成，无闪动）；本效应声明在会话切换效应之后，切换 commit 上
   // 先重置基线再对账，防跨会话 rowId 误判为前插。
+  // 收纳（collapseOlder）只发生在贴底跟随时：底部锚定 effect 在同一 commit 贴底，
+  // 总高度收缩由它消化，这里不做裁剪方向的平移，避免与虚拟器位移补偿双重叠加。
   useLayoutEffect(() => {
     const prev = prependAnchorRef.current;
     const nextFirstRowId = rowsRef.current[0]?.rowId ?? null;
@@ -1945,6 +2029,7 @@ function ConversationTimelineImpl({
     markLayoutScrollGuard,
     commitFollowing,
     headerSlotHeight,
+    loadOlderSlotHeight,
     pendingGuideKey,
     rowCount,
     rows,
@@ -2018,6 +2103,8 @@ function ConversationTimelineImpl({
           virtualItems={turnNavigatorVirtualItems}
           activeQueryRowId={turnNavigatorViewport.activeQueryRowId}
           onJumpToQuery={scrollToQuery}
+          canLoadFullDirectory={windowCollapseEnabled && canLoadOlder}
+          onLoadFullDirectory={handleLoadFullDirectory}
         />
       ) : null}
       <div
@@ -2115,6 +2202,36 @@ function ConversationTimelineImpl({
                   {headerSlot}
                 </div>
               ) : null}
+              {showLoadOlderEntry ? (
+                <div
+                  ref={loadOlderSlotRef}
+                  data-v4-timeline-load-older-slot="true"
+                  data-v4-timeline-content-column="true"
+                  className={cn(
+                    "relative mx-auto w-full shrink-0",
+                    contentWidthClassName,
+                    summaryPanelInlineOffsetClassName,
+                  )}
+                >
+                  <div className="flex justify-center py-2">
+                    <button
+                      type="button"
+                      data-testid="v4-timeline-load-older"
+                      data-loading-older={loadingOlder ? "true" : "false"}
+                      disabled={loadingOlder}
+                      onClick={() => void loadOlderRef.current.onLoadOlder?.()}
+                      className="rounded-full border border-border bg-card px-4 py-1.5 text-ui-sm text-foreground-subtle shadow-sm transition-colors hover:bg-accent hover:text-foreground disabled:cursor-default disabled:opacity-60"
+                    >
+                      {loadingOlder
+                        ? intl.formatMessage({ id: "chat.history.loadingOlderMessages" })
+                        : intl.formatMessage(
+                            { id: "chat.history.loadOlderWithCount" },
+                            { count: Math.max(0, totalCount - rows.length) },
+                          )}
+                    </button>
+                  </div>
+                </div>
+              ) : null}
               <div
                 ref={virtualHistoryRef}
                 data-v4-timeline-virtual-history="true"
@@ -2142,7 +2259,9 @@ function ConversationTimelineImpl({
                       // virtual history 的子项通过 absolute 定位，父级 padding 不会缩小
                       // 它们的 containing block；正文响应式内边距必须落在 turn wrapper 自身。
                       className="absolute left-0 top-0 w-full"
-                      style={{ transform: `translateY(${virtualRow.start - headerSlotHeight}px)` }}
+                      style={{
+                        transform: `translateY(${virtualRow.start - headerSlotHeight - loadOlderSlotHeight}px)`,
+                      }}
                     >
                       <ConversationTurnGroup
                         unit={unit}

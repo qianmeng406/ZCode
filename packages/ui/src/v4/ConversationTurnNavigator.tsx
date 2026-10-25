@@ -26,6 +26,13 @@ export interface ConversationTurnNavigatorProps {
   activeQueryRowId?: number;
   isHydratingDirectory?: boolean;
   onJumpToQuery: (target: { unitIndex: number; rowId: number }, behavior: ScrollBehavior) => void;
+  /**
+   * 窗口收纳开启时的手动全量目录入口：rail 只基于已加载窗口建目录，
+   * 点击后由宿主补拉全部历史并重建索引。省略时（功能关闭）不渲染入口，
+   * 自动补拉行为与历史版本一致。
+   */
+  canLoadFullDirectory?: boolean;
+  onLoadFullDirectory?: () => void;
 }
 
 function usePrefersReducedMotion() {
@@ -53,6 +60,8 @@ function ConversationTurnNavigatorImpl({
   activeQueryRowId,
   isHydratingDirectory = false,
   onJumpToQuery,
+  canLoadFullDirectory = false,
+  onLoadFullDirectory,
 }: ConversationTurnNavigatorProps) {
   const { intl } = useZCodeIntl();
   const prefersReducedMotion = usePrefersReducedMotion();
@@ -151,6 +160,33 @@ function ConversationTurnNavigatorImpl({
         onPointerLeave={() => setInteractionItemIndex(undefined)}
         onScroll={() => setInteractionItemIndex(undefined)}
       >
+        {canLoadFullDirectory && onLoadFullDirectory ? (
+          <button
+            type="button"
+            data-testid="v4-turn-navigator-load-full-directory"
+            data-loading-directory={isHydratingDirectory ? "true" : "false"}
+            disabled={isHydratingDirectory}
+            onClick={onLoadFullDirectory}
+            aria-label={intl.formatMessage({
+              id: isHydratingDirectory
+                ? "chat.turnNavigator.loadingFullDirectory"
+                : "chat.turnNavigator.loadFullDirectory",
+            })}
+            title={intl.formatMessage({
+              id: isHydratingDirectory
+                ? "chat.turnNavigator.loadingFullDirectory"
+                : "chat.turnNavigator.loadFullDirectory",
+            })}
+            className="mx-auto mb-1 flex h-5 w-9 items-center justify-center rounded-sm text-foreground-subtle transition-colors hover:bg-accent hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-input-border-focused disabled:cursor-default disabled:opacity-50"
+          >
+            <span
+              aria-hidden="true"
+              className={cn("text-ui-base leading-none", isHydratingDirectory && "animate-pulse")}
+            >
+              {isHydratingDirectory ? "…" : "⤒"}
+            </span>
+          </button>
+        ) : null}
         <div className="relative w-9" style={{ height: `${railVirtualizer.getTotalSize()}px` }}>
           {virtualRows.map((virtualRow) => {
             const itemIndex = virtualRow.index;

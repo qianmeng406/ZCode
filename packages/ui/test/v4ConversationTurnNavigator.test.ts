@@ -122,6 +122,13 @@ describe("conversation turn navigator helpers", () => {
         ...base,
       }),
     ).toBe(true);
+    // 窗口收纳开启：自动全量补拉一律禁用（其余条件即使全部满足），改为 rail 手动入口。
+    expect(
+      shouldHydrateConversationTurnNavigatorDirectory({
+        ...base,
+        autoHydrationDisabled: true,
+      }),
+    ).toBe(false);
   });
 
   it("TN07：暂时失败只安排两次有界退避重试", () => {
