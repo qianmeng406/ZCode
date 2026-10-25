@@ -845,6 +845,12 @@ exceptions:
       - packages/ui/src/settings/PerformanceSection.tsx
       - packages/ui/src/components/ai-elements/markdown-streaming-chunks.ts
     reason: 性能设置页的偏好持久化与纯受控分区组件：单 JSON key fail-closed 默认全关、逐字段布尔校验，组件只消费 props 不读 store；与 lib 下既有偏好文件、settings 下既有分区组件同模式；接管这两个目录需要单独的模块边界梳理。markdown-streaming-chunks 是流式分块纯函数状态机（chunkedStreaming 开关门控、默认关闭零改动），与 ai-elements 下既有 markdown 工具同模式。
+  - id: v4-fork-render-unit-helpers-unmanaged-new
+    rule: unmanaged-new-file
+    paths:
+      - packages/ui/src/v4/conversationTurnRenderUnitTypes.ts
+      - packages/ui/src/v4/topicPreparationRenderUnits.ts
+    reason: v3.15.1 迁移（aac47556，2026-09-10 门禁时间戳之后）带入的 fork 既有模块文件：renderUnit 类型定义与 topic preparation 包装纯函数，长期被 conversationTurnRenderUnits/ConversationTimeline 消费；本次只是首次进入推送范围触发的补登记，接管 packages/ui/src/v4 需要单独的模块边界梳理。
   - id: renderer-lazy-view-boundaries-unmanaged-new
     rule: unmanaged-new-file
     paths:
