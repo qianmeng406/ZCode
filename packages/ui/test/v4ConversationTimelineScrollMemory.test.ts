@@ -1015,7 +1015,7 @@ describe("coalescedBottomScrollEnabled（性能开关，默认关闭）", () => 
     expect(timeline.getAttribute("data-following")).toBe("false");
   });
 
-  it("back-to-bottom 的滚动记忆持久化随写入之后执行（保存写入后的落点）", () => {
+  it("back-to-bottom 始终同步写并同步落盘（开关开启也不进 rAF 合并）", () => {
     saveChatSessionScrollMemoryState("workspace::pane:a::session:1", {
       scrollTop: 240,
       scrollHeight: 1200,
@@ -1044,11 +1044,9 @@ describe("coalescedBottomScrollEnabled（性能开关，默认关闭）", () => 
       flushScheduledMicrotasks();
     });
 
+    // 不 flush 任何 rAF：动作本身就是同步写 + 同步持久化（窗口不可见 rAF 停摆
+    // 也不能漏存滚动记忆）。
     act(() => scrollToBottomActionRef.current?.());
-    act(() => {
-      flushAnimationFrame();
-      flushScheduledMicrotasks();
-    });
 
     expect(timeline.scrollTop).toBe(900);
     expect(readChatSessionScrollMemoryState("workspace::pane:a::session:1")).toMatchObject({

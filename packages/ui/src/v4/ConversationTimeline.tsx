@@ -1,5 +1,8 @@
 import { useBotTopicPreparations } from "@/v4/BotTopicPreparation.js";
-import { withTopicPreparationMessages } from "@/v4/topicPreparationRenderUnits.js";
+import {
+  withTopicPreparationMessages,
+  type TopicPreparationMemoSlot,
+} from "@/v4/topicPreparationRenderUnits.js";
 /* oxlint-disable eslint(max-lines) -- ConversationTimeline 集中承载虚拟滚动、滚动锚定、loadOlder 与 find 高亮协调；拆散会让同一滚动状态跨文件传递。 */
 import {
   Component,
@@ -550,6 +553,17 @@ function ConversationTimelineImpl({
     unitCacheRef.current = null;
   }
   const unitCache = stableRenderUnitsEnabled ? unitCacheRef.current : undefined;
+  // topic preparation 包装的单槽 memo：pending 非空时 {...last} 每次新建会抵消
+  // reuseLastOutput 的数组引用复用；相同输入直接复用上次结果。
+  const topicPrepMemoSlotRef = useRef<TopicPreparationMemoSlot | null>(null);
+  if (stableRenderUnitsEnabled) {
+    topicPrepMemoSlotRef.current ??= {};
+  } else {
+    topicPrepMemoSlotRef.current = null;
+  }
+  const topicPrepMemoSlot = stableRenderUnitsEnabled
+    ? (topicPrepMemoSlotRef.current ?? undefined)
+    : undefined;
   const unitCacheFirstRowIdRef = useRef<number | undefined>(undefined);
   const unitCacheFirstRowId = rows[0]?.rowId;
   if (unitCacheFirstRowId !== unitCacheFirstRowIdRef.current) {
@@ -567,6 +581,7 @@ function ConversationTimelineImpl({
         }),
         rows,
         topicPreparations,
+        topicPrepMemoSlot,
       ),
     [liveNowMs, pluginUiPinResolver, rows, sessionPhase, topicPreparations, unitCache],
   );
@@ -1725,15 +1740,13 @@ function ConversationTimelineImpl({
     pendingDetachedScrollRestoreRef.current = null;
     clearUserScrollIntent();
     commitFollowing(true);
-    // 滚动写可能在下一 rAF 才落地（coalescedBottomScrollEnabled），持久化必须
-    // 跟着写入之后执行，否则保存的是写入前的旧位置。
-    scrollToBottom({
-      onFlushed: () => {
-        // scrollToBottom 只更新组件内 ref；若用户点击后立刻切任务，scope
-        // cleanup/scroll 事件可能还没运行，旧 Map 会把下次恢复重新带回中部甚至顶部。
-        saveCurrentScrollMemory();
-      },
-    });
+    // 用户显式点击是低频事件：始终同步写（immediate），不进 rAF 合并——否则窗口
+    // 不可见 rAF 停摆 / following 丢弃分支会让滚动记忆漏存，点击后立刻切任务
+    // 会保存旧位置（既有保证：切会话不丢记忆）。
+    scrollToBottom({ immediate: true });
+    // scrollToBottom 只更新组件内 ref；若用户点击后立刻切任务，scope
+    // cleanup/scroll 事件可能还没运行，旧 Map 会把下次恢复重新带回中部甚至顶部。
+    saveCurrentScrollMemory();
   }, [clearUserScrollIntent, commitFollowing, saveCurrentScrollMemory, scrollToBottom]);
 
   useLayoutEffect(() => {

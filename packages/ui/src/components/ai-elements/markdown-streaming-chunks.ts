@@ -11,6 +11,14 @@
 // - 出现脚注 `[^id]` ⇒ 重置并返回整篇单块（Streamdown 对脚注有整篇特判）；
 // - 未闭合围栏/HTML/$$/列表等永远只存在于未提交的尾部块（它们是最后一个真实块），
 //   不会被提交，remend 追加的闭合符也随之留在尾部。
+//
+// 为什么「追加改写已提交块语义」不会发生（setext 下划线 / 引用续行 / 列表缩进
+// 续行只能改写**紧邻前块**，而提交边界保证已提交块与文档追加点之间至少隔着一个
+// 真实块）：审查场景「已提交 Other 段落后追加 ---」的前提不成立——Other 作为当时
+// 的最后一个真实块不会被提交；--- 到达时它位于未提交尾部、随尾部重切成标题。
+// 该性质由 streamingMarkdownChunks.test.ts 的 setext/续行序列 parity 用例固化；
+// 每步 split(text) 与 parseMarkdownIntoBlocks(text) 深度相等即「开关开启输出与
+// 标准路径一致」的直接证据。
 import { parseMarkdownIntoBlocks } from "streamdown";
 
 /** 脚注引用/定义标记：Streamdown 遇到脚注会把整篇作为单块处理。 */

@@ -201,4 +201,54 @@ describe("createIncrementalMarkdownSplitter", () => {
     // 流式模式下代码块体由 CodeBlock 异步渲染（既有行为），静态标记里断言外壳。
     expect(chunked).toContain('data-language="js"');
   });
+
+  // 以下用例固化「追加改写已提交块语义」的风险边界：setext 下划线 / 引用续行 /
+  // 列表缩进续行这类构造只能改写**紧邻前块**，而提交边界保证已提交块与文档追加点
+  // 之间至少隔着一个真实块（未提交尾块），因此已提交块不可能被后续追加改写。
+  // 每个序列在每一步都断言与整篇切块的深度 parity——这是「开关开启输出与标准
+  // 路径一致」的直接证据。
+  it("setext 场景：段落行后追加 ---/=== 构成标题时，增量结果与整篇切块一致且已提交块不变", () => {
+    const splitter = createIncrementalMarkdownSplitter();
+    const t1 = "Intro 段。\n\nOther";
+    const c1 = splitter.split(t1);
+    expect(c1).toEqual(parseMarkdownIntoBlocks(t1));
+    // Other 是当时的最后一个真实块，未被提交——这正是后续 --- 能改写它时不出错的原因。
+    const introChunks = c1.slice(0, -1);
+
+    const t2 = "Intro 段。\n\nOther\n---";
+    const c2 = splitter.split(t2);
+    expect(c2).toEqual(parseMarkdownIntoBlocks(t2));
+    // 已提交的 Intro 块逐块不变。
+    expect(c2.slice(0, introChunks.length)).toEqual(introChunks);
+
+    const t3 = "Intro 段。\n\nOther\n---\n\nTail 段。\n\nFinal";
+    const c3 = splitter.split(t3);
+    expect(c3).toEqual(parseMarkdownIntoBlocks(t3));
+    expect(c3.slice(0, introChunks.length)).toEqual(introChunks);
+
+    const h1Splitter = createIncrementalMarkdownSplitter();
+    const s1 = h1Splitter.split("引导。\n\nTitle");
+    const s2 = h1Splitter.split("引导。\n\nTitle\n===\n\n正文。");
+    expect(s2).toEqual(parseMarkdownIntoBlocks("引导。\n\nTitle\n===\n\n正文。"));
+    expect(s1.length).toBeGreaterThan(0);
+  });
+
+  it("引用/列表续行场景：跨空行续行改写的是未提交尾块，与整篇切块保持一致", () => {
+    const quote = createIncrementalMarkdownSplitter();
+    const q1 = quote.split("前文。\n\n> 引用一");
+    expect(q1).toEqual(parseMarkdownIntoBlocks("前文。\n\n> 引用一"));
+    const q2 = quote.split("前文。\n\n> 引用一\n>\n> 引用二");
+    expect(q2).toEqual(parseMarkdownIntoBlocks("前文。\n\n> 引用一\n>\n> 引用二"));
+    const q3 = quote.split("前文。\n\n> 引用一\n>\n> 引用二\n\n收尾。");
+    expect(q3).toEqual(parseMarkdownIntoBlocks("前文。\n\n> 引用一\n>\n> 引用二\n\n收尾。"));
+
+    const list = createIncrementalMarkdownSplitter();
+    const l1 = list.split("开场。\n\n- 项目一");
+    expect(l1).toEqual(parseMarkdownIntoBlocks("开场。\n\n- 项目一"));
+    // 缩进续行并入同一列表（宽松列表）。
+    const l2 = list.split("开场。\n\n- 项目一\n\n  延续内容");
+    expect(l2).toEqual(parseMarkdownIntoBlocks("开场。\n\n- 项目一\n\n  延续内容"));
+    const l3 = list.split("开场。\n\n- 项目一\n\n  延续内容\n\n后记。");
+    expect(l3).toEqual(parseMarkdownIntoBlocks("开场。\n\n- 项目一\n\n  延续内容\n\n后记。"));
+  });
 });
