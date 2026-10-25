@@ -1397,12 +1397,34 @@ function ConversationTimelineImpl({
     };
   }, []);
 
+  // immediate 写入前吸收在途合并冲刷：取消 rAF 并接管已排队回调，同一帧内不再
+  // 出现第二次（幂等但多余）的贴底写；被吸收回调的语义不变——仍在真实写入之后执行。
+  const drainCoalescedScrollFlush = useCallback((): Array<() => void> => {
+    if (coalescedScrollFrameRef.current !== null) {
+      window.cancelAnimationFrame(coalescedScrollFrameRef.current);
+      coalescedScrollFrameRef.current = null;
+    }
+    const callbacks = coalescedScrollFlushCallbacksRef.current;
+    coalescedScrollFlushCallbacksRef.current = [];
+    return callbacks;
+  }, []);
+
   const scrollToBottom = useCallback(
     (options?: { immediate?: boolean; onFlushed?: () => void }) => {
       const element = scrollRef.current;
       if (!element) return;
       if (!coalescedBottomScrollEnabled || options?.immediate) {
-        scrollToBottomInternal(element, options?.onFlushed);
+        const absorbed = drainCoalescedScrollFlush();
+        const flushed = options?.onFlushed;
+        scrollToBottomInternal(
+          element,
+          absorbed.length > 0 || flushed
+            ? () => {
+                for (const callback of absorbed) callback();
+                flushed?.();
+              }
+            : undefined,
+        );
         return;
       }
       if (options?.onFlushed) {
@@ -1429,7 +1451,7 @@ function ConversationTimelineImpl({
         });
       });
     },
-    [coalescedBottomScrollEnabled, scrollToBottomInternal],
+    [coalescedBottomScrollEnabled, drainCoalescedScrollFlush, scrollToBottomInternal],
   );
 
   useLayoutEffect(() => {

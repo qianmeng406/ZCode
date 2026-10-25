@@ -1054,4 +1054,52 @@ describe("coalescedBottomScrollEnabled（性能开关，默认关闭）", () => 
       wasPinnedToBottom: true,
     });
   });
+
+  it("immediate 写入吸收在途合并帧：同步写后同帧不再有第二次贴底写", () => {
+    const container = installMinimalDom();
+    mountedRoot = createRoot(container);
+    const scrollToBottomActionRef = { current: null as (() => void) | null };
+    act(() =>
+      renderTimeline(mountedRoot!, "session-1", null, scrollToBottomActionRef, {
+        coalescedBottomScroll: true,
+      }),
+    );
+    const timeline = findByTestId(container, TID_V4_TIMELINE)!;
+    expect(timeline.scrollTop).toBe(900);
+
+    let scrollEvents = 0;
+    (
+      timeline as unknown as { addEventListener: (type: string, handler: () => void) => void }
+    ).addEventListener("scroll", () => {
+      scrollEvents += 1;
+    });
+    // 排空初始渲染的 restore correction rAF，避免与被测合并帧混叠。
+    act(() => {
+      flushAnimationFrame();
+      flushScheduledMicrotasks();
+    });
+    scrollEvents = 0;
+
+    // 内容提交排入合并帧：此时只排程未写。
+    act(() =>
+      renderTimeline(mountedRoot!, "session-1", null, scrollToBottomActionRef, {
+        coalescedBottomScroll: true,
+        rows: [row, extraRow(2)],
+      }),
+    );
+    expect(scrollEvents).toBe(0);
+
+    // 用户回底（immediate）：同步写入并吸收在途冲刷（取消 rAF、接管排队回调）。
+    act(() => scrollToBottomActionRef.current?.());
+    expect(timeline.scrollTop).toBe(900);
+    act(() => flushScheduledMicrotasks());
+    expect(scrollEvents).toBe(1);
+
+    // 被吸收的合并帧不再产生第二次写。
+    act(() => {
+      flushAnimationFrame();
+      flushScheduledMicrotasks();
+    });
+    expect(scrollEvents).toBe(1);
+  });
 });
