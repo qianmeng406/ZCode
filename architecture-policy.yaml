@@ -1038,3 +1038,8 @@ exceptions:
     paths:
       - packages/ui/src/highspeed/highspeedExpiryCandidates.ts
     reason: highspeed 到期候选集纯函数（性能开关 idleTickScanReductionEnabled）：rows 变化时收集升序候选、每秒只在候选里推进，与 resolveNextHighspeedExpiryMs 语义逐点一致的 parity 由单测固化；消费点仅 ConversationTimeline 的一个 gated memo。
+  - id: shared-web-remote-control-status-unmanaged-new
+    rule: unmanaged-new-file
+    paths:
+      - packages/ui/src/hooks/sharedWebRemoteControlStatus.ts
+    reason: 远控状态共享轮询模块（性能开关 dedupedIdlePollingEnabled）：WeakMap 按 platform 复用单 interval/单事件订阅、引用计数拆除，状态相等性去重从 useWebRemoteControlStatus 迁入并导出复用；开关关闭时 hook 逐实例路径与原实现一致。

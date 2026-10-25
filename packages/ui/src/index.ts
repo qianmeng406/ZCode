@@ -120,4 +120,8 @@ export { generateMobileDeviceFingerprint, setStreamClientId } from "./lib/stream
 export { GlobalDatabaseStartupLoading } from "./root/GlobalDatabaseStartupLoading.js";
 
 export { LocalTtftObserver, setLocalTtftObserver } from "@/v4/telemetry/localTtftObserver.js";
+export {
+  loadPerformanceSettings,
+  PERFORMANCE_SETTINGS_STORAGE_KEY,
+} from "@/lib/performancePreferences.js";
 export { ensurePendingTaskDraft } from "@/v4/composer/composerDraftStore.js";

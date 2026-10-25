@@ -1,5 +1,10 @@
 import type { IPlatformService, LocalTtftRecord } from "@zcode/shared";
-import { LocalTtftObserver, setLocalTtftObserver } from "@zcode/ui";
+import {
+  loadPerformanceSettings,
+  LocalTtftObserver,
+  PERFORMANCE_SETTINGS_STORAGE_KEY,
+  setLocalTtftObserver,
+} from "@zcode/ui";
 
 /** 单窗口批量出口；关闭采集只影响新输入，已启用的发送保留原决定。 */
 export function initializeDesktopLocalTtft(platform: IPlatformService): () => void {
@@ -40,8 +45,29 @@ export function initializeDesktopLocalTtft(platform: IPlatformService): () => vo
       }
     }
   };
+  // dedupedIdlePollingEnabled（默认关闭）：开启后 flush 定时器跟随 observer.enabled
+  // 启停——遥测未启用时不再每秒空转；关闭时保持原「常驻 1s 定时器」行为。
+  // 开关值初始化读一次，跨窗口经 storage 事件跟随（本窗翻转重启后完全生效）。
+  let dedupedIdlePollingEnabled = loadPerformanceSettings().dedupedIdlePollingEnabled;
+  let flushTimer: ReturnType<typeof setInterval> | undefined;
+  const syncFlushTimer = () => {
+    const shouldRun = observer.enabled || !dedupedIdlePollingEnabled;
+    if (shouldRun && flushTimer === undefined) {
+      flushTimer = setInterval(flush, 1000);
+    } else if (!shouldRun && flushTimer !== undefined) {
+      flush(); // 停表前把已缓冲记录发出去。
+      clearInterval(flushTimer);
+      flushTimer = undefined;
+    }
+  };
+  const onStorage = (event: StorageEvent) => {
+    if (event.key !== null && event.key !== PERFORMANCE_SETTINGS_STORAGE_KEY) return;
+    dedupedIdlePollingEnabled = loadPerformanceSettings().dedupedIdlePollingEnabled;
+    syncFlushTimer();
+  };
   const apply = (config: { localTtftEnabled?: boolean }) => {
     observer.enabled = config.localTtftEnabled === true;
+    syncFlushTimer();
   };
   void platform
     .getRendererActionTraceConfig()
@@ -60,16 +86,19 @@ export function initializeDesktopLocalTtft(platform: IPlatformService): () => vo
   window.addEventListener("blur", background);
   window.addEventListener("focus", foreground);
   document.addEventListener("visibilitychange", visibility);
-  const timer = setInterval(flush, 1000);
+  window.addEventListener("storage", onStorage);
+  // 功能关闭时立即启动（与原实现一致）；功能开启时等首个配置到达再决定。
+  syncFlushTimer();
   return () => {
     observer.interrupt();
     flush();
     records = [];
-    clearInterval(timer);
+    if (flushTimer !== undefined) clearInterval(flushTimer);
     off?.();
     setLocalTtftObserver(undefined);
     window.removeEventListener("blur", background);
     window.removeEventListener("focus", foreground);
     document.removeEventListener("visibilitychange", visibility);
+    window.removeEventListener("storage", onStorage);
   };
 }

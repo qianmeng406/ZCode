@@ -1,33 +1,16 @@
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState, useSyncExternalStore } from "react";
 import type { WebRemoteControlStatus } from "@zcode/shared";
 import { useOptionalPlatform } from "@/hooks/usePlatform.js";
+import {
+  getSharedWebRemoteControlPoller,
+  isSameWebRemoteControlStatus,
+} from "@/hooks/sharedWebRemoteControlStatus.js";
 import { logger } from "@/logger.js";
+import { useZCodeStoreWithDefault } from "@/store/StoreProvider.js";
 
-function isSameWebRemoteControlStatus(
-  left: WebRemoteControlStatus,
-  right: WebRemoteControlStatus,
-): boolean {
-  return (
-    left.status === right.status &&
-    left.sessionId === right.sessionId &&
-    left.windowControlSessionId === right.windowControlSessionId &&
-    left.mobileConnected === right.mobileConnected &&
-    left.mobileViewState?.activeWorkspaceKey === right.mobileViewState?.activeWorkspaceKey &&
-    left.mobileViewState?.activeTaskId === right.mobileViewState?.activeTaskId &&
-    left.mobileViewState?.updatedAt === right.mobileViewState?.updatedAt &&
-    left.mobileTaskView?.taskId === right.mobileTaskView?.taskId &&
-    left.mobileTaskView?.workspacePath === right.mobileTaskView?.workspacePath &&
-    left.mobileTaskView?.workspaceIdentity === right.mobileTaskView?.workspaceIdentity &&
-    left.mobileTaskView?.remoteSessionId === right.mobileTaskView?.remoteSessionId &&
-    left.mobileDeviceInfo?.updatedAt === right.mobileDeviceInfo?.updatedAt &&
-    left.mobileDeviceInfo?.userAgent === right.mobileDeviceInfo?.userAgent &&
-    left.mobileDeviceInfo?.viewport?.width === right.mobileDeviceInfo?.viewport?.width &&
-    left.mobileDeviceInfo?.viewport?.height === right.mobileDeviceInfo?.viewport?.height &&
-    left.error === right.error &&
-    left.failure?.reason === right.failure?.reason &&
-    left.failure?.message === right.failure?.message
-  );
-}
+const IDLE_STATUS: WebRemoteControlStatus = { status: "idle" };
+const noopSubscribe = () => () => {};
+const idleSnapshot = () => IDLE_STATUS;
 
 export function useWebRemoteControlStatus({
   enabled = true,
@@ -37,11 +20,31 @@ export function useWebRemoteControlStatus({
   intervalMs?: number;
 } = {}): WebRemoteControlStatus {
   const platform = useOptionalPlatform();
-  const [status, setStatus] = useState<WebRemoteControlStatus>({
-    status: "idle",
-  });
+  // 性能开关 dedupedIdlePollingEnabled（默认关闭）：开启后同一 platform 的多个
+  // 订阅合并为单 interval + 单事件订阅；关闭时逐实例路径与原实现完全一致。
+  const dedupedIdlePollingEnabled = useZCodeStoreWithDefault(
+    (state) => state.dedupedIdlePollingEnabled,
+    false,
+  );
+  const useSharedPoller = dedupedIdlePollingEnabled && enabled && Boolean(platform);
+
+  const subscribe = useCallback(
+    (onChange: () => void) => {
+      if (!useSharedPoller || !platform) return noopSubscribe();
+      return getSharedWebRemoteControlPoller(platform, intervalMs).subscribe(onChange);
+    },
+    [intervalMs, platform, useSharedPoller],
+  );
+  const getSnapshot = useCallback(() => {
+    if (!useSharedPoller || !platform) return IDLE_STATUS;
+    return getSharedWebRemoteControlPoller(platform, intervalMs).getStatus();
+  }, [intervalMs, platform, useSharedPoller]);
+  const sharedStatus = useSyncExternalStore(subscribe, getSnapshot, idleSnapshot);
+
+  const [status, setStatus] = useState<WebRemoteControlStatus>({ status: "idle" });
 
   useEffect(() => {
+    if (useSharedPoller) return; // 共享路径由 useSyncExternalStore 驱动，不叠一份实例轮询。
     if (!enabled || !platform) {
       setStatus({ status: "idle" });
       return;
@@ -87,7 +90,7 @@ export function useWebRemoteControlStatus({
       disposeStatusChanged?.();
       window.clearInterval(intervalId);
     };
-  }, [enabled, intervalMs, platform]);
+  }, [enabled, intervalMs, platform, useSharedPoller]);
 
-  return status;
+  return useSharedPoller ? sharedStatus : status;
 }
