@@ -72,8 +72,15 @@ export class SessionDataLayer {
    * 取得 session 的投影 store。首个引用触发 subscribe（新开 pane 就是一次
    * subscribe，与刷新、新设备同一路径）；重复 acquire 共享同一 store（readonly，
    * 同 session 多 pane = 多视图）。
+   *
+   * `prepareStore` 只在冷创建分支执行，且严格先于 `connect()`：passive effect 里的
+   * 初始化（设置开关 / 视口种子）晚于 ACK 同步投递的 initial 帧，赶不上冷加载首帧，
+   * 需要在订阅发起前生效的 store 配置必须走这里。
    */
-  acquire(sessionId: string): SessionLease {
+  acquire(
+    sessionId: string,
+    options?: { prepareStore?: (store: ConversationProjectionStore) => void },
+  ): SessionLease {
     if (this.disposed) {
       throw new Error("SessionDataLayer 已释放，不能再 acquire");
     }
@@ -90,6 +97,7 @@ export class SessionDataLayer {
       }
     } else {
       const store = new ConversationProjectionStore(topic, this.transport, this.rowPool);
+      options?.prepareStore?.(store);
       entry = { store, refCount: 1, keepWarmTimer: null };
       this.entries.set(topic, entry);
       openKind = "cold";

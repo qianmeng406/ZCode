@@ -113,6 +113,17 @@ export function migrateTaskScrollMemoryToSession({
   return sessionKey;
 }
 
+/**
+ * 「恢复目标是否贴底」判定，Timeline 的 restore 分支与冷加载收纳种子化共用同一语义：
+ * 无记忆，或记忆声明上次贴底 ⇒ 打开后贴底跟随；存在中部位置的记忆（含缺少
+ * wasPinnedToBottom 字段的旧记忆）⇒ 恢复记忆位置，不贴底。
+ */
+export function isChatSessionScrollMemoryPinnedToBottom(
+  state: ChatSessionScrollMemoryState | null,
+): boolean {
+  return !state || state.wasPinnedToBottom === true;
+}
+
 export function readChatSessionScrollMemoryState(
   key: string | null,
 ): ChatSessionScrollMemoryState | null {

@@ -87,6 +87,7 @@ import type { OpenAutomationsMain } from "@/lib/taskNavigationHistory.js";
 import { WORKSPACE_FILE_DRAG_MIME } from "@/lib/workspaceFileDrag.js";
 import {
   buildChatSessionScrollMemoryKey,
+  isChatSessionScrollMemoryPinnedToBottom,
   readChatSessionScrollMemoryState,
 } from "@/lib/chatSessionScrollMemory.js";
 import type { MessageFileLinkTarget } from "@/components/ai-elements/message.js";
@@ -3519,12 +3520,38 @@ export function SessionPane({
     workspaceIdentity,
   });
 
+  // 会话窗口收纳的冷加载种子输入（开关 + 滚动记忆 key）。用 ref 传给 acquire 的
+  // prepareStore：acquire effect 依赖刻意保持 [layer, effectiveSessionId]，开关翻转
+  // 与 key 变化不应触发重 acquire；ref 在渲染期同步更新，冷创建分支读到的是当前值。
+  const collapseSeedInputsRef = useRef({
+    enabled: conversationWindowCollapseEnabled,
+    memoryKey: timelineScrollMemoryKey,
+  });
+  collapseSeedInputsRef.current = {
+    enabled: conversationWindowCollapseEnabled,
+    memoryKey: timelineScrollMemoryKey,
+  };
+
   useEffect(() => {
     if (!effectiveSessionId) {
       setLease({ sessionId, layer, lease: null });
       return;
     }
-    const nextLease = layer.acquire(effectiveSessionId);
+    const nextLease = layer.acquire(effectiveSessionId, {
+      prepareStore: (store) => {
+        const { enabled, memoryKey } = collapseSeedInputsRef.current;
+        if (!enabled) return;
+        // 冷加载收纳前置：种子化必须先于 connect——ACK 到达时暂存的 initial 帧
+        // 同步投递给 store，passive effect 赶不上首帧。判定与 Timeline restore 同源：
+        // 无滚动记忆或上次贴底 ⇒ 贴底跟随（可收纳）；中部位置记忆 ⇒ 不种子化，
+        // 保持全量窗口（位置恢复需要完整历史）。
+        store.setWindowCollapseEnabled(true);
+        const memory = readChatSessionScrollMemoryState(memoryKey);
+        if (isChatSessionScrollMemoryPinnedToBottom(memory)) {
+          store.setHistoryViewportState({ pinnedToBottom: true });
+        }
+      },
+    });
     // Bug 原因：acquire 会立即启动 connect，activation 可能在下一轮 effect 前释放
     // 一次性 online 帧；必须在 acquire 返回后同步监听，不能靠 snapshot 重放补偿。
     const offOnlineModelTransition = nextLease.store.onOnlineModelTransition((transition) => {
@@ -4973,19 +5000,16 @@ export function SessionPane({
 
   useEffect(() => {
     lease?.store.setWindowCollapseEnabled?.(conversationWindowCollapseEnabled);
-    // 冷加载收纳前置：store 尚未拿到任何快照（pristine）时，按滚动记忆种子化跟随状态，
-    // 让首帧快照在 store 内先裁剪到软上限再进入渲染——否则会先全量渲染一次再折叠。
-    // 判定与 Timeline 的 restore 同源：无滚动记忆或上次贴底 ⇒ 打开后贴底跟随（可收纳）；
-    // 存在中部位置的记忆 ⇒ 不种子化（保持全量历史，位置恢复需要完整窗口）。
-    // 只在 pristine 时种子化：会话中途开开关沿用既有门控（等 Timeline 上报跟随状态），
-    // 避免用过期的记忆覆盖正在阅读的视口。
+    // 兜底种子化：主路径在 acquire 的 prepareStore（先于 connect，确定性生效）。
+    // 这里只覆盖「acquire 时开关还关着、首帧快照未到就开了开关」的窄窗口；
+    // 仅 pristine 时动作，避免用过期记忆覆盖 Timeline 正在上报的实时视口。
     if (
       conversationWindowCollapseEnabled &&
       lease &&
       (lease.store.getState?.().snapshot ?? null) === null
     ) {
       const memory = readChatSessionScrollMemoryState(timelineScrollMemoryKey);
-      if (!memory || memory.wasPinnedToBottom === true) {
+      if (isChatSessionScrollMemoryPinnedToBottom(memory)) {
         lease.store.setHistoryViewportState?.({ pinnedToBottom: true });
       }
     }

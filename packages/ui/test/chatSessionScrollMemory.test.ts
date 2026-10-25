@@ -3,6 +3,7 @@ import {
   CHAT_SESSION_SCROLL_MEMORY_MAX_ENTRIES,
   buildChatSessionScrollMemoryKey,
   clearChatSessionScrollMemoryForTest,
+  isChatSessionScrollMemoryPinnedToBottom,
   migrateTaskScrollMemoryToSession,
   readChatSessionScrollMemoryState,
   resolveChatSessionScrollRestoreTop,
@@ -189,5 +190,46 @@ describe("chat session scroll memory", () => {
         `workspace::session:${CHAT_SESSION_SCROLL_MEMORY_MAX_ENTRIES}`,
       )?.scrollTop,
     ).toBe(CHAT_SESSION_SCROLL_MEMORY_MAX_ENTRIES);
+  });
+});
+
+describe("isChatSessionScrollMemoryPinnedToBottom（Timeline restore 与冷加载收纳共用判定）", () => {
+  it("无记忆 ⇒ 贴底跟随", () => {
+    expect(isChatSessionScrollMemoryPinnedToBottom(null)).toBe(true);
+  });
+
+  it("记忆声明上次贴底 ⇒ 贴底跟随", () => {
+    expect(
+      isChatSessionScrollMemoryPinnedToBottom({
+        scrollTop: 0,
+        scrollHeight: 1000,
+        clientHeight: 300,
+        wasPinnedToBottom: true,
+        updatedAt: 1,
+      }),
+    ).toBe(true);
+  });
+
+  it("中部位置记忆 ⇒ 非贴底", () => {
+    expect(
+      isChatSessionScrollMemoryPinnedToBottom({
+        scrollTop: 5000,
+        scrollHeight: 20000,
+        clientHeight: 300,
+        wasPinnedToBottom: false,
+        updatedAt: 1,
+      }),
+    ).toBe(false);
+  });
+
+  it("缺少 wasPinnedToBottom 字段的旧记忆 ⇒ 非贴底（与 restore 分支同语义）", () => {
+    expect(
+      isChatSessionScrollMemoryPinnedToBottom({
+        scrollTop: 5000,
+        scrollHeight: 20000,
+        clientHeight: 300,
+        updatedAt: 1,
+      }),
+    ).toBe(false);
   });
 });

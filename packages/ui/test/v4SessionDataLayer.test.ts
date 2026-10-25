@@ -1523,6 +1523,57 @@ describe("SessionDataLayer", () => {
     expect(lease.store.getState().snapshot?.rows.window).toHaveLength(1);
   });
 
+  it("acquire 的 prepareStore 先于 connect 执行：冷加载快照直接进收纳窗口", async () => {
+    // 420 行、每 3 行一个 turn 的大窗口 initial 帧。
+    const window: ConversationRow[] = [];
+    for (let group = 0; group < 140; group++) {
+      window.push(turnHeaderRow(group * 3 + 1, `turn-${group}`));
+      window.push(assistantRow(group * 3 + 2, `a${group}`));
+      window.push(assistantRow(group * 3 + 3, `b${group}`));
+    }
+    transport.subscribeImpl = (params, subscriptionId) => ({
+      ack: { subscriptionId, mode: "snapshot", logEpoch: "epoch-1" },
+      initialFrame: makeFrame(
+        subscriptionId,
+        0,
+        5,
+        {
+          kind: "snapshot",
+          snapshot: makeSnapshot({
+            seq: 5,
+            rows: { window, totalCount: 420, firstRowId: 1 },
+          }),
+        },
+        params.topic,
+      ),
+    });
+    const prepared: string[] = [];
+    const lease = layer.acquire("s1", {
+      prepareStore: (store) => {
+        store.setWindowCollapseEnabled(true);
+        store.setHistoryViewportState({ pinnedToBottom: true });
+        prepared.push("seeded");
+      },
+    });
+    // prepareStore 在 connect 发起前同步执行，快照帧到达时判据已就位。
+    expect(prepared).toEqual(["seeded"]);
+    await flushMicrotasks();
+    const snapshot = lease.store.getState().snapshot!;
+    expect(snapshot.rows.window).toHaveLength(399);
+    expect(snapshot.rows.window[0]!.rowId).toBe(22);
+    expect(snapshot.rows.window[0]!.kind).toBe("turnHeader");
+    expect(snapshot.rows.totalCount).toBe(420);
+  });
+
+  it("warm/keep-warm acquire 不重放 prepareStore", async () => {
+    const prepared: string[] = [];
+    layer.acquire("s1", { prepareStore: () => prepared.push("cold") });
+    await flushMicrotasks();
+    const second = layer.acquire("s1", { prepareStore: () => prepared.push("warm") });
+    expect(prepared).toEqual(["cold"]);
+    second.release();
+  });
+
   describe("行结构共享（docs/performance/conversation-row-structural-sharing.md）", () => {
     function rowsSnapshot(rows: ConversationRow[], seq = 5): ConversationSnapshot {
       // JSON 往返模拟 wire 反序列化：内容相同、引用全新。
