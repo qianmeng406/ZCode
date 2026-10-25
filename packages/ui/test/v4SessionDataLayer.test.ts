@@ -2327,3 +2327,178 @@ describe("ConversationProjectionStore.collapseOlder", () => {
     expect(snapshot.rows.window.at(-1)!.rowId).toBe(423);
   });
 });
+
+describe("ConversationProjectionStore 流式帧合并（coalescedDeltaFramesEnabled，默认关闭）", () => {
+  let transport: FakeTransport;
+  let store: ConversationProjectionStore;
+
+  function installControllableRaf(): { callbacks: FrameRequestCallback[]; restore: () => void } {
+    const original = globalThis.requestAnimationFrame;
+    const callbacks: FrameRequestCallback[] = [];
+    globalThis.requestAnimationFrame = ((callback: FrameRequestCallback) => {
+      callbacks.push(callback);
+      return callbacks.length;
+    }) as typeof requestAnimationFrame;
+    return {
+      callbacks,
+      restore: () => {
+        if (original === undefined) {
+          delete globalThis.requestAnimationFrame;
+        } else {
+          globalThis.requestAnimationFrame = original;
+        }
+      },
+    };
+  }
+
+  async function connectWithSnapshot(): Promise<void> {
+    transport.subscribeImpl = (params, subscriptionId) => ({
+      ack: { subscriptionId, mode: "snapshot" as const, hasMore: false },
+      initialFrame: makeFrame(
+        subscriptionId,
+        0,
+        5,
+        { kind: "snapshot", snapshot: makeSnapshot({ seq: 5 }) },
+        params.topic,
+      ),
+    });
+    await store.connect();
+  }
+
+  beforeEach(() => {
+    transport = new FakeTransport();
+    store = new ConversationProjectionStore("conversation/s1", transport);
+    transport.onFrame((frame, context) => store.handleFrame(frame, context));
+  });
+
+  afterEach(async () => {
+    await store.close();
+  });
+
+  it("缓冲到下一渲染帧：合并 apply 一次 setState、seq 推进到末帧、rows 与逐帧一致", async () => {
+    const raf = installControllableRaf();
+    try {
+      await connectWithSnapshot();
+      store.setFrameCoalescingEnabled(true);
+      let notifications = 0;
+      const unsubscribe = store.subscribe(() => {
+        notifications += 1;
+      });
+      const liveDeltas: number[] = [];
+      store.onLiveDeltas((deltas) => liveDeltas.push(deltas.length));
+
+      transport.emit(
+        makeFrame("sub-1", 5, 6, {
+          kind: "deltas",
+          deltas: [{ op: "row.appended", row: realUserRow(10, "a") }],
+        }),
+      );
+      transport.emit(
+        makeFrame("sub-1", 6, 7, {
+          kind: "deltas",
+          deltas: [{ op: "row.appended", row: realUserRow(11, "b") }],
+        }),
+      );
+      // 未到渲染帧：状态仍停在 seq=5，且未通知任何订阅者。
+      expect(store.getState().snapshot?.seq).toBe(5);
+      expect(notifications).toBe(0);
+
+      raf.callbacks.splice(0).forEach((callback) => callback(0));
+      expect(store.getState().snapshot?.seq).toBe(7);
+      expect(store.getState().snapshot?.rows.window.map((row) => row.rowId)).toEqual([10, 11]);
+      expect(notifications).toBe(1);
+      expect(liveDeltas).toEqual([2]);
+      unsubscribe();
+    } finally {
+      raf.restore();
+    }
+  });
+
+  it("关闭开关时同步冲刷缓冲，回到逐帧语义", async () => {
+    const raf = installControllableRaf();
+    try {
+      await connectWithSnapshot();
+      store.setFrameCoalescingEnabled(true);
+      transport.emit(
+        makeFrame("sub-1", 5, 6, {
+          kind: "deltas",
+          deltas: [{ op: "row.appended", row: realUserRow(10, "a") }],
+        }),
+      );
+      expect(store.getState().snapshot?.seq).toBe(5);
+      store.setFrameCoalescingEnabled(false);
+      expect(store.getState().snapshot?.seq).toBe(6);
+    } finally {
+      raf.restore();
+    }
+  });
+
+  it("断档帧到达前先冲刷缓冲，再按原路径触发恢复", async () => {
+    const raf = installControllableRaf();
+    try {
+      await connectWithSnapshot();
+      store.setFrameCoalescingEnabled(true);
+      transport.emit(
+        makeFrame("sub-1", 5, 6, {
+          kind: "deltas",
+          deltas: [{ op: "row.appended", row: realUserRow(10, "a") }],
+        }),
+      );
+      // fromSeq=8 与缓冲推进后的 seq=6 断档：先冲刷 5→6，再走恢复路径。
+      transport.emit(
+        makeFrame("sub-1", 8, 9, {
+          kind: "deltas",
+          deltas: [{ op: "row.appended", row: realUserRow(12, "c") }],
+        }),
+      );
+      const snapshot = store.getState().snapshot;
+      expect(snapshot?.seq).toBe(6);
+      expect(snapshot?.rows.window.map((row) => row.rowId)).toEqual([10]);
+    } finally {
+      raf.restore();
+    }
+  });
+
+  it("close 丢弃缓冲，迟到的渲染帧回调不产生任何状态变更", async () => {
+    const raf = installControllableRaf();
+    try {
+      await connectWithSnapshot();
+      store.setFrameCoalescingEnabled(true);
+      transport.emit(
+        makeFrame("sub-1", 5, 6, {
+          kind: "deltas",
+          deltas: [{ op: "row.appended", row: realUserRow(10, "a") }],
+        }),
+      );
+      await store.close();
+      const pending = raf.callbacks.splice(0);
+      pending.forEach((callback) => callback(0));
+      expect(store.getState().status).toBe("closed");
+      expect(store.getState().snapshot?.seq).toBe(5);
+    } finally {
+      raf.restore();
+    }
+  });
+
+  it("没有 requestAnimationFrame 的环境降级 setTimeout(0)", async () => {
+    const originalRaf = globalThis.requestAnimationFrame;
+    delete globalThis.requestAnimationFrame;
+    try {
+      await connectWithSnapshot();
+      store.setFrameCoalescingEnabled(true);
+      transport.emit(
+        makeFrame("sub-1", 5, 6, {
+          kind: "deltas",
+          deltas: [{ op: "row.appended", row: realUserRow(10, "a") }],
+        }),
+      );
+      expect(store.getState().snapshot?.seq).toBe(5);
+      await new Promise((resolve) => globalThis.setTimeout(resolve, 10));
+      expect(store.getState().snapshot?.seq).toBe(6);
+    } finally {
+      if (originalRaf !== undefined) {
+        globalThis.requestAnimationFrame = originalRaf;
+      }
+    }
+  });
+});

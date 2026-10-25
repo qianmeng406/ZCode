@@ -392,6 +392,16 @@ export class ConversationProjectionStore {
    * 也就不会与虚拟器位移补偿、滚动锚定打架。 */
   private historyViewportState = { pinnedToBottom: false };
   private closed = false;
+  /**
+   * 流式帧合并（设置开关，默认关闭）。开启后衔接 current seq 的 online delta 帧
+   * 入缓冲、下一渲染帧合并成一次 applyFrame（一次 setState/一次 reconcile）；
+   * 任何非合并帧（snapshot/initial/recovery/断档/重复）到达前先同步冲刷，帧序
+   * 与 pluginUi live-only 通知不丢。关闭时逐帧 apply，行为与历史版本一致。
+   */
+  private frameCoalescingEnabled = false;
+  private pendingDeltaFrames: ConversationTopicFrame[] = [];
+  private pendingDeltaFlushHandle: number | null = null;
+  private pendingDeltaSubscriptionId: string | null = null;
 
   constructor(
     readonly topic: string,
@@ -686,6 +696,108 @@ export class ConversationProjectionStore {
     if (enabled) this.maybeCollapseWindow();
   }
 
+  /** 设置页开关；关闭（或切换）时同步冲刷缓冲，回到逐帧 apply 语义。 */
+  setFrameCoalescingEnabled(enabled: boolean): void {
+    if (this.frameCoalescingEnabled === enabled) return;
+    this.frameCoalescingEnabled = enabled;
+    if (!enabled) this.flushPendingDeltasSync();
+  }
+
+  /** 衔接当前水位（或缓冲尾帧）的 online delta 可入缓冲；其余帧走原路径。 */
+  private canEnqueueDeltaFrame(frame: ConversationTopicFrame): boolean {
+    if (!this.frameCoalescingEnabled) return false;
+    if (this.recovery) return false;
+    // 首帧入队后 current.seq 不再前进，后续连续帧必须与缓冲尾帧衔接判定。
+    const lastBuffered = this.pendingDeltaFrames.at(-1);
+    if (lastBuffered) {
+      return frame.fromSeq === lastBuffered.toSeq && frame.toSeq > lastBuffered.toSeq;
+    }
+    const current = this.state.snapshot;
+    if (!current) return false;
+    return frame.fromSeq === current.seq && frame.toSeq > current.seq;
+  }
+
+  private enqueueDeltaFrame(frame: ConversationTopicFrame): void {
+    if (this.pendingDeltaFrames.length === 0) {
+      this.pendingDeltaSubscriptionId = frame.subscriptionId;
+    }
+    this.pendingDeltaFrames.push(frame);
+    if (this.pendingDeltaFlushHandle !== null) return;
+    // node 测试环境没有 rAF（ui store 测试跑在 node project），降级 setTimeout。
+    const schedule =
+      typeof globalThis.requestAnimationFrame === "function"
+        ? (callback: FrameRequestCallback): number => globalThis.requestAnimationFrame(callback)
+        : (callback: FrameRequestCallback): number =>
+            globalThis.setTimeout(() => callback(0), 0) as unknown as number;
+    this.pendingDeltaFlushHandle = schedule(() => {
+      this.pendingDeltaFlushHandle = null;
+      this.applyPendingDeltas();
+    });
+  }
+
+  /** 同步冲刷（禁用开关 / 非合并帧到达 / close 前）；取消在途调度后立即应用。 */
+  private flushPendingDeltasSync(): void {
+    if (this.pendingDeltaFlushHandle !== null) {
+      const handle = this.pendingDeltaFlushHandle;
+      this.pendingDeltaFlushHandle = null;
+      const cancel =
+        typeof globalThis.cancelAnimationFrame === "function"
+          ? globalThis.cancelAnimationFrame.bind(globalThis)
+          : globalThis.clearTimeout.bind(globalThis);
+      cancel(handle as Parameters<typeof cancel>[0]);
+    }
+    this.applyPendingDeltas();
+  }
+
+  /** close/restart：取消在途调度并丢弃缓冲（旧订阅 delta 绝不拼到新 base）。 */
+  private discardPendingDeltaFrames(): void {
+    if (this.pendingDeltaFlushHandle !== null) {
+      const handle = this.pendingDeltaFlushHandle;
+      this.pendingDeltaFlushHandle = null;
+      const cancel =
+        typeof globalThis.cancelAnimationFrame === "function"
+          ? globalThis.cancelAnimationFrame.bind(globalThis)
+          : globalThis.clearTimeout.bind(globalThis);
+      cancel(handle as Parameters<typeof cancel>[0]);
+    }
+    this.pendingDeltaFrames = [];
+    this.pendingDeltaSubscriptionId = null;
+  }
+
+  private applyPendingDeltas(): void {
+    const frames = this.pendingDeltaFrames;
+    if (frames.length === 0) return;
+    this.pendingDeltaFrames = [];
+    this.pendingDeltaSubscriptionId = null;
+    if (this.closed) return;
+    // 代际防护：close/restart/换订阅后缓冲整体丢弃，绝不把旧订阅 delta 拼到新 base。
+    if (!this.state.subscriptionId || frames[0]!.subscriptionId !== this.state.subscriptionId) {
+      return;
+    }
+    const current = this.state.snapshot;
+    if (!current) return;
+    // seq 链校验：首帧衔接当前水位，后续帧逐段相接；断裂不猜，走 recovery。
+    if (frames[0]!.fromSeq !== current.seq) {
+      this.requestRecovery(false);
+      return;
+    }
+    for (let index = 1; index < frames.length; index += 1) {
+      if (frames[index]!.fromSeq !== frames[index - 1]!.toSeq) {
+        this.requestRecovery(false);
+        return;
+      }
+    }
+    const deltas = frames.flatMap((frame) =>
+      frame.payload.kind === "deltas" ? frame.payload.deltas : [],
+    );
+    const merged: ConversationTopicFrame = {
+      ...frames[0]!,
+      toSeq: frames[frames.length - 1]!.toSeq,
+      payload: { kind: "deltas", deltas },
+    };
+    this.applyFrame(merged, { subscribeMode: null, recovery: false, online: true });
+  }
+
   /**
    * 渲染层上报视口状态：pinnedToBottom = 贴底跟随（滚动锚定状态机的 following）。
    * 仅贴底时收纳是安全的：底部锚定 effect 在同一 commit 贴底，裁剪对用户不可见；
@@ -740,6 +852,8 @@ export class ConversationProjectionStore {
     if (deliveryKind === "online" && this.recovery && frame.payload.kind === "snapshot") {
       // online overflow snapshot 本身是完整权威状态，可建立 applied base；但它不冒充
       // recovery delivery，flight 仍等待自己的 recovery frame/ACK 收口。
+      // 先同步冲刷缓冲的 delta（pluginUi live-only 通知不在 snapshot 里，丢弃即丢失）。
+      this.flushPendingDeltasSync();
       this.applyFrame(frame, { subscribeMode: null, recovery: false, online: true });
       return;
     }
@@ -757,6 +871,18 @@ export class ConversationProjectionStore {
       this.requestRecovery(deliveryKind === "recovery");
       return;
     }
+    // 流式帧合并（默认关闭）：衔接水位的 online delta 入缓冲，下一渲染帧合并提交。
+    if (
+      deliveryKind === "online" &&
+      !initial &&
+      frame.payload.kind === "deltas" &&
+      this.canEnqueueDeltaFrame(frame)
+    ) {
+      this.enqueueDeltaFrame(frame);
+      return;
+    }
+    // 非合并帧先同步冲刷缓冲（保证帧序与 live-only 通知不丢），再走原路径。
+    this.flushPendingDeltasSync();
     this.applyFrame(frame, {
       subscribeMode: initial?.mode ?? null,
       recovery: deliveryKind === "recovery",
@@ -1132,6 +1258,7 @@ export class ConversationProjectionStore {
     // transport 已先失效旧 ownership/assembler；旧 transport/runtime subId 不得再 unsubscribe，
     // 直接 fresh subscribe，保留旧 snapshot 直到新 snapshot 原子替换。
     this.generation += 1;
+    this.discardPendingDeltaFrames();
     this.discardRecovery();
     this.awaitingInitial = null;
     this.subscriptionHasAppliedBase = false;
@@ -1633,6 +1760,7 @@ export class ConversationProjectionStore {
       topic: this.topic,
     });
     this.closed = true;
+    this.discardPendingDeltaFrames();
     this.offAssemblyFault();
     this.offRuntimeRestart?.();
     this.offRuntimeLifecycle?.();
