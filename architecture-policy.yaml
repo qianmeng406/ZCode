@@ -1023,3 +1023,8 @@ exceptions:
     paths:
       - packages/ui/src/plugin-ui/domain/instanceRecoveryPolicy.ts
     reason: MCP App 实例失效自动重建的退避策略纯状态机（无 IO、有界重试、窗口遗忘），与同目录 pluginUiLogicalScope 等既有 domain 纯函数模块同模式；宿主接线只在 pluginUiManagedPage 的 onInstanceClosed 分支内消费，接管 plugin-ui 模块边界不在本次性能修复范围内。
+  - id: particle-run-state-unmanaged-new
+    rule: unmanaged-new-file
+    paths:
+      - packages/ui/src/components/ui/particleRunState.ts
+    reason: 粒子层空闲收敛（性能开关 idleParticlePauseEnabled）的纯决策模块：运行资格状态机 + 排程计划裁决，无 IO 无 React 依赖，配套单测；组件侧 rAF/setTimeout 接线保持薄层，关闭开关时走 legacy 计划与原实现逐字节一致。

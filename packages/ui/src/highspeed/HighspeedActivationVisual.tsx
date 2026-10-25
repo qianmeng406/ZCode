@@ -1,5 +1,8 @@
 import { memo, useCallback, useEffect, useState } from "react";
-import { FloatingParticles } from "@/components/ui/floating-particles.js";
+import {
+  FloatingParticles,
+  IDLE_PARTICLE_THROTTLE_MS,
+} from "@/components/ui/floating-particles.js";
 import { HighSpeedDiffusionCanvas } from "@/v4/highspeed/HighSpeedDiffusionCanvas.js";
 
 type HighspeedVisualPhase = "diffusing" | "handoff" | "stable";
@@ -11,6 +14,7 @@ const HIGHSPEED_HANDOFF_FALLBACK_MS = 1_000;
  */
 export const HighspeedComposerBackground = memo(function HighspeedComposerBackground({
   animated,
+  pauseWhenIdle = false,
   onModelTransitionStart,
 }: {
   /**
@@ -18,6 +22,8 @@ export const HighspeedComposerBackground = memo(function HighspeedComposerBackgr
    * 入场方式只在挂载时生效，宿主以 cardId 作 key。
    */
   animated: boolean;
+  /** 性能开关 idleParticlePauseEnabled：隐藏/离屏暂停 + 稳态降频（传入组件内动态生效）。 */
+  pauseWhenIdle?: boolean;
   onModelTransitionStart: () => void;
 }) {
   const [phase, setPhase] = useState<HighspeedVisualPhase>(animated ? "diffusing" : "stable");
@@ -47,7 +53,12 @@ export const HighspeedComposerBackground = memo(function HighspeedComposerBackgr
           onComplete={handleDiffusionComplete}
         />
       ) : null}
-      <FloatingParticles className="highspeed-particle-layer z-0" settled={!animated} />
+      <FloatingParticles
+        className="highspeed-particle-layer z-0"
+        settled={!animated}
+        pauseWhenHidden={pauseWhenIdle}
+        idleThrottleMs={pauseWhenIdle && phase === "stable" ? IDLE_PARTICLE_THROTTLE_MS : undefined}
+      />
     </div>
   );
 });

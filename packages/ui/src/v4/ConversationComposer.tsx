@@ -3,6 +3,7 @@ import { ComposerSubmissionPendingContext } from "@/project-sidebar/index.js";
 import { useRemoteProjectReconnect } from "@/hooks/RemoteProjectPresentationContext.js";
 import { useOptionalRemoteWorkspaceController } from "@/remote/useRemoteWorkspaceController.js";
 import { useOptionalTabStore } from "@/store/TabStoreProvider.js";
+import { useZCodeStore } from "@/store/StoreProvider.js";
 import { useRemoteConversationAvailable } from "@/v4/RemoteConversationAvailability.js";
 import { getLocalTtftObserver } from "@/v4/telemetry/localTtftObserver.js";
 import { formatConversationWorkDuration } from "@/v4/conversationWorkDuration.js";
@@ -660,6 +661,10 @@ function ConversationComposerImpl({
   }, []);
   const disabled = disabledProp || !remoteAvailable || targetSelectionPending;
   const { intl, locale } = useZCodeIntl();
+  // 性能开关 idleParticlePauseEnabled：Highspeed 输入壳粒子层的空闲收敛（默认关闭）。
+  const idleParticlePauseEnabled = useZCodeStore(
+    (state) => state.idleParticlePauseEnabled === true,
+  );
   const services = useOptionalServices();
   const conversationTelemetry = useScopedConversationTelemetrySupervisor({
     workspacePath,
@@ -2925,6 +2930,7 @@ function ConversationComposerImpl({
           <HighspeedComposerBackground
             key={highspeedCard.cardId}
             animated={highspeedEntranceAnimated}
+            pauseWhenIdle={idleParticlePauseEnabled}
             onModelTransitionStart={handleHighspeedModelTransitionStart}
           />
         ) : null}
