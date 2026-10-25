@@ -2147,10 +2147,34 @@ export function SessionPane({
     (state) => state.conversationWindowCollapseEnabled,
     false,
   );
+  // 性能开关（默认关闭）：renderUnit 按 turn 复用 + 运行时钟只传 running 轮。
+  const stableRenderUnitsEnabled = useZCodeStoreWithDefault(
+    (state) => state.stableRenderUnitsEnabled,
+    false,
+  );
+  const scopedPresentationClockEnabled = useZCodeStoreWithDefault(
+    (state) => state.scopedPresentationClockEnabled,
+    false,
+  );
+  // 性能开关（默认关闭）：贴底滚动 rAF 合并。
+  const coalescedBottomScrollEnabled = useZCodeStoreWithDefault(
+    (state) => state.coalescedBottomScrollEnabled,
+    false,
+  );
+  // 性能开关（默认关闭）：流式 delta 帧合并提交。
+  const coalescedDeltaFramesEnabled = useZCodeStoreWithDefault(
+    (state) => state.coalescedDeltaFramesEnabled,
+    false,
+  );
   // 消息文件预览自动加载开关（默认开启）：关闭后改为回合内「加载预览」手动触发。
   const assistantAutoFilePreviewEnabled = useZCodeStoreWithDefault(
     (state) => state.assistantAutoFilePreviewEnabled,
     true,
+  );
+  // 性能设置：流式 Markdown 增量分块（默认关闭）；经 rowContext 传给 Assistant 行。
+  const streamingMarkdownIncrementalEnabled = useZCodeStoreWithDefault(
+    (state) => state.streamingMarkdownIncrementalEnabled,
+    false,
   );
   // Tier 1 fork 跳转：点 child 会话的 forkNotice → 把当前 pane 原地切到父会话，复用 fork
   // 落地同款 onSessionCreated（primary→setActiveTaskId、分屏→bindPaneSession）。rowId 预留
@@ -3099,6 +3123,7 @@ export function SessionPane({
       chatLoadingBlockedByInteraction,
       messageStreamShowReasoning,
       assistantAutoFilePreviewEnabled,
+      streamingMarkdownIncrementalEnabled,
       presentationVisible,
       messageStreamShowTodos,
       toolGroupingExploreEnabled,
@@ -3187,6 +3212,7 @@ export function SessionPane({
       chatLoadingBlockedByInteraction,
       messageStreamShowReasoning,
       assistantAutoFilePreviewEnabled,
+      streamingMarkdownIncrementalEnabled,
       presentationVisible,
       messageStreamShowTodos,
       toolGroupingExploreEnabled,
@@ -4946,6 +4972,12 @@ export function SessionPane({
     lease?.store.setWindowCollapseEnabled?.(conversationWindowCollapseEnabled);
   }, [conversationWindowCollapseEnabled, lease]);
 
+  // 性能开关：流式帧合并。开启后 online delta 帧按渲染帧合并提交；关闭时同步
+  // 冲刷缓冲，回到逐帧 apply。可选调用与收纳开关同因（增量能力，非契约必需）。
+  useEffect(() => {
+    lease?.store.setFrameCoalescingEnabled?.(coalescedDeltaFramesEnabled);
+  }, [coalescedDeltaFramesEnabled, lease]);
+
   // 导航目录补拉：以 navigator 身份持有需求；signal 由 Timeline per-attempt
   // controller 提供，资格撤销/卸载即 abort，store 据此停止后续分页。
   const handleLoadAllOlder = useCallback(
@@ -6271,6 +6303,9 @@ export function SessionPane({
                   onLoadOlder={handleLoadOlder}
                   onLoadAllOlder={handleLoadAllOlder}
                   windowCollapseEnabled={conversationWindowCollapseEnabled}
+                  stableRenderUnitsEnabled={stableRenderUnitsEnabled}
+                  scopedPresentationClockEnabled={scopedPresentationClockEnabled}
+                  coalescedBottomScrollEnabled={coalescedBottomScrollEnabled}
                   onHistoryViewportStateChange={
                     conversationWindowCollapseEnabled ? handleHistoryViewportStateChange : undefined
                   }

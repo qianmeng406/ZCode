@@ -310,6 +310,7 @@ function renderTimeline(
     onLoadOlder?: () => void;
     rows?: readonly ConversationRow[];
     withComposerDock?: boolean;
+    coalescedBottomScroll?: boolean;
   } = {},
 ): void {
   const timelineRows = options.rows ?? [row];
@@ -318,6 +319,7 @@ function renderTimeline(
       ZCodeIntlProvider,
       { initialLocale: "zh-CN" },
       createElement(ConversationTimeline, {
+        coalescedBottomScrollEnabled: options.coalescedBottomScroll,
         canLoadOlder: options.canLoadOlder,
         onLoadOlder: options.onLoadOlder,
         scrollToBottomActionRef,
@@ -925,5 +927,133 @@ describe("ConversationTimeline renderer-local scroll memory", () => {
 
     act(() => scrollToBottomActionRef.current?.());
     expect(findByTestId(container, TID_V4_TIMELINE_BOTTOM)).toBeNull();
+  });
+});
+
+describe("coalescedBottomScrollEnabled（性能开关，默认关闭）", () => {
+  const extraRow = (rowId: number): UserInputRow =>
+    ({ ...row, rowId, createdAtSeq: rowId }) as UserInputRow;
+
+  it("同一帧内多次内容变化只执行一次贴底写与一次 scroll 事件", () => {
+    const container = installMinimalDom();
+    mountedRoot = createRoot(container);
+    act(() =>
+      renderTimeline(mountedRoot!, "session-1", null, undefined, {
+        coalescedBottomScroll: true,
+      }),
+    );
+    const timeline = findByTestId(container, TID_V4_TIMELINE)!;
+    expect(timeline.scrollTop).toBe(900);
+
+    let scrollEvents = 0;
+    (
+      timeline as unknown as { addEventListener: (type: string, handler: () => void) => void }
+    ).addEventListener("scroll", () => {
+      scrollEvents += 1;
+    });
+    // 排空初始渲染的 restore correction rAF（其内部也会贴底一次），避免与被测合并帧混叠。
+    act(() => {
+      flushAnimationFrame();
+      flushScheduledMicrotasks();
+    });
+    scrollEvents = 0;
+
+    // 两次内容提交（模拟流式 delta 两帧渲染在同一 rAF 窗口内到达）。
+    act(() =>
+      renderTimeline(mountedRoot!, "session-1", null, undefined, {
+        coalescedBottomScroll: true,
+        rows: [row, extraRow(2)],
+      }),
+    );
+    act(() =>
+      renderTimeline(mountedRoot!, "session-1", null, undefined, {
+        coalescedBottomScroll: true,
+        rows: [row, extraRow(2), extraRow(3)],
+      }),
+    );
+    // 排程中：尚未写 scrollTop。
+    expect(timeline.scrollTop).toBe(900);
+    expect(scrollEvents).toBe(0);
+
+    act(() => {
+      flushAnimationFrame();
+      flushScheduledMicrotasks();
+    });
+    expect(scrollEvents).toBe(1);
+    expect(timeline.scrollTop).toBe(900);
+  });
+
+  it("排程间隙用户上滚（following 解除）则丢弃本次贴底，不夺回滚动位置", () => {
+    const container = installMinimalDom();
+    mountedRoot = createRoot(container);
+    act(() =>
+      renderTimeline(mountedRoot!, "session-1", null, undefined, {
+        coalescedBottomScroll: true,
+      }),
+    );
+    const timeline = findByTestId(container, TID_V4_TIMELINE)!;
+    act(() => flushScheduledMicrotasks());
+
+    act(() =>
+      renderTimeline(mountedRoot!, "session-1", null, undefined, {
+        coalescedBottomScroll: true,
+        rows: [row, extraRow(2)],
+      }),
+    );
+    act(() => {
+      dispatchWheel(timeline, -120);
+      timeline.scrollTop = 400;
+      dispatchScroll(timeline);
+    });
+    expect(timeline.getAttribute("data-following")).toBe("false");
+
+    act(() => {
+      flushAnimationFrame();
+      flushScheduledMicrotasks();
+    });
+    expect(timeline.scrollTop).toBe(400);
+    expect(timeline.getAttribute("data-following")).toBe("false");
+  });
+
+  it("back-to-bottom 的滚动记忆持久化随写入之后执行（保存写入后的落点）", () => {
+    saveChatSessionScrollMemoryState("workspace::pane:a::session:1", {
+      scrollTop: 240,
+      scrollHeight: 1200,
+      clientHeight: 300,
+      wasPinnedToBottom: false,
+      updatedAt: 1,
+    });
+    const container = installMinimalDom();
+    mountedRoot = createRoot(container);
+    const scrollToBottomActionRef = { current: null as (() => void) | null };
+    act(() =>
+      renderTimeline(
+        mountedRoot!,
+        "session-1",
+        "workspace::pane:a::session:1",
+        scrollToBottomActionRef,
+        {
+          coalescedBottomScroll: true,
+        },
+      ),
+    );
+    const timeline = findByTestId(container, TID_V4_TIMELINE)!;
+    // 排空初始 restore correction rAF（会把位置带回 240 且解除 following），再触发动作。
+    act(() => {
+      flushAnimationFrame();
+      flushScheduledMicrotasks();
+    });
+
+    act(() => scrollToBottomActionRef.current?.());
+    act(() => {
+      flushAnimationFrame();
+      flushScheduledMicrotasks();
+    });
+
+    expect(timeline.scrollTop).toBe(900);
+    expect(readChatSessionScrollMemoryState("workspace::pane:a::session:1")).toMatchObject({
+      scrollTop: 900,
+      wasPinnedToBottom: true,
+    });
   });
 });

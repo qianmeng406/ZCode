@@ -63,6 +63,7 @@ import {
 import {
   buildConversationTurnRenderUnits,
   resolveNextHighspeedExpiryMs,
+  TurnRenderUnitCache,
   type ConversationTurnRenderUnit,
 } from "@/v4/conversationTurnRenderUnits.js";
 import {
@@ -311,6 +312,23 @@ export interface ConversationTimelineProps {
    */
   windowCollapseEnabled?: boolean;
   /**
+   * 性能开关（默认关闭）：renderUnit 按 turn 复用——未变化轮的 unit 引用稳定，
+   * TurnGroup memo 恢复有效；每秒运行计时时只重建 running 轮。关闭时构建路径
+   * 与原实现完全一致。
+   */
+  stableRenderUnitsEnabled?: boolean;
+  /**
+   * 性能开关（默认关闭）：nowMs 只传给 running 的 TurnGroup——每秒 tick 不再
+   * 击穿所有可见轮的 memo（非 running 轮的渐变条件被 unit.isRunning 短路，
+   * 传 undefined 语义不变）。建议与 stableRenderUnitsEnabled 一起开启。
+   */
+  scopedPresentationClockEnabled?: boolean;
+  /**
+   * 性能开关（默认关闭）：贴底滚动 rAF 合并——同一帧内多次贴底请求只写一次
+   * scrollTop。会话恢复路径保持同步写；关闭时与原同步语义完全一致。
+   */
+  coalescedBottomScrollEnabled?: boolean;
+  /**
    * 视口状态上报（仅开启收纳时传入）：pinnedToBottom = 贴底跟随（following）。
    * store 只在贴底跟随时允许头部裁剪——底部锚定接管滚动位置，裁剪不可见；
    * 用户向上滚动后跟随解除，收纳冻结，绝不会与滚动手势打架。
@@ -425,6 +443,9 @@ function ConversationTimelineImpl({
   onLoadOlder,
   onLoadAllOlder,
   windowCollapseEnabled = false,
+  stableRenderUnitsEnabled = false,
+  scopedPresentationClockEnabled = false,
+  coalescedBottomScrollEnabled = false,
   onHistoryViewportStateChange,
   turnNavigatorDirectoryRevision = 0,
   bottomDock,
@@ -519,6 +540,22 @@ function ConversationTimelineImpl({
     });
   }, [pluginUiDerivation, sessionKey, pluginUiDisclosureVersion]);
   const topicPreparations = useBotTopicPreparations();
+  // stableRenderUnitsEnabled（默认关闭）：按 turn 复用 unit 的实例级缓存。
+  // 窗口首行变化（收纳裁剪/翻页/换会话）时整体重置，避免 stale 引用滞留；
+  // 开关关闭时缓存实例立即弃用，构建路径回到原实现。
+  const unitCacheRef = useRef<TurnRenderUnitCache | null>(null);
+  if (stableRenderUnitsEnabled) {
+    unitCacheRef.current ??= new TurnRenderUnitCache();
+  } else {
+    unitCacheRef.current = null;
+  }
+  const unitCache = stableRenderUnitsEnabled ? unitCacheRef.current : undefined;
+  const unitCacheFirstRowIdRef = useRef<number | undefined>(undefined);
+  const unitCacheFirstRowId = rows[0]?.rowId;
+  if (unitCacheFirstRowId !== unitCacheFirstRowIdRef.current) {
+    unitCacheFirstRowIdRef.current = unitCacheFirstRowId;
+    unitCacheRef.current?.reset();
+  }
   const renderUnits = useMemo(
     () =>
       withTopicPreparationMessages(
@@ -526,11 +563,12 @@ function ConversationTimelineImpl({
           nowMs: liveNowMs,
           sessionPhase,
           pluginUiPinResolver,
+          ...(unitCache ? { unitCache } : {}),
         }),
         rows,
         topicPreparations,
       ),
-    [liveNowMs, pluginUiPinResolver, rows, sessionPhase, topicPreparations],
+    [liveNowMs, pluginUiPinResolver, rows, sessionPhase, topicPreparations, unitCache],
   );
   const { virtualizedUnits, liveUnit, liveUnitIndex } = useMemo(
     () => splitConversationTimelineLiveTail(renderUnits),
@@ -1306,26 +1344,78 @@ function ConversationTimelineImpl({
   );
 
   // 贴底必须 instant（scrollTop 赋值）：smooth 的中间帧会被 scroll 判定误读为「离底」。
-  const scrollToBottom = useCallback(() => {
-    const element = scrollRef.current;
-    if (!element) return;
-    markProgrammaticScroll();
-    // 草稿安全居中允许内容在低高度下向下溢出；若沿用真实会话吸底，
-    // 顶部安全留白会被滚走。草稿始终展示顶部，真实会话继续吸底。
-    element.scrollTop = responsiveCenteredEmptyLayout ? 0 : element.scrollHeight;
-    // 回读取钳制后的落点入账（浏览器会把赋值钳到最大可滚动距离）。
-    lastObservedScrollTopRef.current = element.scrollTop;
-    syncTurnNavigatorViewport(element);
-    userAdjustedScrollSinceRestoreRef.current = false;
-    cacheCurrentScrollMemoryState(element);
-    notifyScrollObserversAfterCommit(element);
-  }, [
-    cacheCurrentScrollMemoryState,
-    responsiveCenteredEmptyLayout,
-    markProgrammaticScroll,
-    notifyScrollObserversAfterCommit,
-    syncTurnNavigatorViewport,
-  ]);
+  // coalescedBottomScrollEnabled（默认关闭）：流式路径的贴底请求合并到下一 rAF——
+  // 一帧内多次请求只写一次；排程间隙用户已上滚（following 解除）则丢弃，不夺回
+  // 滚动位置。会话恢复（immediate）与开关关闭时保持原同步写语义。
+  const scrollToBottomInternal = useCallback(
+    (element: HTMLDivElement, onFlushed?: () => void) => {
+      markProgrammaticScroll();
+      // 草稿安全居中允许内容在低高度下向下溢出；若沿用真实会话吸底，
+      // 顶部安全留白会被滚走。草稿始终展示顶部，真实会话继续吸底。
+      element.scrollTop = responsiveCenteredEmptyLayout ? 0 : element.scrollHeight;
+      // 回读取钳制后的落点入账（浏览器会把赋值钳到最大可滚动距离）。
+      lastObservedScrollTopRef.current = element.scrollTop;
+      syncTurnNavigatorViewport(element);
+      userAdjustedScrollSinceRestoreRef.current = false;
+      cacheCurrentScrollMemoryState(element);
+      notifyScrollObserversAfterCommit(element);
+      onFlushed?.();
+    },
+    [
+      cacheCurrentScrollMemoryState,
+      responsiveCenteredEmptyLayout,
+      markProgrammaticScroll,
+      notifyScrollObserversAfterCommit,
+      syncTurnNavigatorViewport,
+    ],
+  );
+
+  const coalescedScrollFrameRef = useRef<number | null>(null);
+  const coalescedScrollFlushCallbacksRef = useRef<Array<() => void>>([]);
+  useEffect(() => {
+    const frameRef = coalescedScrollFrameRef;
+    return () => {
+      if (frameRef.current !== null) {
+        window.cancelAnimationFrame(frameRef.current);
+        frameRef.current = null;
+      }
+    };
+  }, []);
+
+  const scrollToBottom = useCallback(
+    (options?: { immediate?: boolean; onFlushed?: () => void }) => {
+      const element = scrollRef.current;
+      if (!element) return;
+      if (!coalescedBottomScrollEnabled || options?.immediate) {
+        scrollToBottomInternal(element, options?.onFlushed);
+        return;
+      }
+      if (options?.onFlushed) {
+        coalescedScrollFlushCallbacksRef.current.push(options.onFlushed);
+      }
+      if (coalescedScrollFrameRef.current !== null) return;
+      coalescedScrollFrameRef.current = window.requestAnimationFrame(() => {
+        coalescedScrollFrameRef.current = null;
+        const current = scrollRef.current;
+        // 容器已切换/卸载：丢弃写入（回调一并丢弃——旧会话的持久化已无意义）。
+        if (current !== element) {
+          coalescedScrollFlushCallbacksRef.current = [];
+          return;
+        }
+        // 排程间隙用户已上滚（following 解除）：不夺回阅读位置。
+        if (!followingRef.current) {
+          coalescedScrollFlushCallbacksRef.current = [];
+          return;
+        }
+        const callbacks = coalescedScrollFlushCallbacksRef.current;
+        coalescedScrollFlushCallbacksRef.current = [];
+        scrollToBottomInternal(current, () => {
+          for (const callback of callbacks) callback();
+        });
+      });
+    },
+    [coalescedBottomScrollEnabled, scrollToBottomInternal],
+  );
 
   useLayoutEffect(() => {
     const contentColumn = virtualHistoryRef.current;
@@ -1635,10 +1725,15 @@ function ConversationTimelineImpl({
     pendingDetachedScrollRestoreRef.current = null;
     clearUserScrollIntent();
     commitFollowing(true);
-    scrollToBottom();
-    // scrollToBottom 只更新组件内 ref；若用户点击后立刻切任务，scope
-    // cleanup/scroll 事件可能还没运行，旧 Map 会把下次恢复重新带回中部甚至顶部。
-    saveCurrentScrollMemory();
+    // 滚动写可能在下一 rAF 才落地（coalescedBottomScrollEnabled），持久化必须
+    // 跟着写入之后执行，否则保存的是写入前的旧位置。
+    scrollToBottom({
+      onFlushed: () => {
+        // scrollToBottom 只更新组件内 ref；若用户点击后立刻切任务，scope
+        // cleanup/scroll 事件可能还没运行，旧 Map 会把下次恢复重新带回中部甚至顶部。
+        saveCurrentScrollMemory();
+      },
+    });
   }, [clearUserScrollIntent, commitFollowing, saveCurrentScrollMemory, scrollToBottom]);
 
   useLayoutEffect(() => {
@@ -1846,7 +1941,8 @@ function ConversationTimelineImpl({
         suppressVirtualizerAdjustmentDuringRestoreRef.current = false;
         followingRef.current = initialFollowing();
         setBackToBottomVisible(false);
-        scrollToBottom();
+        // 会话恢复必须同步贴底（绘制前完成，避免闪旧位置），绕过 rAF 合并。
+        scrollToBottom({ immediate: true });
         return;
       }
       restoreScrollMemory(restoredState);
@@ -2265,7 +2361,16 @@ function ConversationTimelineImpl({
                     >
                       <ConversationTurnGroup
                         unit={unit}
-                        nowMs={liveNowMs}
+                        // scopedPresentationClockEnabled：非 running 轮传 undefined
+                        // （TurnGroup 默认参数在 memo 判定之后才生效，引用稳定），
+                        // 每秒 tick 不再击穿非 running 轮的 memo。
+                        nowMs={
+                          scopedPresentationClockEnabled
+                            ? unit.isRunning
+                              ? liveNowMs
+                              : undefined
+                            : liveNowMs
+                        }
                         apiRetry={null}
                         context={rowContext}
                         onFork={onFork}
@@ -2295,7 +2400,13 @@ function ConversationTimelineImpl({
                 >
                   <ConversationTurnGroup
                     unit={liveUnit}
-                    nowMs={liveNowMs}
+                    nowMs={
+                      scopedPresentationClockEnabled
+                        ? liveUnit.isRunning
+                          ? liveNowMs
+                          : undefined
+                        : liveNowMs
+                    }
                     apiRetry={apiRetry}
                     context={rowContext}
                     onFork={onFork}
