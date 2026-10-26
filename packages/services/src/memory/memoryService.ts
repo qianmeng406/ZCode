@@ -1,18 +1,33 @@
 import type { Memory, MemoryConfig } from "@zcode/shared";
 import {
+  FORK_FEATURE_DISABLED_ERROR_CODE,
+  PROJECT_MEMORY_FILE_CHANGED_ERROR_CODE,
+  PROJECT_MEMORY_INDEX_PROTECTED_ERROR_CODE,
+  PROJECT_MEMORY_PREVIEW_LIMIT_EXCEEDED_ERROR_CODE,
   type IMemoryService,
+  type MemoryServiceOptions,
   type ProjectMemoryFileSummary,
   type ProjectMemoryWorkspaceSummary,
 } from "./memory.js";
-import { lstat, mkdir, readFile, readdir, realpath, writeFile } from "node:fs/promises";
+import { lstat, mkdir, readFile, readdir, realpath, unlink, writeFile } from "node:fs/promises";
 import { homedir } from "node:os";
 import { basename, isAbsolute, join, relative, sep } from "node:path";
+import { atomicWriteText } from "#src/fs/atomicFileUtils.js";
 import { readProjectMemoryFileFromStableHandle } from "#src/memory/projectMemoryStableRead.js";
 import { getZCodeDataRootDir } from "#src/paths.js";
 
 const PROJECT_MEMORY_INDEX_FILE_NAME = "MEMORY.md";
 const PROJECT_MEMORY_DIRECTORY_NAME = "memory";
 const PROJECT_KEY_SUFFIX_PATTERN = /^(.*)-[a-f0-9]{16}$/i;
+const PROJECT_MEMORY_WRITE_MAX_BYTES = 5 * 1024 * 1024;
+// Windows 保留设备名：写成文件后资源管理器/部分 API 无法打开，且可能被重定向到设备。
+const WINDOWS_RESERVED_NAME_PATTERN = /^(?:con|prn|aux|nul|com[1-9]|lpt[1-9])(?:\..*)?$/i;
+// readProjectMemoryFileFromStableHandle 的 updatedAt 是 mtimeNs / 1e6，CAS 比对留 1ms 浮点余量。
+const MTIME_COMPARISON_TOLERANCE_MS = 1;
+
+function createMemoryFileError(message: string, code: string): Error {
+  return Object.assign(new Error(message), { code });
+}
 
 function isNotFoundError(error: unknown): boolean {
   return typeof error === "object" && error !== null && "code" in error && error.code === "ENOENT";
@@ -101,6 +116,82 @@ async function assertContainedProjectMemoryPath(
   }
 }
 
+/** 新建文件还没有真实路径可 realpath，只能把父目录的解析结果与根目录比对。 */
+async function assertContainedProjectMemoryDirectory(
+  projectsRoot: string,
+  directoryPath: string,
+): Promise<void> {
+  const projectsRootRealPath = await realpath(projectsRoot);
+  const directoryRealPath = await realpath(directoryPath);
+  const relativePath = relative(projectsRootRealPath, directoryRealPath);
+  if (relativePath === ".." || relativePath.startsWith(`..${sep}`) || isAbsolute(relativePath)) {
+    throw new Error(`Project Memory path is outside the local profile: ${directoryPath}`);
+  }
+}
+
+function assertWritableProjectMemoryFileName(fileName: string): void {
+  if (fileName !== fileName.trim() || /[<>:"|?*\u0000-\u001f]/.test(fileName)) {
+    throw new Error(`Invalid Project Memory file name: ${fileName}`);
+  }
+  if (fileName.endsWith(".") || WINDOWS_RESERVED_NAME_PATTERN.test(fileName)) {
+    throw new Error(`Project Memory file name is reserved: ${fileName}`);
+  }
+}
+
+/**
+ * 大小写不敏感文件系统上，`foo.md` 与磁盘上的 `Foo.md` 是同一个文件。
+ * 精确校验只覆盖「已存在的同名文件」，新建路径必须自己挡住别名写入。
+ */
+async function assertNoCaseAliasCollision(memoryRoot: string, fileName: string): Promise<void> {
+  const entries = await readdir(memoryRoot, { withFileTypes: true });
+  const lowercaseName = fileName.toLocaleLowerCase();
+  const alias = entries.find(
+    (entry) => entry.name.toLocaleLowerCase() === lowercaseName && entry.name !== fileName,
+  );
+  if (alias) {
+    throw new Error(
+      `Project Memory file name ${fileName} collides with existing ${alias.name} (case alias)`,
+    );
+  }
+}
+
+function resolveMemoryUpdatedAt(mtimeNs: bigint): number {
+  return Number(mtimeNs) / 1_000_000;
+}
+
+function assertExpectedUpdatedAt(
+  fileName: string,
+  actualUpdatedAt: number,
+  expectedUpdatedAt: number | undefined,
+): void {
+  if (expectedUpdatedAt === undefined) return;
+  if (Math.abs(actualUpdatedAt - expectedUpdatedAt) <= MTIME_COMPARISON_TOLERANCE_MS) return;
+  throw createMemoryFileError(
+    `Project Memory file changed on disk since it was read: ${fileName}`,
+    PROJECT_MEMORY_FILE_CHANGED_ERROR_CODE,
+  );
+}
+
+function lineLinksToProjectMemoryFile(line: string, fileName: string): boolean {
+  const escaped = fileName.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+  // 兼容 `](name.md)`、`](<name.md>)` 与 `](sub/name.md)`；只认 markdown 链接，
+  // 正文里提到的文件名不能成为删除理由。
+  return new RegExp(`\\]\\(\\s*<?(?:[^)\\s]*[/\\\\])?${escaped}>?\\s*\\)`, "i").test(line);
+}
+
+/** 只摘掉指向被删文件的链接行，其余字节（含行尾、顺序、空行）原样保留。 */
+export function removeProjectMemoryIndexLinks(
+  indexContent: string,
+  fileName: string,
+): { content: string; removedLines: number } {
+  const lines = indexContent.split("\n");
+  const kept = lines.filter((line) => !lineLinksToProjectMemoryFile(line, fileName));
+  return {
+    content: kept.join("\n"),
+    removedLines: lines.length - kept.length,
+  };
+}
+
 function compareProjectMemoryFiles(
   left: ProjectMemoryFileSummary,
   right: ProjectMemoryFileSummary,
@@ -131,7 +222,17 @@ function getMemoryFileName(_agentId: string): string {
 /**
  * 创建 Memory 服务实例
  */
-export function createMemoryService(): IMemoryService {
+export function createMemoryService(options: MemoryServiceOptions = {}): IMemoryService {
+  async function assertMemoryFileEditingEnabled(): Promise<void> {
+    const isEnabled = options.isForkFeatureEnabled;
+    const enabled: boolean = isEnabled ? await isEnabled("memoryFileEditing") : false;
+    if (!enabled) {
+      throw createMemoryFileError(
+        "Project Memory file editing is disabled by settings",
+        FORK_FEATURE_DISABLED_ERROR_CODE,
+      );
+    }
+  }
   async function loadMemory(params: {
     workspacePath: string;
     agentId: string;
@@ -333,6 +434,125 @@ export function createMemoryService(): IMemoryService {
     });
   }
 
+  /**
+   * 写/删共用的目标解析：名字、容器、真实路径、大小写别名、CAS 前置条件都在这里一次性判定，
+   * 之后的写入不再接受任何未校验的路径片段。
+   */
+  async function resolveWritableProjectMemoryFile(params: {
+    workspaceId: string;
+    fileName: string;
+  }): Promise<{
+    projectsRoot: string;
+    memoryRoot: string;
+    filePath: string;
+    existingUpdatedAt: number | undefined;
+  }> {
+    if (
+      !isValidPathSegment(params.workspaceId) ||
+      !isValidPathSegment(params.fileName) ||
+      !isProjectMemoryFileName(params.fileName)
+    ) {
+      throw new Error("Invalid Project Memory path");
+    }
+    assertWritableProjectMemoryFileName(params.fileName);
+
+    const projectsRoot = await requireProjectMemoriesRoot();
+    const workspaceRoot = join(projectsRoot, params.workspaceId);
+    const memoryRoot = join(workspaceRoot, PROJECT_MEMORY_DIRECTORY_NAME);
+    await requirePlainDirectory(workspaceRoot);
+    await requirePlainDirectory(memoryRoot);
+    await assertContainedProjectMemoryDirectory(projectsRoot, memoryRoot);
+
+    const filePath = join(memoryRoot, params.fileName);
+    let existingUpdatedAt: number | undefined;
+    try {
+      // 必须走精确名校验：大小写不敏感文件系统上 lstat("case.md") 会命中 "Case.md"，
+      // 只按 lstat 判断存在性就会静默覆盖另一个文件。
+      const exactPath = await requireExactProjectMemoryFile(memoryRoot, params.fileName);
+      const metadata = await lstat(exactPath, { bigint: true });
+      if (!metadata.isFile() || metadata.isSymbolicLink()) {
+        throw new Error(`Project Memory file is not a regular file: ${params.fileName}`);
+      }
+      existingUpdatedAt = resolveMemoryUpdatedAt(metadata.mtimeNs);
+    } catch (error) {
+      if (!isNotFoundError(error)) throw error;
+      await assertNoCaseAliasCollision(memoryRoot, params.fileName);
+    }
+    return { projectsRoot, memoryRoot, filePath, existingUpdatedAt };
+  }
+
+  async function writeProjectMemoryFile(params: {
+    workspaceId: string;
+    fileName: string;
+    content: string;
+    expectedUpdatedAt?: number;
+  }): Promise<{ updatedAt: number; size: number }> {
+    await assertMemoryFileEditingEnabled();
+    const size = Buffer.byteLength(params.content, "utf8");
+    if (size > PROJECT_MEMORY_WRITE_MAX_BYTES) {
+      throw createMemoryFileError(
+        `Project Memory file exceeds the 5 MiB limit: ${params.fileName}`,
+        PROJECT_MEMORY_PREVIEW_LIMIT_EXCEEDED_ERROR_CODE,
+      );
+    }
+
+    const target = await resolveWritableProjectMemoryFile(params);
+    assertExpectedUpdatedAt(
+      params.fileName,
+      target.existingUpdatedAt ?? Number.NaN,
+      params.expectedUpdatedAt,
+    );
+
+    await atomicWriteText(target.filePath, params.content);
+    const written = await lstat(target.filePath, { bigint: true });
+    return { updatedAt: resolveMemoryUpdatedAt(written.mtimeNs), size };
+  }
+
+  async function deleteProjectMemoryFile(params: {
+    workspaceId: string;
+    fileName: string;
+    expectedUpdatedAt?: number;
+  }): Promise<{ indexUpdated: boolean }> {
+    await assertMemoryFileEditingEnabled();
+    if (params.fileName === PROJECT_MEMORY_INDEX_FILE_NAME) {
+      throw createMemoryFileError(
+        "The Project Memory index file cannot be deleted",
+        PROJECT_MEMORY_INDEX_PROTECTED_ERROR_CODE,
+      );
+    }
+
+    const target = await resolveWritableProjectMemoryFile(params);
+    // 只删已存在的文件：删除不存在的条目说明 UI 状态过期，按 CAS 冲突处理。
+    if (target.existingUpdatedAt === undefined) {
+      throw createMemoryFileError(
+        `Project Memory file does not exist: ${params.fileName}`,
+        PROJECT_MEMORY_FILE_CHANGED_ERROR_CODE,
+      );
+    }
+    assertExpectedUpdatedAt(params.fileName, target.existingUpdatedAt, params.expectedUpdatedAt);
+    await assertContainedProjectMemoryPath(target.projectsRoot, target.filePath);
+
+    // 先摘索引再删文件：索引写失败时条目仍在，用户能看到并重试；反过来会留下死链接。
+    const indexUpdated = await removeIndexLinksFor(target.memoryRoot, params.fileName);
+    await unlink(target.filePath);
+    return { indexUpdated };
+  }
+
+  async function removeIndexLinksFor(memoryRoot: string, fileName: string): Promise<boolean> {
+    const indexPath = join(memoryRoot, PROJECT_MEMORY_INDEX_FILE_NAME);
+    let indexContent: string;
+    try {
+      indexContent = await readFile(indexPath, "utf-8");
+    } catch (error) {
+      if (isNotFoundError(error)) return false;
+      throw error;
+    }
+    const { content, removedLines } = removeProjectMemoryIndexLinks(indexContent, fileName);
+    if (removedLines === 0) return false;
+    await atomicWriteText(indexPath, content);
+    return true;
+  }
+
   return {
     loadMemory,
     saveMemory,
@@ -340,5 +560,7 @@ export function createMemoryService(): IMemoryService {
     getUserMemoryDirectory,
     listProjectMemories,
     readProjectMemoryFile,
+    writeProjectMemoryFile,
+    deleteProjectMemoryFile,
   };
 }

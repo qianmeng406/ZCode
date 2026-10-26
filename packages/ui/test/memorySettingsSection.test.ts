@@ -6,7 +6,13 @@ import type { IMemoryService } from "@zcode/services";
 import {
   TID_SETTINGS_MEMORY_COUNT,
   TID_SETTINGS_MEMORY_FILE,
+  TID_SETTINGS_MEMORY_FILE_EDIT,
   TID_SETTINGS_MEMORY_FILE_EDITOR_ACTIONS,
+  TID_SETTINGS_MEMORY_EDITOR,
+  TID_SETTINGS_MEMORY_EDITOR_DELETE,
+  TID_SETTINGS_MEMORY_EDITOR_DELETE_CONFIRM,
+  TID_SETTINGS_MEMORY_EDITOR_SAVE,
+  TID_SETTINGS_MEMORY_EDITOR_TEXTAREA,
   TID_SETTINGS_MEMORY_FILE_UPDATED_AT,
   TID_SETTINGS_MEMORY_SCOPE_TRIGGER,
   TID_SETTINGS_MEMORY_SEARCH_CLEAR,
@@ -135,18 +141,35 @@ function renderSection(
   memoryService: MemoryCatalogService,
   memoryEnabled = true,
   workspaceDisplayNames: readonly string[] = [],
+  options: { memoryFileEditingEnabled?: boolean } = {},
 ) {
   const onMemoryEnabledChange = vi.fn(async () => {});
   render(
     createElement(MemorySettingsSection, {
       memoryEnabled,
       memoryService,
+      memoryFileEditingEnabled: options.memoryFileEditingEnabled ?? false,
       onMemoryEnabledChange,
       projectMemoryViewerAvailable: true,
       workspaceDisplayNames,
-    }),
+    } as never),
   );
   return { onMemoryEnabledChange };
+}
+
+function createEditingService(overrides: Partial<IMemoryService> = {}) {
+  const service = {
+    ...createService(),
+    readProjectMemoryFile: vi.fn(async () => ({ content: "body", updatedAt: 1_000 })),
+    writeProjectMemoryFile: vi.fn(async () => ({ updatedAt: 2_000, size: 4 })),
+    deleteProjectMemoryFile: vi.fn(async () => ({ indexUpdated: true })),
+    ...overrides,
+  } as unknown as MemoryCatalogService &
+    Pick<
+      IMemoryService,
+      "readProjectMemoryFile" | "writeProjectMemoryFile" | "deleteProjectMemoryFile"
+    >;
+  return service;
 }
 
 afterEach(() => {
@@ -269,5 +292,87 @@ describe("MemorySettingsSection", () => {
     );
     expect(screen.getByText("settings.memory.viewer.localOnly")).toBeTruthy();
     expect(memoryService.listProjectMemories).not.toHaveBeenCalled();
+  });
+});
+
+describe("MemorySettingsSection 记忆文件编辑", () => {
+  it("开关关闭时列表行没有编辑入口，即使宿主提供了写方法", async () => {
+    renderSection(createEditingService(), true, [], { memoryFileEditingEnabled: false });
+    await screen.findByTestId(TID_SETTINGS_MEMORY_SCOPE_TRIGGER);
+
+    expect(screen.queryByTestId(testId(TID_SETTINGS_MEMORY_FILE_EDIT, "MEMORY.md"))).toBeNull();
+    expect(screen.queryByTestId(testId(TID_SETTINGS_MEMORY_FILE_EDIT, "fact-a.md"))).toBeNull();
+  });
+
+  it("开关打开但宿主缺写方法时同样不渲染编辑入口", async () => {
+    renderSection(createService(), true, [], { memoryFileEditingEnabled: true });
+    await screen.findByTestId(TID_SETTINGS_MEMORY_SCOPE_TRIGGER);
+
+    expect(screen.queryByTestId(testId(TID_SETTINGS_MEMORY_FILE_EDIT, "MEMORY.md"))).toBeNull();
+  });
+
+  it("打开编辑器读取正文，保存时带上打开时的 updatedAt 并刷新 catalog", async () => {
+    const memoryService = createEditingService();
+    renderSection(memoryService, true, [], { memoryFileEditingEnabled: true });
+    await screen.findByTestId(TID_SETTINGS_MEMORY_SCOPE_TRIGGER);
+
+    fireEvent.click(screen.getByTestId(testId(TID_SETTINGS_MEMORY_FILE_EDIT, "fact-a.md")));
+
+    const textarea = (await screen.findByTestId(
+      TID_SETTINGS_MEMORY_EDITOR_TEXTAREA,
+    )) as HTMLTextAreaElement;
+    await waitFor(() => expect(textarea.value).toBe("body"));
+    expect(screen.getByTestId(`${TID_SETTINGS_MEMORY_EDITOR}:fact-a.md`)).toBeTruthy();
+    expect(memoryService.readProjectMemoryFile).toHaveBeenCalledWith({
+      workspaceId: "z-code-1111111111111111",
+      fileName: "fact-a.md",
+    });
+
+    const saveButton = screen.getByTestId(TID_SETTINGS_MEMORY_EDITOR_SAVE) as HTMLButtonElement;
+    expect(saveButton.disabled).toBe(true);
+
+    fireEvent.change(textarea, { target: { value: "updated body" } });
+    expect(saveButton.disabled).toBe(false);
+    const catalogCallsBefore = (memoryService.listProjectMemories as ReturnType<typeof vi.fn>).mock
+      .calls.length;
+    fireEvent.click(saveButton);
+
+    await waitFor(() =>
+      expect(memoryService.writeProjectMemoryFile).toHaveBeenCalledWith({
+        workspaceId: "z-code-1111111111111111",
+        fileName: "fact-a.md",
+        content: "updated body",
+        expectedUpdatedAt: 1_000,
+      }),
+    );
+    await waitFor(() =>
+      expect(
+        (memoryService.listProjectMemories as ReturnType<typeof vi.fn>).mock.calls.length,
+      ).toBeGreaterThan(catalogCallsBefore),
+    );
+  });
+
+  it("删除先弹确认，确认后调用删除并回到文件列表", async () => {
+    const memoryService = createEditingService();
+    renderSection(memoryService, true, [], { memoryFileEditingEnabled: true });
+    await screen.findByTestId(TID_SETTINGS_MEMORY_SCOPE_TRIGGER);
+    fireEvent.click(screen.getByTestId(testId(TID_SETTINGS_MEMORY_FILE_EDIT, "fact-a.md")));
+    await screen.findByTestId(TID_SETTINGS_MEMORY_EDITOR_TEXTAREA);
+
+    fireEvent.click(screen.getByTestId(TID_SETTINGS_MEMORY_EDITOR_DELETE));
+    expect(memoryService.deleteProjectMemoryFile).not.toHaveBeenCalled();
+
+    fireEvent.click(await screen.findByTestId(TID_SETTINGS_MEMORY_EDITOR_DELETE_CONFIRM));
+
+    await waitFor(() =>
+      expect(memoryService.deleteProjectMemoryFile).toHaveBeenCalledWith({
+        workspaceId: "z-code-1111111111111111",
+        fileName: "fact-a.md",
+        expectedUpdatedAt: 1_000,
+      }),
+    );
+    await waitFor(() =>
+      expect(screen.queryByTestId(TID_SETTINGS_MEMORY_EDITOR_TEXTAREA)).toBeNull(),
+    );
   });
 });

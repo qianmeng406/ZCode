@@ -8,9 +8,11 @@ import {
   MemorySettingsViewer,
   type MemoryViewerLoadingState,
 } from "@/settings/MemorySettingsViewer.js";
+import type { MemoryFileEditingService } from "@/settings/MemoryFileEditor.js";
 import { SettingsGroupCard, SettingsRow } from "@/settings/SettingsPageParts.js";
 
 type MemoryCatalogService = Pick<IMemoryService, "listProjectMemories">;
+type MemorySectionService = MemoryCatalogService & Partial<MemoryFileEditingService>;
 
 function normalizeWorkspaceDisplayName(value: string): string {
   const slug = value
@@ -46,12 +48,15 @@ function getErrorMessage(error: unknown): string {
 export function MemorySettingsSection({
   memoryEnabled,
   memoryService,
+  memoryFileEditingEnabled = false,
   onMemoryEnabledChange,
   projectMemoryViewerAvailable,
   workspaceDisplayNames = [],
 }: {
   memoryEnabled: boolean;
-  memoryService: MemoryCatalogService;
+  memoryService: MemorySectionService;
+  /** fork 开关：关闭时不渲染任何写入口，记忆页保持只读。 */
+  memoryFileEditingEnabled?: boolean;
   onMemoryEnabledChange: (enabled: boolean) => Promise<void>;
   projectMemoryViewerAvailable: boolean;
   workspaceDisplayNames?: readonly string[];
@@ -142,6 +147,18 @@ export function MemorySettingsSection({
     }
   }, [displayWorkspaces, selectedWorkspaceId]);
 
+  // 宿主版本不一定提供写方法：三个都在、且开关打开时才交出编辑服务，
+  // 否则列表行干脆不渲染编辑入口，而不是渲染一个点了会崩的按钮。
+  const memoryEditingService = useMemo<MemoryFileEditingService | undefined>(() => {
+    if (!memoryFileEditingEnabled) return undefined;
+    const { readProjectMemoryFile, writeProjectMemoryFile, deleteProjectMemoryFile } =
+      memoryService;
+    if (!readProjectMemoryFile || !writeProjectMemoryFile || !deleteProjectMemoryFile) {
+      return undefined;
+    }
+    return { readProjectMemoryFile, writeProjectMemoryFile, deleteProjectMemoryFile };
+  }, [memoryFileEditingEnabled, memoryService]);
+
   const handleRefresh = useCallback(async () => {
     await runUserActionAsync({
       input: { featureId: "settings.memory", action: "refresh_memory", trigger: "button" },
@@ -187,6 +204,7 @@ export function MemorySettingsSection({
           selectedWorkspace={selectedWorkspace}
           workspaces={displayWorkspaces}
           onRefresh={handleRefresh}
+          memoryService={memoryEditingService}
           onScopeKeyChange={(workspaceId) =>
             runUserAction({
               input: {

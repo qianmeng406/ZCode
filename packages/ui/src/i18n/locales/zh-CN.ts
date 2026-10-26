@@ -3203,6 +3203,13 @@ const zhCN: Record<string, string> = {
   "settings.memory.viewer.fileTooLarge": "该记忆文件超过 5 MiB 预览上限。",
   "settings.memory.viewer.fileChanged": "该记忆文件在读取期间已更新，请重新打开或刷新文件列表。",
   "settings.memory.viewer.noSelection": "选择一个记忆文件以查看内容。",
+  "settings.memory.editor.hint": "直接编辑并保存到本机；保存时检测文件是否已被改动。",
+  "settings.memory.editor.edit": "编辑",
+  "settings.memory.editor.reload": "重新加载",
+  "settings.memory.editor.error.disabled": "「记忆文件编辑」开关已关闭，无法写入。",
+  "settings.memory.editor.deleteTitle": "删除记忆文件 {name}？",
+  "settings.memory.editor.deleteDescription":
+    "文件将被删除，MEMORY.md 中指向它的链接行也会一并移除。此操作不可撤销。",
   "settings.httpProxy": "HTTP 代理",
   "settings.httpProxyDescription":
     "模型、MCP、命令工具与应用渲染层的出口流量将经此代理，不读取系统环境变量。留空时这些流量直连，内置浏览器则跟随系统代理设置。修改后需重启应用生效。",

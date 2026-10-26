@@ -1712,7 +1712,11 @@ export function createLocalServices(options: {
   const hooksService = createHooksService({
     grantWorkspaceHookTrust: (params) => zcodeAgentService.grantWorkspaceHookTrust(params),
   });
-  const memoryService = createMemoryService();
+  const memoryService = createMemoryService({
+    // fork 开关：设置页「定制功能 → 记忆文件编辑」是唯一入口，关闭时写入口直接拒绝。
+    isForkFeatureEnabled: async (feature) =>
+      (await settingService.get()).forkFeatures?.[feature] === true,
+  });
   // 只要当前进程已经装配 Provider Runtime，就由该 Environment 自己的 Selection View
   // 决定执行就绪状态。Desktop-attached remote 也读取远端自己的 Config/Account Facts。
   const modelSelectionReadinessSource = providerRuntime.modelSelection;
@@ -2947,7 +2951,13 @@ export function createLocalServices(options: {
         grantWorkspaceHookTrust: (params) => zcodeAgentService.grantWorkspaceHookTrust(params),
       }),
     )
-    .register(IMemoryService, createMemoryService())
+    .register(
+      IMemoryService,
+      createMemoryService({
+        isForkFeatureEnabled: async (feature) =>
+          (await settingService.get()).forkFeatures?.[feature] === true,
+      }),
+    )
     .register(IOutputStyleService, createOutputStyleService())
     .register(ISettingsSyncService, createSettingsSyncService({ settingService }))
     .register(

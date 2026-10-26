@@ -3421,6 +3421,14 @@ const enUS: Record<string, string> = {
   "settings.memory.viewer.fileChanged":
     "This memory file was updated while being read. Reopen it or refresh the file list.",
   "settings.memory.viewer.noSelection": "Select a memory file to preview it.",
+  "settings.memory.editor.hint":
+    "Edit and save locally; saves detect whether the file changed on disk.",
+  "settings.memory.editor.edit": "Edit",
+  "settings.memory.editor.reload": "Reload",
+  "settings.memory.editor.error.disabled": "Memory file editing is turned off in settings.",
+  "settings.memory.editor.deleteTitle": "Delete memory file {name}?",
+  "settings.memory.editor.deleteDescription":
+    "The file is deleted and the MEMORY.md lines linking to it are removed as well. This cannot be undone.",
   "settings.httpProxy": "HTTP Proxy",
   "settings.httpProxyDescription":
     "Route model, MCP, command-tool, and app renderer egress traffic through this proxy; system environment variables are not read. Leave blank and that traffic connects directly, while the embedded browser follows your system proxy settings. Restart the app to take effect.",

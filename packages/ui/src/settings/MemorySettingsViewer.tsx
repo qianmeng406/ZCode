@@ -3,6 +3,7 @@ import type { ProjectMemoryWorkspaceSummary } from "@zcode/services";
 import {
   TID_SETTINGS_MEMORY_COUNT,
   TID_SETTINGS_MEMORY_FILE,
+  TID_SETTINGS_MEMORY_FILE_EDIT,
   TID_SETTINGS_MEMORY_FILE_EDITOR_ACTIONS,
   TID_SETTINGS_MEMORY_FILE_ICON,
   TID_SETTINGS_MEMORY_FILE_NAME,
@@ -15,9 +16,12 @@ import {
   TID_SETTINGS_MEMORY_WORKSPACE,
   testId,
 } from "@zcode/shared/test-ids";
+import { Pencil } from "lucide-react";
 import { Alert, AlertDescription } from "@/components/ui/alert.js";
+import { Button } from "@/components/ui/button.js";
 import { useZCodeIntl } from "@/i18n/IntlProvider.js";
 import { FileDisplayIcon, resolveFileDisplayDescriptor } from "@/lib/fileDisplay.js";
+import { MemoryFileEditor, type MemoryFileEditingService } from "@/settings/MemoryFileEditor.js";
 import { PluginScopeMenu } from "@/settings/PluginScopeMenu.js";
 import { PluginSearchEmptyState } from "@/settings/PluginInstallEmptyState.js";
 import { SettingsSearchInput } from "@/settings/SettingsSearchInput.js";
@@ -34,6 +38,7 @@ export function MemorySettingsViewer({
   workspaces,
   onRefresh,
   onScopeKeyChange,
+  memoryService,
 }: {
   catalogError: string | null;
   catalogState: MemoryViewerLoadingState;
@@ -41,9 +46,17 @@ export function MemorySettingsViewer({
   workspaces: ProjectMemoryWorkspaceSummary[];
   onRefresh: () => Promise<void>;
   onScopeKeyChange: (workspaceId: string) => void;
+  /** 仅在「记忆文件编辑」开关打开时传入；缺省时列表行没有编辑入口。 */
+  memoryService?: MemoryFileEditingService;
 }) {
   const { intl, locale } = useZCodeIntl();
   const [searchQuery, setSearchQuery] = useState("");
+  const [editingFileName, setEditingFileName] = useState<string | null>(null);
+  const selectedWorkspaceId = selectedWorkspace?.id;
+  useEffect(() => {
+    // 切工作区/目录刷新后旧文件名可能已不存在，编辑器随之收口。
+    setEditingFileName(null);
+  }, [selectedWorkspaceId]);
   const [now, setNow] = useState(() => Date.now());
   useEffect(() => {
     const interval = window.setInterval(() => setNow(Date.now()), 60_000);
@@ -129,7 +142,19 @@ export function MemorySettingsViewer({
         </div>
       </div>
 
-      {normalizedSearchQuery && visibleFiles.length === 0 ? (
+      {editingFileName !== null && memoryService ? (
+        <MemoryFileEditor
+          workspaceId={selectedWorkspace.id}
+          fileName={editingFileName}
+          memoryService={memoryService}
+          onCancel={() => setEditingFileName(null)}
+          onSaved={() => onRefresh()}
+          onDeleted={async () => {
+            setEditingFileName(null);
+            await onRefresh();
+          }}
+        />
+      ) : normalizedSearchQuery && visibleFiles.length === 0 ? (
         <PluginSearchEmptyState
           label={intl.formatMessage({
             id: "settings.memory.viewer.searchEmpty",
@@ -191,8 +216,20 @@ export function MemorySettingsViewer({
                   </div>
                   <span
                     data-testid={testId(TID_SETTINGS_MEMORY_FILE_EDITOR_ACTIONS, file.name)}
-                    className="mr-3 shrink-0"
+                    className="mr-3 flex shrink-0 items-center gap-1"
                   >
+                    {memoryService ? (
+                      <Button
+                        type="button"
+                        variant="ghost"
+                        size="sm"
+                        data-testid={testId(TID_SETTINGS_MEMORY_FILE_EDIT, file.name)}
+                        aria-label={intl.formatMessage({ id: "settings.memory.editor.edit" })}
+                        onClick={() => setEditingFileName(file.name)}
+                      >
+                        <Pencil className="size-3.5" aria-hidden="true" />
+                      </Button>
+                    ) : null}
                     <WorkspaceEditorButtonGroup workspaceAbsPath={file.path} />
                   </span>
                 </div>

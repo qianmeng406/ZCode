@@ -386,3 +386,202 @@ describe("memoryService Project Memory catalog", () => {
     });
   });
 });
+
+describe("memoryService Project Memory file editing", () => {
+  const workspaceId = "editable-project-8888888888888888";
+
+  function enabledService(): ReturnType<typeof createMemoryService> {
+    return createMemoryService({ isForkFeatureEnabled: () => true });
+  }
+
+  async function readRawPath(fileName: string): Promise<string> {
+    return join(workspaceMemoryRoot(workspaceId), fileName);
+  }
+
+  it("缺少开关注入时 fail-closed：写与删都拒绝且不触碰文件系统", async () => {
+    await writeMemoryFile(workspaceId, "seed.md", "original");
+    const before = await actualFs.readFile(await readRawPath("seed.md"), "utf-8");
+
+    const service = createMemoryService();
+    await expect(
+      service.writeProjectMemoryFile({ workspaceId, fileName: "seed.md", content: "changed" }),
+    ).rejects.toMatchObject({ code: "FORK_FEATURE_DISABLED" });
+    await expect(
+      service.deleteProjectMemoryFile({ workspaceId, fileName: "seed.md" }),
+    ).rejects.toMatchObject({ code: "FORK_FEATURE_DISABLED" });
+
+    await expect(actualFs.readFile(await readRawPath("seed.md"), "utf-8")).resolves.toBe(before);
+    await expect(actualFs.stat(await readRawPath("seed.md"))).resolves.toBeTruthy();
+  });
+
+  it("开关显式关闭时同样拒绝（不与 fail-closed 混为一谈）", async () => {
+    await writeMemoryFile(workspaceId, "seed.md", "original");
+    const service = createMemoryService({ isForkFeatureEnabled: async () => false });
+
+    await expect(
+      service.writeProjectMemoryFile({ workspaceId, fileName: "seed.md", content: "changed" }),
+    ).rejects.toMatchObject({ code: "FORK_FEATURE_DISABLED" });
+  });
+
+  it("新增条目并返回写入后的 updatedAt/size", async () => {
+    await writeMemoryFile(workspaceId, "MEMORY.md", "- [Seed](seed.md) — seed\n");
+    const service = enabledService();
+
+    const result = await service.writeProjectMemoryFile({
+      workspaceId,
+      fileName: "new-note.md",
+      content: "# Note\n\nbody\n",
+    });
+
+    expect(result.size).toBe(Buffer.byteLength("# Note\n\nbody\n", "utf8"));
+    expect(result.updatedAt).toBeGreaterThan(0);
+    await expect(actualFs.readFile(await readRawPath("new-note.md"), "utf-8")).resolves.toBe(
+      "# Note\n\nbody\n",
+    );
+    const reread = await service.readProjectMemoryFile({
+      workspaceId,
+      fileName: "new-note.md",
+    });
+    expect(reread.content).toBe("# Note\n\nbody\n");
+    expect(reread.updatedAt).toBeCloseTo(result.updatedAt, 0);
+  });
+
+  it("expectedUpdatedAt 匹配时覆盖，stale 时按 FILE_CHANGED 拒绝且正文不变", async () => {
+    await writeMemoryFile(workspaceId, "seed.md", "original");
+    const service = enabledService();
+    const { updatedAt } = await service.readProjectMemoryFile({
+      workspaceId,
+      fileName: "seed.md",
+    });
+
+    await expect(
+      service.writeProjectMemoryFile({
+        workspaceId,
+        fileName: "seed.md",
+        content: "updated",
+        expectedUpdatedAt: updatedAt,
+      }),
+    ).resolves.toMatchObject({ size: 7 });
+    await expect(actualFs.readFile(await readRawPath("seed.md"), "utf-8")).resolves.toBe("updated");
+
+    await expect(
+      service.writeProjectMemoryFile({
+        workspaceId,
+        fileName: "seed.md",
+        content: "stale write",
+        expectedUpdatedAt: updatedAt,
+      }),
+    ).rejects.toMatchObject({ code: "PROJECT_MEMORY_FILE_CHANGED" });
+    await expect(actualFs.readFile(await readRawPath("seed.md"), "utf-8")).resolves.toBe("updated");
+  });
+
+  it("拒绝超过 5 MiB、非 .md、路径穿越、Windows 保留名与大小写别名", async () => {
+    await writeMemoryFile(workspaceId, "MEMORY.md", "index");
+    await writeMemoryFile(workspaceId, "Case.md", "original");
+    const service = enabledService();
+
+    await expect(
+      service.writeProjectMemoryFile({
+        workspaceId,
+        fileName: "big.md",
+        content: "x".repeat(5 * 1024 * 1024 + 1),
+      }),
+    ).rejects.toMatchObject({ code: "PROJECT_MEMORY_PREVIEW_LIMIT_EXCEEDED" });
+    await expect(
+      service.writeProjectMemoryFile({ workspaceId, fileName: "note.txt", content: "x" }),
+    ).rejects.toThrow("Invalid Project Memory path");
+    await expect(
+      service.writeProjectMemoryFile({ workspaceId, fileName: "../escape.md", content: "x" }),
+    ).rejects.toThrow("Invalid Project Memory path");
+    await expect(
+      service.writeProjectMemoryFile({ workspaceId, fileName: "CON.md", content: "x" }),
+    ).rejects.toThrow("reserved");
+    await expect(
+      service.writeProjectMemoryFile({ workspaceId, fileName: "case.md", content: "x" }),
+    ).rejects.toThrow("does not match exactly");
+  });
+
+  it("删除条目时只摘掉指向它的索引行，其余字节与顺序保持原样", async () => {
+    const index = [
+      "# Memory",
+      "",
+      "- [Keep](keep.md) — keep this",
+      "- [Gone](gone.md) — remove this",
+      "- [Nested](sub/gone.md) — remove this too",
+      "",
+    ].join("\n");
+    await writeMemoryFile(workspaceId, "MEMORY.md", index);
+    await writeMemoryFile(workspaceId, "keep.md", "keep");
+    await writeMemoryFile(workspaceId, "gone.md", "gone");
+    const service = enabledService();
+    const { updatedAt } = await service.readProjectMemoryFile({
+      workspaceId,
+      fileName: "gone.md",
+    });
+
+    await expect(
+      service.deleteProjectMemoryFile({
+        workspaceId,
+        fileName: "gone.md",
+        expectedUpdatedAt: updatedAt,
+      }),
+    ).resolves.toEqual({ indexUpdated: true });
+
+    await expect(actualFs.stat(await readRawPath("gone.md"))).rejects.toMatchObject({
+      code: "ENOENT",
+    });
+    await expect(actualFs.readFile(await readRawPath("MEMORY.md"), "utf-8")).resolves.toBe(
+      ["# Memory", "", "- [Keep](keep.md) — keep this", ""].join("\n"),
+    );
+  });
+
+  it("索引里没有指向该条目的链接时删除成功但 indexUpdated=false", async () => {
+    await writeMemoryFile(workspaceId, "MEMORY.md", "- [Other](other.md) — other\n");
+    await writeMemoryFile(workspaceId, "orphan.md", "orphan");
+    const service = enabledService();
+
+    await expect(
+      service.deleteProjectMemoryFile({ workspaceId, fileName: "orphan.md" }),
+    ).resolves.toEqual({ indexUpdated: false });
+    await expect(actualFs.readFile(await readRawPath("MEMORY.md"), "utf-8")).resolves.toBe(
+      "- [Other](other.md) — other\n",
+    );
+  });
+
+  it("索引文件不可删除，删除不存在的条目按 FILE_CHANGED 处理", async () => {
+    await writeMemoryFile(workspaceId, "MEMORY.md", "index");
+    const service = enabledService();
+
+    await expect(
+      service.deleteProjectMemoryFile({ workspaceId, fileName: "MEMORY.md" }),
+    ).rejects.toMatchObject({ code: "PROJECT_MEMORY_INDEX_PROTECTED" });
+    await expect(
+      service.deleteProjectMemoryFile({ workspaceId, fileName: "missing.md" }),
+    ).rejects.toMatchObject({ code: "PROJECT_MEMORY_FILE_CHANGED" });
+    await expect(actualFs.readFile(await readRawPath("MEMORY.md"), "utf-8")).resolves.toBe("index");
+  });
+
+  it("删除的 CAS 同样生效", async () => {
+    await writeMemoryFile(workspaceId, "seed.md", "original");
+    const service = enabledService();
+    const { updatedAt } = await service.readProjectMemoryFile({
+      workspaceId,
+      fileName: "seed.md",
+    });
+    await writeFile(await readRawPath("seed.md"), "changed elsewhere", "utf-8");
+    await utimes(
+      await readRawPath("seed.md"),
+      new Date(Date.now() + 5_000),
+      new Date(Date.now() + 5_000),
+    );
+
+    await expect(
+      service.deleteProjectMemoryFile({
+        workspaceId,
+        fileName: "seed.md",
+        expectedUpdatedAt: updatedAt,
+      }),
+    ).rejects.toMatchObject({ code: "PROJECT_MEMORY_FILE_CHANGED" });
+    await expect(actualFs.stat(await readRawPath("seed.md"))).resolves.toBeTruthy();
+  });
+});
