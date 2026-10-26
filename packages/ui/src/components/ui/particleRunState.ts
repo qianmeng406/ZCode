@@ -67,3 +67,76 @@ export function resolveParticleFramePlan(input: {
   if (input.throttleMs === undefined) return { kind: "immediate" };
   return { kind: "throttled", throttleMs: input.throttleMs };
 }
+
+// —— 排程所有权（组件只提供注入依赖，便于单测断言调度节奏） ——
+export interface ParticleFrameSchedulerDeps {
+  requestFrame(callback: (now: number) => void): number;
+  cancelFrame(handle: number): void;
+  scheduleTimer(callback: () => void, delayMs: number): number;
+  cancelTimer(handle: number): void;
+}
+
+/** none = 无在途排程；legacy = 原「回调顶部自续约」链；converged = 收敛链（rAF 或定时器）。 */
+export type ParticleSchedulingMode = "none" | "legacy" | "converged";
+
+export interface ParticleFrameScheduler {
+  /** 按帧计划排下一帧；paused 等价于 cancel（调用方可继续走 legacy 自续约）。 */
+  schedule(plan: ParticleFramePlan, draw: (now: number) => void): void;
+  /** legacy 路径在回调顶部自续约后登记句柄，用于区分在途归属。 */
+  markLegacy(handle: number): void;
+  cancel(): void;
+  readonly mode: ParticleSchedulingMode;
+}
+
+/**
+ * 排程拥有者：维护「是否有在途排程 + 归属路径」。暂停恢复与开关关闭时能否安全
+ * 重启调度全部以此为准——避免「暂停态下无人续约」导致画布冻结。
+ */
+export function createParticleFrameScheduler(
+  deps: ParticleFrameSchedulerDeps,
+): ParticleFrameScheduler {
+  let frameHandle: number | null = null;
+  let timerHandle: number | null = null;
+  let mode: ParticleSchedulingMode = "none";
+  const cancel = () => {
+    if (timerHandle !== null) {
+      deps.cancelTimer(timerHandle);
+      timerHandle = null;
+    }
+    if (frameHandle !== null) {
+      deps.cancelFrame(frameHandle);
+      frameHandle = null;
+    }
+    mode = "none";
+  };
+  return {
+    schedule(plan, draw) {
+      if (plan.kind === "paused") {
+        cancel();
+        return;
+      }
+      if (plan.kind === "legacy") {
+        mode = "legacy";
+        frameHandle = deps.requestFrame(draw);
+        return;
+      }
+      mode = "converged";
+      if (plan.kind === "immediate") {
+        frameHandle = deps.requestFrame(draw);
+        return;
+      }
+      timerHandle = deps.scheduleTimer(() => {
+        timerHandle = null;
+        frameHandle = deps.requestFrame(draw);
+      }, plan.throttleMs);
+    },
+    markLegacy(handle) {
+      mode = "legacy";
+      frameHandle = handle;
+    },
+    cancel,
+    get mode() {
+      return mode;
+    },
+  };
+}

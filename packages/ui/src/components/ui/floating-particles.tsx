@@ -1,10 +1,10 @@
 import { memo, useEffect, useRef } from "react";
 import { cn } from "@/components/lib/utils.js";
 import {
+  createParticleFrameScheduler,
   createParticleRunState,
   resolveParticleFramePlan,
 } from "@/components/ui/particleRunState.js";
-import type { ParticleFramePlan } from "@/components/ui/particleRunState.js";
 
 const PARTICLE_COUNT = 96;
 const PARTICLE_FRAME_INTERVAL_MS = 1_000 / 30;
@@ -123,6 +123,8 @@ export const FloatingParticles = memo(function FloatingParticles({
   pauseWhenHiddenRef.current = pauseWhenHidden;
   const idleThrottleMsRef = useRef(idleThrottleMs);
   idleThrottleMsRef.current = idleThrottleMs;
+  // effect 内门控资源的装卸入口：开关翻转时经这个 ref 触发（不重建 effect）。
+  const syncGatingRef = useRef<() => void>(() => {});
 
   useEffect(() => {
     // Bug 根因：旧实现同时挂载 96 个 motion.span 与独立动画控制器，恰好和扩散 Canvas
@@ -132,7 +134,6 @@ export const FloatingParticles = memo(function FloatingParticles({
     if (!canvas || !context) return;
 
     const reducedMotion = globalThis.matchMedia?.("(prefers-reduced-motion: reduce)").matches;
-    let animationFrameId = 0;
     let width = 0;
     let height = 0;
     let lastFrameAt = -PARTICLE_FRAME_INTERVAL_MS;
@@ -221,51 +222,64 @@ export const FloatingParticles = memo(function FloatingParticles({
     };
 
     // —— 空闲收敛（idleParticlePauseEnabled）的调度基建 ——
-    let wakeTimerId: number | null = null;
-    const scheduleNext = (
-      plan: Extract<ParticleFramePlan, { kind: "immediate" } | { kind: "throttled" }>,
-    ) => {
-      if (plan.kind === "immediate") {
-        animationFrameId = window.requestAnimationFrame(draw);
-        return;
-      }
-      wakeTimerId = window.setTimeout(() => {
-        wakeTimerId = null;
-        animationFrameId = window.requestAnimationFrame(draw);
-      }, plan.throttleMs);
-    };
-    const cancelScheduled = () => {
-      if (wakeTimerId !== null) {
-        window.clearTimeout(wakeTimerId);
-        wakeTimerId = null;
-      }
-      if (animationFrameId !== 0) {
-        window.cancelAnimationFrame(animationFrameId);
-        animationFrameId = 0;
-      }
-    };
+    // 排程所有权归 scheduler：mode 是「是否有在途排程 + 归属路径」的唯一事实来源。
+    // 暂停恢复/开关关闭时只有 mode==="none" 才补排程，避免双重链或永久冻结。
+    const scheduler = createParticleFrameScheduler({
+      requestFrame: (callback) => window.requestAnimationFrame(callback),
+      cancelFrame: (handle) => window.cancelAnimationFrame(handle),
+      scheduleTimer: (callback, delayMs) => window.setTimeout(callback, delayMs),
+      cancelTimer: (handle) => window.clearTimeout(handle),
+    });
+
     const runState = createParticleRunState({
       onChange: () => {
-        // 功能关闭时不接管调度：draw 内的 legacy 分支自会续约，不误停原路径。
-        if (pauseWhenHiddenRef.current !== true) return;
-        if (runState.shouldRun()) {
+        if (!runState.shouldRun()) {
+          // 只有收敛链由我们接管取消；legacy（开关关闭）保持原「隐藏也继续画」行为。
+          if (scheduler.mode === "converged") scheduler.cancel();
+          return;
+        }
+        // 恢复运行：只有在无任何在途排程（如暂停态）时才补一次，避免双重链。
+        if (scheduler.mode === "none") {
           lastFrameAt = -PARTICLE_FRAME_INTERVAL_MS; // 恢复可见立即补一帧
-          scheduleNext({ kind: "immediate" });
-        } else {
-          cancelScheduled();
+          scheduler.schedule({ kind: "immediate" }, draw);
         }
       },
     });
-    runState.setHidden(document.visibilityState === "hidden");
-    const onVisibilityChange = () => runState.setHidden(document.visibilityState === "hidden");
-    document.addEventListener("visibilitychange", onVisibilityChange);
+
+    // 门控资源按开关动态装卸：功能关闭时不注册任何 IO/visibility 监听（与原实现一致）。
     let intersectionObserver: IntersectionObserver | undefined;
-    if (typeof IntersectionObserver !== "undefined") {
-      intersectionObserver = new IntersectionObserver((entries) => {
-        runState.setIntersecting(entries.some((entry) => entry.isIntersecting));
-      });
-      intersectionObserver.observe(canvas);
-    }
+    let gatingAttached = false;
+    const onVisibilityChange = () => runState.setHidden(document.visibilityState === "hidden");
+    const attachGating = () => {
+      if (gatingAttached) return;
+      gatingAttached = true;
+      runState.setHidden(document.visibilityState === "hidden");
+      document.addEventListener("visibilitychange", onVisibilityChange);
+      if (typeof IntersectionObserver !== "undefined") {
+        intersectionObserver = new IntersectionObserver((entries) => {
+          runState.setIntersecting(entries.some((entry) => entry.isIntersecting));
+        });
+        intersectionObserver.observe(canvas);
+      }
+    };
+    const detachGating = () => {
+      if (!gatingAttached) return;
+      gatingAttached = false;
+      document.removeEventListener("visibilitychange", onVisibilityChange);
+      intersectionObserver?.disconnect();
+      intersectionObserver = undefined;
+    };
+    const syncGating = () => {
+      if (pauseWhenHiddenRef.current === true) {
+        attachGating();
+        return;
+      }
+      detachGating();
+      // 开关由开转关时若处于暂停态（无在途排程），显式交回 legacy 自续约路径，
+      // 否则 draw 不会再被唤醒，画布会永久停在最后一帧。
+      if (scheduler.mode === "none") scheduler.schedule({ kind: "legacy" }, draw);
+    };
+    syncGatingRef.current = syncGating;
 
     const draw = (now: number) => {
       const plan = resolveParticleFramePlan({
@@ -275,41 +289,61 @@ export const FloatingParticles = memo(function FloatingParticles({
       });
       if (plan.kind === "legacy") {
         // 功能关闭：保持原实现「回调顶部自续约 + 帧间隔早退」路径，行为逐字节一致。
-        animationFrameId = window.requestAnimationFrame(draw);
+        scheduler.markLegacy(window.requestAnimationFrame(draw));
         if (now - lastFrameAt < PARTICLE_FRAME_INTERVAL_MS) return;
         lastFrameAt = now;
         renderFrame(now);
-        if (reducedMotion) window.cancelAnimationFrame(animationFrameId);
+        if (reducedMotion) scheduler.cancel();
         return;
       }
-      // 收敛路径：暂停态不再排程（由 runState 的 resume 唤醒），其余先绘制再按计划排下一帧。
-      if (plan.kind === "paused") return;
+      // 收敛路径：暂停态取消在途排程（由 runState 的 resume 唤醒），其余先绘制再排下一帧。
+      if (plan.kind === "paused") {
+        scheduler.cancel();
+        return;
+      }
       if (now - lastFrameAt < PARTICLE_FRAME_INTERVAL_MS) {
-        scheduleNext(plan);
+        scheduler.schedule(plan, draw);
         return;
       }
       lastFrameAt = now;
       renderFrame(now);
-      if (reducedMotion) return;
-      scheduleNext(plan);
+      if (reducedMotion) {
+        scheduler.cancel();
+        return;
+      }
+      scheduler.schedule(plan, draw);
     };
 
     const observer = new ResizeObserver(resize);
     observer.observe(canvas);
     resize();
-    // 功能关闭（或未启用节流）时启动语义与原实现一致；启用后被隐藏挂载的画布
-    // 不启动循环，等 visibilitychange/IntersectionObserver 的 resume 唤醒。
-    if (pauseWhenHiddenRef.current !== true || runState.shouldRun()) {
-      animationFrameId = window.requestAnimationFrame(draw);
+    // 被隐藏/离屏挂载且功能开启时不启动循环，等门控 resume 唤醒；
+    // 功能关闭时启动语义与原实现一致（直接 legacy 自续约）。
+    // 节流相位也先立即绘制首帧（避免开启/进入稳态后空白 500ms），随后按节流排程。
+    const initialPlan = resolveParticleFramePlan({
+      gated: pauseWhenHiddenRef.current === true,
+      throttleMs: idleThrottleMsRef.current,
+      shouldRun: runState.shouldRun(),
+    });
+    if (initialPlan.kind !== "paused") {
+      scheduler.schedule(
+        initialPlan.kind === "throttled" ? { kind: "immediate" } : initialPlan,
+        draw,
+      );
     }
     return () => {
       observer.disconnect();
-      intersectionObserver?.disconnect();
-      document.removeEventListener("visibilitychange", onVisibilityChange);
-      if (wakeTimerId !== null) window.clearTimeout(wakeTimerId);
-      window.cancelAnimationFrame(animationFrameId);
+      detachGating();
+      scheduler.cancel();
+      syncGatingRef.current = () => {};
     };
   }, [settled]);
+
+  // 开关翻转时重装门控资源并处理暂停态交接（effect 依赖保持 [settled]，
+  // 避免重建 effect 重置 startedAt 导致入场动画重播）。
+  useEffect(() => {
+    syncGatingRef.current();
+  }, [pauseWhenHidden]);
 
   return (
     <div
