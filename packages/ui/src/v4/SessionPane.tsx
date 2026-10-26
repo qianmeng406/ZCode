@@ -5103,7 +5103,10 @@ export function SessionPane({
     if (
       !sessionId ||
       !lease?.store ||
-      !shouldAutoLoadIncompleteLeadingTurn(snapshot, state.loadingOlder)
+      !shouldAutoLoadIncompleteLeadingTurn(snapshot, state.loadingOlder, {
+        // 收纳开启：补到软上限即停，避免长轮/无 header 轮把窗口追到全量。
+        collapseEnabled: conversationWindowCollapseEnabled,
+      })
     ) {
       return;
     }
@@ -5117,13 +5120,22 @@ export function SessionPane({
     // 留在窗口外。旧 UI 只在 scroll 事件到达顶边时 loadOlder；内容不足一屏或 scrollTop
     // 已经为 0 时不会再产生事件，于是只渲染 assistant，必须先下滚再上滚。检测到首 turn
     // 缺 header 后立即逐窗补齐；cursor 去重避免空 range 或失败时 effect 自旋。
+    // collapseIfPinned：贴底时每页补完立即在 header 边界收口——否则自动补齐会把
+    // 窗口一路长到全量，用户先看到全量渲染、下一次视口上报才折叠（冷加载闪全量）。
     logger.debug("[v4-pane] 冷快照首 turn 不完整，自动补拉更早行", {
       firstRowId,
       sessionId,
       turnId: snapshot?.rows.window[0]?.turnId,
     });
-    void lease.store.loadOlder();
-  }, [lease, sessionId, snapshot, state.loadingOlder, state.subscriptionId]);
+    void lease.store.loadOlder(undefined, { collapseIfPinned: true });
+  }, [
+    conversationWindowCollapseEnabled,
+    lease,
+    sessionId,
+    snapshot,
+    state.loadingOlder,
+    state.subscriptionId,
+  ]);
 
   // subscribe ACK 会先把 store 置 live，initial snapshot 稍后才到；只看
   // status 会在无投影窗口提前启用编辑器。正式 session 必须等首个 snapshot 才可输入。

@@ -1565,6 +1565,89 @@ describe("SessionDataLayer", () => {
     expect(snapshot.rows.totalCount).toBe(420);
   });
 
+  it("冷加载自动补齐首轮时贴底收口：窗口不会先长成全量再收纳", async () => {
+    // 12 轮 × 50 行；尾窗取 58 行 → 首行落在 turn 10 中间（header 在窗口外）→
+    // 会触发「首轮不完整自动补齐」链路（冷加载先全量后收纳的真实触发点）。
+    const rowsPerTurn = 50;
+    const allRows: ConversationRow[] = [];
+    for (let turn = 0; turn < 12; turn++) {
+      for (let index = 0; index < rowsPerTurn; index++) {
+        const rowId = turn * rowsPerTurn + index + 1;
+        allRows.push(
+          index === 0
+            ? turnHeaderRow(rowId, `turn-${turn}`)
+            : { ...assistantRow(rowId, `a${rowId}`), turnId: `turn-${turn}` },
+        );
+      }
+    }
+    const initialWindow = allRows.slice(allRows.length - 58);
+    expect(initialWindow[0]!.kind).not.toBe("turnHeader");
+
+    transport.subscribeImpl = (params, subscriptionId) => ({
+      ack: { subscriptionId, mode: "snapshot", logEpoch: "epoch-1" },
+      initialFrame: makeFrame(
+        subscriptionId,
+        0,
+        5,
+        {
+          kind: "snapshot",
+          snapshot: makeSnapshot({
+            seq: 5,
+            rows: { window: initialWindow, totalCount: allRows.length, firstRowId: 1 },
+          }),
+        },
+        params.topic,
+      ),
+    });
+    transport.rowsRangeImpl = (params) => {
+      const endIndex = allRows.findIndex((row) => row.rowId >= params.beforeRowId!);
+      expect(endIndex).toBeGreaterThan(0);
+      const startIndex = Math.max(0, endIndex - (params.limit ?? 60));
+      return {
+        rows: allRows.slice(startIndex, endIndex),
+        atSeq: 5,
+        atRevision: 5,
+        atLogEpoch: "epoch-1",
+        hasMore: startIndex > 0,
+      };
+    };
+
+    const lease = layer.acquire("s1", {
+      prepareStore: (store) => {
+        store.setWindowCollapseEnabled(true);
+        store.setHistoryViewportState({ pinnedToBottom: true });
+      },
+    });
+    try {
+      await flushMicrotasks();
+      let iterations = 0;
+      while (
+        shouldAutoLoadIncompleteLeadingTurn(
+          lease.store.getState().snapshot,
+          lease.store.getState().loadingOlder,
+          { collapseEnabled: true },
+        ) &&
+        iterations < 40
+      ) {
+        await lease.store.loadOlder(undefined, { collapseIfPinned: true });
+        iterations += 1;
+        // 每页增长后立即在 header 边界收口：峰值不超过软上限 + 一页。
+        expect(lease.store.getState().snapshot!.rows.window.length).toBeLessThanOrEqual(
+          CONVERSATION_WINDOW_SOFT_CAP + 60,
+        );
+      }
+      const snapshot = lease.store.getState().snapshot!;
+      expect(iterations).toBeLessThan(40);
+      expect(snapshot.rows.window.length).toBeLessThanOrEqual(CONVERSATION_WINDOW_SOFT_CAP);
+      expect(snapshot.rows.window[0]!.kind).toBe("turnHeader");
+      // 只补了有限页（6 页左右），远小于全量 600 行。
+      expect(transport.rowsRangeCalls.length).toBeLessThan(10);
+      expect(snapshot.rows.totalCount).toBe(allRows.length);
+    } finally {
+      lease.release();
+    }
+  });
+
   it("warm/keep-warm acquire 不重放 prepareStore", async () => {
     const prepared: string[] = [];
     layer.acquire("s1", { prepareStore: () => prepared.push("cold") });
@@ -1871,6 +1954,32 @@ describe("ConversationProjectionStore.loadOlder", () => {
         false,
       ),
     ).toBe(false);
+  });
+
+  it("HLP02：收纳开启时补到软上限即停（长轮/无 header 轮不再追到全量）", () => {
+    const longTurnWindow = Array.from({ length: CONVERSATION_WINDOW_SOFT_CAP }, (_, index) =>
+      assistantRow(index + 1000, `x${index}`),
+    );
+    const atCap = makeSnapshot({
+      rows: { window: longTurnWindow, totalCount: 2000, firstRowId: 1 },
+    });
+    // 原行为：首轮缺 header 就一直补（窗口一路长到全量）。
+    expect(shouldAutoLoadIncompleteLeadingTurn(atCap, false)).toBe(true);
+    // 收纳开启：到上限即停，交给收纳在 header 边界收口。
+    expect(shouldAutoLoadIncompleteLeadingTurn(atCap, false, { collapseEnabled: true })).toBe(
+      false,
+    );
+    // 未到上限：仍允许补页（首屏需要完整首轮）。
+    const belowCap = makeSnapshot({
+      rows: {
+        window: longTurnWindow.slice(0, CONVERSATION_WINDOW_SOFT_CAP - 1),
+        totalCount: 2000,
+        firstRowId: 1,
+      },
+    });
+    expect(shouldAutoLoadIncompleteLeadingTurn(belowCap, false, { collapseEnabled: true })).toBe(
+      true,
+    );
   });
 
   it("以窗口首行为游标拉取并前插；到顶后 hasOlderRows=false", async () => {

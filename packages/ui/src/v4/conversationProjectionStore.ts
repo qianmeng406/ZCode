@@ -249,12 +249,23 @@ export function hasOlderRows(snapshot: ConversationSnapshot | null): boolean {
 /**
  * 冷快照尾窗是否从一个 turn 的中间截断。turnHeader 是完整 turn 的权威起点；首行允许是
  * lightBoundary，因此不能只判断首行 kind，必须检查首个 turn 在当前窗口里是否已有 header。
+ *
+ * collapseEnabled（窗口收纳开启）：窗口达到软上限后停止自动补齐——收纳会把超出部分
+ * 裁掉，继续追 header 在「首轮 header 缺失/超长轮」场景会把窗口一路拉到全量历史
+ * （冷加载"先全量、后收纳"的根因）；到上限后由收纳在 header 边界收口。
  */
 export function shouldAutoLoadIncompleteLeadingTurn(
   snapshot: ConversationSnapshot | null,
   loadingOlder: boolean,
+  options: { collapseEnabled?: boolean } = {},
 ): boolean {
   if (loadingOlder || !hasOlderRows(snapshot) || !snapshot) return false;
+  if (
+    options.collapseEnabled === true &&
+    snapshot.rows.window.length >= CONVERSATION_WINDOW_SOFT_CAP
+  ) {
+    return false;
+  }
   const leadingTurnId = snapshot.rows.window[0]?.turnId;
   if (!leadingTurnId) return false;
   return !snapshot.rows.window.some(
@@ -821,12 +832,16 @@ export class ConversationProjectionStore {
     });
   }
 
-  /** 收纳判据（快照前置裁剪与帧后评估共用）：开关 + 贴底跟随 + 无在途分页。 */
-  private windowCollapseAllowed(): boolean {
+  /**
+   * 收纳判据（快照前置裁剪与帧后评估共用）：开关 + 贴底跟随 + 无在途分页。
+   * ignoreLoadingOlder：loadOlder 自身的收口路径使用——在途标记此刻必然为 true，
+   * 但它就是本次增长的来源，不该反过来阻止裁剪。
+   */
+  private windowCollapseAllowed(options: { ignoreLoadingOlder?: boolean } = {}): boolean {
     return (
       this.windowCollapseEnabled &&
       this.historyViewportState.pinnedToBottom &&
-      !this.state.loadingOlder &&
+      (options.ignoreLoadingOlder === true || !this.state.loadingOlder) &&
       !this.fullHistoryJob
     );
   }
@@ -1297,8 +1312,13 @@ export class ConversationProjectionStore {
    * - 陈旧读防护：atLogEpoch ≠ 当前快照 epoch 的结果整体丢弃（跨 CLI 重启）；
    * - 合并以 rowId 为键：与订阅流的 row.upserted/removed 天然一致，
    *   在途期间到达的 delta 帧不受影响（它们只动 ≥ 窗口首行的行）。
+   * - collapseIfPinned：自动补齐首轮等后台增长路径使用——贴底时在同一 setState 内
+   *   折叠回软上限，避免窗口先长到全量、等下一次视口上报才收纳。
    */
-  async loadOlder(limit: number = PROTOCOL_V4_LIMITS.snapshotTailWindowRows): Promise<void> {
+  async loadOlder(
+    limit: number = PROTOCOL_V4_LIMITS.snapshotTailWindowRows,
+    options: { collapseIfPinned?: boolean } = {},
+  ): Promise<void> {
     if (this.closed || this.state.loadingOlder) return;
     const snapshot = this.state.snapshot;
     if (!hasOlderRows(snapshot) || !snapshot) return;
@@ -1326,8 +1346,17 @@ export class ConversationProjectionStore {
       if (current.rows.window[0]?.rowId !== beforeRowId) return;
       const window = mergeOlderRows(current.rows.window, this.shareRows(result.rows));
       if (window === null) return;
+      const merged = { ...current, rows: { ...current.rows, window } };
+      // 后台自动补页不等待外部视口上报：贴底时立即在 header 边界收口，
+      // 窗口永远不会因自动补齐而长成全量（冷加载"先全量后收纳"的修复点）。
+      const collapsed =
+        options.collapseIfPinned && this.windowCollapseAllowed({ ignoreLoadingOlder: true })
+          ? collapseWindowRows(merged.rows.window)
+          : null;
       this.setState({
-        snapshot: { ...current, rows: { ...current.rows, window } },
+        snapshot: collapsed
+          ? { ...merged, rows: { ...merged.rows, window: collapsed.rows } }
+          : merged,
       });
     } catch (error) {
       // query 只读且可重发：失败不进 error 态，留给下次触发重试。
