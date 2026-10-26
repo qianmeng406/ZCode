@@ -1043,3 +1043,8 @@ exceptions:
     paths:
       - packages/ui/src/hooks/sharedWebRemoteControlStatus.ts
     reason: 远控状态共享轮询模块（性能开关 dedupedIdlePollingEnabled）：WeakMap 按 platform 复用单 interval/单事件订阅、引用计数拆除，状态相等性去重从 useWebRemoteControlStatus 迁入并导出复用；开关关闭时 hook 逐实例路径与原实现一致。
+  - id: local-ttft-bootstrap-unmanaged-change
+    rule: unmanaged-new-file
+    paths:
+      - packages/desktop/src/renderer/src/localTtftBootstrap.ts
+    reason: 既有 desktop renderer 启动文件（开源基线 872ad960 引入），本次仅为其增加 LocalTtftTimerHost 注入点与 flush 定时器生命周期（性能开关 dedupedIdlePollingEnabled），不是新增模块；接管 desktop 目录并为其登记 managed 模块不在本次性能优化范围内，与既有 desktop/ui 未受管目录豁免同因。
