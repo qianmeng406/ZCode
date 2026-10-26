@@ -61,6 +61,7 @@ import { resolveWorkflowQuestionToolEntry } from "./resolve-workflow-question.js
 import { fillWorkflowHoleToolEntry } from "./fill-workflow-hole.js";
 import { taskOutputToolEntry } from "./task-output.js";
 import { monitorToolEntry } from "./monitor.js";
+import { notebookEditToolEntry } from "./notebook-edit.js";
 import { taskStopToolEntry } from "./task-stop.js";
 import { readSessionContextToolEntry } from "./read-session-context.js";
 import { amendWorkflowToolEntry } from "./amend-workflow.js";
@@ -116,6 +117,8 @@ export const builtInTools: ToolEntry[] = [
   taskOutputToolEntry,
   // fork 定制：等待条件原语（默认不注册，由 forkToolSwitches.monitorTool 打开）。
   monitorToolEntry,
+  // fork 定制：.ipynb 按 cell 编辑（默认不注册，由 forkToolSwitches.notebookEdit 打开）。
+  notebookEditToolEntry,
   taskStopToolEntry,
   readSessionContextToolEntry,
   replyToChannelToolEntry,

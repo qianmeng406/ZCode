@@ -216,8 +216,10 @@ export interface ReadNotebookOutput {
 }
 
 export interface NotebookCell {
-  cellType: "code" | "markdown";
+  cellType: "code" | "markdown" | "raw";
   source: string;
+  /** nbformat 4.5+ 的 cell id；NotebookEdit 用它定位（优先于 cell_index）。 */
+  cellId?: string;
   outputs?: CellOutput[];
 }
 
@@ -322,8 +324,9 @@ export const ReadCellOutputSchema = z
 
 export const ReadNotebookCellSchema = z
   .object({
-    cellType: z.enum(["code", "markdown"]),
+    cellType: z.enum(["code", "markdown", "raw"]),
     source: z.string(),
+    cellId: z.string().optional(),
     outputs: z.array(ReadCellOutputSchema).optional(),
   })
   .strict();

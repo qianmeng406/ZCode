@@ -13,6 +13,7 @@ import type {
 } from "../types.js";
 import {
   CoreErrorType,
+  NOTEBOOK_EDIT_TOOL_NAME,
   READ_DEFAULT_MAX_LINES,
   READ_MAX_FILE_SIZE_BYTES,
   ReadInputJsonSchema,
@@ -24,6 +25,7 @@ import {
   isFileSystemPortError,
   type ReadInput,
   type ReadImageOutput,
+  type ReadNotebookOutput,
   type ReadVideoOutput,
   type ModelMessageContent,
   type ReadOutput,
@@ -32,6 +34,7 @@ import {
   type TraceContext,
 } from "@zcode/contracts";
 import { resolveWorkspacePath } from "../path-policy.js";
+import { parseNotebookDocument, toNotebookCells } from "../notebook/notebookDocument.js";
 import { createReadFileStateKey, normalizeReadFileStateMtimeMs } from "../read-file-state.js";
 import { createReadFileStateMetadata } from "../read-file-state-metadata.js";
 import { inferImageMimeFromPath, readImageFile } from "./read-image.js";
@@ -93,7 +96,7 @@ function formatReadOutput(output: ReadOutput): ModelMessageContent {
     case "parts":
       return formatReadPdfPagesOutput(output);
     case "notebook":
-      return stringifyReadOutputFallback(output);
+      return formatReadNotebookOutput(output);
   }
 }
 
@@ -138,6 +141,82 @@ function stringifyReadOutputFallback(output: unknown): string {
   return JSON.stringify(output) ?? "";
 }
 
+const NOTEBOOK_MAX_READ_BYTES = 32 * 1024 * 1024;
+const NOTEBOOK_MODEL_OUTPUT_MAX_CHARS = 1_500;
+const NOTEBOOK_MODEL_TOTAL_MAX_CHARS = 40_000;
+
+function isNotebookPath(filePath: string): boolean {
+  return filePath.toLowerCase().endsWith(".ipynb");
+}
+
+async function tryReadNotebookFile(
+  filePath: string,
+  context: ToolExecutionContext,
+): Promise<ReadNotebookOutput | undefined> {
+  const fileSystemPort = context.fileSystemPort;
+  if (!fileSystemPort) return undefined;
+  try {
+    const read = await fileSystemPort.readTextFile(
+      { path: filePath, maxBytes: NOTEBOOK_MAX_READ_BYTES, trace: createReadTrace(context) },
+      { signal: context.abortSignal },
+    );
+    if (read.truncated) return undefined;
+    const parsed = parseNotebookDocument(read.content);
+    if ("ok" in parsed) return undefined;
+    return {
+      type: "notebook",
+      notebookPath: filePath,
+      cells: toNotebookCells(parsed.document),
+    } satisfies ReadNotebookOutput;
+  } catch {
+    // not_found 等交给通用文本路径产生原本的错误契约。
+    return undefined;
+  }
+}
+
+function formatReadNotebookOutput(output: ReadNotebookOutput): string {
+  const parts: string[] = [`<notebook path="${output.notebookPath}" cells="${output.cells.length}">`];
+  let remaining = NOTEBOOK_MODEL_TOTAL_MAX_CHARS;
+  let omitted = 0;
+  output.cells.forEach((cell, index) => {
+    if (remaining <= 0) {
+      omitted += 1;
+      return;
+    }
+    const attributes = `index="${index}"${cell.cellId === undefined ? "" : ` id="${cell.cellId}"`} type="${cell.cellType}"`;
+    const block = [
+      `<cell ${attributes}>`,
+      clipForModel(cell.source, remaining),
+      ...formatNotebookCellOutputs(cell.outputs, remaining),
+      "</cell>",
+    ].join("\n");
+    parts.push(block);
+    remaining -= block.length;
+  });
+  parts.push("</notebook>");
+  if (omitted > 0) {
+    parts.push(`(${omitted} cells omitted: notebook exceeds the model content budget)`);
+  }
+  return parts.join("\n");
+}
+
+function formatNotebookCellOutputs(
+  outputs: ReadNotebookOutput["cells"][number]["outputs"],
+  remaining: number,
+): string[] {
+  if (outputs === undefined || outputs.length === 0) return [];
+  return outputs.map(
+    (output) =>
+      `[${output.type}] ${clipForModel(output.text.trimEnd(), Math.min(remaining, NOTEBOOK_MODEL_OUTPUT_MAX_CHARS))}`,
+  );
+}
+
+function clipForModel(text: string, limit: number): string {
+  if (limit <= 0) return "";
+  if (text.length <= limit) return text;
+  return `${text.slice(0, limit)}\n… (truncated)`;
+}
+
 export const readHandler: ToolHandler = async (input, context) => {
   const { file_path, offset, limit, pages } = parseReadInput(input);
   const fileSystemPort = context.fileSystemPort;
@@ -176,6 +255,19 @@ export const readHandler: ToolHandler = async (input, context) => {
 
     if (isPdfPath(filePath) && supportsPdfForExecution(context)) {
       return await readPdfFile({ filePath, pages }, context);
+    }
+
+    // NotebookEdit 是否注册就是 fork 开关的运行时事实；开关关闭时 notebook 继续按 JSON 文本读取，
+    // 与改动前完全一致。解析失败/超限同样退回文本路径，不让新渲染挡住一个本可读的文件。
+    // 显式 offset/limit 仍走行切片：那是对「这几行」的请求，不能被 cell 投影吞掉。
+    if (
+      isNotebookPath(filePath) &&
+      offset === undefined &&
+      limit === undefined &&
+      context.providerVisibleToolNames?.includes(NOTEBOOK_EDIT_TOOL_NAME) === true
+    ) {
+      const notebookOutput = await tryReadNotebookFile(filePath, context);
+      if (notebookOutput) return notebookOutput;
     }
 
     const trace = createReadTrace(context);

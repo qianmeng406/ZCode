@@ -12,7 +12,7 @@
 ## 非范围
 
 - 不实现 seed read state。
-- 不实现 NotebookEdit。
+- 不在 Bash 侧为 notebook 增加识别或回填。NotebookEdit 作为独立的 fork 工具（默认关闭）在自身 handler 写 readFileState 与 metadata（`tool: "NotebookEdit"`），不经过本文件描述的 Bash 判定链。
 - 不修改 prompt 或 provider-visible tool 列表。
 - 不持久化 Bash 产生的 read-state metadata。
 

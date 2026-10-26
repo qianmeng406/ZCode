@@ -1070,3 +1070,10 @@ exceptions:
       - apps/zcode-cli/packages/contracts/src/tools/monitor.ts
       - apps/zcode-cli/packages/core/src/tool/handlers/monitor.ts
     reason: fork 定制功能 Monitor（等待条件原语）的契约与 handler，默认不注册、由 forkToolSwitches 显式打开；与 task-output 的契约/handler 同结构同目录。apps/zcode-cli 整体未受管，登记 tools 目录为 managed 模块不在本次范围内。
+  - id: notebook-edit-tool-unmanaged-new
+    rule: unmanaged-new-file
+    paths:
+      - apps/zcode-cli/packages/contracts/src/tools/notebook-edit.ts
+      - apps/zcode-cli/packages/core/src/tool/handlers/notebook-edit.ts
+      - apps/zcode-cli/packages/core/src/tool/notebook/notebookDocument.ts
+    reason: fork 定制功能 NotebookEdit（.ipynb 按 cell 读写）的契约、handler 与 nbformat 保真纯函数模块。纯函数独立成文件是为了用无 I/O 的表驱动单测钉住「其它 cell/metadata/行尾/缩进原样保留」；三者与 edit/write 的契约、handler 同结构同目录。apps/zcode-cli 整体未受管，登记 tools 目录为 managed 模块不在本次范围内。

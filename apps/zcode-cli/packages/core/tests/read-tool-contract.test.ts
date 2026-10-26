@@ -588,17 +588,20 @@ describeReadStrictContract("Read strict model-result contract", () => {
       }),
     });
 
-    const result = await readForModel({ file_path: file }, contextWith(fs));
+    const result = await readForModel(
+      { file_path: file },
+      contextWith(fs, { providerVisibleToolNames: ["Read", "NotebookEdit"] }),
+    );
 
     expect(result.output).toMatchObject({
       type: "notebook",
       notebookPath: file,
     });
     expect(asModelText(result.modelContent)).toContain(
-      '<cell id="markdown-1"><cell_type>markdown</cell_type># Title\nbody</cell id="markdown-1">',
+      '<cell index="0" id="markdown-1" type="markdown">\n# Title\nbody\n</cell>',
     );
     expect(asModelText(result.modelContent)).toContain(
-      '<cell id="code-1">print(\'hi\')</cell id="code-1">',
+      '<cell index="1" id="code-1" type="code">\nprint(\'hi\')\n[stream] hi\n</cell>',
     );
   });
 
@@ -704,6 +707,8 @@ function contextWith(
     readFileState?: ReadFileStateMap;
     workingDirectory?: string;
     workspaceRoot?: string;
+    /** NotebookEdit 是否在本次会话的工具面上（fork 开关的运行时事实）。 */
+    providerVisibleToolNames?: readonly string[];
   } = {},
 ): ToolExecutionContext {
   return {
@@ -716,6 +721,7 @@ function contextWith(
     readFileState: options.readFileState,
     workingDirectory: options.workingDirectory ?? tmpDir,
     workspaceRoot: options.workspaceRoot ?? tmpDir,
+    providerVisibleToolNames: options.providerVisibleToolNames,
     sessionId: "sess_test",
     turnId: "turn_test",
   };
