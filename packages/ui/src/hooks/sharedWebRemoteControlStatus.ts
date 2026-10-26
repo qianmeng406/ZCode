@@ -54,14 +54,26 @@ export interface SharedWebRemoteControlPoller {
   getStatus(): WebRemoteControlStatus;
 }
 
-const pollers = new WeakMap<object, SharedWebRemoteControlPoller>();
+// 键含 intervalMs：不同调用点若用不同周期，不能静默复用首个周期（同一 platform+周期
+// 才合并为单链）。当前三处均为 1000ms，分键是防御性约束。
+const pollers = new WeakMap<object, Map<number, SharedWebRemoteControlPoller>>();
+
+function pollersForPlatform(platform: object): Map<number, SharedWebRemoteControlPoller> {
+  let byInterval = pollers.get(platform);
+  if (!byInterval) {
+    byInterval = new Map();
+    pollers.set(platform, byInterval);
+  }
+  return byInterval;
+}
 
 export function getSharedWebRemoteControlPoller(
   platform: SharedWebRemoteControlPlatform,
   intervalMs: number,
   timerHost: SharedWebRemoteControlTimerHost = defaultTimerHost,
 ): SharedWebRemoteControlPoller {
-  const existing = pollers.get(platform);
+  const byInterval = pollersForPlatform(platform);
+  const existing = byInterval.get(intervalMs);
   if (existing) return existing;
 
   let status: WebRemoteControlStatus = { status: "idle" };
@@ -104,13 +116,14 @@ export function getSharedWebRemoteControlPoller(
         timerHost.clearInterval(intervalHandle);
         intervalHandle = null;
         disposeStatusChanged?.();
-        pollers.delete(platform);
+        byInterval.delete(intervalMs);
+        if (byInterval.size === 0) pollers.delete(platform);
       };
     },
     getStatus() {
       return status;
     },
   };
-  pollers.set(platform, poller);
+  byInterval.set(intervalMs, poller);
   return poller;
 }

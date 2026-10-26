@@ -3,7 +3,7 @@ import { ComposerSubmissionPendingContext } from "@/project-sidebar/index.js";
 import { useRemoteProjectReconnect } from "@/hooks/RemoteProjectPresentationContext.js";
 import { useOptionalRemoteWorkspaceController } from "@/remote/useRemoteWorkspaceController.js";
 import { useOptionalTabStore } from "@/store/TabStoreProvider.js";
-import { useZCodeStore } from "@/store/StoreProvider.js";
+import { useZCodeStoreWithDefault } from "@/store/StoreProvider.js";
 import { useRemoteConversationAvailable } from "@/v4/RemoteConversationAvailability.js";
 import { getLocalTtftObserver } from "@/v4/telemetry/localTtftObserver.js";
 import { formatConversationWorkDuration } from "@/v4/conversationWorkDuration.js";
@@ -662,8 +662,11 @@ function ConversationComposerImpl({
   const disabled = disabledProp || !remoteAvailable || targetSelectionPending;
   const { intl, locale } = useZCodeIntl();
   // 性能开关 idleParticlePauseEnabled：Highspeed 输入壳粒子层的空闲收敛（默认关闭）。
-  const idleParticlePauseEnabled = useZCodeStore(
+  // 与 SessionPane 同模式用 WithDefault：多个 composer 单测只 mock 该导出，且缺
+  // StoreProvider 时按默认 false 渲染（useZCodeStore 会直接抛错）。
+  const idleParticlePauseEnabled = useZCodeStoreWithDefault(
     (state) => state.idleParticlePauseEnabled === true,
+    false,
   );
   const services = useOptionalServices();
   const conversationTelemetry = useScopedConversationTelemetrySupervisor({

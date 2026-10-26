@@ -112,3 +112,20 @@ describe("getSharedWebRemoteControlPoller", () => {
 function createTimerHost() {
   return createFakeTimerHost();
 }
+
+describe("getSharedWebRemoteControlPoller 分键（review #6）", () => {
+  it("不同 intervalMs 不静默复用首个周期：按 (platform, intervalMs) 分键", () => {
+    const timers = createFakeTimerHost();
+    const { platform } = createPlatform([{ status: "idle" }]);
+    const poller1000 = getSharedWebRemoteControlPoller(platform, 1000, timers);
+    const poller2000 = getSharedWebRemoteControlPoller(platform, 2000, timers);
+    expect(poller1000).not.toBe(poller2000);
+    // 各自起链、互不干扰
+    const offFast = poller1000.subscribe(() => {});
+    const offSlow = poller2000.subscribe(() => {});
+    expect(timers.activeCount()).toBe(2);
+    offFast();
+    offSlow();
+    expect(timers.activeCount()).toBe(0);
+  });
+});
