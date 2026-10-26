@@ -1196,6 +1196,34 @@ test("把关请求选项：模型缺失返回 null；无视图时只回 selectio
   assert.deepEqual(resolveOracleRequestOptions(selection, null), { selection });
 });
 
+test("把关请求选项：跟随会话模型取 effectiveSelection，不回退到 preferredSelection", () => {
+  const sessionSelection = {
+    providerId: "deepseek",
+    modelId: "deepseek-v4.1-flash",
+    options: { reasoningLevel: "low" },
+  };
+  const preferred = {
+    providerId: "cmd3",
+    modelId: "z-ai/glm-5.3-flash",
+    options: { reasoningLevel: "low" },
+  };
+  const view = {
+    revision: 1,
+    providers: [],
+    // preferredSelection 是 Host 初始推荐/配置默认模型，不是会话当前模型。
+    preferredSelection: preferred,
+    effectiveSelection: sessionSelection,
+  } as never;
+  assert.deepEqual(resolveOracleRequestOptions(null, view), { selection: sessionSelection });
+  // 显式设置的审查模型仍优先于会话选择。
+  assert.deepEqual(resolveOracleRequestOptions(preferred, view), { selection: preferred });
+  // 会话没有当前选择时如实报 no-model，不偷偷换成配置默认模型。
+  assert.equal(
+    resolveOracleRequestOptions(null, { ...view, effectiveSelection: null } as never),
+    null,
+  );
+});
+
 test("深度审查工具事件：有界累积保留最近 N 条", () => {
   let events = appendOracleReviewToolEvent([], { round: 1, toolName: "Read", target: "a.ts" });
   assert.deepEqual(events, [{ round: 1, toolName: "Read", target: "a.ts" }]);

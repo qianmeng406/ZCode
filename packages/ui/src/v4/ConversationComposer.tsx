@@ -1356,7 +1356,9 @@ function ConversationComposerImpl({
     }
     // 模型解析必须是同步的：await 之后再分配请求身份会留下重复请求与取消空窗，
     // 所以这里用组件已有的 ModelSelectionView 直接算出推理档清单。
-    const pick = promptOptimizerModel ?? modelSelectionView?.preferredSelection ?? null;
+    // 「跟随会话模型」取 effectiveSelection（会话当前选择）；preferredSelection 是
+    // Host 配置默认模型，用它会让「跟随」变成「跟随默认模型」。
+    const pick = promptOptimizerModel ?? modelSelectionView?.effectiveSelection ?? null;
     const pickedModel = pick
       ? modelSelectionView?.providers
           .find((provider) => provider.providerId === pick.providerId)

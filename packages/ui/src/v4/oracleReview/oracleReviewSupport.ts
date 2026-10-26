@@ -311,7 +311,10 @@ export function resolveOracleRequestOptions(
   oracleModel: ModelSelection | null,
   modelSelectionView: ModelSelectionView | null | undefined,
 ): { selection: ModelSelection; maxOutputTokens?: number } | null {
-  const selection = oracleModel ?? modelSelectionView?.preferredSelection ?? null;
+  // 「跟随会话模型」只能取视图对**会话当前选择**的解析结果（effectiveSelection）；
+  // preferredSelection 是 Host 初始推荐/配置默认模型，不随会话换模型，拿它会把
+  // 「跟随」变成「跟随默认模型」（实测：会话用 deepseek，审查却跑 cmd3/glm）。
+  const selection = oracleModel ?? modelSelectionView?.effectiveSelection ?? null;
   if (!selection) {
     return null;
   }
