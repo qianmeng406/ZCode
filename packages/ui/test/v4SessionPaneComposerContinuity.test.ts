@@ -1,6 +1,7 @@
 import { act, createElement, useEffect, useLayoutEffect, useRef, type ReactNode } from "react";
 import { createRoot, type Root } from "react-dom/client";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { DEFAULT_FORK_FEATURES } from "@zcode/shared";
 import type { ConversationSnapshot } from "@zcode/shared/zcode-protocol-v4";
 import { ZCodeIntlProvider } from "@/i18n/IntlProvider.js";
 import { useZCodeSessionStore } from "@/store/zcodeSessionStore.js";
@@ -40,6 +41,11 @@ const projectionState = vi.hoisted(() => ({
   current: null as ProjectionState | null,
 }));
 
+// settings 快照本身是可变事实（开关切换会重新渲染 pane），mock 必须读同一个引用。
+const settingsState = vi.hoisted(() => ({
+  current: { zcodeInteractionBehavior: "queue" } as Record<string, unknown>,
+}));
+
 const composerLifecycle = vi.hoisted(() => ({
   disabledStates: [] as boolean[],
   mounts: 0,
@@ -50,6 +56,7 @@ const composerLifecycle = vi.hoisted(() => ({
 
 const scrollFocus = vi.hoisted(() => ({
   composerProps: null as null | {
+    promptOptimizerEnabled?: boolean;
     onOpenRunningBackgroundWorks?: () => void;
     onSendText: (
       text: string,
@@ -215,7 +222,7 @@ vi.mock("@/store/StoreProvider.js", () => ({
 
 vi.mock("@/hooks/useSettingService.js", () => ({
   useSettings: () => ({
-    settings: { zcodeInteractionBehavior: "queue" },
+    settings: settingsState.current,
     loading: false,
     error: null,
     update: vi.fn(async () => {}),
@@ -548,6 +555,7 @@ function renderPane(
 
 beforeEach(() => {
   servicesMock.projectService.resolveSessionDirectories.mockClear();
+  settingsState.current = { zcodeInteractionBehavior: "queue" };
   sessionCreateCapture.report.mockClear();
   recoveryCapture.entries = [];
   recoveryCapture.onResend = null;
@@ -1255,5 +1263,25 @@ describe("SessionPane composer continuity", () => {
     renderPane(root, "session-2");
     expect(scrollFocus.statusPanelProps?.agentSectionOpen).toBe(false);
     expect(scrollFocus.composerProps?.onOpenRunningBackgroundWorks).toBeUndefined();
+  });
+
+  // fork 开关「提示词优化」：宿主必须把设置值透传给 composer，否则关掉开关后 ✨
+  // 入口与优化请求都还在（组件自身默认 true，不能靠默认值掩盖漏传）。
+  it("forwards the prompt optimizer fork switch to the composer", () => {
+    const root = createRoot(installMinimalDom());
+    mountedRoots.push(root);
+    settingsState.current = {
+      zcodeInteractionBehavior: "queue",
+      forkFeatures: { ...DEFAULT_FORK_FEATURES, promptOptimizer: false },
+    };
+    renderPane(root, "session-1");
+    expect(scrollFocus.composerProps?.promptOptimizerEnabled).toBe(false);
+
+    settingsState.current = {
+      zcodeInteractionBehavior: "queue",
+      forkFeatures: { ...DEFAULT_FORK_FEATURES, promptOptimizer: true },
+    };
+    renderPane(root, "session-1");
+    expect(scrollFocus.composerProps?.promptOptimizerEnabled).toBe(true);
   });
 });

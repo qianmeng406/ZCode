@@ -13,7 +13,7 @@ import {
   expectTestIdAbsentThroughout,
   openAutomationsPage,
   openDynamicWorkflowModeSelect,
-  openGeneralSettings,
+  openForkFeaturesSettings,
   openPlusMenu,
   readDynamicWorkflowGrayMockStatus,
   readDynamicWorkflowModeTriggerText,
@@ -51,8 +51,8 @@ describe("动态工作流用户选择（服务端 alwaysOn）", () => {
       { timeout: 60000, timeoutMsg: "Host 没有向 case-local 配置网关请求 /client/configs" },
     );
 
-    // 1) 设置 › 常规：未选择时显示服务端下发的「始终开启」，「默认」标签只在它上面。
-    await openGeneralSettings();
+    // 1) 设置 › 定制功能：未选择时显示服务端下发的「始终开启」，「默认」标签只在它上面。
+    await openForkFeaturesSettings();
     await browser.waitUntil(
       async () => (await readDynamicWorkflowModeTriggerText()).includes("始终开启"),
       { timeout: 30000, timeoutMsg: "动态工作流模式行没有显示服务端默认的「始终开启」" },
@@ -92,7 +92,7 @@ describe("动态工作流用户选择（服务端 alwaysOn）", () => {
     );
 
     // 5) 选回带「默认」的「始终开启」：设置文件里的选择被删除（跟随服务端），工作流标签回来。
-    await openGeneralSettings();
+    await openForkFeaturesSettings();
     await selectDynamicWorkflowMode("alwaysOn");
     await browser.waitUntil(async () => !("dynamicWorkflowMode" in (await readSettings())), {
       timeout: 15000,

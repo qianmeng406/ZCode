@@ -147,16 +147,19 @@ export async function expectTestIdAbsentThroughout(
   }
 }
 
-/** 打开设置 › 常规（动态工作流模式行所在的分区，launch.md「The user's choice」）。 */
-export async function openGeneralSettings(): Promise<void> {
+/**
+ * 打开设置 › 定制功能（动态工作流模式行所在的分区，launch.md「The user's choice」）。
+ * 该行已从「常规」搬迁到 fork 专属分区，常规页不再保留第二入口。
+ */
+export async function openForkFeaturesSettings(): Promise<void> {
   await clickTestIdByDom(TID_TASK_SETTINGS_BUTTON, {
     timeout: 15000,
     timeoutMsg: "没有找到设置入口按钮",
   });
   await $(sel(TID_SETTINGS_PAGE)).waitForDisplayed({ timeout: 15000 });
-  await clickTestIdByDom(testId(TID_SETTINGS_SECTION_NAV, "general"), {
+  await clickTestIdByDom(testId(TID_SETTINGS_SECTION_NAV, "forkFeatures"), {
     timeout: 15000,
-    timeoutMsg: "设置页没有出现常规分区入口",
+    timeoutMsg: "设置页没有出现定制功能分区入口",
   });
 }
 

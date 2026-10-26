@@ -6032,6 +6032,9 @@ export function SessionPane({
       promptOptimizerModel={promptOptimizerModel}
       promptOptimizerMode={promptOptimizerMode}
       promptOptimizerContextRange={promptOptimizerContextRange}
+      // fork 开关「提示词优化」：关闭时 Composer 不渲染 ✨ 也不发优化请求，
+      // 必须由宿主传入——组件默认 true 只用于设置尚未加载的瞬间。
+      promptOptimizerEnabled={sharedSettings?.forkFeatures?.promptOptimizer}
       // 草稿 taskId 仍为 null，但 prewarm 已经拥有独立 AgentRuntime。
       // 只给 Skill catalog 下发 effective id，避免 UI 扫到 prewarm runtime 尚未加载的新 Skill。
       skillCatalogSessionId={effectiveSessionId}

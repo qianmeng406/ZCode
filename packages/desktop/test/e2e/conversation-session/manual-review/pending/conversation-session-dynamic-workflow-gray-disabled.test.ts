@@ -16,7 +16,7 @@ import {
   hasTestIdInDom,
   openAutomationsPage,
   openDynamicWorkflowModeSelect,
-  openGeneralSettings,
+  openForkFeaturesSettings,
   openPlusMenu,
   openSlashPanelWithCatalogReady,
   readDynamicWorkflowGrayMockStatus,
@@ -87,8 +87,8 @@ describe("动态工作流灰度未命中（disabled）", () => {
   it("DWG-23 默认关闭时设置行照样出现，选「始终开启」后工作流入口回来", async function () {
     this.timeout(240000);
 
-    // 1) 设置 › 常规：服务端没下发 key，行仍在，显示「关闭」，「默认」标签只在「关闭」上。
-    await openGeneralSettings();
+    // 1) 设置 › 定制功能：服务端没下发 key，行仍在，显示「关闭」，「默认」标签只在「关闭」上。
+    await openForkFeaturesSettings();
     await browser.waitUntil(
       async () => (await readDynamicWorkflowModeTriggerText()).includes("关闭"),
       { timeout: 30000, timeoutMsg: "服务端默认关闭时动态工作流模式行没有出现或没有显示「关闭」" },
