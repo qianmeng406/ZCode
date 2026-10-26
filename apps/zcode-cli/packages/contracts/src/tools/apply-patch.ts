@@ -22,6 +22,13 @@ export const ApplyPatchFileChangeSchema = z
     filePath: z.string(),
     type: z.enum(["add", "update", "delete", "move"]),
     movePath: z.string().optional(),
+    /**
+     * 变更前的逻辑文本（LF 归一化）。`add` 为 null——文件原本不存在。
+     * 与 `content` 一起构成 rewind 的 workspace checkpoint 事实。
+     */
+    originalFile: z.string().nullable(),
+    /** 变更后的逻辑文本（LF 归一化）；`delete` 与 `move` 的源文件为 null（文件不再存在）。 */
+    content: z.string().nullable(),
     structuredPatch: z.array(EditDiffHunkSchema),
     additions: z.number().int().nonnegative(),
     deletions: z.number().int().nonnegative(),
@@ -32,6 +39,9 @@ export interface ApplyPatchFileChange {
   filePath: string;
   type: "add" | "update" | "delete" | "move";
   movePath?: string;
+  originalFile: string | null;
+  /** `delete` 为 null；`move` 为目标路径的内容。 */
+  content: string | null;
   structuredPatch: DiffHunk[];
   additions: number;
   deletions: number;

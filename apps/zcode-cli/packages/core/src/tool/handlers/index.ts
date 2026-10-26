@@ -24,6 +24,7 @@ import { toolSearchToolEntry } from "./tool-search.js";
 import { readToolEntry } from "./read.js";
 import { writeToolEntry } from "./write.js";
 import { editToolEntry } from "./edit.js";
+import { applyPatchToolEntry } from "./apply-patch.js";
 import { bashToolEntry, createBashToolEntry } from "./bash.js";
 import type { BashTimeoutPolicy } from "../bash-timeout-policy.js";
 import { createJsToolEntry, jsToolEntry } from "./node-repl.js";
@@ -88,7 +89,8 @@ export const builtInTools: ToolEntry[] = [
   readToolEntry,
   writeToolEntry,
   editToolEntry,
-  // applyPatchToolEntry,
+  // fork 定制：结构化补丁编辑（默认不注册，由 forkToolSwitches.applyPatch 打开）。
+  applyPatchToolEntry,
   bashToolEntry,
   globToolEntry,
   grepToolEntry,

@@ -2,7 +2,7 @@ import { describe, expect, it, vi } from "vitest";
 import { createToolRegistry, registerBuiltInTools } from "../src/tool/index.js";
 import { notebookEditToolEntry } from "../src/tool/handlers/notebook-edit.js";
 import { readToolEntry } from "../src/tool/handlers/read.js";
-import { getFileMutationCheckpointCandidate } from "../src/runtime/helpers/rewind.js";
+import { getFileMutationCheckpointCandidates } from "../src/runtime/helpers/rewind.js";
 import type { ReadFileStateEntry, ToolExecutionContext } from "../src/tool/types.js";
 import { createTestRuntimeModel } from "./test-runtime-model.js";
 
@@ -36,7 +36,9 @@ interface Writer {
   writes: Array<Record<string, unknown>>;
 }
 
-function createFileSystem(overrides: { content?: string; lineEndings?: "LF" | "CRLF" } = {}): Writer {
+function createFileSystem(
+  overrides: { content?: string; lineEndings?: "LF" | "CRLF" } = {},
+): Writer {
   const writes: Array<Record<string, unknown>> = [];
   const readTextFile = vi.fn(async () => ({
     path: "/workspace/analysis.ipynb",
@@ -195,10 +197,12 @@ describe("NotebookEdit tool", () => {
       context,
     );
 
-    expect(getFileMutationCheckpointCandidate(result)).toMatchObject({
-      filePath: "/workspace/analysis.ipynb",
-      originalFile: NOTEBOOK,
-    });
+    expect(getFileMutationCheckpointCandidates(result)).toMatchObject([
+      {
+        filePath: "/workspace/analysis.ipynb",
+        originalFile: NOTEBOOK,
+      },
+    ]);
   });
 
   it("业务失败用 code + message 表达，不写文件", async () => {
@@ -215,7 +219,12 @@ describe("NotebookEdit tool", () => {
 
     await expect(
       runEdit(
-        { file_path: "/workspace/analysis.ipynb", edit_mode: "replace", cell_id: "ghost", new_source: "x" },
+        {
+          file_path: "/workspace/analysis.ipynb",
+          edit_mode: "replace",
+          cell_id: "ghost",
+          new_source: "x",
+        },
         context,
       ),
     ).resolves.toMatchObject({ result: false, errorCode: 2 });
@@ -224,7 +233,7 @@ describe("NotebookEdit tool", () => {
   });
 
   it("非法 notebook 与不可读文件都退回业务失败而不是抛异常", async () => {
-    const invalid = createFileSystem({ content: "{\"cells\": [], \"nbformat\": 3}" });
+    const invalid = createFileSystem({ content: '{"cells": [], "nbformat": 3}' });
     await expect(
       runEdit(
         { file_path: "/workspace/analysis.ipynb", edit_mode: "delete", cell_index: 0 },

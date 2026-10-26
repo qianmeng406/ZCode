@@ -111,7 +111,11 @@ export const workspaceCheckpointArtifactSchema = z
             path: z.string().min(1),
             existedBefore: z.boolean(),
             beforeContent: z.string().nullable(),
-            afterContent: z.string().optional(),
+            /**
+             * 变更后的内容。null 表示变更后文件不存在（删除、move 的源文件），
+             * rewind 校验时按「missing」比对，而不是按空文件比对。
+             */
+            afterContent: z.string().nullable().optional(),
             afterContentLength: z.number().int().nonnegative().optional(),
             structuredPatch: z.array(diffHunkSchema),
           })

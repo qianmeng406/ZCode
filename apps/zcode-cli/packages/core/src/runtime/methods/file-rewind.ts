@@ -104,8 +104,7 @@ export async function applyWorkspaceFileRewind(
     commitAfterApply?: () => Promise<void>;
   } = {},
 ): Promise<WorkspaceFileRewindApplyResult> {
-  const traceContext =
-    options.traceContext ?? getCurrentTraceContext() ?? this.rootTraceContext;
+  const traceContext = options.traceContext ?? getCurrentTraceContext() ?? this.rootTraceContext;
   const plan = await buildWorkspaceFileRewindPlan.call(this, {
     ...options,
     traceContext,
@@ -285,8 +284,7 @@ async function buildWorkspaceFileRewindPlan(
     traceContext?: TraceContext;
   },
 ): Promise<WorkspaceFileRewindPlan> {
-  const traceContext =
-    options.traceContext ?? getCurrentTraceContext() ?? this.rootTraceContext;
+  const traceContext = options.traceContext ?? getCurrentTraceContext() ?? this.rootTraceContext;
   if (!this.artifactStore || !this.fileSystemPort) {
     return {
       canApply: false,
@@ -509,10 +507,7 @@ function resolveTargetCheckpoints(
       .map((event) => event.payload)
       .filter((payload): payload is CheckpointCreatedPayload => {
         const checkpoint = payload as Partial<CheckpointCreatedPayload>;
-        return (
-          checkpoint.scope === RewindScope.Workspace ||
-          checkpoint.scope === RewindScope.Both
-        );
+        return checkpoint.scope === RewindScope.Workspace || checkpoint.scope === RewindScope.Both;
       });
   }
 
@@ -526,6 +521,10 @@ function resolveCheckpointAfterContent(
   const afterContent = (file as { afterContent?: unknown }).afterContent;
   if (typeof afterContent === "string") {
     return afterContent;
+  }
+  // null = 变更后文件不存在（ApplyPatch 的 delete 与 move 源文件）；校验按 hashContent(null)="missing" 比对。
+  if (afterContent === null) {
+    return null;
   }
 
   if (!file.existedBefore && file.beforeContent === null && file.structuredPatch.length === 0) {

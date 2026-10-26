@@ -1,5 +1,6 @@
 const SORTED_PROVIDER_TOOL_NAMES = new Set([
   "Agent",
+  "ApplyPatch",
   "AskUserQuestion",
   "Bash",
   "CronCreate",

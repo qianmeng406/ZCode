@@ -10,6 +10,8 @@ export type PersistedReadFileStateTool =
   | "Write"
   | "Edit"
   | "NotebookEdit"
+  /** 仅存在于内存 readFileState：多文件变更共用一份 metadata 槽位，ApplyPatch 不持久化。 */
+  | "ApplyPatch"
   | "CreateWorkflow"
   | "AmendWorkflow"
   | "FillWorkflowHole";

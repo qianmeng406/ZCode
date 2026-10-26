@@ -23,7 +23,8 @@ import { sanitizeSystemReminderBody } from "../../system-reminder/source.js";
 export const WORKSPACE_CHECKPOINT_CONTENT_TYPE = "application/vnd.zcode.workspace-checkpoint+json";
 
 interface FileMutationCheckpointCandidate {
-  content?: string;
+  /** null = 变更后该路径不存在（删除、move 的源文件）。 */
+  content?: string | null;
   filePath: string;
   originalFile: string | null;
   structuredPatch: DiffHunk[];
@@ -35,42 +36,84 @@ interface RewindEvaluationItem {
   id: string;
 }
 
-export function getFileMutationCheckpointCandidate(
+/**
+ * 从 tool output 提取 workspace checkpoint 候选。
+ *
+ * 两种形状：
+ *   1. 单文件工具（Edit/Write/NotebookEdit）：顶层 `filePath/originalFile/content/structuredPatch`；
+ *   2. 多文件工具（ApplyPatch）：`files[]` 每项同形状，move 额外展开成「源文件消失 + 目标文件新建」
+ *      两条，否则 rewind 只能恢复一半。
+ *
+ * 任一 file 形状不合法就整体放弃——半份 checkpoint 会让 rewind 恢复出比实际更早的状态。
+ */
+export function getFileMutationCheckpointCandidates(
   output: unknown,
-): FileMutationCheckpointCandidate | undefined {
-  if (!isPlainRecord(output)) return undefined;
-  if (typeof output.filePath !== "string" || output.filePath.length === 0) return undefined;
-  if (!Array.isArray(output.structuredPatch)) return undefined;
-  if (output.originalFile !== null && typeof output.originalFile !== "string") return undefined;
+): FileMutationCheckpointCandidate[] {
+  const single = toCheckpointCandidate(output);
+  if (single) return [single];
+  if (!isPlainRecord(output) || !Array.isArray(output.files)) return [];
 
-  const structuredPatch = output.structuredPatch.filter(isRuntimeDiffHunk);
-  if (structuredPatch.length !== output.structuredPatch.length) return undefined;
+  const candidates: FileMutationCheckpointCandidate[] = [];
+  for (const file of output.files) {
+    const expanded = expandFileCheckpointCandidate(file);
+    if (!expanded) return [];
+    candidates.push(...expanded);
+  }
+  return candidates;
+}
+
+function expandFileCheckpointCandidate(
+  value: unknown,
+): FileMutationCheckpointCandidate[] | undefined {
+  const candidate = toCheckpointCandidate(value);
+  if (!candidate || !isPlainRecord(value)) return undefined;
+  const movePath = value.movePath;
+  if (typeof movePath !== "string" || movePath.length === 0) return [candidate];
+  return [
+    { ...candidate, content: null },
+    {
+      content: candidate.content,
+      filePath: movePath,
+      originalFile: null,
+      structuredPatch: candidate.structuredPatch,
+      type: "add",
+    },
+  ];
+}
+
+function toCheckpointCandidate(value: unknown): FileMutationCheckpointCandidate | undefined {
+  if (!isPlainRecord(value)) return undefined;
+  if (typeof value.filePath !== "string" || value.filePath.length === 0) return undefined;
+  if (!Array.isArray(value.structuredPatch)) return undefined;
+  if (value.originalFile !== null && typeof value.originalFile !== "string") return undefined;
+
+  const structuredPatch = value.structuredPatch.filter(isRuntimeDiffHunk);
+  if (structuredPatch.length !== value.structuredPatch.length) return undefined;
 
   return {
-    content: typeof output.content === "string" ? output.content : undefined,
-    filePath: output.filePath,
-    originalFile: output.originalFile,
+    content:
+      value.content === null ? null : typeof value.content === "string" ? value.content : undefined,
+    filePath: value.filePath,
+    originalFile: value.originalFile,
     structuredPatch,
-    type: typeof output.type === "string" ? output.type : undefined,
+    type: typeof value.type === "string" ? value.type : undefined,
   };
 }
 
 export function stringifyWorkspaceCheckpointArtifact(
-  candidate: FileMutationCheckpointCandidate,
+  candidates: readonly FileMutationCheckpointCandidate[],
   result: ToolExecutionResult,
 ): string {
   const artifact: WorkspaceCheckpointArtifact = {
     createdAt: new Date().toISOString(),
-    files: [
-      {
-        ...(candidate.content !== undefined ? { afterContent: candidate.content } : {}),
-        afterContentLength: candidate.content?.length,
-        beforeContent: candidate.originalFile,
-        existedBefore: candidate.originalFile !== null,
-        path: candidate.filePath,
-        structuredPatch: candidate.structuredPatch,
-      },
-    ],
+    files: candidates.map((candidate) => ({
+      ...(candidate.content !== undefined ? { afterContent: candidate.content } : {}),
+      afterContentLength: candidate.content?.length,
+      beforeContent: candidate.originalFile,
+      existedBefore: candidate.originalFile !== null,
+      path: candidate.filePath,
+      structuredPatch: candidate.structuredPatch,
+    })),
     kind: "workspace_file_before_change",
     toolCallId: result.toolCallId,
     toolName: result.toolName,
@@ -212,14 +255,16 @@ export function formatConversationRewindNoticeBody(options: {
   rewindId: string;
   targetMessageId: MessageId;
 }): string {
-  return sanitizeSystemReminderBody([
-    "Conversation rewind applied.",
-    `rewindId: ${options.rewindId}`,
-    `targetMessageId: ${options.targetMessageId}`,
-    `keptMessageCount: ${options.keptMessageCount}`,
-    options.preview ? `rewoundPromptPreview: ${options.preview}` : undefined,
-    "Continue from the conversation state before the target user message. Do not assume messages after that target happened in this active branch.",
-  ].filter((line): line is string => typeof line === "string" && line.length > 0));
+  return sanitizeSystemReminderBody(
+    [
+      "Conversation rewind applied.",
+      `rewindId: ${options.rewindId}`,
+      `targetMessageId: ${options.targetMessageId}`,
+      `keptMessageCount: ${options.keptMessageCount}`,
+      options.preview ? `rewoundPromptPreview: ${options.preview}` : undefined,
+      "Continue from the conversation state before the target user message. Do not assume messages after that target happened in this active branch.",
+    ].filter((line): line is string => typeof line === "string" && line.length > 0),
+  );
 }
 
 export function formatWorkspaceRewindNoticeBody(options: {
@@ -229,15 +274,17 @@ export function formatWorkspaceRewindNoticeBody(options: {
   rewindId: string;
 }): string {
   const fileLines = options.restoredFiles.map((file) => `${file.action} ${file.path}`).join("\n");
-  return sanitizeSystemReminderBody([
-    "Workspace rewind applied.",
-    `rewindId: ${options.rewindId}`,
-    `checkpointId: ${options.checkpoint.checkpointId}`,
-    `strategy: ${options.evaluation.strategy}`,
-    `restoredFiles: ${options.restoredFiles.length}`,
-    fileLines,
-    "Conversation history was not rewritten by this file restore.",
-  ].filter((line) => line.length > 0));
+  return sanitizeSystemReminderBody(
+    [
+      "Workspace rewind applied.",
+      `rewindId: ${options.rewindId}`,
+      `checkpointId: ${options.checkpoint.checkpointId}`,
+      `strategy: ${options.evaluation.strategy}`,
+      `restoredFiles: ${options.restoredFiles.length}`,
+      fileLines,
+      "Conversation history was not rewritten by this file restore.",
+    ].filter((line) => line.length > 0),
+  );
 }
 
 export function formatWorkspaceForkNoticeBody(options: {
@@ -246,16 +293,18 @@ export function formatWorkspaceForkNoticeBody(options: {
   restoredFiles: WorkspaceRewindRestoredFile[];
 }): string {
   const fileLines = options.restoredFiles.map((file) => `${file.action} ${file.path}`).join("\n");
-  return sanitizeSystemReminderBody([
-    "This session was forked from a previous session checkpoint.",
-    `parentSessionId: ${options.parentSessionId}`,
-    `checkpointId: ${options.checkpoint.checkpointId}`,
-    `targetMessageId: ${options.checkpoint.messageId}`,
-    `restoredSnapshotRef: ${options.checkpoint.snapshotRef}`,
-    `restoredFiles: ${options.restoredFiles.length}`,
-    fileLines,
-    "Continue from this fork. Do not assume messages after the fork point happened in this session.",
-  ].filter((line) => line.length > 0));
+  return sanitizeSystemReminderBody(
+    [
+      "This session was forked from a previous session checkpoint.",
+      `parentSessionId: ${options.parentSessionId}`,
+      `checkpointId: ${options.checkpoint.checkpointId}`,
+      `targetMessageId: ${options.checkpoint.messageId}`,
+      `restoredSnapshotRef: ${options.checkpoint.snapshotRef}`,
+      `restoredFiles: ${options.restoredFiles.length}`,
+      fileLines,
+      "Continue from this fork. Do not assume messages after the fork point happened in this session.",
+    ].filter((line) => line.length > 0),
+  );
 }
 
 export function formatWorkspaceForkAtMessageNoticeBody(options: {
@@ -265,16 +314,18 @@ export function formatWorkspaceForkAtMessageNoticeBody(options: {
   undoneCheckpointCount: number;
 }): string {
   const fileLines = options.restoredFiles.map((file) => `${file.action} ${file.path}`).join("\n");
-  return sanitizeSystemReminderBody([
-    "This session was forked from a previous session message.",
-    `parentSessionId: ${options.parentSessionId}`,
-    `targetMessageId: ${options.targetMessageId}`,
-    `undoneCheckpointCount: ${options.undoneCheckpointCount}`,
-    `restoredFiles: ${options.restoredFiles.length}`,
-    fileLines,
-    "Workspace files changed after the fork point were restored to their state at the fork point.",
-    "Continue from this fork. Do not assume messages after the fork point happened in this session.",
-  ].filter((line) => line.length > 0));
+  return sanitizeSystemReminderBody(
+    [
+      "This session was forked from a previous session message.",
+      `parentSessionId: ${options.parentSessionId}`,
+      `targetMessageId: ${options.targetMessageId}`,
+      `undoneCheckpointCount: ${options.undoneCheckpointCount}`,
+      `restoredFiles: ${options.restoredFiles.length}`,
+      fileLines,
+      "Workspace files changed after the fork point were restored to their state at the fork point.",
+      "Continue from this fork. Do not assume messages after the fork point happened in this session.",
+    ].filter((line) => line.length > 0),
+  );
 }
 
 export function formatConversationForkNoticeBody(options: {

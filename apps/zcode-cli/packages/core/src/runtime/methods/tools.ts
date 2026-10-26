@@ -18,7 +18,7 @@ import type {
 } from "../deps.js";
 import {
   isResolvablePermissionBroker,
-  getFileMutationCheckpointCandidate,
+  getFileMutationCheckpointCandidates,
   WORKSPACE_CHECKPOINT_CONTENT_TYPE,
   stringifyWorkspaceCheckpointArtifact,
   throwIfTurnAborted,
@@ -181,8 +181,8 @@ export async function emitFileMutationCheckpoint(
 ): Promise<void> {
   if (!this.artifactStore || !options.result.success) return;
 
-  const candidate = getFileMutationCheckpointCandidate(options.result.output);
-  if (!candidate) return;
+  const candidates = getFileMutationCheckpointCandidates(options.result.output);
+  if (candidates.length === 0) return;
 
   try {
     throwIfTurnAborted(options.abortSignal);
@@ -192,7 +192,7 @@ export async function emitFileMutationCheckpoint(
         turnId: options.traceContext.turnId,
         toolCallId: options.result.toolCallId,
         toolName: options.result.toolName,
-        content: stringifyWorkspaceCheckpointArtifact(candidate, options.result),
+        content: stringifyWorkspaceCheckpointArtifact(candidates, options.result),
         contentType: WORKSPACE_CHECKPOINT_CONTENT_TYPE,
         retention: "session",
         trace: options.traceContext,
@@ -211,24 +211,27 @@ export async function emitFileMutationCheckpoint(
         scope: RewindScope.Workspace,
         snapshotRef: artifact.uri,
         diffRef: artifact.uri,
-        fileCount: 1,
+        fileCount: candidates.length,
       },
       options.traceContext,
     );
     await this.appendEvent(event, options.traceContext);
     options.events.push(event);
-    recordTurnFileChange(this.currentTurnFileChanges, {
-      afterContent: candidate.content,
-      beforeContent: candidate.originalFile,
-      path: candidate.filePath,
-      structuredPatch: candidate.structuredPatch,
-      toolName: options.result.toolName,
-    });
+    for (const candidate of candidates) {
+      recordTurnFileChange(this.currentTurnFileChanges, {
+        // content 为 null（删除/move 源文件）时按空内容记，diff 会显示为纯删除。
+        afterContent: candidate.content ?? "",
+        beforeContent: candidate.originalFile,
+        path: candidate.filePath,
+        structuredPatch: candidate.structuredPatch,
+        toolName: options.result.toolName,
+      });
+    }
 
     this.logger?.debug("Workspace checkpoint created", {
       ...traceContextToLogContext(options.traceContext),
       event: "checkpoint.created",
-      fileCount: 1,
+      fileCount: candidates.length,
       module: "core.runtime",
       status: "completed",
       toolCallId: options.result.toolCallId,
@@ -243,7 +246,7 @@ export async function emitFileMutationCheckpoint(
       ...traceContextToLogContext(options.traceContext),
       errorMessage: error instanceof Error ? error.message : String(error),
       event: "checkpoint.create.failed",
-      filePath: candidate.filePath,
+      fileCount: candidates.length,
       module: "core.runtime",
       status: "failed",
       toolCallId: options.result.toolCallId,

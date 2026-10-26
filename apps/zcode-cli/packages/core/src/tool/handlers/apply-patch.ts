@@ -18,6 +18,7 @@ import { createStructuredPatch } from "../diff.js";
 import { derivePatchedContent } from "../patch-apply.js";
 import { parseStructuredPatch, type ParsedPatch } from "../patch-parser.js";
 import { resolveWorkspacePath } from "../path-policy.js";
+import { createReadFileStateKey, normalizeReadFileStateMtimeMs } from "../read-file-state.js";
 
 const APPLY_PATCH_MODEL_INSTRUCTIONS = [
   "Use ApplyPatch for structured, reviewable edits that are easier to express as local diff hunks than exact old_string replacements.",
@@ -83,11 +84,12 @@ export const applyPatchHandler: ToolHandler = async (input, context) => {
         { path: change.filePath, trace },
         { signal: context.abortSignal },
       );
+      context.readFileState?.delete(createReadFileStateKey(change.filePath, 1, undefined));
       continue;
     }
 
     const targetPath = change.movePath ?? change.filePath;
-    await fileSystemPort.writeTextFile(
+    const writeResult = await fileSystemPort.writeTextFile(
       {
         path: targetPath,
         content: change.newContent,
@@ -101,11 +103,30 @@ export const applyPatchHandler: ToolHandler = async (input, context) => {
       { signal: context.abortSignal },
     );
 
+    // 写后刷新 readFileState：否则同一会话里紧接着的 Edit 会以「未读/陈旧」被拒。
+    // 多文件变更只有一份 metadata 槽位，因此这里不写 readFileStateMetadata——
+    // 单文件工具（Edit/Write/NotebookEdit）才承担 resume 后的 freshness 恢复。
+    if (context.readFileState) {
+      context.readFileState.set(createReadFileStateKey(targetPath, 1, undefined), {
+        path: targetPath,
+        content: change.newContent,
+        offset: undefined,
+        limit: undefined,
+        isPartialView: false,
+        readAt: new Date(),
+        sourceTool: "ApplyPatch",
+        revisionId: writeResult.revision?.id,
+        mtimeMs: normalizeReadFileStateMtimeMs(writeResult.revision?.mtimeMs),
+        sizeBytes: writeResult.revision?.sizeBytes ?? Buffer.byteLength(change.newContent, "utf8"),
+      });
+    }
+
     if (change.type === "move") {
       await fileSystemPort.removeFile(
         { path: change.filePath, trace },
         { signal: context.abortSignal },
       );
+      context.readFileState?.delete(createReadFileStateKey(change.filePath, 1, undefined));
     }
   }
 
@@ -247,6 +268,9 @@ function toOutputFileChange(change: VerifiedPatchChange): ApplyPatchFileChange {
     filePath: change.filePath,
     type: change.type,
     movePath: change.movePath,
+    originalFile: change.type === "add" ? null : change.oldContent,
+    // delete 之后该路径不存在；move 的内容属于目标路径（rewind 侧会展开成源=null、目标=content）。
+    content: change.type === "delete" ? null : change.newContent,
     structuredPatch,
     additions,
     deletions,
