@@ -79,6 +79,7 @@ import {
   parseMemoryCaptureResult,
   type MemoryCaptureDraft,
 } from "@/v4/memory/memoryCapturePrompt.js";
+import { formatMemoryDreamResult } from "@/v4/memory/memoryDreamResult.js";
 import { resolveOracleRequestOptions } from "@/v4/oracleReview/oracleReviewSupport.js";
 import type { TurnHeaderRow } from "@zcode/shared/zcode-protocol-v4";
 
@@ -1975,7 +1976,8 @@ export function SessionPane({
     sharedSettings?.memoryEnabled === true;
   const [memoryCaptureDraft, setMemoryCaptureDraft] = useState<MemoryCaptureDraft | null>(null);
   const [memoryCaptureWorkspaceId, setMemoryCaptureWorkspaceId] = useState<string | null>(null);
-  const [memoryCapturePending, setMemoryCapturePending] = useState(false);
+  // 防重复派发用 ref：行按钮不展示 pending 态（结果只经 toast 与预览对话框反馈）。
+  const memoryCaptureInFlightRef = useRef(false);
   const captureMemoryTurn = useCallback(
     async (_header: TurnHeaderRow, assistantText: string): Promise<void> => {
       // 与「跟随会话模型」同一解析：审查/沉淀这类系统请求都不许另起一套模型选择逻辑。
@@ -1984,7 +1986,8 @@ export function SessionPane({
         toast(intl.formatMessage({ id: "chat.memoryCapture.noModel" }));
         return;
       }
-      setMemoryCapturePending(true);
+      if (memoryCaptureInFlightRef.current) return;
+      memoryCaptureInFlightRef.current = true;
       try {
         const resolved = await memoryService.resolveProjectMemoryWorkspace({
           workspacePath,
@@ -2020,7 +2023,7 @@ export function SessionPane({
           }`.slice(0, 200),
         );
       } finally {
-        setMemoryCapturePending(false);
+        memoryCaptureInFlightRef.current = false;
       }
     },
     [
@@ -2034,6 +2037,48 @@ export function SessionPane({
       zcodeAgentService,
     ],
   );
+  // ── 手动整理记忆（fork 开关 memoryDreamManual）──
+  // 入口挂在 context 面板的压缩按钮旁：Dream 会发起后台模型请求，设置页查看轨迹时
+  // 不能触发它（MEM10）。关闭开关 / 记忆关闭 / 远端工作区时整块不渲染；没有会话
+  // （草稿态）也没有可整理的 transcript，同样不渲染。
+  const memoryDreamEnabled =
+    sharedSettings?.forkFeatures?.memoryDreamManual === true &&
+    sharedSettings?.memoryEnabled === true &&
+    !remoteSessionId &&
+    sessionId !== null;
+  // 模型可用性只决定按钮禁用态（点击仍会再判一次，防止渲染后模型目录变化）。
+  const memoryDreamModelAvailable = useMemo(
+    () => resolveOracleRequestOptions(null, modelSelectionView) !== null,
+    [modelSelectionView],
+  );
+  const [memoryDreamPending, setMemoryDreamPending] = useState(false);
+  const runMemoryDream = useCallback(async (): Promise<void> => {
+    const sessionRunMemoryDream = zcodeAgentService?.runMemoryDream;
+    if (!sessionId || !sessionRunMemoryDream) return;
+    // 与「跟随会话模型」同一解析：Dream 也走会话模型，没有可用模型时不派发。
+    if (!resolveOracleRequestOptions(null, modelSelectionView)) {
+      toast(intl.formatMessage({ id: "chat.memoryDream.noModel" }));
+      return;
+    }
+    setMemoryDreamPending(true);
+    try {
+      const result = await sessionRunMemoryDream.call(zcodeAgentService, {
+        workspacePath,
+        ...(workspaceIdentity ? { workspaceIdentity } : {}),
+        sessionId,
+        operationId: `memory-dream:${Date.now().toString(36)}`,
+      });
+      toast(formatMemoryDreamResult(intl, result));
+    } catch (error) {
+      toast(
+        `${intl.formatMessage({ id: "chat.memoryDream.failed" })} · ${
+          error instanceof Error ? error.message : String(error)
+        }`.slice(0, 200),
+      );
+    } finally {
+      setMemoryDreamPending(false);
+    }
+  }, [intl, modelSelectionView, sessionId, workspaceIdentity, workspacePath, zcodeAgentService]);
   // 旧版本的模型偏好存在 renderer localStorage；首次读到设置缺省时迁移一次，
   // 之后只以 AppSettings 为权威（null = 显式跟随会话模型）。
   const storedOracleModel = useMemo(() => readStoredOracleModelSelection(), []);
@@ -6056,6 +6101,9 @@ export function SessionPane({
       runningSubagentCount={runningAgentCount}
       onRecoverCustomModelSelection={handleRecoverCustomModelSelection}
       onSendCompressionCommand={handleSendCompressionCommand}
+      onRunMemoryDream={memoryDreamEnabled ? () => void runMemoryDream() : undefined}
+      memoryDreamRunning={memoryDreamPending}
+      memoryDreamDisabled={memoryDreamPending || !memoryDreamModelAvailable}
       error={composerError}
       onDismissError={handleDismissComposerError}
       onRetryInitialization={handleRetrySubscribe}

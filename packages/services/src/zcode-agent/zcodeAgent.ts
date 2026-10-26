@@ -20,6 +20,7 @@ import type {
   ZCodeBackgroundTurnAttribution,
   TraceId,
   ZCodeSessionCompactResult,
+  ZCodeSessionRunMemoryDreamResult,
   ZCodeSessionGoalAction,
   ZCodeSessionGoalResult,
   ZCodeMessageWithParts,
@@ -319,6 +320,10 @@ export interface ZCodeAgentCompactParams extends ZCodeAgentSessionTarget {
   inputId?: string;
   instructions?: string;
   expectedRevision?: number;
+}
+
+export interface ZCodeAgentRunMemoryDreamParams extends ZCodeAgentSessionTarget {
+  operationId?: string;
 }
 
 export interface ZCodeAgentGoalParams extends ZCodeAgentSessionTarget {
@@ -660,7 +665,7 @@ export interface IZCodeAgentService {
    * fork 工具开关（Monitor/NotebookEdit/ApplyPatch）变化的即时下发。会话内生效，
    * 不需要重开会话；同样不得为此启动空闲 Agent。
    */
-  syncForkToolPreferences(preferences: ForkToolPreferences): Promise<void>;
+  syncForkToolPreferences(preferences: ForkToolPreferences, features?: ForkFeatures): Promise<void>;
   /**
    * 动态工作流用户选择变化的信号（docs/dynamic-workflow/launch.md「The user's choice」）：Host 重新计算
    * 生效模式并串行重发 workspace/updateDynamicWorkflowPolicy。有本机设置权威的 Host 以设置文件为准；
@@ -883,6 +888,11 @@ export interface IZCodeAgentService {
    */
   sendPrompt(params: ZCodeAgentSendPromptParams): Promise<ZCodeSessionSendResult>;
   compactSession(params: ZCodeAgentCompactParams): Promise<ZCodeSessionCompactResult>;
+  /**
+   * 手动触发一次项目记忆整理（force）。开关在 CLI 侧判定：关闭时返回
+   * `{status:"disabled"}` 而不是报错。
+   */
+  runMemoryDream(params: ZCodeAgentRunMemoryDreamParams): Promise<ZCodeSessionRunMemoryDreamResult>;
   goalSession(params: ZCodeAgentGoalParams): Promise<ZCodeSessionGoalResult>;
   closeSession(
     params: ZCodeAgentSessionTarget & { expectedPersistence?: "deferred" | "immediate" },

@@ -3,7 +3,10 @@ import { createElement } from "react";
 import type { ReactNode } from "react";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { cleanup, fireEvent, render, screen } from "@testing-library/react";
-import { TID_CHAT_CONTEXT_COMPACT_BUTTON } from "@zcode/shared/test-ids";
+import {
+  TID_CHAT_CONTEXT_COMPACT_BUTTON,
+  TID_CHAT_CONTEXT_DREAM_BUTTON,
+} from "@zcode/shared/test-ids";
 
 import { ChatContextUsage } from "@/chat-input-toolbar/contextUsage.js";
 
@@ -42,6 +45,9 @@ function renderContextUsage(overrides: {
   compressionDisabled?: boolean;
   compactRunning?: boolean;
   taskUsage?: { used: number; size: number } | null;
+  onRunMemoryDream?: () => void;
+  memoryDreamRunning?: boolean;
+  memoryDreamDisabled?: boolean;
 }) {
   return render(
     createElement(ChatContextUsage, {
@@ -55,6 +61,9 @@ function renderContextUsage(overrides: {
       onSendCompressionCommand: overrides.onSendCompressionCommand,
       compressionDisabled: overrides.compressionDisabled,
       compactRunning: overrides.compactRunning,
+      onRunMemoryDream: overrides.onRunMemoryDream,
+      memoryDreamRunning: overrides.memoryDreamRunning,
+      memoryDreamDisabled: overrides.memoryDreamDisabled,
     }),
   );
 }
@@ -120,5 +129,55 @@ describe("ChatContextUsage compact action", () => {
     });
 
     expect(screen.queryByTestId(TID_CHAT_CONTEXT_COMPACT_BUTTON)).toBeNull();
+  });
+});
+
+// fork 开关 memoryDreamManual：关闭态必须完全没有入口（不能只靠禁用），
+// 打开态点一次派发一次，运行中禁用并换成 spinner 文案。
+describe("ChatContextUsage dream action", () => {
+  afterEach(() => {
+    cleanup();
+  });
+
+  it("omits the dream action when the fork switch is off (no callback)", () => {
+    renderContextUsage({ onSendCompressionCommand: vi.fn() });
+
+    expect(screen.queryByTestId(TID_CHAT_CONTEXT_DREAM_BUTTON)).toBeNull();
+  });
+
+  it("dispatches exactly once on activation", () => {
+    const onRunMemoryDream = vi.fn();
+
+    renderContextUsage({ onRunMemoryDream });
+
+    const button = screen.getByTestId(TID_CHAT_CONTEXT_DREAM_BUTTON);
+    expect(button.getAttribute("aria-label")).toBe("chat.contextUsage.dream");
+    fireEvent.click(button);
+
+    expect(onRunMemoryDream).toHaveBeenCalledTimes(1);
+  });
+
+  it("disables while running and swaps to the running label", () => {
+    const onRunMemoryDream = vi.fn();
+
+    renderContextUsage({ onRunMemoryDream, memoryDreamRunning: true });
+
+    const button = screen.getByTestId(TID_CHAT_CONTEXT_DREAM_BUTTON) as HTMLButtonElement;
+    expect(button.disabled).toBe(true);
+    expect(button.textContent).toBe("chat.contextUsage.dreamRunning");
+
+    fireEvent.click(button);
+    expect(onRunMemoryDream).not.toHaveBeenCalled();
+  });
+
+  it("honours the disabled state (no model / another dream running)", () => {
+    const onRunMemoryDream = vi.fn();
+
+    renderContextUsage({ onRunMemoryDream, memoryDreamDisabled: true });
+
+    const button = screen.getByTestId(TID_CHAT_CONTEXT_DREAM_BUTTON) as HTMLButtonElement;
+    expect(button.disabled).toBe(true);
+    fireEvent.click(button);
+    expect(onRunMemoryDream).not.toHaveBeenCalled();
   });
 });

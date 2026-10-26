@@ -1,4 +1,8 @@
 import type {
+  ProjectMemoryDreamOptions,
+  ProjectMemoryDreamResult,
+} from "./helpers/project-memory-dream.js";
+import type {
   CollaborationMode,
   Model,
   ModelInputMessage,
@@ -332,6 +336,8 @@ export interface AgentRuntimeCoreMethods {
     events: SessionEvent[],
   ): Promise<void>;
   isProjectMemoryEnabled(): boolean;
+  /** 会话内手动触发 Project Memory 整理（fork 开关由协议层拦）。 */
+  runMemoryDream(options?: ProjectMemoryDreamOptions): Promise<ProjectMemoryDreamResult>;
   drainMemoryExtractions(timeoutMs?: number | null): Promise<void>;
   toScheduleState(schedule: ToolSchedule): TurnState["scheduledTools"];
   resumeFromStore(options?: ResumeSessionOptions): Promise<ResumeSessionResult>;

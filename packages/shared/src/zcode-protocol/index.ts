@@ -1,6 +1,10 @@
 import { requestVerificationReasons } from "../request-security-edition/verification-policy.js";
 import { zcodeProtocolTraceSchema } from "./trace.js";
-import { forkFeaturesSchema, forkToolPreferencesSchema } from "../fork-features.js";
+import {
+  forkFeaturesObjectSchema,
+  forkFeaturesSchema,
+  forkToolPreferencesSchema,
+} from "../fork-features.js";
 // Bot 反向回复的名字解析/待澄清结果与 App、CLI 使用同一严格 schema。
 export { channelReplyRequestSchema, channelReplyResultSchema } from "../channel-mention.js";
 export { zcodeProtocolTraceSchema, type ZCodeProtocolTrace } from "./trace.js";
@@ -2279,6 +2283,44 @@ export const zcodeSessionCompactResultSchema = z
   .strict();
 export type ZCodeSessionCompactResult = z.infer<typeof zcodeSessionCompactResultSchema>;
 
+/**
+ * 手动触发 Project Memory 整理（fork 开关 memoryDreamManual）。
+ *
+ * force 语义只在 core 内实现：跳过 24h 冷却与「≥5 条新 transcript」闸门，
+ * 保留 dream lock（同一目录同时只允许一个整理进程）。
+ */
+export const zcodeSessionRunMemoryDreamParamsSchema = z
+  .object({
+    sessionId: nonEmptyString,
+    operationId: nonEmptyString.optional(),
+  })
+  .strict();
+export type ZCodeSessionRunMemoryDreamParams = z.infer<
+  typeof zcodeSessionRunMemoryDreamParamsSchema
+>;
+
+export const zcodeSessionRunMemoryDreamResultSchema = z
+  .object({
+    status: z.enum(["completed", "skipped", "already_running", "disabled", "busy", "failed"]),
+    reason: z.string().optional(),
+    summary: z.string().optional(),
+    turns: z.number().int().nonnegative().optional(),
+    touchedPaths: z.array(z.string()),
+    changes: z.array(
+      z
+        .object({
+          path: z.string(),
+          addedLines: z.number().int().nonnegative(),
+          removedLines: z.number().int().nonnegative(),
+        })
+        .strict(),
+    ),
+  })
+  .strict();
+export type ZCodeSessionRunMemoryDreamResult = z.infer<
+  typeof zcodeSessionRunMemoryDreamResultSchema
+>;
+
 export const zcodeSessionGoalActionSchema = z.enum([
   "show",
   "set",
@@ -2837,6 +2879,11 @@ export const zcodeWorkspaceUpdateForkToolPreferencesParamsSchema = z
   .object({
     workspace: zcodeWorkspaceRefSchema,
     preferences: forkToolPreferencesSchema,
+    /**
+     * 完整 fork 开关（工具之外的记忆类开关）。工具三件套仍以 preferences 为准；
+     * 该字段供非工具门禁（如手动 Dream）读取。缺省=旧 Host，门禁保持关闭。
+     */
+    forkFeatures: forkFeaturesObjectSchema.optional(),
   })
   .strict();
 export type ZCodeWorkspaceUpdateForkToolPreferencesParams = z.infer<
@@ -4469,6 +4516,7 @@ export const zcodeProtocolMethods = {
   // fork params/result schema 保留＝op 存活面；fork record 归 v4 原生重写。
   sessionFork: "session/fork",
   sessionCompact: "session/compact",
+  sessionRunMemoryDream: "session/runMemoryDream",
   sessionGoal: "session/goal",
   sessionClose: "session/close",
   // setModel 仍被 zcodeSessionService 的 desktop 旧链路消费；replayable

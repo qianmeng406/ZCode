@@ -554,6 +554,8 @@ export const TID_CHAT_MODE_SELECT_ITEM = "chat-mode-select-item";
 export const TID_CHAT_CONTEXT_USAGE_TRIGGER = "chat-context-usage-trigger";
 /** 上下文卡片里的「压缩上下文」按钮 */
 export const TID_CHAT_CONTEXT_COMPACT_BUTTON = "chat-context-compact-button";
+/** 上下文卡片里的「整理记忆」按钮（fork 开关 memoryDreamManual 打开时渲染） */
+export const TID_CHAT_CONTEXT_DREAM_BUTTON = "chat-context-dream-button";
 /** Composer 输入框下方 main-turn 指标胶囊容器 */
 export const TID_COMPOSER_TURN_METRICS = "composer-turn-metrics";
 /** 指标胶囊分段（动态后缀为 average-ttft / average-tokens-per-second / cache-hit-rate 等） */

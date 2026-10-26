@@ -167,7 +167,9 @@ import {
   zcodeWorkspaceHookTrustGrantResultSchema,
   zcodeWorkspaceUpdateInteractionPreferencesResultSchema,
   zcodeWorkspaceUpdateModelIoPreferencesResultSchema,
+  zcodeSessionRunMemoryDreamResultSchema,
   zcodeWorkspaceUpdateForkToolPreferencesResultSchema,
+  type ForkFeatures,
   type ForkToolPreferences,
   zcodeProviderUpdateAccountConfigResultSchema,
   type ZCodeSessionStateSnapshot,
@@ -225,6 +227,7 @@ import type {
   ZCodeAgentAppUsageParams,
   ZCodeAgentCancelPluginOperationParams,
   ZCodeAgentCompactParams,
+  ZCodeAgentRunMemoryDreamParams,
   ZCodeAgentConfigurePluginParams,
   ZCodeAgentResetPluginConfigParams,
   ZCodeAgentCreateSessionParams,
@@ -429,6 +432,8 @@ const PLUGIN_MANAGEMENT_REQUEST_TIMEOUT_MS = 5 * 60_000;
 const CHILD_PROCESSES_REQUEST_TIMEOUT_MS = 800;
 const PLUGIN_OPERATION_CANCEL_REQUEST_TIMEOUT_MS = 5_000;
 const SESSION_COMPACT_REQUEST_TIMEOUT_MS = 5 * 60_000;
+// 整理是多次模型调用的循环（最多 50 轮）；历史实测在分钟级，给 10 分钟 ACK 边界。
+const SESSION_RUN_MEMORY_DREAM_TIMEOUT_MS = 10 * 60_000;
 
 interface PendingPermissionRequest {
   client: ZCodeProtocolClient;
@@ -1802,6 +1807,7 @@ export function createZCodeAgentService(
    */
   function enqueueForkToolPreferenceSync(params: {
     client: ZCodeProtocolClient;
+    features?: ForkFeatures;
     preferences: ForkToolPreferences;
     workspace: ZCodeAgentWorkspaceTarget;
   }): Promise<void> {
@@ -1818,6 +1824,7 @@ export function createZCodeAgentService(
             {
               workspace: buildWorkspaceRef(params.workspace),
               preferences: params.preferences,
+              ...(params.features ? { forkFeatures: params.features } : {}),
             },
             zcodeWorkspaceUpdateForkToolPreferencesResultSchema,
           );
@@ -4152,13 +4159,17 @@ export function createZCodeAgentService(
       );
     },
 
-    async syncForkToolPreferences(preferences: ForkToolPreferences): Promise<void> {
+    async syncForkToolPreferences(
+      preferences: ForkToolPreferences,
+      features?: ForkFeatures,
+    ): Promise<void> {
       // 只推给活跃 client：新会话/冷恢复从 setting.json 经 runtimeConfig 读取，不依赖这条链路。
       const activeClients = [...activeClientsByWorkspaceKey.values()];
       await Promise.all(
         activeClients.map((entry) =>
           enqueueForkToolPreferenceSync({
             client: entry.client,
+            ...(features ? { features } : {}),
             preferences,
             workspace: entry.workspace,
           }),
@@ -5809,6 +5820,45 @@ export function createZCodeAgentService(
           workspaceKey: resolveWorkspaceKey(params),
           workspacePath: params.workspacePath,
         });
+        throw error;
+      }
+    },
+
+    async runMemoryDream(params: ZCodeAgentRunMemoryDreamParams) {
+      const client = await getClient(params);
+      const sessionTraceId = getSessionTraceId(params);
+      logger.info(
+        sessionTraceId ?? params.operationId,
+        "ZCode Protocol session/runMemoryDream 开始",
+        {
+          operationId: params.operationId,
+          sessionId: params.sessionId,
+          workspaceKey: resolveWorkspaceKey(params),
+          workspacePath: params.workspacePath,
+        },
+      );
+      try {
+        return await client.request(
+          zcodeProtocolMethods.sessionRunMemoryDream,
+          {
+            sessionId: params.sessionId,
+            ...(params.operationId ? { operationId: params.operationId } : {}),
+          },
+          zcodeSessionRunMemoryDreamResultSchema,
+          { timeoutMs: SESSION_RUN_MEMORY_DREAM_TIMEOUT_MS },
+        );
+      } catch (error) {
+        logger.warn(
+          sessionTraceId ?? params.operationId,
+          "ZCode Protocol session/runMemoryDream 失败",
+          {
+            error: error instanceof Error ? error.message : String(error),
+            operationId: params.operationId,
+            sessionId: params.sessionId,
+            workspaceKey: resolveWorkspaceKey(params),
+            workspacePath: params.workspacePath,
+          },
+        );
         throw error;
       }
     },

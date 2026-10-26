@@ -16,9 +16,18 @@ export async function updateForkToolPreferences(
   const params = parseParams(zcodeWorkspaceUpdateForkToolPreferencesParamsSchema, rawParams);
   const preferences = params.preferences;
   context.appRuntimePreferences.forkToolPreferences = preferences;
+  // 完整 fork 开关（含记忆类）：非工具门禁读这里，工具面仍只认 preferences。
+  if (params.forkFeatures !== undefined) {
+    context.appRuntimePreferences.forkFeatures = params.forkFeatures;
+  }
 
   let updatedSessionCount = 0;
   for (const record of context.sessions.values()) {
+    // record.forkFeatures 是会话级解析结果（冷恢复/子会话继承都落在它上面）；记忆类
+    // 门禁在没有进程级缓存时回退读它，因此这里必须一并刷新，否则会读到冷启动的旧值。
+    if (params.forkFeatures !== undefined) {
+      record.forkFeatures = params.forkFeatures;
+    }
     record.app.runtime.updateForkToolSwitches(preferences);
     updatedSessionCount += 1;
   }

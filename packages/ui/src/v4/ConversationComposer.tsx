@@ -530,6 +530,10 @@ export interface ConversationComposerProps {
   ) => Promise<void> | void;
   /** context usage 面板的 /compact 入口（宿主走 v4 compact 命令）。 */
   onSendCompressionCommand?: (command: string) => void;
+  /** context usage 面板的「整理记忆」入口（fork memoryDreamManual）；缺席即不渲染。 */
+  onRunMemoryDream?: () => void;
+  memoryDreamRunning?: boolean;
+  memoryDreamDisabled?: boolean;
   /** v4 会话级错误（snapshot.control.lastError），展示在输入框上方。 */
   error?: ZCodeUiError | null;
   onDismissError?: () => void;
@@ -629,6 +633,9 @@ function ConversationComposerImpl({
   runningSubagentCount = 0,
   onRecoverCustomModelSelection,
   onSendCompressionCommand,
+  onRunMemoryDream,
+  memoryDreamRunning,
+  memoryDreamDisabled,
   error,
   onDismissError,
   onOpenModelSettings,
@@ -2620,6 +2627,9 @@ function ConversationComposerImpl({
               onSwitchMode={onSwitchMode}
               onRecoverCustomModelSelection={onRecoverCustomModelSelection}
               onSendCompressionCommand={onSendCompressionCommand}
+              onRunMemoryDream={onRunMemoryDream}
+              memoryDreamRunning={memoryDreamRunning}
+              memoryDreamDisabled={memoryDreamDisabled}
               sessionExecutionEnvironmentSlot={sessionExecutionEnvironmentSlot}
             />
           </span>
@@ -2767,6 +2777,9 @@ function ConversationComposerImpl({
       onSelectThought,
       onRecoverCustomModelSelection,
       onSendCompressionCommand,
+      onRunMemoryDream,
+      memoryDreamRunning,
+      memoryDreamDisabled,
       onSwitchMode,
       pending,
       provider,

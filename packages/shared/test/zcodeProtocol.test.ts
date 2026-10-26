@@ -1,4 +1,5 @@
 import { describe, expect, it } from "vitest";
+import { DEFAULT_FORK_FEATURES } from "../src/fork-features.js";
 import {
   DEFAULT_ZCODE_MODEL_CONTEXT_BUDGET_STRATEGY,
   ZCODE_PROTOCOL_NAME,
@@ -18,6 +19,8 @@ import {
   zcodeSessionEventSchema,
   zcodeSessionEventsResultSchema,
   zcodeSessionResumeParamsSchema,
+  zcodeSessionRunMemoryDreamParamsSchema,
+  zcodeSessionRunMemoryDreamResultSchema,
   zcodeSessionSubagentsParamsSchema,
   zcodeSessionSubagentsResultSchema,
   zcodeSessionSendParamsSchema,
@@ -31,6 +34,7 @@ import {
   zcodeWorkspaceReadPresentationParamsSchema,
   zcodeWorkspaceUpdateInteractionPreferencesParamsSchema,
   zcodeWorkspaceUpdateInteractionPreferencesResultSchema,
+  zcodeWorkspaceUpdateForkToolPreferencesParamsSchema,
   zcodeWorkspaceUpdateModelIoPreferencesParamsSchema,
   zcodeWorkspaceUpdateModelIoPreferencesResultSchema,
   zcodeAutomationCreateParamsSchema,
@@ -2690,6 +2694,73 @@ describe("ZCode Protocol", () => {
       zcodeWorkspaceUpdateModelIoPreferencesParamsSchema.parse({
         workspace,
         preferences: { fullRetentionEnabled: true, ignored: true },
+      }),
+    ).toThrow();
+  });
+
+  it("carries the full fork feature set on fork tool preference updates", () => {
+    const preferences = { monitorTool: true, notebookEdit: false, applyPatch: false };
+    const parsed = zcodeWorkspaceUpdateForkToolPreferencesParamsSchema.parse({
+      workspace,
+      preferences,
+      forkFeatures: { ...DEFAULT_FORK_FEATURES, memoryDreamManual: true },
+    });
+    expect(parsed.forkFeatures?.memoryDreamManual).toBe(true);
+    // 旧 Host 不带 forkFeatures：记忆类门禁必须按关闭处理，不能把缺省当成开启。
+    expect(
+      zcodeWorkspaceUpdateForkToolPreferencesParamsSchema.parse({ workspace, preferences })
+        .forkFeatures,
+    ).toBeUndefined();
+    expect(() =>
+      zcodeWorkspaceUpdateForkToolPreferencesParamsSchema.parse({
+        workspace,
+        preferences,
+        forkFeatures: { ...DEFAULT_FORK_FEATURES, unknownKey: true },
+      }),
+    ).toThrow();
+    expect(() =>
+      zcodeWorkspaceUpdateForkToolPreferencesParamsSchema.parse({
+        workspace,
+        preferences,
+        ignored: true,
+      }),
+    ).toThrow();
+  });
+
+  it("validates the manual Dream protocol method, params and result", () => {
+    expect(zcodeProtocolMethods.sessionRunMemoryDream).toBe("session/runMemoryDream");
+    expect(
+      zcodeSessionRunMemoryDreamParamsSchema.parse({ sessionId: "sess_a", operationId: "op-1" }),
+    ).toEqual({ sessionId: "sess_a", operationId: "op-1" });
+    expect(() =>
+      zcodeSessionRunMemoryDreamParamsSchema.parse({ sessionId: "sess_a", ignored: true }),
+    ).toThrow();
+    for (const status of [
+      "completed",
+      "skipped",
+      "already_running",
+      "disabled",
+      "busy",
+      "failed",
+    ] as const) {
+      expect(
+        zcodeSessionRunMemoryDreamResultSchema.parse({ status, touchedPaths: [], changes: [] })
+          .status,
+      ).toBe(status);
+    }
+    expect(
+      zcodeSessionRunMemoryDreamResultSchema.parse({
+        status: "completed",
+        touchedPaths: ["/memory/fact.md"],
+        changes: [{ path: "/memory/fact.md", addedLines: 2, removedLines: 1 }],
+        turns: 3,
+      }),
+    ).toMatchObject({ turns: 3, changes: [{ addedLines: 2, removedLines: 1 }] });
+    expect(() =>
+      zcodeSessionRunMemoryDreamResultSchema.parse({
+        status: "running",
+        touchedPaths: [],
+        changes: [],
       }),
     ).toThrow();
   });

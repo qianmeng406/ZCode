@@ -439,6 +439,10 @@ export interface V4ComposerToolbarProps {
   onSendCompressionCommand?: (command: string) => void;
   /** 快照投影的 compact 进行中（control.activeWorks）；运行中禁用压缩入口，防重复派发。 */
   compactRunning?: boolean;
+  /** fork 开关 memoryDreamManual 打开时的「整理记忆」入口；缺席即 context 面板不渲染该按钮。 */
+  onRunMemoryDream?: () => void;
+  memoryDreamRunning?: boolean;
+  memoryDreamDisabled?: boolean;
   /**
    * 会话级执行环境入口（session-linux-execution）：由 SessionPane 组装（触发按钮的
    * 平台/远程/草稿可见性在 pane 判定），工具条只负责在模型控件簇尾部展示。
@@ -474,6 +478,9 @@ function V4ComposerModelControlsImpl({
   onSelectThought,
   onSendCompressionCommand,
   compactRunning,
+  onRunMemoryDream,
+  memoryDreamRunning,
+  memoryDreamDisabled,
   onRecoverCustomModelSelection,
   sessionExecutionEnvironmentSlot,
 }: V4ComposerToolbarProps) {
@@ -1286,6 +1293,9 @@ function V4ComposerModelControlsImpl({
           onSendCompressionCommand={onSendCompressionCommand}
           compressionDisabled={disabled || recoveryPending}
           compactRunning={compactRunning}
+          onRunMemoryDream={onRunMemoryDream}
+          memoryDreamRunning={memoryDreamRunning}
+          memoryDreamDisabled={memoryDreamDisabled}
         />
       ) : null}
       {/* 加速轮的模型由本次卡决定，选型菜单此时不可用，所以指示器优先于选型加载态。 */}

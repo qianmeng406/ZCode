@@ -1089,3 +1089,8 @@ exceptions:
     paths:
       - packages/ui/src/settings/MemoryFileEditor.tsx
     reason: fork 定制功能「记忆文件编辑」的编辑面板：纯受控，读写全部经 IMemoryService（CAS + 原子写 + 索引清理都在服务层），组件只负责草稿、错误映射与确认删除。与同目录 MemorySettingsViewer/CommandForm 同模式；托管 packages/ui/src/settings 需要单独的模块边界梳理，与既有未受管设置分区同因。
+  - id: memory-dream-result-unmanaged-new
+    rule: unmanaged-new-file
+    paths:
+      - packages/ui/src/v4/memory/memoryDreamResult.ts
+    reason: fork 定制功能「手动整理记忆」的结果文案映射（status/reason → i18n key，含文件数与行数汇总、失败原因截断）。独立成文件的理由是它能脱离 SessionPane 巨型组件做纯函数单测，并保证服务端机器码 reason 不直接透传给用户；同目录 memoryCapturePrompt.ts 已是同一处理模式。packages/ui 目录未受管，登记为 managed 模块不在本次范围内。

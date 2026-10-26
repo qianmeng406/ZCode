@@ -1,5 +1,5 @@
 import { readFileSync } from "node:fs";
-import { mkdtemp, rm } from "node:fs/promises";
+import { mkdir, mkdtemp, rm, utimes, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 
@@ -26,6 +26,7 @@ import {
 import { resolveProjectMemoryRoot } from "../src/memory/project-root.js";
 import { createTestAgentRuntime } from "./test-agent-runtime.js";
 import {
+  diffMemorySnapshots,
   runProjectMemoryDream,
   selectProjectDreamSessions,
 } from "../src/runtime/helpers/project-memory-dream.js";
@@ -333,6 +334,308 @@ describe("AgentRuntime Dream handler", () => {
     expect(dreamRequests).toBe(0);
   });
 });
+
+describe("manual Dream trigger", () => {
+  it("force skips the cooldown and transcript-count gates and reports per-file changes", async () => {
+    const cliStorageRoot = await temporaryDirectory();
+    const modelIoDir = join(cliStorageRoot, "rollout");
+    const memoryRoot = resolveProjectMemoryRoot({
+      cliStorageRoot,
+      workspacePath: WORKSPACE_PATH,
+    });
+    const factPath = join(memoryRoot, "release-tagging-policy.md");
+    const indexPath = join(memoryRoot, "MEMORY.md");
+    const sessionId = createSessionId("manual-dream");
+    // 冷却窗口内（lock mtime = NOW-1s）但无 owner pid：非 force 会被 24h 闸门跳过，
+    // force 必须照常执行。
+    await mkdir(memoryRoot, { recursive: true });
+    const lockPath = join(memoryRoot, ".consolidate-lock");
+    await writeFile(lockPath, "", "utf8");
+    await utimes(lockPath, new Date(NOW - 1_000), new Date(NOW - 1_000));
+    const transcriptPath = join(modelIoDir, `model-io-${sessionId}.jsonl`);
+    const fileSystemPort = new SeparatorAgnosticMemoryFileSystem(
+      { [transcriptPath]: "{}\n" },
+      { [transcriptPath]: NOW },
+    );
+    let dreamTurn = 0;
+    const runtime = createTestAgentRuntime(
+      sessionId,
+      {
+        memory: { cliStorageRoot, enabled: true, use: true },
+        mode: "yolo",
+        modelSelection: {
+          modelId: createModelId("claude-opus-4-8-cc"),
+          providerId: createModelProviderId("anthropic"),
+        },
+        workingDirectory: WORKSPACE_PATH,
+      },
+      {
+        eventStore: createTestSessionEventStore(),
+        fileSystemPort,
+        modelFactory: createTestModelFactory({
+          properties: { supportsMidConversationSystem: true },
+          async generateText(_request, observation) {
+            dreamTurn += 1;
+            if (dreamTurn === 1) {
+              return {
+                ...textResult(observation.model, ""),
+                finishReason: "tool_calls",
+                toolCalls: [
+                  {
+                    id: "write-fact",
+                    name: "Write",
+                    input: { file_path: factPath, content: "fact\n" },
+                  },
+                  {
+                    id: "write-index",
+                    name: "Write",
+                    input: {
+                      file_path: indexPath,
+                      content: "- [Fact](release-tagging-policy.md)\n",
+                    },
+                  },
+                ],
+              };
+            }
+            return textResult(observation.model, "Dream consolidated");
+          },
+        }),
+        modelIoDir,
+        now: () => new Date(NOW),
+        // 只有当前会话本身：非 force 会被「≥5 条新 transcript」闸门挡掉。
+        sessionStore: createMemorySessionStore([session("manual-dream", NOW)]),
+        toolRegistry: createToolRegistry(),
+      },
+    );
+
+    const result = await runProjectMemoryDream(runtime as never, {
+      force: true,
+      traceContext: createRootTraceContext({
+        sessionId,
+        turnId: createTurnId("manual-dream-check"),
+      }),
+    });
+
+    expect(dreamTurn).toBe(2);
+    expect(result.status).toBe("completed");
+    expect(result.summary).toBe("Dream consolidated");
+    expect(result.turns).toBeGreaterThanOrEqual(2);
+    expect(fileSystemPort.files[indexPath]).toBe("- [Fact](release-tagging-policy.md)\n");
+    expect(result.touchedPaths.map((path) => path.replaceAll("\\", "/"))).toContain(
+      factPath.replaceAll("\\", "/"),
+    );
+    // diffMemorySnapshots 按路径排序：MEMORY.md 在 release-tagging-policy.md 之前。
+    expect(result.changes).toEqual([
+      { path: indexPath, addedLines: 1, removedLines: 0 },
+      { path: factPath, addedLines: 1, removedLines: 0 },
+    ]);
+    expect(fileSystemPort.files[factPath]).toBe("fact\n");
+  });
+
+  it("keeps the dream lock: a fresh lock held by a live process yields already_running", async () => {
+    const cliStorageRoot = await temporaryDirectory();
+    const modelIoDir = join(cliStorageRoot, "rollout");
+    const memoryRoot = resolveProjectMemoryRoot({
+      cliStorageRoot,
+      workspacePath: WORKSPACE_PATH,
+    });
+    const sessionId = createSessionId("manual-dream-locked");
+    const lockPath = join(memoryRoot, ".consolidate-lock");
+    await mkdir(memoryRoot, { recursive: true });
+    await writeFile(lockPath, String(process.pid), "utf8");
+    // 锁仍鲜（<1h）且 pid 存活 → 任何触发都不得越过；transcript 比锁更新才走到取锁这一步。
+    const lockMtime = new Date(Date.now() - 5_000);
+    await utimes(lockPath, lockMtime, lockMtime);
+    const transcriptPath = join(modelIoDir, `model-io-${sessionId}.jsonl`);
+    let dreamRequests = 0;
+    const runtime = createTestAgentRuntime(
+      sessionId,
+      {
+        memory: { cliStorageRoot, enabled: true, use: true },
+        mode: "yolo",
+        workingDirectory: WORKSPACE_PATH,
+      },
+      {
+        eventStore: createTestSessionEventStore(),
+        fileSystemPort: new MemoryFileSystem(
+          { [transcriptPath]: "{}\n" },
+          { [transcriptPath]: Date.now() },
+        ),
+        modelFactory: createTestModelFactory({
+          async generateText(_request, observation) {
+            dreamRequests += 1;
+            return textResult(observation.model, "unexpected");
+          },
+        }),
+        modelIoDir,
+        sessionStore: createMemorySessionStore([session("manual-dream-locked", Date.now())]),
+        toolRegistry: createToolRegistry(),
+      },
+    );
+
+    const result = await runProjectMemoryDream(runtime as never, {
+      force: true,
+      traceContext: createRootTraceContext({
+        sessionId,
+        turnId: createTurnId("manual-dream-locked-check"),
+      }),
+    });
+
+    expect(result).toEqual({
+      status: "already_running",
+      reason: "dream_lock_held",
+      touchedPaths: [],
+      changes: [],
+    });
+    expect(dreamRequests).toBe(0);
+  });
+
+  it("returns busy instead of racing a pending background Extraction", async () => {
+    const cliStorageRoot = await temporaryDirectory();
+    const sessionId = createSessionId("manual-dream-busy");
+    let dreamRequests = 0;
+    const runtime = createTestAgentRuntime(
+      sessionId,
+      {
+        memory: { cliStorageRoot, enabled: true, use: true },
+        mode: "yolo",
+        workingDirectory: WORKSPACE_PATH,
+      },
+      {
+        eventStore: createTestSessionEventStore(),
+        fileSystemPort: new MemoryFileSystem({}),
+        modelFactory: createTestModelFactory({
+          async generateText(_request, observation) {
+            dreamRequests += 1;
+            return textResult(observation.model, "unexpected");
+          },
+        }),
+        modelIoDir: join(cliStorageRoot, "rollout"),
+        sessionStore: createMemorySessionStore([session("manual-dream-busy", NOW)]),
+        toolRegistry: createToolRegistry(),
+      },
+    );
+    (runtime as any).memoryExtractionScheduler = {
+      hasPendingWork: () => true,
+      shutdown: () => {},
+    };
+
+    const result = await runProjectMemoryDream(runtime as never, {
+      force: true,
+      traceContext: createRootTraceContext({
+        sessionId,
+        turnId: createTurnId("manual-dream-busy-check"),
+      }),
+    });
+
+    expect(result).toEqual({
+      status: "busy",
+      reason: "extraction_pending",
+      touchedPaths: [],
+      changes: [],
+    });
+    expect(dreamRequests).toBe(0);
+  });
+
+  it("returns disabled without touching the model when project memory is off", async () => {
+    const cliStorageRoot = await temporaryDirectory();
+    const sessionId = createSessionId("manual-dream-disabled");
+    let requests = 0;
+    const runtime = createTestAgentRuntime(
+      sessionId,
+      {
+        memory: { cliStorageRoot, enabled: false, use: true },
+        mode: "yolo",
+        workingDirectory: WORKSPACE_PATH,
+      },
+      {
+        eventStore: createTestSessionEventStore(),
+        fileSystemPort: new MemoryFileSystem({}),
+        modelFactory: createTestModelFactory({
+          async generateText(_request, observation) {
+            requests += 1;
+            return textResult(observation.model, "unexpected");
+          },
+        }),
+        modelIoDir: join(cliStorageRoot, "rollout"),
+        sessionStore: createMemorySessionStore([session("manual-dream-disabled", NOW)]),
+        toolRegistry: createToolRegistry(),
+      },
+    );
+
+    const result = await runProjectMemoryDream(runtime as never, {
+      force: true,
+      traceContext: createRootTraceContext({
+        sessionId,
+        turnId: createTurnId("manual-dream-disabled-check"),
+      }),
+    });
+
+    expect(result).toEqual({
+      status: "disabled",
+      reason: "memory_disabled",
+      touchedPaths: [],
+      changes: [],
+    });
+    expect(requests).toBe(0);
+  });
+});
+
+describe("diffMemorySnapshots", () => {
+  it("counts added, removed and modified files line by line", () => {
+    const changes = diffMemorySnapshots(
+      new Map([
+        ["/m/gone.md", "old\n"],
+        ["/m/same.md", "same\n"],
+        ["/m/edited.md", "a\nb\nc\n"],
+      ]),
+      new Map([
+        ["/m/new.md", "fresh\n"],
+        ["/m/same.md", "same\n"],
+        ["/m/edited.md", "a\nB\nc\n"],
+      ]),
+    );
+
+    expect(changes).toEqual([
+      { path: "/m/edited.md", addedLines: 1, removedLines: 1 },
+      { path: "/m/gone.md", addedLines: 0, removedLines: 1 },
+      { path: "/m/new.md", addedLines: 1, removedLines: 0 },
+    ]);
+  });
+});
+
+/**
+ * MemoryFileSystem 的 listDirectory 用字符串前缀判断目录，Windows 上 `\` 与 `/` 混用会
+ * 让 Dream 的前后快照都扫不到文件（changes 永远为空）。这里两种分隔符都认，条目路径仍按
+ * 真实分隔符返回，保证后续 readTextFile 与写入 key 对得上。
+ */
+class SeparatorAgnosticMemoryFileSystem extends MemoryFileSystem {
+  override async listDirectory(request: { path: string }) {
+    const root = toPosixPath(request.path);
+    const prefix = `${root}/`;
+    const seen = new Set<string>();
+    const entries = Object.keys(this.files).flatMap((path) => {
+      const normalized = toPosixPath(path);
+      if (!normalized.startsWith(prefix)) return [];
+      const rest = normalized.slice(prefix.length);
+      const [name] = rest.split("/");
+      if (!name || seen.has(name)) return [];
+      seen.add(name);
+      return [
+        {
+          kind: rest.includes("/") ? ("directory" as const) : ("file" as const),
+          name,
+          path: join(request.path, name),
+        },
+      ];
+    });
+    return { durationMs: 0, entries, numEntries: entries.length, path: request.path };
+  }
+}
+
+function toPosixPath(path: string): string {
+  return path.replaceAll("\\", "/");
+}
 
 function session(
   id: string,

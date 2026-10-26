@@ -184,7 +184,12 @@ export function useSettings(options: { cacheKey?: string; services?: IServiceAcc
           // askUserQuestion/modelIo 的同步语义和工具注册表改写混在一起。
           ...(forkFeatures === undefined
             ? []
-            : [zcodeAgentService.syncForkToolPreferences(pickForkToolPreferences(forkFeatures))]),
+            : [
+                zcodeAgentService.syncForkToolPreferences(
+                  pickForkToolPreferences(forkFeatures),
+                  forkFeatures,
+                ),
+              ]),
         ]);
         const syncError = syncResults.find(
           (result): result is PromiseRejectedResult => result.status === "rejected",

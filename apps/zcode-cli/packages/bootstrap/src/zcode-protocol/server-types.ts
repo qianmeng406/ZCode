@@ -149,6 +149,12 @@ export interface ZCodeProtocolAgentServerContext {
      * 不认识 workspace/updateForkToolPreferences 的旧 Host 不会打开这些工具。
      */
     forkToolPreferences: ForkToolPreferences;
+    /**
+     * Host 推来的完整 fork 开关（含记忆类开关）。工具三件套另存 forkToolPreferences；
+     * 这里供非工具门禁读取（如 session/runMemoryDream 的 memoryDreamManual）。
+     * 缺省 undefined = fail-closed：旧 Host 不会打开手动整理。
+     */
+    forkFeatures?: ForkFeatures;
     /** host 同步的 Off-Peak 工具面门禁；缺省 false（fail-closed），供 v4 冷恢复等无 host 参数的路径读取。 */
     offPeakToolEnabled: boolean;
     /**

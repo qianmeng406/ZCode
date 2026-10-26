@@ -15,6 +15,7 @@ import {
 } from "@zcode/shared";
 import {
   TID_CHAT_CONTEXT_COMPACT_BUTTON,
+  TID_CHAT_CONTEXT_DREAM_BUTTON,
   TID_CHAT_CONTEXT_USAGE_TRIGGER,
 } from "@zcode/shared/test-ids";
 import {
@@ -24,7 +25,7 @@ import {
   ContextTrigger,
 } from "@/components/ai-elements/context.js";
 import { Button } from "@/components/ui/button.js";
-import { FoldVerticalIcon } from "lucide-react";
+import { FoldVerticalIcon, LoaderCircleIcon, SparklesIcon } from "lucide-react";
 import { cn } from "@/components/lib/utils.js";
 import { Progress } from "@/components/ui/progress.js";
 import { useOptionalTabStore } from "@/store/TabStoreProvider.js";
@@ -258,6 +259,9 @@ export function ChatContextUsage({
   onSendCompressionCommand,
   compressionDisabled,
   compactRunning,
+  onRunMemoryDream,
+  memoryDreamRunning,
+  memoryDreamDisabled,
 }: {
   codingPlanUsageRemaining?: ChatCodingPlanUsageRemainingConfig;
   startPlanBalance?: ChatStartPlanBalanceConfig;
@@ -274,6 +278,15 @@ export function ChatContextUsage({
   compressionDisabled?: boolean;
   /** 快照投影的 compact 进行中（control.activeWorks kind=compact）；UI 不自建本地锁。 */
   compactRunning?: boolean;
+  /**
+   * fork 开关 memoryDreamManual 打开时的「整理记忆」入口。缺席即整块不渲染——
+   * 关闭态不能出现任何可触发 Dream 的按钮。
+   */
+  onRunMemoryDream?: () => void;
+  /** 本次手动触发进行中：只用于展示 spinner 与防重复点击。 */
+  memoryDreamRunning?: boolean;
+  /** 无模型 / 已有 Dream 在跑 / 远端工作区等不可触发态。 */
+  memoryDreamDisabled?: boolean;
 }) {
   const isWorkspaceVisible = useOptionalTabStore(
     (state) => !state.tabs.some((tab) => tab.id === state.activeTabId && isSettingsTab(tab)),
@@ -980,6 +993,42 @@ export function ChatContextUsage({
                 >
                   <FoldVerticalIcon className="size-4 shrink-0" aria-hidden="true" />
                   {intl.formatMessage({ id: "chat.contextUsage.compact" })}
+                </Button>
+              ) : null}
+              {/* 手动整理记忆（fork memoryDreamManual）：与压缩入口同位置并列。
+                  真实触发链路（协议/服务）在宿主，UI 只透传 callback 与进行中/禁用态。 */}
+              {onRunMemoryDream ? (
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  className="h-7 w-full gap-2 text-ui-sm"
+                  data-testid={TID_CHAT_CONTEXT_DREAM_BUTTON}
+                  aria-label={intl.formatMessage({
+                    id: "chat.contextUsage.dream",
+                  })}
+                  disabled={memoryDreamDisabled === true || memoryDreamRunning === true}
+                  title={intl.formatMessage({
+                    id: "chat.contextUsage.dreamDescription",
+                  })}
+                  onClick={() =>
+                    runContextPanelActionWithClose({
+                      action: onRunMemoryDream,
+                      close: () => setContextOpen(false),
+                    })
+                  }
+                >
+                  {memoryDreamRunning === true ? (
+                    <LoaderCircleIcon className="size-4 shrink-0 animate-spin" aria-hidden="true" />
+                  ) : (
+                    <SparklesIcon className="size-4 shrink-0" aria-hidden="true" />
+                  )}
+                  {intl.formatMessage({
+                    id:
+                      memoryDreamRunning === true
+                        ? "chat.contextUsage.dreamRunning"
+                        : "chat.contextUsage.dream",
+                  })}
                 </Button>
               ) : null}
             </div>

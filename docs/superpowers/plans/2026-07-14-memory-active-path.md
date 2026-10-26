@@ -103,6 +103,11 @@ Exit criteria：修改唯一 boolean 即可切换三处生产行为，不存在 
 - timeout、retry、keyword fallback、Repository、job DB 或持久 cursor。
 - 其他请求形态下的动态 system prompt 差异。
 
+> 后续变更（fork 定制功能，默认关闭，不属于本计划范围）：新增会话内手动「整理记忆」入口
+> `session/runMemoryDream`，由 `forkFeatures.memoryDreamManual`（默认 false）驱动；它复用既有
+> Dream handler，只放开时间/条数闸门并保留 dream lock，没有新增 `/dream`、auto trigger 或
+> Memory 管理页。合同见 `docs/conversation-session-case-catalog.md` 的 MEM06/MEM13。
+
 ## 7. 本轮验证证据
 
 - Core：5 files / 71 tests passed。

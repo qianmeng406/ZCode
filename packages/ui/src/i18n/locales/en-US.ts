@@ -537,6 +537,21 @@ const enUS: Record<string, string> = {
   "chat.memoryCapture.parseFailed":
     "The model response could not be parsed into a memory entry. Try again.",
   "chat.memoryCapture.failed": "Memory capture failed",
+  "chat.memoryDream.completed": "Consolidated {files} memory file(s) (+{added}/-{removed} lines)",
+  "chat.memoryDream.completedNoChanges": "Project memory is already up to date.",
+  "chat.memoryDream.skipped": "Memory consolidation was skipped.",
+  "chat.memoryDream.skippedNoTranscripts":
+    "This workspace has no conversations to consolidate yet.",
+  "chat.memoryDream.skippedNotDue": "Less than 24 hours since the last consolidation.",
+  "chat.memoryDream.alreadyRunning": "A consolidation is already running. Try again in a moment.",
+  "chat.memoryDream.busy": "Memory extraction is running. Try again in a moment.",
+  "chat.memoryDream.disabled": "Memory consolidation is currently unavailable.",
+  "chat.memoryDream.disabledFeature": "The consolidate-memory switch is off.",
+  "chat.memoryDream.disabledMemory": "Project memory is turned off.",
+  "chat.memoryDream.disabledRemote": "Remote workspaces cannot consolidate local memory.",
+  "chat.memoryDream.noModel": "No model is available, so memory cannot be consolidated.",
+  "chat.memoryDream.failed": "Memory consolidation failed",
+  "chat.memoryDream.failedWithReason": "Memory consolidation failed: {reason}",
   "chat.oracleReview.reviewTurnDeep":
     "Deep review (cross-turn task audit with read-only investigation, several times the cost)",
   "chat.oracleReview.pending": "{model} is reviewing… (waiting {minutes}:{seconds})",
@@ -6061,6 +6076,10 @@ const enUS: Record<string, string> = {
   "chat.contextUsage.compressDescription": "Send {command} to compress the current context",
   "chat.contextUsage.compact": "Compact context",
   "chat.contextUsage.compactDescription": "Send {command} to compact the current context",
+  "chat.contextUsage.dream": "Consolidate memory",
+  "chat.contextUsage.dreamRunning": "Consolidating memory…",
+  "chat.contextUsage.dreamDescription":
+    "Consolidate project memory now: merge duplicate entries and refresh the index. Uses the current session model and may take several minutes.",
   "tokenDebug.open": "Open token debug",
   "tokenDebug.column.tps": "TPS (tokens/s)",
   "tokenDebug.tpsDescription":

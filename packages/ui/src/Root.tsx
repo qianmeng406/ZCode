@@ -348,7 +348,10 @@ function RootInner({
         if (parsed.data.forkFeatures) {
           // 工具开关要即时作用到本窗口的所有会话；settings 刷新只更新 UI，不能代替下发。
           void services.zcodeAgentService
-            .syncForkToolPreferences(pickForkToolPreferences(parsed.data.forkFeatures))
+            .syncForkToolPreferences(
+              pickForkToolPreferences(parsed.data.forkFeatures),
+              parsed.data.forkFeatures,
+            )
             .catch((error) => {
               logger.warn("[settings] 同步跨窗口工具开关失败", error);
             });
@@ -432,7 +435,7 @@ function RootInner({
       return;
     }
     void services.zcodeAgentService
-      .syncForkToolPreferences(pickForkToolPreferences(forkFeatures))
+      .syncForkToolPreferences(pickForkToolPreferences(forkFeatures), forkFeatures)
       .catch((error) => {
         logger.warn("[settings] 初始化工具开关失败", error);
       });

@@ -140,7 +140,11 @@ import type { MemoryRecallState } from "../memory/recall/index.js";
 import type { ChildClientPortsContext, ClientFacingPorts } from "./helpers/child-client-ports.js";
 import type { ProjectMemoryRecallPrefetch } from "./helpers/project-memory-recall.js";
 import type { ProjectMemoryExtractionScheduler } from "./helpers/project-memory-extraction.js";
-import type { ProjectMemoryUpdate } from "./helpers/project-memory-dream.js";
+import type {
+  ProjectMemoryDreamOptions,
+  ProjectMemoryDreamResult,
+  ProjectMemoryUpdate,
+} from "./helpers/project-memory-dream.js";
 import { projectPersistentAgentMemoryTools } from "../subagent/persistent-memory.js";
 import { RuntimeTelemetryFacade } from "../telemetry/runtime-telemetry.js";
 import type { WorkspaceHookRuntimeAdmissionPort } from "../hooks/workspace-hook-runtime-admission.js";
@@ -765,6 +769,11 @@ export interface AgentRuntime {
     options?: { abortSignal?: AbortSignal; traceContext?: TraceContext },
   ): Promise<void>;
   isProjectMemoryEnabled(): boolean;
+  /**
+   * 手动触发一次 Project Memory 整理（force）：跳过 24h 冷却与条数闸门，
+   * 但保留 dream lock，返回结构化结果供 UI 展示文件增删行数。
+   */
+  runMemoryDream(options?: ProjectMemoryDreamOptions): Promise<ProjectMemoryDreamResult>;
   /** 缺省等待最多 60 秒；null 等待全部已调度提取结束，不设置 drain deadline。 */
   drainMemoryExtractions(timeoutMs?: number | null): Promise<void>;
   /**

@@ -195,6 +195,7 @@ import {
   drainMemoryExtractions,
   isProjectMemoryEnabled,
 } from "../helpers/project-memory-extraction.js";
+import { runMemoryDream } from "../helpers/project-memory-dream.js";
 import { applyForkToolSwitchRegistry, updateForkToolSwitches } from "./fork-tool-switches.js";
 
 type AgentRuntimeConstructor = { prototype: object };
@@ -396,4 +397,5 @@ export function installAgentRuntimeMethods(ctor: AgentRuntimeConstructor): void 
   proto.sampleModel = sampleModel;
   proto.drainMemoryExtractions = drainMemoryExtractions;
   proto.isProjectMemoryEnabled = isProjectMemoryEnabled;
+  proto.runMemoryDream = runMemoryDream;
 }

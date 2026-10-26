@@ -36,6 +36,7 @@ import {
   cancelBackgroundTask,
   closeSession,
   compactSession,
+  runMemoryDreamForSession,
   acknowledgeOracleReviewRecord,
   createSession,
   forkSession,
@@ -69,7 +70,10 @@ import {
   readWorkspacePresentation,
   testProviderModelConnectivity,
 } from "./workspace-model-runtime.js";
-import { fetchProviderUpstreamModels, createRegistryUpstreamEndpointResolver } from "./provider-upstream-models.js";
+import {
+  fetchProviderUpstreamModels,
+  createRegistryUpstreamEndpointResolver,
+} from "./provider-upstream-models.js";
 import { createNodeHttpClientAdapter } from "@zcode/adapters/http";
 import {
   addPluginMarketplace,
@@ -704,6 +708,8 @@ export class ZCodeProtocolAgentServer {
         return await forkSession(this.context, request.params);
       case zcodeProtocolMethods.sessionCompact:
         return await compactSession(this.context, request.params);
+      case zcodeProtocolMethods.sessionRunMemoryDream:
+        return await runMemoryDreamForSession(this.context, request.params);
       case zcodeProtocolMethods.sessionGoal:
         return await goalSession(this.context, request.params);
       case zcodeProtocolMethods.sessionSetModel:
@@ -1051,7 +1057,7 @@ export class ZCodeProtocolAgentServer {
               PROTOCOL_CLIENT_REQUEST_ERROR_CODES.timedOut,
               `Client request timed out: ${method}`,
               {
-              timeoutMs: options.timeoutMs,
+                timeoutMs: options.timeoutMs,
               },
             ),
           );

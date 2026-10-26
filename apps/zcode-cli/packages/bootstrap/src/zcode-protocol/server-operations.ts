@@ -73,6 +73,8 @@ import {
   elideSessionSnapshotForIndex,
   zcodeSessionRuntimePreferencesResultSchema,
   zcodeSessionResumeParamsSchema,
+  zcodeSessionRunMemoryDreamParamsSchema,
+  type ZCodeSessionRunMemoryDreamResult,
   zcodeSessionSendParamsSchema,
   zcodeSessionSetModeParamsSchema,
   zcodeSessionSetModelParamsSchema,
@@ -2044,11 +2046,14 @@ export async function sendPrompt(context: ZCodeProtocolAgentServerContext, rawPa
   // 会话级执行环境切换 admission 锁（session-linux-execution spec「切换 admission」）：
   // 准备期间提交新输入会与端口装配交错，锁在 prepare 开始前建立、提交/失败后释放。
   if (isSessionExecutionPreparationInFlight(params.sessionId)) {
-    context.logger?.warn("ZCode Protocol session/send rejected: execution environment switch in progress", {
-      inputId: params.inputId,
-      sessionId: params.sessionId,
-      workspacePath: record.workspace.workspacePath,
-    });
+    context.logger?.warn(
+      "ZCode Protocol session/send rejected: execution environment switch in progress",
+      {
+        inputId: params.inputId,
+        sessionId: params.sessionId,
+        workspacePath: record.workspace.workspacePath,
+      },
+    );
     throw new ProtocolRequestError(
       -32010,
       "An execution environment switch is in progress for this session; try again after it completes",
@@ -2128,6 +2133,44 @@ export async function sendPrompt(context: ZCodeProtocolAgentServerContext, rawPa
   // 同步等待首 token/整轮会让超过 30s 的请求触发 host timeout，并且阻塞后续 session/resume、list 等协议消息。
   // 这里收到输入后立即 ACK，后台 turn 继续通过 session event/state.updated 推送进度。
   return afterPromptAccepted(context, record, "prompt_started");
+}
+
+/**
+ * 手动触发 Project Memory 整理（fork 开关 memoryDreamManual）。
+ *
+ * 开关在这里读 Host 推来的 appRuntimePreferences：关闭时直接返回 disabled，不进入
+ * core、不产生任何模型请求。core 侧只实现 force 语义（跳时间/条数闸门、保留锁）。
+ */
+export async function runMemoryDreamForSession(
+  context: ZCodeProtocolAgentServerContext,
+  rawParams: unknown,
+): Promise<ZCodeSessionRunMemoryDreamResult> {
+  const params = parseParams(zcodeSessionRunMemoryDreamParamsSchema, rawParams);
+  const record = requireSession(context, params.sessionId);
+  // 进程级缓存（Host 推送）优先；没有推送过（纯 CLI / 刚启动）时回退到该会话冷启动
+  // 解析出的开关，避免开关已打开却报 disabled。
+  const manualDreamEnabled =
+    context.appRuntimePreferences.forkFeatures?.memoryDreamManual ??
+    record.forkFeatures.memoryDreamManual;
+  if (!manualDreamEnabled) {
+    return {
+      status: "disabled" as const,
+      reason: "fork_feature_disabled",
+      touchedPaths: [],
+      changes: [],
+    };
+  }
+  if (!record.app.runtime.isProjectMemoryEnabled()) {
+    return {
+      status: "disabled" as const,
+      reason: "memory_disabled",
+      touchedPaths: [],
+      changes: [],
+    };
+  }
+  // Dream 是后台模型任务：没有可用模型时要在派发前拒绝，不能让 UI 等满 10 分钟超时。
+  await ensureSessionModelAvailableForNextTurn(context, record);
+  return record.app.runtime.runMemoryDream({ force: true });
 }
 
 export async function compactSession(context: ZCodeProtocolAgentServerContext, rawParams: unknown) {
