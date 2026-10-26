@@ -14,6 +14,7 @@ const SORTED_PROVIDER_TOOL_NAMES = new Set([
   "Glob",
   "Grep",
   "LSP",
+  "Monitor",
   "NotebookEdit",
   "Read",
   "ScheduleWakeup",

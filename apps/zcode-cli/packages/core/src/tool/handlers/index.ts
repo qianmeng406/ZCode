@@ -60,6 +60,7 @@ import { escalateToolEntry } from "./escalate.js";
 import { resolveWorkflowQuestionToolEntry } from "./resolve-workflow-question.js";
 import { fillWorkflowHoleToolEntry } from "./fill-workflow-hole.js";
 import { taskOutputToolEntry } from "./task-output.js";
+import { monitorToolEntry } from "./monitor.js";
 import { taskStopToolEntry } from "./task-stop.js";
 import { readSessionContextToolEntry } from "./read-session-context.js";
 import { amendWorkflowToolEntry } from "./amend-workflow.js";
@@ -113,6 +114,8 @@ export const builtInTools: ToolEntry[] = [
   // 作者没标记的那一个。
   escalateToolEntry,
   taskOutputToolEntry,
+  // fork 定制：等待条件原语（默认不注册，由 forkToolSwitches.monitorTool 打开）。
+  monitorToolEntry,
   taskStopToolEntry,
   readSessionContextToolEntry,
   replyToChannelToolEntry,

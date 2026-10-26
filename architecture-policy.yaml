@@ -1064,3 +1064,9 @@ exceptions:
       - apps/zcode-cli/packages/core/src/runtime/methods/fork-tool-switches.ts
       - apps/zcode-cli/packages/bootstrap/src/zcode-protocol/fork-tool-preferences.ts
     reason: fork 工具开关的即时生效实现（两段式：可见性立即失效 + 注册表增删延后到 turn 收口）与协议推送 handler；分别与同目录 methods/*、zcode-protocol/* 既有实现同模式。apps/zcode-cli 整体未受管，登记 core 目录为 managed 模块不在本次范围内。
+  - id: monitor-tool-unmanaged-new
+    rule: unmanaged-new-file
+    paths:
+      - apps/zcode-cli/packages/contracts/src/tools/monitor.ts
+      - apps/zcode-cli/packages/core/src/tool/handlers/monitor.ts
+    reason: fork 定制功能 Monitor（等待条件原语）的契约与 handler，默认不注册、由 forkToolSwitches 显式打开；与 task-output 的契约/handler 同结构同目录。apps/zcode-cli 整体未受管，登记 tools 目录为 managed 模块不在本次范围内。
