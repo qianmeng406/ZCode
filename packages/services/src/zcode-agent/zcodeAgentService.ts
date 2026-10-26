@@ -167,6 +167,8 @@ import {
   zcodeWorkspaceHookTrustGrantResultSchema,
   zcodeWorkspaceUpdateInteractionPreferencesResultSchema,
   zcodeWorkspaceUpdateModelIoPreferencesResultSchema,
+  zcodeWorkspaceUpdateForkToolPreferencesResultSchema,
+  type ForkToolPreferences,
   zcodeProviderUpdateAccountConfigResultSchema,
   type ZCodeSessionStateSnapshot,
   type ZCodeAutomation,
@@ -1401,6 +1403,11 @@ export function createZCodeAgentService(
   >();
   const activeClientsByWorkspaceKey = new Map<string, ActiveWorkspaceClient>();
   const interactionPreferenceSyncByWorkspaceKey = new Map<string, Promise<void>>();
+  /**
+   * fork 工具开关的同步链。与 interaction 链分开：那条链在每次 askUserQuestion/modelIo
+   * 变更时都会跑，若把工具开关塞进去，没有携带偏好的一次同步会把已开启的工具默认关掉。
+   */
+  const forkToolPreferenceSyncByWorkspaceKey = new Map<string, Promise<void>>();
   let latestAppRuntimePreferences: ZCodeAgentAppRuntimePreferences | undefined;
   /** 服务端「提供」的进程内单次读取；见 resolveDynamicWorkflowGate 的注释。 */
   let dynamicWorkflowOffer: Promise<DynamicWorkflowClientConfig | undefined> | undefined;
@@ -1508,6 +1515,7 @@ export function createZCodeAgentService(
     // Interaction preference 是 CLI 进程内存态；runtime 换代后即使 app revision
     // 未变化也必须重新同步，不能沿用旧 client 的完成 Promise。
     interactionPreferenceSyncByWorkspaceKey.delete(workspaceKey);
+    forkToolPreferenceSyncByWorkspaceKey.delete(workspaceKey);
   }
 
   const runtimeLifecycleDisposable = processManager.onRuntimeLifecycle((event) => {
@@ -1782,6 +1790,52 @@ export function createZCodeAgentService(
       () => {
         if (interactionPreferenceSyncByWorkspaceKey.get(workspaceKey) === current) {
           interactionPreferenceSyncByWorkspaceKey.delete(workspaceKey);
+        }
+      },
+    );
+    return current;
+  }
+
+  /**
+   * 三个 fork 工具开关会改动运行中的工具注册表，必须即时下发；只在设置真的变化时调用，
+   * 因此这里不做"缺省即关"的归一化——传入什么就是用户的当前完整选择。
+   */
+  function enqueueForkToolPreferenceSync(params: {
+    client: ZCodeProtocolClient;
+    preferences: ForkToolPreferences;
+    workspace: ZCodeAgentWorkspaceTarget;
+  }): Promise<void> {
+    const workspaceKey = resolveWorkspaceKey(params.workspace);
+    const previous = forkToolPreferenceSyncByWorkspaceKey.get(workspaceKey) ?? Promise.resolve();
+    const current = previous
+      .catch(() => {
+        // 前一次提交失败不能阻断后面的开关操作；每次请求都携带完整快照。
+      })
+      .then(async () => {
+        try {
+          await params.client.request(
+            zcodeProtocolMethods.workspaceUpdateForkToolPreferences,
+            {
+              workspace: buildWorkspaceRef(params.workspace),
+              preferences: params.preferences,
+            },
+            zcodeWorkspaceUpdateForkToolPreferencesResultSchema,
+          );
+        } catch (error) {
+          // 未升级的 CLI 没有这些工具也没有这个方法；method-not-found 按"无需下发"降级。
+          if (!isProtocolMethodNotFoundError(error)) throw error;
+        }
+      });
+    forkToolPreferenceSyncByWorkspaceKey.set(workspaceKey, current);
+    void current.then(
+      () => {
+        if (forkToolPreferenceSyncByWorkspaceKey.get(workspaceKey) === current) {
+          forkToolPreferenceSyncByWorkspaceKey.delete(workspaceKey);
+        }
+      },
+      () => {
+        if (forkToolPreferenceSyncByWorkspaceKey.get(workspaceKey) === current) {
+          forkToolPreferenceSyncByWorkspaceKey.delete(workspaceKey);
         }
       },
     );
@@ -3476,6 +3530,7 @@ export function createZCodeAgentService(
     const workspaceKey = resolveWorkspaceKey(params);
     activeClientsByWorkspaceKey.delete(workspaceKey);
     interactionPreferenceSyncByWorkspaceKey.delete(workspaceKey);
+    forkToolPreferenceSyncByWorkspaceKey.delete(workspaceKey);
     logger.warn(undefined, "复用的 ZCode Protocol client 已 disposed，清理 stale entry", {
       workspaceKey,
       workspacePath: params.workspacePath,
@@ -3806,6 +3861,7 @@ export function createZCodeAgentService(
     activeClientsByWorkspaceKey.clear();
     cancelAllWaitingWorkspaceStartups();
     interactionPreferenceSyncByWorkspaceKey.clear();
+    forkToolPreferenceSyncByWorkspaceKey.clear();
     cuaOperationTurnTracker?.clearAll();
     clearV4SubscriptionRoutes();
     v4RouteRuntimeRestartDisposable.dispose();
@@ -4090,6 +4146,20 @@ export function createZCodeAgentService(
           enqueueInteractionPreferenceSync({
             client: entry.client,
             preferences: { ...normalizedPreferences },
+            workspace: entry.workspace,
+          }),
+        ),
+      );
+    },
+
+    async syncForkToolPreferences(preferences: ForkToolPreferences): Promise<void> {
+      // 只推给活跃 client：新会话/冷恢复从 setting.json 经 runtimeConfig 读取，不依赖这条链路。
+      const activeClients = [...activeClientsByWorkspaceKey.values()];
+      await Promise.all(
+        activeClients.map((entry) =>
+          enqueueForkToolPreferenceSync({
+            client: entry.client,
+            preferences,
             workspace: entry.workspace,
           }),
         ),

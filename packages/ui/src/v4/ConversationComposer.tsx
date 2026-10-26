@@ -470,6 +470,8 @@ export interface ConversationComposerProps {
   oracleReview?: OracleReviewController;
   /** 提示词优化全局配置（设置页）；缺省时使用安全默认值。 */
   promptOptimizerModel?: ModelSelection | null;
+  /** 「定制功能」页的提示词优化总开关；缺省 true，保持既有行为。 */
+  promptOptimizerEnabled?: boolean;
   promptOptimizerMode?: PromptOptimizerMode;
   promptOptimizerContextRange?: PromptOptimizerContextRange;
   /** 当前 composer 是否运行在手机 Web 远控壳中。 */
@@ -598,6 +600,7 @@ function ConversationComposerImpl({
   isWebRemoteControl = false,
   oracleReview,
   promptOptimizerModel = null,
+  promptOptimizerEnabled = true,
   promptOptimizerMode = "polish",
   promptOptimizerContextRange = "conversation",
   workspacePath,
@@ -1350,6 +1353,7 @@ function ConversationComposerImpl({
   const hasText = text.trim().length > 0;
   // 优化模型/方式/上下文统一来自设置页；输入栏只保留一次点击的 ✨ 动作。
   const handleOptimizePrompt = useCallback(() => {
+    if (!promptOptimizerEnabled) return;
     const draft = textRef.current.trim();
     if (!draft || promptOptimizer.optimizing || pendingRef.current) {
       return;
@@ -1398,6 +1402,7 @@ function ConversationComposerImpl({
     hasWebElementContexts,
     modelSelectionView,
     promptOptimizerContextRange,
+    promptOptimizerEnabled,
     promptOptimizerMode,
     promptOptimizerModel,
     promptOptimizer,
@@ -2621,32 +2626,36 @@ function ConversationComposerImpl({
         ) : null}
         {remoteAvailable && !showStopControl && !pending ? (
           <>
-            <ControlHintTooltip title={optimizePromptTooltip}>
-              <Button
-                type="button"
-                variant="ghost"
-                size="icon-md"
-                disabled={
-                  disabled ||
-                  modelSelectionState.status !== "ready" ||
-                  (!hasText && !promptOptimizer.optimizing)
-                }
-                onClick={promptOptimizer.optimizing ? promptOptimizer.cancel : handleOptimizePrompt}
-                data-testid="v4-composer-optimize-prompt"
-                aria-label={
-                  promptOptimizer.optimizing
-                    ? intl.formatMessage({ id: "chat.composer.optimizeCancel" })
-                    : optimizePromptTooltip
-                }
-              >
-                {promptOptimizer.optimizing ? (
-                  <Spinner className="size-4" />
-                ) : (
-                  <SparklesIcon className="size-4" />
-                )}
-                <span className="sr-only">{optimizePromptTooltip}</span>
-              </Button>
-            </ControlHintTooltip>
+            {promptOptimizerEnabled ? (
+              <ControlHintTooltip title={optimizePromptTooltip}>
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="icon-md"
+                  disabled={
+                    disabled ||
+                    modelSelectionState.status !== "ready" ||
+                    (!hasText && !promptOptimizer.optimizing)
+                  }
+                  onClick={
+                    promptOptimizer.optimizing ? promptOptimizer.cancel : handleOptimizePrompt
+                  }
+                  data-testid="v4-composer-optimize-prompt"
+                  aria-label={
+                    promptOptimizer.optimizing
+                      ? intl.formatMessage({ id: "chat.composer.optimizeCancel" })
+                      : optimizePromptTooltip
+                  }
+                >
+                  {promptOptimizer.optimizing ? (
+                    <Spinner className="size-4" />
+                  ) : (
+                    <SparklesIcon className="size-4" />
+                  )}
+                  <span className="sr-only">{optimizePromptTooltip}</span>
+                </Button>
+              </ControlHintTooltip>
+            ) : null}
             {/* 手动审查入口不随 oracleReviewEnabled 隐藏：总开关只控「回合成功后的
                 自动把关」；用它连带隐藏按钮，用户关掉自动后就连手动入口一起找不到了。 */}
             {oracleReview ? (
@@ -2731,6 +2740,7 @@ function ConversationComposerImpl({
       hasText,
       optimizePromptTitle,
       optimizePromptTooltip,
+      promptOptimizerEnabled,
       promptOptimizerModel,
       promptOptimizerMode,
       promptOptimizerContextRange,

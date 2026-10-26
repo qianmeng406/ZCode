@@ -1,5 +1,6 @@
 import { requestVerificationReasons } from "../request-security-edition/verification-policy.js";
 import { zcodeProtocolTraceSchema } from "./trace.js";
+import { forkFeaturesSchema, forkToolPreferencesSchema } from "../fork-features.js";
 // Bot 反向回复的名字解析/待澄清结果与 App、CLI 使用同一严格 schema。
 export { channelReplyRequestSchema, channelReplyResultSchema } from "../channel-mention.js";
 export { zcodeProtocolTraceSchema, type ZCodeProtocolTrace } from "./trace.js";
@@ -2123,6 +2124,11 @@ export const zcodeSessionRuntimePreferencesResultSchema = z
     toolSearchMode: appToolSearchModeSchema.default("off"),
     subagentRuntimeConfigEnabled: z.boolean().optional(),
     memoryEnabled: z.boolean().default(false),
+    /**
+     * fork 定制功能开关。缺省回落到 DEFAULT_FORK_FEATURES（旧 Host 不发送时等价于
+     * 除 promptOptimizer 外全关），新增字段不能让旧 Host 的会话创建失败。
+     */
+    forkFeatures: forkFeaturesSchema,
     askUserQuestionAutoResolutionEnabled: z.boolean().default(true),
     integratedTerminalShell: integratedTerminalShellSelectionSchema.optional(),
     // 兼容旧 Host：缺少字段时在协议解析边界使用当前默认策略。
@@ -2821,6 +2827,31 @@ export const zcodeWorkspaceUpdateModelIoPreferencesResultSchema = z
   .strict();
 export type ZCodeWorkspaceUpdateModelIoPreferencesResult = z.infer<
   typeof zcodeWorkspaceUpdateModelIoPreferencesResultSchema
+>;
+
+/**
+ * fork 工具开关的即时下发。三个开关都会改动运行中的工具注册表，因此不能只写进
+ * runtimeConfig 等下次冷恢复；协议层同时缓存（供新 session 继承）并推给每个活跃 session。
+ */
+export const zcodeWorkspaceUpdateForkToolPreferencesParamsSchema = z
+  .object({
+    workspace: zcodeWorkspaceRefSchema,
+    preferences: forkToolPreferencesSchema,
+  })
+  .strict();
+export type ZCodeWorkspaceUpdateForkToolPreferencesParams = z.infer<
+  typeof zcodeWorkspaceUpdateForkToolPreferencesParamsSchema
+>;
+
+export const zcodeWorkspaceUpdateForkToolPreferencesResultSchema = z
+  .object({
+    workspace: zcodeWorkspaceRefSchema,
+    preferences: forkToolPreferencesSchema,
+    updatedSessionCount: z.number().int().nonnegative(),
+  })
+  .strict();
+export type ZCodeWorkspaceUpdateForkToolPreferencesResult = z.infer<
+  typeof zcodeWorkspaceUpdateForkToolPreferencesResultSchema
 >;
 
 export const zcodeWorkspaceUpdateOffPeakToolPolicyParamsSchema = z
@@ -4455,6 +4486,8 @@ export const zcodeProtocolMethods = {
   providerRefreshRegistry: "provider/refreshRegistry",
   workspaceUpdateInteractionPreferences: "workspace/updateInteractionPreferences",
   workspaceUpdateModelIoPreferences: "workspace/updateModelIoPreferences",
+  // fork 工具开关：必须即时生效（下一轮模型请求即可见/不可见），与 interaction/modelIo 同模式。
+  workspaceUpdateForkToolPreferences: "workspace/updateForkToolPreferences",
   // Off-Peak 工具面门禁是 workspace 级事实（灰度 + 本地/远程），由 host 在 agent 就绪时同步；
   // CLI 对 legacy create/resume 与 v4 冷恢复统一读取。旧 CLI method-not-found → host 降级忽略。
   workspaceUpdateOffPeakToolPolicy: "workspace/updateOffPeakToolPolicy",

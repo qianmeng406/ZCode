@@ -170,6 +170,8 @@ export interface AgentRuntimeInternal
   foregroundPromotionLease?: ForegroundPromotionLeaseState;
   activeTurn?: ActiveTurnSteeringState;
   activeTurnStartReservation?: ActiveTurnStartReservation;
+  /** fork 工具开关在 active turn 期间只改可见性，注册表增删延后到 turn 结束。 */
+  pendingForkToolSwitchApply?: boolean;
   pendingInputSequence: number;
   pendingInputReservations: Map<string, string>;
   permissionFullAccessPending?: boolean;

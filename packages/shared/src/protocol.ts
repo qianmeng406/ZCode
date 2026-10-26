@@ -9,6 +9,7 @@ import type { PromptOptimizerContextRange, PromptOptimizerMode } from "./ai-feat
 import type { ModelSelection } from "./model-selection.js";
 import type { EmbeddedBrowserViewportPreference } from "./browser-use/command-metadata.js";
 import type { AppToolSearchMode } from "./app-runtime-preferences.js";
+import type { ForkFeatures } from "./fork-features.js";
 
 // ── Domain types ──
 
@@ -390,6 +391,8 @@ export interface AppSettings {
     | "other"
     | null;
   proactiveSuggestionsEnabled?: boolean;
+  /** fork 定制功能开关集合；缺省按 DEFAULT_FORK_FEATURES 解析。 */
+  forkFeatures?: ForkFeatures;
   /** 新版只保存活动执行目录；不表达项目/连接成员，null 表示明确清空。 */
   lastActiveWorkspace?: PersistedWorkspaceSessionEntry | null;
   /** Host 从项目/本机入口派生，供旧版降级读取；新版不作为入口真相。 */

@@ -37,6 +37,11 @@ export function refreshBranchAwareBuiltInTools(runtime: AgentRuntimeInternal): v
     // silentDuplicateWarnings 还把告警吞掉，所以全程无声）。推导因此必须与 runtime-tools.ts
     // 共用同一个 helper，不能在这里重写一遍判断。
     includeDynamicWorkflow: resolveRuntimeDynamicWorkflowToolsIncluded(runtime),
+    // 与 runtime-tools.ts 同源：fork 工具开关也是「显式 true 才注册」，省略不会复活，
+    // 但两个入口必须读同一份配置，否则 shell 快照初始化会把已开的工具面算成另一套。
+    includeMonitor: runtime.config.forkToolSwitches?.monitorTool === true,
+    includeNotebookEdit: runtime.config.forkToolSwitches?.notebookEdit === true,
+    includeApplyPatch: runtime.config.forkToolSwitches?.applyPatch === true,
     allowedTools: resolveBuiltInToolAllowlist(runtime.config),
     disallowedTools: runtime.config.toolDisallowlist,
     silentDuplicateWarnings: true,

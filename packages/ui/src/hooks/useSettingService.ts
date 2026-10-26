@@ -2,7 +2,11 @@
  * useSettingService —— 设置服务 hooks
  */
 import { useState, useEffect, useCallback } from "react";
-import { APP_RUNTIME_PREFERENCES_CHANGED_BROADCAST_CHANNEL, type AppSettings } from "@zcode/shared";
+import {
+  APP_RUNTIME_PREFERENCES_CHANGED_BROADCAST_CHANNEL,
+  pickForkToolPreferences,
+  type AppSettings,
+} from "@zcode/shared";
 import type { IServiceAccessor, ISettingService } from "@zcode/services";
 import { useServices } from "./useServices.js";
 import { usePlatform } from "./usePlatform.js";
@@ -157,7 +161,9 @@ export function useSettings(options: { cacheKey?: string; services?: IServiceAcc
       }
       platform.syncAppSettings?.(patch);
       await refresh();
+      const forkFeatures = patch.forkFeatures;
       if (
+        forkFeatures !== undefined ||
         typeof patch.askUserQuestionAutoResolutionEnabled === "boolean" ||
         typeof patch.modelIoFullRetentionEnabled === "boolean"
       ) {
@@ -169,10 +175,16 @@ export function useSettings(options: { cacheKey?: string; services?: IServiceAcc
           modelIoFullRetentionEnabled:
             patch.modelIoFullRetentionEnabled ??
             currentSettings?.modelIoFullRetentionEnabled === true,
+          ...(forkFeatures === undefined ? {} : { forkFeatures }),
         };
         const syncResults = await Promise.allSettled([
           zcodeAgentService.syncAppRuntimePreferences(preferences),
           botsService.syncAppRuntimePreferences(preferences),
+          // 工具开关必须即时下发到运行中的会话；与上面两条分开调用，避免把
+          // askUserQuestion/modelIo 的同步语义和工具注册表改写混在一起。
+          ...(forkFeatures === undefined
+            ? []
+            : [zcodeAgentService.syncForkToolPreferences(pickForkToolPreferences(forkFeatures))]),
         ]);
         const syncError = syncResults.find(
           (result): result is PromiseRejectedResult => result.status === "rejected",

@@ -5,6 +5,7 @@ export type SettingsSectionId =
   | "general"
   | "appearance"
   | "performance"
+  | "forkFeatures"
   | "migration"
   | "browser"
   | "modelProvider"
@@ -69,6 +70,7 @@ function isSettingsSectionId(value: string): value is SettingsSectionId {
     value === "general" ||
     value === "appearance" ||
     value === "performance" ||
+    value === "forkFeatures" ||
     value === "migration" ||
     value === "browser" ||
     value === "modelProvider" ||

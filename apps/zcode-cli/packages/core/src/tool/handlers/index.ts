@@ -205,6 +205,13 @@ interface RegisterBuiltInToolsOptions {
   includeDynamicWorkflow?: boolean;
   /** node_repl（js）默认关闭，由官方 browser-use 插件启用。 */
   includeNodeRepl?: boolean;
+  /**
+   * fork 工具开关（Monitor / NotebookEdit / ApplyPatch）。三者都必须显式为 true 才注册，
+   * 缺席代表调用方不参与该功能——首次装配与分支刷新共用同一组选项。
+   */
+  includeMonitor?: boolean;
+  includeNotebookEdit?: boolean;
+  includeApplyPatch?: boolean;
   /** browser-use 说明和 agent.browsers 注入由官方 browser-use 插件 + 宿主 browser bridge 共同启用。 */
   includeBrowserUse?: boolean;
   embeddedSearchEnabled?: boolean;
@@ -281,6 +288,16 @@ export function registerBuiltInTools(
       continue;
     }
     if (entry.metadata.name === "js" && options.includeNodeRepl !== true) {
+      continue;
+    }
+    // fork 工具开关：默认不注册（fail-closed），由 runtime 的 forkToolSwitches 逐项打开。
+    if (entry.metadata.name === "Monitor" && options.includeMonitor !== true) {
+      continue;
+    }
+    if (entry.metadata.name === "NotebookEdit" && options.includeNotebookEdit !== true) {
+      continue;
+    }
+    if (entry.metadata.name === "ApplyPatch" && options.includeApplyPatch !== true) {
       continue;
     }
     registry.register(resolveBuiltInToolEntryForBranch(entry, options), {

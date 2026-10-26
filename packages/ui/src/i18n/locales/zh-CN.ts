@@ -3102,6 +3102,41 @@ const zhCN: Record<string, string> = {
   "settings.assistantAutoFilePreview": "自动加载文件预览",
   "settings.assistantAutoFilePreviewDescription":
     "自动识别回复中引用的 Markdown/HTML 文件并加载预览卡片。关闭后改为点击“加载预览”手动获取。",
+  "settings.forkFeatures.title": "定制功能",
+  "settings.forkFeatures.description":
+    "本版本相对上游新增的能力集中在这里。每个开关关闭时行为回到该功能引入之前，可逐项独立启用。",
+  "settings.forkFeatures.group.reviewAndPrompt": "审查与提示词",
+  "settings.forkFeatures.group.tools": "工作流与工具",
+  "settings.forkFeatures.group.memory": "记忆",
+  "settings.forkFeatures.promptOptimizer": "提示词优化",
+  "settings.forkFeatures.promptOptimizerDescription":
+    "在输入栏显示优化入口，把你的草稿改写成更清晰的提示词。关闭后入口不再出现，行为与未引入该功能时一致。",
+  "settings.forkFeatures.monitorTool": "Monitor 工具",
+  "settings.forkFeatures.monitorToolDescription":
+    "让模型等待某个条件成立（后台命令输出命中、文件出现内容、端口可连、HTTP 2xx），而不是反复读取日志或长时间 sleep。",
+  "settings.forkFeatures.notebookEdit": "Notebook 编辑",
+  "settings.forkFeatures.notebookEditDescription":
+    "允许按 cell 读写 Jupyter Notebook（.ipynb）。关闭时 Edit 仍按原方式拒绝 notebook 文件。",
+  "settings.forkFeatures.applyPatch": "多文件补丁（ApplyPatch）",
+  "settings.forkFeatures.applyPatchDescription":
+    "一次提交覆盖多个文件的结构化补丁，减少多文件改动时的往返次数；改动仍会进入回滚检查点。",
+  "settings.forkFeatures.toolsApplyImmediately":
+    "这三个工具开关即时生效：当前会话的下一轮请求就会看到变化，无需新建会话。",
+  "settings.forkFeatures.memoryDisabledHint":
+    "记忆功能当前未开启。下面三项需要有记忆数据才有意义，请先在「记忆」页启用记忆。",
+  "settings.forkFeatures.memoryFileEditing": "记忆文件编辑",
+  "settings.forkFeatures.memoryFileEditingDescription":
+    "允许在记忆查看器中直接编辑或删除记忆文件；保存时做大小与并发冲突校验，删除会同步清理索引中的对应行。",
+  "settings.forkFeatures.memoryCapture": "一键沉淀为记忆",
+  "settings.forkFeatures.memoryCaptureDescription":
+    "在消息操作栏提供「沉淀为记忆」：生成候选条目，确认后写入记忆目录并同步索引。",
+  "settings.forkFeatures.memoryDreamManual": "手动触发记忆整理",
+  "settings.forkFeatures.memoryDreamManualDescription":
+    "在上下文面板提供「整理记忆」入口：立即执行一次 Dream 巩固（绕过时间与条数门槛，但仍受运行锁保护），并返回改动摘要。",
+  "settings.forkFeatures.performanceLink": "性能优化",
+  "settings.forkFeatures.performanceLinkDescription":
+    "流式渲染与长会话的 10 项优化开关在独立分区中管理。",
+  "settings.forkFeatures.performanceLinkAction": "前往性能设置",
   "settings.systemTitle": "常规",
   "settings.systemDescription": "这些设置会影响当前窗口的显示与交互。",
   "settings.locale": "界面语言",

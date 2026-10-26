@@ -1048,3 +1048,19 @@ exceptions:
     paths:
       - packages/desktop/src/renderer/src/localTtftBootstrap.ts
     reason: 既有 desktop renderer 启动文件（开源基线 872ad960 引入），本次仅为其增加 LocalTtftTimerHost 注入点与 flush 定时器生命周期（性能开关 dedupedIdlePollingEnabled），不是新增模块；接管 desktop 目录并为其登记 managed 模块不在本次性能优化范围内，与既有 desktop/ui 未受管目录豁免同因。
+  - id: fork-features-settings-unmanaged-new
+    rule: unmanaged-new-file
+    paths:
+      - packages/ui/src/settings/fork-features/ForkFeaturesSection.tsx
+    reason: 「定制功能」设置分区的纯受控组件：所有值与 setter 经 props 注入（照 PerformanceSection 模式），只负责渲染分组与开关，不读 store、不碰 localStorage；托管 packages/ui/src/settings 需要单独的模块边界梳理，与同目录既有未受管分区组件同因。
+  - id: fork-features-shared-contract-unmanaged-new
+    rule: unmanaged-new-file
+    paths:
+      - packages/shared/src/fork-features.ts
+    reason: fork 定制功能开关的唯一契约源（默认值 + 完整/patch schema + 工具子集选择器），被 AppSettings、广播 payload、ZCode Protocol 与 core runtime 共同引用；放进 shared 根目录与 app-runtime-preferences.ts 等既有未受管契约文件同模式。
+  - id: fork-tool-switches-core-unmanaged-new
+    rule: unmanaged-new-file
+    paths:
+      - apps/zcode-cli/packages/core/src/runtime/methods/fork-tool-switches.ts
+      - apps/zcode-cli/packages/bootstrap/src/zcode-protocol/fork-tool-preferences.ts
+    reason: fork 工具开关的即时生效实现（两段式：可见性立即失效 + 注册表增删延后到 turn 收口）与协议推送 handler；分别与同目录 methods/*、zcode-protocol/* 既有实现同模式。apps/zcode-cli 整体未受管，登记 core 目录为 managed 模块不在本次范围内。

@@ -387,6 +387,10 @@ export function finishActiveTurn(
   if (activeTurn !== undefined && this.activeTurn === activeTurn) {
     this.activeTurn = undefined;
   }
+  // 工具开关在 turn 期间只改可见性；turn 收口后补做注册表增删，避免打断进行中的调用。
+  if (this.pendingForkToolSwitchApply === true) {
+    this.applyForkToolSwitchRegistry();
+  }
 }
 
 export function createPendingInputId(this: AgentRuntimeInternal, turnId: TurnId): string {

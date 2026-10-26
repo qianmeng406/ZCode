@@ -79,6 +79,10 @@ function registerRuntimeBuiltInTools(runtime: AgentRuntimeInternal, deps: AgentR
     // node_repl/browser-use 由 ZCode 官方 browser-use 插件启停推导出的 runtimeFeatures 控制。
     includeNodeRepl: nodeReplEnabled,
     includeBrowserUse: browserUseEnabled,
+    // fork 工具开关：默认全关；运行期由 updateForkToolSwitches 改写，冷恢复从 runtimeConfig 读。
+    includeMonitor: runtime.config.forkToolSwitches?.monitorTool === true,
+    includeNotebookEdit: runtime.config.forkToolSwitches?.notebookEdit === true,
+    includeApplyPatch: runtime.config.forkToolSwitches?.applyPatch === true,
     embeddedSearchEnabled: resolveRuntimeEmbeddedSearchEnabled(runtime),
     allowedTools: resolveBuiltInToolAllowlist(runtime.config),
     // workflow_child 的结构性禁用（CreateWorkflow/SaveWorkflow 因 alwaysAsk 隐形挂起；

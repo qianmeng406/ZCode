@@ -21,6 +21,7 @@ import {
   APP_RUNTIME_PREFERENCES_CHANGED_BROADCAST_CHANNEL,
   DesktopCommandIds,
   appRuntimePreferencesChangedBroadcastPayloadSchema,
+  pickForkToolPreferences,
 } from "@zcode/shared";
 import { TooltipProvider } from "@/components/ui/tooltip.js";
 import { Button } from "@/components/ui/button.js";
@@ -344,6 +345,14 @@ function RootInner({
           return;
         }
         void refreshAppSettings();
+        if (parsed.data.forkFeatures) {
+          // 工具开关要即时作用到本窗口的所有会话；settings 刷新只更新 UI，不能代替下发。
+          void services.zcodeAgentService
+            .syncForkToolPreferences(pickForkToolPreferences(parsed.data.forkFeatures))
+            .catch((error) => {
+              logger.warn("[settings] 同步跨窗口工具开关失败", error);
+            });
+        }
         void services.zcodeAgentService.syncAppRuntimePreferences(parsed.data).catch((error) => {
           logger.warn("[settings] 同步跨窗口运行时偏好失败", error);
         });
@@ -414,6 +423,23 @@ function RootInner({
     appSettings?.askUserQuestionAutoResolutionEnabled,
     appSettings?.modelIoFullRetentionEnabled,
     services.botsService,
+    services.zcodeAgentService,
+  ]);
+
+  useEffect(() => {
+    const forkFeatures = appSettings?.forkFeatures;
+    if (!forkFeatures) {
+      return;
+    }
+    void services.zcodeAgentService
+      .syncForkToolPreferences(pickForkToolPreferences(forkFeatures))
+      .catch((error) => {
+        logger.warn("[settings] 初始化工具开关失败", error);
+      });
+  }, [
+    appSettings?.forkFeatures?.monitorTool,
+    appSettings?.forkFeatures?.notebookEdit,
+    appSettings?.forkFeatures?.applyPatch,
     services.zcodeAgentService,
   ]);
 

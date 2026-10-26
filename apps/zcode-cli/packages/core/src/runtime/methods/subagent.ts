@@ -320,6 +320,11 @@ export function createDefaultSubagentPort(
             toolset: builtInExplore ? "explore" : "main",
             toolAllowlist: childToolAllowlist,
             toolDisallowlist: this.config.toolDisallowlist,
+            // fork 工具开关同样结构性继承：父会话关着而子代理开着，等于 Agent 变成绕过后门。
+            // 运行期父会话改开关不会传到已存在的子 runtime（与 dynamicWorkflow 同限制）。
+            ...(this.config.forkToolSwitches
+              ? { forkToolSwitches: { ...this.config.forkToolSwitches } }
+              : {}),
             embeddedSearchBackend: this.config.embeddedSearchBackend,
             nativeSearchEnhancementsEnabled: this.config.nativeSearchEnhancementsEnabled,
             subagents: {

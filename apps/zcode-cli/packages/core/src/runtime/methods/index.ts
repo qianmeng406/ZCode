@@ -195,12 +195,15 @@ import {
   drainMemoryExtractions,
   isProjectMemoryEnabled,
 } from "../helpers/project-memory-extraction.js";
+import { applyForkToolSwitchRegistry, updateForkToolSwitches } from "./fork-tool-switches.js";
 
 type AgentRuntimeConstructor = { prototype: object };
 
 export function installAgentRuntimeMethods(ctor: AgentRuntimeConstructor): void {
   const proto = ctor.prototype as Record<string, unknown>;
   proto.updateConfig = updateConfig;
+  proto.updateForkToolSwitches = updateForkToolSwitches;
+  proto.applyForkToolSwitchRegistry = applyForkToolSwitchRegistry;
   proto.setExecutionState = setExecutionState;
   proto.grantPermissionFullAccess = grantPermissionFullAccess;
   proto.initializeSessionShellEnvironmentIfNeeded = initializeSessionShellEnvironmentIfNeeded;

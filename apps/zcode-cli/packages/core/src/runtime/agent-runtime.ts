@@ -185,6 +185,7 @@ export class AgentRuntime {
   private messageHistory: MessageHistory;
   private readFileState: ReadFileStateMap;
   private cachedTools: ModelToolContract[] | null = null;
+  private pendingForkToolSwitchApply = false;
   /** launch.md「On demand: activation」：onDemand 会话出生为 false，`activateDynamicWorkflowTools` 翻为 true。 */
   private dynamicWorkflowToolsActivated: boolean;
   private dynamicWorkflowActivationSource?: DynamicWorkflowActivationSource;
@@ -766,6 +767,11 @@ export interface AgentRuntime {
   isProjectMemoryEnabled(): boolean;
   /** 缺省等待最多 60 秒；null 等待全部已调度提取结束，不设置 drain deadline。 */
   drainMemoryExtractions(timeoutMs?: number | null): Promise<void>;
+  /**
+   * fork 工具开关的运行期更新（Monitor/NotebookEdit/ApplyPatch）。会话内即时生效：
+   * 可见性立刻改变，注册表增删在没有 active turn 时立刻执行，否则在本 turn 收口后执行。
+   */
+  updateForkToolSwitches(preferences: import("@zcode/shared").ForkToolPreferences): void;
 }
 
 installAgentRuntimeMethods(AgentRuntime);

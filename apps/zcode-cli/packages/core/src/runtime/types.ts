@@ -24,6 +24,7 @@ import type {
   WorkspaceId,
 } from "@zcode/contracts";
 import type { ZCodeProviderAccountAccess } from "@zcode/shared";
+import type { ForkToolPreferences } from "@zcode/shared";
 import type { EffectiveModelSelectionResult } from "@zcode/shared/model-selection";
 import type { RuntimeMessageEntry } from "../agent/message-history.js";
 import type {
@@ -163,6 +164,11 @@ export interface AgentRuntimeConfig {
   };
   toolAllowlist?: readonly string[];
   toolDisallowlist?: readonly string[];
+  /**
+   * fork 工具开关（Monitor/NotebookEdit/ApplyPatch）。缺省全关（fail-closed）；
+   * 运行期可通过 `updateForkToolSwitches` 即时改写，关闭即从注册表移除。
+   */
+  forkToolSwitches?: ForkToolPreferences;
   /**
    * Defaults to main. Explore child runtimes use the explore toolset to opt into
    * 只读探索工具白名单；是否包含 direct Glob/Grep 由 embedded search branch 决定。

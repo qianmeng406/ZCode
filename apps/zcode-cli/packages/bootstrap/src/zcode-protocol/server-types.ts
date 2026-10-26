@@ -36,6 +36,8 @@ import type { V4InteractionRegistry } from "../zcode-protocol-v4/interaction-reg
 import type { ConversationV4Gateway } from "../zcode-protocol-v4/v4-gateway.js";
 import type { SessionResidentPool, SessionResidentPoolOptions } from "./session-resident-pool.js";
 import type { DynamicWorkflowMode } from "@zcode/shared";
+import type { ForkToolPreferences } from "@zcode/shared";
+import type { ForkFeatures } from "@zcode/shared";
 
 export interface ParamsSchema<T> {
   parse(input: unknown): T;
@@ -89,6 +91,8 @@ export interface ZCodeProtocolSessionRecord {
   app: ZCodeApp;
   subagentRuntimeConfigEnabled?: boolean;
   memoryEnabled: boolean;
+  /** fork 定制功能开关；inherit 来源的子会话从父会话复制。 */
+  forkFeatures: ForkFeatures;
   nativeSearchEnhancementsEnabled: boolean;
   toolSearchMode: AppToolSearchMode;
   modelContextBudgetStrategy: ZCodeModelContextBudgetStrategy;
@@ -140,6 +144,11 @@ export interface ZCodeProtocolAgentServerContext {
   appRuntimePreferences: {
     askUserQuestionAutoResolutionEnabled: boolean;
     modelIoFullRetentionEnabled: boolean;
+    /**
+     * fork 工具开关（Monitor/NotebookEdit/ApplyPatch）。缺省全 false（fail-closed）：
+     * 不认识 workspace/updateForkToolPreferences 的旧 Host 不会打开这些工具。
+     */
+    forkToolPreferences: ForkToolPreferences;
     /** host 同步的 Off-Peak 工具面门禁；缺省 false（fail-closed），供 v4 冷恢复等无 host 参数的路径读取。 */
     offPeakToolEnabled: boolean;
     /**

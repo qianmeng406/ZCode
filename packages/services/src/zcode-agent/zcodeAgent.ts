@@ -11,6 +11,7 @@ import type { Event, IDisposable } from "@zcode/rpc";
 import { ServiceChannels } from "@zcode/shared";
 import type { AppUsageRange, AppUsageSnapshot, ZCodeTaskTokenUsageResult } from "@zcode/shared";
 import type { DynamicWorkflowMode } from "@zcode/shared";
+import type { ForkFeatures, ForkToolPreferences } from "@zcode/shared";
 import type { ZCodeAutomation, ZCodeAutomationRun } from "@zcode/shared";
 import type {
   ZCodeStorageStartupState,
@@ -624,6 +625,8 @@ export type ZCodeAgentServiceEvent =
 export interface ZCodeAgentAppRuntimePreferences {
   askUserQuestionAutoResolutionEnabled: boolean;
   modelIoFullRetentionEnabled?: boolean;
+  /** 广播/初始同步携带的 fork 开关快照；缺省表示这次同步不涉及工具开关。 */
+  forkFeatures?: ForkFeatures;
 }
 
 export interface ZCodeAgentLocalRuntimeChildProcesses {
@@ -653,6 +656,11 @@ export interface IZCodeAgentService {
    * 同步 App 全局运行时偏好到所有已活动 workspace；不得为此启动空闲 Agent。
    */
   syncAppRuntimePreferences(preferences: ZCodeAgentAppRuntimePreferences): Promise<void>;
+  /**
+   * fork 工具开关（Monitor/NotebookEdit/ApplyPatch）变化的即时下发。会话内生效，
+   * 不需要重开会话；同样不得为此启动空闲 Agent。
+   */
+  syncForkToolPreferences(preferences: ForkToolPreferences): Promise<void>;
   /**
    * 动态工作流用户选择变化的信号（docs/dynamic-workflow/launch.md「The user's choice」）：Host 重新计算
    * 生效模式并串行重发 workspace/updateDynamicWorkflowPolicy。有本机设置权威的 Host 以设置文件为准；

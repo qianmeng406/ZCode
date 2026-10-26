@@ -21,6 +21,7 @@ import {
   HardDrive,
   Keyboard,
   FileSearch,
+  FlaskConical,
 } from "lucide-react";
 import { isSettingsSectionEnabled, type SettingsSectionId } from "@/lib/settingsNavigation.js";
 import type { Theme } from "@/useTheme.js";
@@ -75,6 +76,13 @@ const BASE_SETTINGS_SECTIONS: SettingsSectionDefinition[] = [
     id: "performance",
     icon: Gauge,
     titleId: "settings.performanceTitle",
+    groupId: "basics",
+  },
+  // 定制功能：fork 相对上游新增能力的集中页（审查/提示词优化/工具/记忆）。
+  {
+    id: "forkFeatures",
+    icon: FlaskConical,
+    titleId: "settings.forkFeatures.title",
     groupId: "basics",
   },
   {

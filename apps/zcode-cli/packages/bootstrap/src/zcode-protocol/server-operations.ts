@@ -2,6 +2,9 @@ import {
   isAuxiliarySessionKind,
   isReadonlyAgentSessionKind,
   OFF_PEAK_EXECUTION_TOOL_DENYLIST,
+  pickForkToolPreferences,
+  DEFAULT_FORK_FEATURES,
+  type ForkFeatures,
 } from "@zcode/shared";
 /* eslint-disable max-lines -- ZCode Protocol 的 session/workspace 方法共享同一个 server context 与 snapshot helpers，迁移期先集中维护。 */
 import { observeSessionDebug } from "./session-debug.js";
@@ -171,6 +174,8 @@ interface SessionStartupPreferences {
   additionalDirectories?: readonly string[];
   subagentRuntimeConfigEnabled?: boolean;
   memoryEnabled: boolean;
+  /** fork 定制功能开关；缺省按 DEFAULT_FORK_FEATURES 解析（协议边界已兜底）。 */
+  forkFeatures: ForkFeatures;
   modelContextBudgetStrategy: ZCodeModelContextBudgetStrategy;
   nativeSearchEnhancementsEnabled: boolean;
   toolSearchMode: AppToolSearchMode;
@@ -3475,6 +3480,7 @@ async function requestSessionRuntimePreferences(
       return {
         askUserQuestionAutoResolutionEnabled: true,
         memoryEnabled: false,
+        forkFeatures: { ...DEFAULT_FORK_FEATURES },
         modelContextBudgetStrategy: DEFAULT_ZCODE_MODEL_CONTEXT_BUDGET_STRATEGY,
         nativeSearchEnhancementsEnabled: true,
         toolSearchMode: "off",
@@ -3494,6 +3500,8 @@ async function resolveSessionStartupPreferences(
     const inheritedShellSelection = source.parent.app.runtime.getSessionShellSelection();
     return {
       memoryEnabled: source.parent.memoryEnabled,
+      // 子会话（fork/inherit）跟随父会话开关，与 hot 工具面同语义。
+      forkFeatures: source.parent.forkFeatures,
       subagentRuntimeConfigEnabled: source.parent.subagentRuntimeConfigEnabled,
       modelContextBudgetStrategy: DEFAULT_ZCODE_MODEL_CONTEXT_BUDGET_STRATEGY,
       nativeSearchEnhancementsEnabled: source.parent.nativeSearchEnhancementsEnabled,
@@ -3516,6 +3524,7 @@ async function resolveSessionStartupPreferences(
     additionalDirectories: runtimePreferences.additionalDirectories,
     subagentRuntimeConfigEnabled: runtimePreferences.subagentRuntimeConfigEnabled,
     memoryEnabled: runtimePreferences.memoryEnabled,
+    forkFeatures: runtimePreferences.forkFeatures,
     modelContextBudgetStrategy: DEFAULT_ZCODE_MODEL_CONTEXT_BUDGET_STRATEGY,
     nativeSearchEnhancementsEnabled: runtimePreferences.nativeSearchEnhancementsEnabled,
     toolSearchMode: runtimePreferences.toolSearchMode,
@@ -3618,6 +3627,9 @@ async function createRecord(
       // Memory Settings 是现有 CLI features.memory/use 之外的总开关。只在关闭时
       // 写入 override，避免开启值反向覆盖用户已有的 CLI 禁用配置。
       ...(startupPreferences.memoryEnabled ? {} : { memory: { enabled: false } }),
+      // fork 工具开关随会话创建/冷恢复一次性写入 runtimeConfig；运行期变更走
+      // workspace/updateForkToolPreferences，不依赖这条路径。
+      forkToolSwitches: pickForkToolPreferences(startupPreferences.forkFeatures),
       // desktop-continuous session/create 由 UI 先解析 ~/.zcode/.agents 的 enabled MCP，
       // 但 protocol app-server 自己不会读取 UI/main 侧的 MCP store；之前 createRecord 没把
       // params.mcpServers 注入 runtimeConfig，导致日志里 runtimeHasMcpConfig=false，工具永远不启动。
@@ -3695,6 +3707,7 @@ async function createRecord(
     createdAt: now,
     eventStore,
     memoryEnabled: startupPreferences.memoryEnabled,
+    forkFeatures: startupPreferences.forkFeatures,
     subagentRuntimeConfigEnabled: startupPreferences.subagentRuntimeConfigEnabled,
     modelContextBudgetStrategy: startupPreferences.modelContextBudgetStrategy,
     nativeSearchEnhancementsEnabled: startupPreferences.nativeSearchEnhancementsEnabled,

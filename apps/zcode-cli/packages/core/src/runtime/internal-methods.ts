@@ -68,6 +68,12 @@ export interface AgentRuntimeCoreMethods {
   updateConfig(
     patch: Pick<AgentRuntimeConfig, "mode" | "planEnabled" | "language" | "outputStyle">,
   ): void;
+  /**
+   * fork 工具开关的运行期更新：可见性立即生效，注册表增删在无 active turn 时立即执行，
+   * 否则延后到 turn 结束（避免已流式声明的调用变成 ToolNotFound）。
+   */
+  updateForkToolSwitches(preferences: import("@zcode/shared").ForkToolPreferences): void;
+  applyForkToolSwitchRegistry(): void;
   initializeSessionShellEnvironmentIfNeeded(
     selection: ExecutionShellSelection | (() => ExecutionShellSelection),
   ): boolean;

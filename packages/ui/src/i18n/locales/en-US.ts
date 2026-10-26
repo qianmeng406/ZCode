@@ -3316,6 +3316,41 @@ const enUS: Record<string, string> = {
   "settings.assistantAutoFilePreview": "Auto-load file previews",
   "settings.assistantAutoFilePreviewDescription":
     "Automatically load preview cards for Markdown/HTML files referenced in replies. Turn off to load them manually via the “Load preview” action.",
+  "settings.forkFeatures.title": "Fork features",
+  "settings.forkFeatures.description":
+    "Capabilities this build adds on top of upstream. With a switch off, behavior returns to how it was before that feature existed; enable items individually.",
+  "settings.forkFeatures.group.reviewAndPrompt": "Review and prompting",
+  "settings.forkFeatures.group.tools": "Workflows and tools",
+  "settings.forkFeatures.group.memory": "Memory",
+  "settings.forkFeatures.promptOptimizer": "Prompt optimizer",
+  "settings.forkFeatures.promptOptimizerDescription":
+    "Shows the optimizer entry in the composer to rewrite your draft into a clearer prompt. Turned off, the entry disappears and behavior matches the build without it.",
+  "settings.forkFeatures.monitorTool": "Monitor tool",
+  "settings.forkFeatures.monitorToolDescription":
+    "Lets the model wait for a condition (background output matches, file contains text, port reachable, HTTP 2xx) instead of re-reading logs or sleeping for a long time.",
+  "settings.forkFeatures.notebookEdit": "Notebook editing",
+  "settings.forkFeatures.notebookEditDescription":
+    "Allows cell-level edits of Jupyter notebooks (.ipynb). Turned off, Edit keeps rejecting notebook files as before.",
+  "settings.forkFeatures.applyPatch": "Multi-file patch (ApplyPatch)",
+  "settings.forkFeatures.applyPatchDescription":
+    "Applies one structured patch spanning several files, cutting back-and-forth on multi-file changes; edits still produce rewind checkpoints.",
+  "settings.forkFeatures.toolsApplyImmediately":
+    "These three tool switches apply immediately: the current session sees the change on its next request, no new session needed.",
+  "settings.forkFeatures.memoryDisabledHint":
+    "Memory is currently off. The three options below only matter once memory has data; enable memory on the Memory page first.",
+  "settings.forkFeatures.memoryFileEditing": "Memory file editing",
+  "settings.forkFeatures.memoryFileEditingDescription":
+    "Edit or delete memory files directly in the memory viewer, with size and concurrent-change checks. Deleting also removes the matching index line.",
+  "settings.forkFeatures.memoryCapture": "Save turn as memory",
+  "settings.forkFeatures.memoryCaptureDescription":
+    "Adds “Save as memory” to the message actions: generate a candidate entry, review it, then write it into the memory directory and update the index.",
+  "settings.forkFeatures.memoryDreamManual": "Run memory consolidation",
+  "settings.forkFeatures.memoryDreamManualDescription":
+    "Adds “Organize memory” to the context panel: runs a Dream consolidation now (bypassing the time and transcript gates, still guarded by the run lock) and returns a change summary.",
+  "settings.forkFeatures.performanceLink": "Performance",
+  "settings.forkFeatures.performanceLinkDescription":
+    "The ten streaming and long-session optimizations live in their own section.",
+  "settings.forkFeatures.performanceLinkAction": "Open performance settings",
   "settings.systemTitle": "General",
   "settings.systemDescription": "These preferences affect the current window experience.",
   "settings.locale": "Language",

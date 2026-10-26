@@ -6,6 +6,7 @@ import { REMOTE_ASSET_INSTALL_MODES } from "./remoteAssetInstallMode.js";
 import { isKnownRemoteResourcePackageId } from "./remoteResourcePackages.js";
 import { wslUserSchema } from "./wslUserValidation.js";
 import { DYNAMIC_WORKFLOW_MODES } from "./dynamic-workflow-feature.js";
+import { forkFeaturesPatchSchema, forkFeaturesSchema } from "./fork-features.js";
 import { PROMPT_OPTIMIZER_CONTEXT_RANGES, PROMPT_OPTIMIZER_MODES } from "./ai-features/index.js";
 import { modelSelectionSchema } from "./model-selection.js";
 import { normalizeZCodeEndpointOrigin } from "./zcodeEndpoint.js";
@@ -542,6 +543,8 @@ const appSettingsObjectSchema = z.object({
   toolSearchMode: appToolSearchModeSchema.default("off"),
   onboardingOccupation: appSettingsOccupationSchema.nullish(),
   proactiveSuggestionsEnabled: z.boolean().optional(),
+  // fork 定制功能开关：整对象缺省时回落到 DEFAULT_FORK_FEATURES，旧 setting.json 零迁移。
+  forkFeatures: forkFeaturesSchema,
   memoryEnabled: z.boolean().default(false),
   lastWorkspaceSession: z.array(appWorkspaceSessionEntrySchema).default([]),
   lastActiveWorkspace: appWorkspaceSessionEntrySchema.nullable().optional(),
@@ -656,6 +659,8 @@ export const appSettingsPatchSchema = z.object({
     ])
     .nullish(),
   proactiveSuggestionsEnabled: z.boolean().optional(),
+  // 必须是完整对象：SettingService 的 patch 合并是浅合并，部分字段会覆盖掉其余开关。
+  forkFeatures: forkFeaturesPatchSchema.optional(),
   memoryEnabled: z.boolean().optional(),
   lastWorkspaceSession: z.array(appWorkspaceSessionEntrySchema).optional(),
   lastActiveWorkspace: appWorkspaceSessionEntrySchema.nullable().optional(),

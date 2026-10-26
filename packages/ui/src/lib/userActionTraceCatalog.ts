@@ -99,6 +99,15 @@ export const SETTINGS_USER_ACTION_FEATURES = {
   "settings.task": ["toggle_auto_archive", "change_auto_archive_days"],
   "settings.storage": ["change_data_directory"],
   "settings.memory": ["toggle_memory", "refresh_memory", "change_memory_scope"],
+  "settings.fork_features": [
+    "toggle_monitor_tool",
+    "toggle_notebook_edit",
+    "toggle_apply_patch",
+    "toggle_prompt_optimizer",
+    "toggle_memory_file_editing",
+    "toggle_memory_capture",
+    "toggle_memory_dream_manual",
+  ],
   "settings.browser": [
     "toggle_browser_use",
     "import_browser_data",

@@ -29,6 +29,7 @@ import type {
   ZCodeInteractionBehavior,
 } from "@zcode/shared";
 import { BUILTIN_MODEL_PROVIDER_IDS } from "@zcode/shared";
+import { resolveForkFeatures, type ForkFeatureKey } from "@zcode/shared";
 import {
   TID_SETTINGS_BACK_BUTTON,
   TID_SETTINGS_PAGE,
@@ -128,6 +129,7 @@ import { useSourceServerManagementSnapshot } from "@/hooks/useSourceServerManage
 import { useOptionalRemoteWorkspaceController } from "@/remote/useRemoteWorkspaceController.js";
 import { AppearanceSectionContent } from "./settingsCodePreview.js";
 import { PerformanceSectionContent } from "./settings/PerformanceSection.js";
+import { ForkFeaturesSectionContent } from "./settings/fork-features/ForkFeaturesSection.js";
 import type { SettingsSectionId } from "@/lib/settingsNavigation.js";
 import { requestPluginStoreOpen } from "@/lib/pluginStoreNavigation.js";
 import {
@@ -157,6 +159,17 @@ function runSettingsActionAsync<T>(options: {
     failureStage: options.failureStage ?? "settings_commit",
   });
 }
+
+/** 「定制功能」页每个开关的遥测 action 名；键必须与 ForkFeatureKey 完全一致。 */
+const FORK_FEATURE_ACTIONS = {
+  monitorTool: "toggle_monitor_tool",
+  notebookEdit: "toggle_notebook_edit",
+  applyPatch: "toggle_apply_patch",
+  promptOptimizer: "toggle_prompt_optimizer",
+  memoryFileEditing: "toggle_memory_file_editing",
+  memoryCapture: "toggle_memory_capture",
+  memoryDreamManual: "toggle_memory_dream_manual",
+} as const satisfies Record<ForkFeatureKey, string>;
 
 function SettingsUsageProviderTabs({
   activeTab,
@@ -841,6 +854,7 @@ export function SettingsPage({
   const askUserQuestionAutoResolutionEnabled =
     sharedSettings?.askUserQuestionAutoResolutionEnabled !== false;
   const modelIoFullRetentionEnabled = sharedSettings?.modelIoFullRetentionEnabled === true;
+  const forkFeatures = resolveForkFeatures(sharedSettings?.forkFeatures);
   const [dataBaseDir, setDataBaseDir] = useState("");
   const [terminalInheritSystemProfile, setTerminalInheritSystemProfile] = useState(true);
   const [terminalFontFamily, setTerminalFontFamily] = useState("");
@@ -1296,6 +1310,23 @@ export function SettingsPage({
       });
     },
     [updateSharedSettings],
+  );
+  const handleForkFeatureToggle = useCallback(
+    async (key: ForkFeatureKey, enabled: boolean) => {
+      await runSettingsActionAsync({
+        featureId: "settings.fork_features",
+        action: FORK_FEATURE_ACTIONS[key],
+        trigger: "switch",
+        // 必须提交完整对象：SettingService 的 patch 合并是浅合并，部分对象会把其余开关重置。
+        operation: () =>
+          updateSharedSettings({ forkFeatures: { ...forkFeatures, [key]: enabled } }),
+        completed: {
+          resultSource: "shared_settings",
+          stateAfter: enabled ? "enabled" : "disabled",
+        },
+      });
+    },
+    [forkFeatures, updateSharedSettings],
   );
   const handleDesktopChromiumHardwareAccelerationChange = useCallback(
     async (enabled: boolean) => {
@@ -1894,7 +1925,6 @@ export function SettingsPage({
                               notificationSoundEnabled={notificationSoundEnabled}
                               closeToTrayOnWindows={closeToTrayOnWindows}
                               keepAwakeWhileRunning={sharedSettings?.keepAwakeWhileRunning ?? false}
-                              oracleReviewEnabled={sharedSettings?.oracleReviewEnabled ?? false}
                               desktopChromiumHardwareAccelerationEnabled={
                                 desktopChromiumHardwareAccelerationEnabled
                               }
@@ -1972,7 +2002,6 @@ export function SettingsPage({
                               onHttpProxyCaCertPathChange={handleHttpProxyCaCertPathChange}
                               onCloseToTrayOnWindowsChange={handleCloseToTrayOnWindowsChange}
                               onKeepAwakeWhileRunningChange={handleKeepAwakeWhileRunningChange}
-                              onOracleReviewEnabledChange={handleOracleReviewEnabledChange}
                               onDesktopChromiumHardwareAccelerationChange={
                                 handleDesktopChromiumHardwareAccelerationChange
                               }
@@ -2346,6 +2375,40 @@ export function SettingsPage({
                                   failureStage: "local_commit",
                                 })
                               }
+                            />
+                          ) : activeSection === "forkFeatures" ? (
+                            <ForkFeaturesSectionContent
+                              oracleReviewEnabled={sharedSettings?.oracleReviewEnabled ?? false}
+                              onOracleReviewEnabledChange={handleOracleReviewEnabledChange}
+                              promptOptimizerEnabled={forkFeatures.promptOptimizer}
+                              onPromptOptimizerEnabledChange={(enabled) => {
+                                void handleForkFeatureToggle("promptOptimizer", enabled);
+                              }}
+                              monitorToolEnabled={forkFeatures.monitorTool}
+                              onMonitorToolEnabledChange={(enabled) => {
+                                void handleForkFeatureToggle("monitorTool", enabled);
+                              }}
+                              notebookEditEnabled={forkFeatures.notebookEdit}
+                              onNotebookEditEnabledChange={(enabled) => {
+                                void handleForkFeatureToggle("notebookEdit", enabled);
+                              }}
+                              applyPatchEnabled={forkFeatures.applyPatch}
+                              onApplyPatchEnabledChange={(enabled) => {
+                                void handleForkFeatureToggle("applyPatch", enabled);
+                              }}
+                              memoryFileEditingEnabled={forkFeatures.memoryFileEditing}
+                              onMemoryFileEditingEnabledChange={(enabled) => {
+                                void handleForkFeatureToggle("memoryFileEditing", enabled);
+                              }}
+                              memoryCaptureEnabled={forkFeatures.memoryCapture}
+                              onMemoryCaptureEnabledChange={(enabled) => {
+                                void handleForkFeatureToggle("memoryCapture", enabled);
+                              }}
+                              memoryDreamManualEnabled={forkFeatures.memoryDreamManual}
+                              onMemoryDreamManualEnabledChange={(enabled) => {
+                                void handleForkFeatureToggle("memoryDreamManual", enabled);
+                              }}
+                              memoryEnabled={memoryEnabled}
                             />
                           ) : activeSection === "shortcuts" ? (
                             <ShortcutSettingsSection isDesktop={Boolean(isDesktop)} />

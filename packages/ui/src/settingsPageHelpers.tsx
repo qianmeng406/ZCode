@@ -36,7 +36,6 @@ import { useZCodeIntl } from "@/i18n/IntlProvider.js";
 import { useOptionalServices } from "@/hooks/useServices.js";
 import { ProactiveSuggestionsSetting } from "@/settings/ProactiveSuggestionsSetting.js";
 import { DynamicWorkflowModeSetting } from "@/settings/DynamicWorkflowModeSetting.js";
-import { OracleReviewModelSetting, PromptOptimizerSetting } from "@/settings/ai-features/index.js";
 import { normalizeInterfaceMode, type InterfaceMode } from "@/lib/interfaceMode.js";
 import {
   createSettingsPageConfig,
@@ -136,7 +135,6 @@ export function GeneralSectionContent({
   notificationSoundEnabled,
   closeToTrayOnWindows,
   keepAwakeWhileRunning = false,
-  oracleReviewEnabled = false,
   desktopChromiumHardwareAccelerationEnabled = true,
   receivePreviewUpdates,
   autoDownloadAndInstallUpdates,
@@ -179,7 +177,6 @@ export function GeneralSectionContent({
   onHttpProxyCaCertPathChange = async () => {},
   onCloseToTrayOnWindowsChange,
   onKeepAwakeWhileRunningChange = async () => {},
-  onOracleReviewEnabledChange = async () => {},
   onDesktopChromiumHardwareAccelerationChange = async () => {},
   onReceivePreviewUpdatesChange,
   onAutoDownloadAndInstallUpdatesChange,
@@ -200,7 +197,6 @@ export function GeneralSectionContent({
   notificationSoundEnabled: boolean;
   closeToTrayOnWindows: boolean;
   keepAwakeWhileRunning?: boolean;
-  oracleReviewEnabled?: boolean;
   desktopChromiumHardwareAccelerationEnabled?: boolean;
   receivePreviewUpdates: boolean;
   autoDownloadAndInstallUpdates: boolean;
@@ -253,7 +249,6 @@ export function GeneralSectionContent({
   onHttpProxyCaCertPathChange?: (caCertPath: string) => Promise<void>;
   onCloseToTrayOnWindowsChange: (enabled: boolean) => Promise<void>;
   onKeepAwakeWhileRunningChange?: (enabled: boolean) => Promise<void>;
-  onOracleReviewEnabledChange?: (enabled: boolean) => Promise<void>;
   onDesktopChromiumHardwareAccelerationChange?: (enabled: boolean) => Promise<void>;
   onReceivePreviewUpdatesChange: (enabled: boolean) => Promise<void>;
   onAutoDownloadAndInstallUpdatesChange: (enabled: boolean) => Promise<void>;
@@ -811,28 +806,6 @@ export function GeneralSectionContent({
             }
           />
         ) : null}
-        <SettingsRow
-          label={intl.formatMessage({ id: "settings.oracleReview" })}
-          description={intl.formatMessage({
-            id: "settings.oracleReviewDescription",
-          })}
-          control={
-            <Switch
-              aria-label={intl.formatMessage({
-                id: "settings.oracleReview",
-              })}
-              checked={oracleReviewEnabled}
-              onCheckedChange={(checked) => {
-                void onOracleReviewEnabledChange(checked);
-              }}
-            />
-          }
-        />
-        <OracleReviewModelSetting />
-      </SettingsGroupCard>
-
-      <SettingsGroupCard>
-        <PromptOptimizerSetting />
       </SettingsGroupCard>
 
       <SettingsGroupCard>
