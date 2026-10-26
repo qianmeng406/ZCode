@@ -1077,6 +1077,13 @@ exceptions:
       - apps/zcode-cli/packages/core/src/tool/handlers/notebook-edit.ts
       - apps/zcode-cli/packages/core/src/tool/notebook/notebookDocument.ts
     reason: fork 定制功能 NotebookEdit（.ipynb 按 cell 读写）的契约、handler 与 nbformat 保真纯函数模块。纯函数独立成文件是为了用无 I/O 的表驱动单测钉住「其它 cell/metadata/行尾/缩进原样保留」；三者与 edit/write 的契约、handler 同结构同目录。apps/zcode-cli 整体未受管，登记 tools 目录为 managed 模块不在本次范围内。
+  - id: memory-capture-unmanaged-new
+    rule: unmanaged-new-file
+    paths:
+      - packages/ui/src/v4/memory/memoryCapturePrompt.ts
+      - packages/ui/src/v4/memory/MemoryCaptureDialog.tsx
+      - packages/shared/src/node/projectMemoryKey.ts
+    reason: fork 定制功能「一键沉淀为记忆」的纯逻辑（提示词/解析/文件名/索引/frontmatter）、预览确认对话框，以及项目记忆目录名的共享推导规则。规则住进 @zcode/shared/node 是为了让 CLI 与设置页算出同一个 workspace id（两份实现分叉会让已有记忆静默失联）；`@zcode/shared/node` 本就是 node-only 子路径，不新增 barrel 导出面。packages/ui 与 shared 目录未受管，登记为 managed 模块不在本次范围内。
   - id: memory-file-editor-unmanaged-new
     rule: unmanaged-new-file
     paths:

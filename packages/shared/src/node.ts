@@ -22,6 +22,11 @@ export {
   type SharedFileLockOptions,
 } from "./node/privateFilePersistence.js";
 export {
+  resolveProjectMemoryWorkspaceId,
+  sanitizeProjectMemorySlug,
+  type ProjectMemoryKeyInput,
+} from "./node/projectMemoryKey.js";
+export {
   createNodeSelfResourceSampler,
   NODE_SELF_RESOURCE_SAMPLE_INTERVAL_MS,
   type NodeSelfResourceSampler,

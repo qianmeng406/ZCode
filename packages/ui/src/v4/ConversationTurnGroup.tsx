@@ -1670,6 +1670,15 @@ function ConversationTurnGroupImpl({
                     }
                   : undefined
               }
+              onCaptureMemory={
+                context.captureMemoryTurn
+                  ? () => {
+                      if (unit.header && assistantCopyText.length > 0) {
+                        context.captureMemoryTurn?.(unit.header, assistantCopyText);
+                      }
+                    }
+                  : undefined
+              }
               hookInvocations={unit.hookInvocations}
               turnId={unit.turnId}
               sourceCommandIds={deliverySourceCommandIds}

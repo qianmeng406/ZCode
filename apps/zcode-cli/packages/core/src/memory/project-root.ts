@@ -1,5 +1,5 @@
-import { createHash } from "node:crypto";
-import { basename, join, resolve } from "node:path";
+import { join } from "node:path";
+import { resolveProjectMemoryWorkspaceId } from "@zcode/shared/node";
 
 interface ProjectMemoryRootInput {
   cliStorageRoot: string;
@@ -8,26 +8,12 @@ interface ProjectMemoryRootInput {
 }
 
 export function resolveProjectMemoryRoot(input: ProjectMemoryRootInput): string {
-  const workspaceIdentity = input.workspaceIdentity?.trim();
-  const normalizedWorkspacePath = resolve(input.workspacePath);
-  const keySource =
-    workspaceIdentity ||
-    (process.platform === "win32"
-      ? normalizedWorkspacePath.toLowerCase()
-      : normalizedWorkspacePath);
-  const hash = createHash("sha256").update(keySource).digest("hex").slice(0, 16);
-  const slug = workspaceIdentity
-    ? "project"
-    : sanitizeProjectSlug(basename(normalizedWorkspacePath) || "project");
-
-  return join(input.cliStorageRoot, "memories", "projects", `${slug}-${hash}`, "memory");
-}
-
-function sanitizeProjectSlug(value: string): string {
-  const slug = value
-    .toLowerCase()
-    .replace(/[^a-z0-9._-]+/g, "-")
-    .replace(/^-+|-+$/g, "")
-    .slice(0, 48);
-  return slug.length > 0 ? slug : "project";
+  // 目录名规则住在 @zcode/shared/node：设置页（本地 Host）也要算同一个 id，
+  // 两份实现分叉会让已有记忆静默失联。
+  const workspaceId = resolveProjectMemoryWorkspaceId({
+    workspacePath: input.workspacePath,
+    workspaceIdentity: input.workspaceIdentity,
+    platform: process.platform,
+  });
+  return join(input.cliStorageRoot, "memories", "projects", workspaceId, "memory");
 }

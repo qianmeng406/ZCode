@@ -20,6 +20,7 @@ export const ModelApiOperation = {
   OracleDeepReview: "oracle_deep_review",
   ProjectMemoryExtract: "project_memory_extract",
   ProjectMemoryDream: "project_memory_dream",
+  ProjectMemoryCapture: "project_memory_capture",
   ProjectMemoryRecall: "project_memory_recall",
   ReadSessionContextExtract: "read_session_context_extract",
   ReadSessionContextSynthesize: "read_session_context_synthesize",
@@ -214,6 +215,11 @@ function mapQuerySourceToModelApiOperation(querySource: string | undefined): {
     case "project_memory_dream":
       return {
         operation: ModelApiOperation.ProjectMemoryDream,
+        actorKind: ModelApiActorKind.System,
+      };
+    case "memory_capture":
+      return {
+        operation: ModelApiOperation.ProjectMemoryCapture,
         actorKind: ModelApiActorKind.System,
       };
     case "project_memory_recall":

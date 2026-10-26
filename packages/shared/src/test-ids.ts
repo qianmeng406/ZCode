@@ -635,6 +635,13 @@ export const TID_V4_FORK = "v4-fork";
 export const TID_V4_ORACLE_REVIEW = "v4-oracle-review-turn";
 /** v4 轮尾「深度审查这一回合」（Oracle 只读子代理，动态后缀为 rowId） */
 export const TID_V4_ORACLE_REVIEW_DEEP = "v4-oracle-review-turn-deep";
+/** v4 轮尾「沉淀为记忆」（fork 开关 memoryCapture 打开时渲染，动态后缀为 rowId） */
+export const TID_V4_MEMORY_CAPTURE = "v4-memory-capture";
+/** 沉淀预览对话框 */
+export const TID_V4_MEMORY_CAPTURE_DIALOG = "v4-memory-capture-dialog";
+export const TID_V4_MEMORY_CAPTURE_SAVE = "v4-memory-capture-save";
+export const TID_V4_MEMORY_CAPTURE_CANCEL = "v4-memory-capture-cancel";
+export const TID_V4_MEMORY_CAPTURE_ERROR = "v4-memory-capture-error";
 /** v4 assistant 行 retry 按钮（动态后缀为 rowId） */
 export const TID_V4_RETRY = "v4-retry";
 /** v4 assistant 行点赞按钮（动态后缀为 rowId） */

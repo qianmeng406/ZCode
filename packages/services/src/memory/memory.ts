@@ -76,6 +76,17 @@ export interface IMemoryService {
   }): Promise<{ content: string; updatedAt: number }>;
 
   /**
+   * 解析工作区对应的 Project Memory workspace id（磁盘目录名）。
+   *
+   * renderer 不应自行拼 `<slug>-<hash>`：规则住在 @zcode/shared/node，由 Host 进程
+   * 用自身 platform 计算，才能与 CLI 写出记忆时得到的目录一致。
+   */
+  resolveProjectMemoryWorkspace(params: {
+    workspacePath: string;
+    workspaceIdentity?: string;
+  }): Promise<{ workspaceId: string }>;
+
+  /**
    * 覆盖写入一个 Project Memory 文件（新增或替换正文）。
    *
    * `expectedUpdatedAt` 是 CAS：与磁盘现值不一致时抛

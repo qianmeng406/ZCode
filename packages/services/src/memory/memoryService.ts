@@ -1,4 +1,5 @@
 import type { Memory, MemoryConfig } from "@zcode/shared";
+import { resolveProjectMemoryWorkspaceId } from "@zcode/shared/node";
 import {
   FORK_FEATURE_DISABLED_ERROR_CODE,
   PROJECT_MEMORY_FILE_CHANGED_ERROR_CODE,
@@ -481,6 +482,19 @@ export function createMemoryService(options: MemoryServiceOptions = {}): IMemory
     return { projectsRoot, memoryRoot, filePath, existingUpdatedAt };
   }
 
+  async function resolveProjectMemoryWorkspace(params: {
+    workspacePath: string;
+    workspaceIdentity?: string;
+  }): Promise<{ workspaceId: string }> {
+    return {
+      workspaceId: resolveProjectMemoryWorkspaceId({
+        workspacePath: params.workspacePath,
+        workspaceIdentity: params.workspaceIdentity,
+        platform: process.platform,
+      }),
+    };
+  }
+
   async function writeProjectMemoryFile(params: {
     workspaceId: string;
     fileName: string;
@@ -560,6 +574,7 @@ export function createMemoryService(options: MemoryServiceOptions = {}): IMemory
     getUserMemoryDirectory,
     listProjectMemories,
     readProjectMemoryFile,
+    resolveProjectMemoryWorkspace,
     writeProjectMemoryFile,
     deleteProjectMemoryFile,
   };

@@ -522,6 +522,21 @@ const enUS: Record<string, string> = {
   "chat.oracleReview.reviewDepth.standard": "Standard review",
   "chat.oracleReview.reviewDepth.deep": "Deep review",
   "chat.oracleReview.reviewTurn": "Review this turn",
+  "chat.memoryCapture.action": "Save to memory",
+  "chat.memoryCapture.title": "Save to memory",
+  "chat.memoryCapture.description":
+    "The model distilled this memory from the turn. Review or edit it, then save — it is written to the project memory directory and linked from the index.",
+  "chat.memoryCapture.name": "Title",
+  "chat.memoryCapture.summary": "One-line summary",
+  "chat.memoryCapture.body": "Body",
+  "chat.memoryCapture.save": "Save memory",
+  "chat.memoryCapture.saved": "Wrote {name} and updated the index",
+  "chat.memoryCapture.savedNoIndex": "Wrote {name} (index already up to date)",
+  "chat.memoryCapture.noModel":
+    "No model is available for this session, so memory cannot be distilled.",
+  "chat.memoryCapture.parseFailed":
+    "The model response could not be parsed into a memory entry. Try again.",
+  "chat.memoryCapture.failed": "Memory capture failed",
   "chat.oracleReview.reviewTurnDeep":
     "Deep review (cross-turn task audit with read-only investigation, several times the cost)",
   "chat.oracleReview.pending": "{model} is reviewing… (waiting {minutes}:{seconds})",

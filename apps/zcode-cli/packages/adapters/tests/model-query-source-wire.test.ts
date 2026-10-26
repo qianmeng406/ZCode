@@ -16,6 +16,7 @@ const querySources = [
   "project_memory_extract",
   "project_memory_dream",
   "project_memory_recall",
+  "memory_capture",
   "future.source:v2-test",
 ] as const;
 

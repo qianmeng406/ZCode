@@ -72,6 +72,17 @@ import type {
 } from "@zcode/services";
 import { useCodingPlanBillingDiscountFromService } from "@/CodingPlanBillingDiscount.js";
 import { toast } from "@/components/ui/toast.js";
+import { MemoryCaptureDialog, type MemoryCaptureService } from "@/v4/memory/MemoryCaptureDialog.js";
+import {
+  MEMORY_CAPTURE_QUERY_SOURCE,
+  buildMemoryCaptureMessages,
+  parseMemoryCaptureResult,
+  type MemoryCaptureDraft,
+} from "@/v4/memory/memoryCapturePrompt.js";
+import { resolveOracleRequestOptions } from "@/v4/oracleReview/oracleReviewSupport.js";
+import type { TurnHeaderRow } from "@zcode/shared/zcode-protocol-v4";
+
+const MEMORY_CAPTURE_REQUEST_TIMEOUT_MS = 120_000;
 import { Button } from "@/components/ui/button.js";
 import { isWindowsDesktopUserAgentGlobal } from "@/lib/cuaPlatform.js";
 import {
@@ -718,8 +729,10 @@ export function SessionPane({
   const {
     conversationShareService,
     highspeedCardService,
+    memoryService,
     modelSelectionService,
     usageStatsService,
+    zcodeAgentService,
     zcodeSessionService,
     zcodeTaskService,
   } = useServices();
@@ -1939,6 +1952,88 @@ export function SessionPane({
   }, [draftConfigRef, modelSelectionView?.revision, sessionId, workspaceIdentity, workspacePath]);
   const recommendStartPlan = useStartPlanRecommendation(modelSelectionView);
   const { settings: sharedSettings, update: updateSharedSettings } = useSettings();
+  // ── 一键沉淀为记忆（fork 开关 memoryCapture + 记忆总开关）──
+  // 入口只在两个开关都打开、且宿主提供写入方法时出现；关闭时行工具栏没有按钮，
+  // 也不会有任何模型请求。
+  const memoryCaptureService = useMemo<MemoryCaptureService | null>(() => {
+    // 宿主编排/mock 可能没装 memoryService：没有它就没有入口，不报错。
+    if (!memoryService) return null;
+    const { readProjectMemoryFile, writeProjectMemoryFile, resolveProjectMemoryWorkspace } =
+      memoryService;
+    if (!readProjectMemoryFile || !writeProjectMemoryFile || !resolveProjectMemoryWorkspace) {
+      return null;
+    }
+    return {
+      readProjectMemoryFile: readProjectMemoryFile.bind(memoryService),
+      writeProjectMemoryFile: writeProjectMemoryFile.bind(memoryService),
+    };
+  }, [memoryService]);
+  const canCaptureMemory =
+    memoryCaptureService !== null &&
+    Boolean(zcodeAgentService) &&
+    sharedSettings?.forkFeatures?.memoryCapture === true &&
+    sharedSettings?.memoryEnabled === true;
+  const [memoryCaptureDraft, setMemoryCaptureDraft] = useState<MemoryCaptureDraft | null>(null);
+  const [memoryCaptureWorkspaceId, setMemoryCaptureWorkspaceId] = useState<string | null>(null);
+  const [memoryCapturePending, setMemoryCapturePending] = useState(false);
+  const captureMemoryTurn = useCallback(
+    async (_header: TurnHeaderRow, assistantText: string): Promise<void> => {
+      // 与「跟随会话模型」同一解析：审查/沉淀这类系统请求都不许另起一套模型选择逻辑。
+      const requestOptions = resolveOracleRequestOptions(null, modelSelectionView);
+      if (!requestOptions || memoryCaptureService === null || !memoryService) {
+        toast(intl.formatMessage({ id: "chat.memoryCapture.noModel" }));
+        return;
+      }
+      setMemoryCapturePending(true);
+      try {
+        const resolved = await memoryService.resolveProjectMemoryWorkspace({
+          workspacePath,
+          ...(workspaceIdentity ? { workspaceIdentity } : {}),
+        });
+        const result = await zcodeAgentService.generateWorkspaceText({
+          workspacePath,
+          ...(workspaceIdentity ? { workspaceIdentity } : {}),
+          ...(remoteSessionId ? { remoteSessionId } : {}),
+          selection: requestOptions.selection,
+          ...(requestOptions.maxOutputTokens === undefined
+            ? {}
+            : { maxOutputTokens: requestOptions.maxOutputTokens }),
+          messages: buildMemoryCaptureMessages({
+            assistantText,
+            projectName: workspacePath.split(/[\\/]/u).filter(Boolean).at(-1) || workspacePath,
+          }),
+          querySource: MEMORY_CAPTURE_QUERY_SOURCE,
+          operationId: `memory-capture:${Date.now().toString(36)}`,
+          requestTimeoutMs: MEMORY_CAPTURE_REQUEST_TIMEOUT_MS,
+        });
+        const parsed = parseMemoryCaptureResult(result.text);
+        if (!parsed.ok) {
+          toast(intl.formatMessage({ id: "chat.memoryCapture.parseFailed" }));
+          return;
+        }
+        setMemoryCaptureWorkspaceId(resolved.workspaceId);
+        setMemoryCaptureDraft(parsed.draft);
+      } catch (error) {
+        toast(
+          `${intl.formatMessage({ id: "chat.memoryCapture.failed" })} · ${
+            error instanceof Error ? error.message : String(error)
+          }`.slice(0, 200),
+        );
+      } finally {
+        setMemoryCapturePending(false);
+      }
+    },
+    [
+      intl,
+      memoryCaptureService,
+      memoryService,
+      modelSelectionView,
+      remoteSessionId,
+      workspaceIdentity,
+      workspacePath,
+      zcodeAgentService,
+    ],
+  );
   // 旧版本的模型偏好存在 renderer localStorage；首次读到设置缺省时迁移一次，
   // 之后只以 AppSettings 为权威（null = 显式跟随会话模型）。
   const storedOracleModel = useMemo(() => readStoredOracleModelSelection(), []);
@@ -3227,6 +3322,11 @@ export function SessionPane({
       // 该开关只控「回合成功后的自动把关」（见 useOracleReview 的 completedSuccess 边沿）。
       reviewTurn: oracleReview.reviewTurnHeader,
       reviewTurnDeep: oracleReview.reviewTurnHeaderDeep,
+      captureMemoryTurn: canCaptureMemory
+        ? (header, assistantText) => {
+            void captureMemoryTurn(header, assistantText);
+          }
+        : undefined,
       oracleReviewPending: oracleReview.state.status === "pending",
       previewFileRewind:
         runtimeReady && workspaceFileRewindEnabled ? handlePreviewFileRewind : undefined,
@@ -3244,6 +3344,8 @@ export function SessionPane({
       oracleReview.reviewTurnHeader,
       oracleReview.reviewTurnHeaderDeep,
       oracleReview.state.status,
+      canCaptureMemory,
+      captureMemoryTurn,
       snapshot?.logEpoch,
       theme,
       codePreviewSettings,
@@ -6495,6 +6597,26 @@ export function SessionPane({
           )}
         </div>
       </div>
+      {memoryCaptureService ? (
+        <MemoryCaptureDialog
+          open={memoryCaptureDraft !== null}
+          workspaceId={memoryCaptureWorkspaceId ?? ""}
+          draft={memoryCaptureDraft}
+          memoryService={memoryCaptureService}
+          onCancel={() => setMemoryCaptureDraft(null)}
+          onSaved={({ fileName, indexUpdated }) => {
+            setMemoryCaptureDraft(null);
+            toast(
+              intl.formatMessage(
+                {
+                  id: indexUpdated ? "chat.memoryCapture.saved" : "chat.memoryCapture.savedNoIndex",
+                },
+                { name: fileName },
+              ),
+            );
+          }}
+        />
+      ) : null}
     </PluginUiSessionProvider>
   );
 }

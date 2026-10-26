@@ -16,6 +16,7 @@ import {
 import {
   ArchiveIcon,
   ArrowRightLeftIcon,
+  BookmarkPlusIcon,
   CheckIcon,
   Clock,
   CopyIcon,
@@ -43,6 +44,7 @@ import {
   TID_V4_FEEDBACK_LIKE,
   TID_V4_FORK,
   TID_V4_ORACLE_REVIEW,
+  TID_V4_MEMORY_CAPTURE,
   TID_V4_ORACLE_REVIEW_DEEP,
   TID_V4_ROW,
   TID_V4_ROW_ATTACHMENTS,
@@ -1494,6 +1496,7 @@ export const ConversationAssistantTextActions = memo(function ConversationAssist
   onFeedbackChange,
   onReviewTurn,
   onReviewTurnDeep,
+  onCaptureMemory,
   reviewPending,
   className,
 }: {
@@ -1514,6 +1517,8 @@ export const ConversationAssistantTextActions = memo(function ConversationAssist
   onReviewTurn?: () => void;
   /** 深度审查这一回合：与 onReviewTurn 同准入条件，走只读子代理多轮取证。 */
   onReviewTurnDeep?: () => void;
+  /** 沉淀为记忆：由轮尾装配处按 fork 开关裁决后传入；缺席即不渲染。 */
+  onCaptureMemory?: () => void;
   /** 有审查在进行中：两个审查按钮置灰，避免点击落入静默忽略分支。 */
   reviewPending?: boolean;
   className?: string;
@@ -1659,6 +1664,17 @@ export const ConversationAssistantTextActions = memo(function ConversationAssist
           onClick={onReviewTurnDeep}
         >
           <ScanSearchIcon className="size-3.5" />
+        </MessageAction>
+      ) : null}
+      {onCaptureMemory ? (
+        <MessageAction
+          aria-label={intl.formatMessage({ id: "chat.memoryCapture.action" })}
+          label={intl.formatMessage({ id: "chat.memoryCapture.action" })}
+          tooltip={resolveTooltip(intl.formatMessage({ id: "chat.memoryCapture.action" }))}
+          data-testid={testId(TID_V4_MEMORY_CAPTURE, String(rowId))}
+          onClick={onCaptureMemory}
+        >
+          <BookmarkPlusIcon className="size-3.5" />
         </MessageAction>
       ) : null}
       {onFork && entityId ? (
