@@ -22,6 +22,22 @@ const FORK_TOOL_NAMES = {
   applyPatch: "ApplyPatch",
 } as const satisfies Record<keyof ForkToolPreferences, string>;
 
+const FORK_TOOL_KEY_BY_NAME = new Map<string, keyof ForkToolPreferences>(
+  Object.entries(FORK_TOOL_NAMES).map(([key, name]) => [name, key as keyof ForkToolPreferences]),
+);
+
+/**
+ * 模型可见性判据：不读注册表，只读开关。
+ *
+ * 这样「turn 进行中关闭」既能立刻从下一轮工具表里消失，又不会因为 unregister 太早
+ * 让已流式声明的调用在执行时变成 ToolNotFound。非 fork 工具恒可见。
+ */
+export function isForkToolExposed(this: AgentRuntimeInternal, toolName: string): boolean {
+  const key = FORK_TOOL_KEY_BY_NAME.get(toolName);
+  if (!key) return true;
+  return this.config.forkToolSwitches?.[key] === true;
+}
+
 function findForkToolEntry(toolName: string): ToolEntry | undefined {
   return builtInTools.find((entry) => entry.metadata.name === toolName);
 }

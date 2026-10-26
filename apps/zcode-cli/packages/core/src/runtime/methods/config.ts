@@ -18,6 +18,7 @@ import type {
   ContextBuilder,
 } from "../deps.js";
 import { isInspectablePermissionBroker, projectIdFromDirectory } from "../helpers/index.js";
+import { isForkToolExposed } from "./fork-tool-switches.js";
 import {
   deriveChildClientPorts,
   type ChildClientPortsContext,
@@ -27,10 +28,7 @@ import type { AgentRuntimeConfig, ActiveTurnInfo } from "../types.js";
 import type { AgentRuntimeInternal } from "../internal.js";
 import { cloneModelSelection } from "../model-selection.js";
 import { applyRuntimeExecutionState, installRuntimeExecutionState } from "../execution-state.js";
-import {
-  resolveRestoredExecutionState,
-  type ResolvedExecutionState,
-} from "@zcode/shared";
+import { resolveRestoredExecutionState, type ResolvedExecutionState } from "@zcode/shared";
 
 import { mirrorSubagentInteractionEvent } from "../../subagent/tool-event-mirror.js";
 import { orderProviderVisibleToolContracts } from "../../tool/provider-visible-order.js";
@@ -307,8 +305,11 @@ function filterRuntimeVisibleTools(
 ): ModelToolContract[] {
   const minimalFiltered = filterMinimalProfileRuntimeVisibleTools(this, tools);
   const visibleTools = filterEmbeddedSearchRuntimeVisibleTools(this, minimalFiltered);
+  // fork 工具开关的可见性不能只靠注册表增删：turn 进行中关闭时注册表要留到收口才动
+  // （否则已声明的调用会变成 ToolNotFound），但下一轮模型请求必须立刻看不到它。
+  const switchFiltered = visibleTools.filter((tool) => isForkToolExposed.call(this, tool.name));
   // provider-visible 工具顺序属于最终输出边界；toolset 只决定可见工具集合。
-  return orderProviderVisibleToolContracts(visibleTools);
+  return orderProviderVisibleToolContracts(switchFiltered);
 }
 
 /**
