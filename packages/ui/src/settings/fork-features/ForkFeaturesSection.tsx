@@ -1,7 +1,7 @@
 // 「定制功能」设置分区：fork 相对上游新增能力的集中页。
 // 纯受控组件——所有值与 setter 经 props 注入（照 PerformanceSection 模式），
 // 不读 store、不碰 localStorage；每个开关关闭时行为回到该功能引入之前。
-import { ArrowRight, FlaskConical } from "lucide-react";
+import { ArrowRight } from "lucide-react";
 import { Button } from "@/components/ui/button.js";
 import { Switch } from "@/components/ui/switch.js";
 import { useZCodeIntl } from "@/i18n/IntlProvider.js";
@@ -53,160 +53,102 @@ export function ForkFeaturesSectionContent({
   const { intl } = useZCodeIntl();
   const text = (id: string) => intl.formatMessage({ id });
   const memorySwitchDisabled = !memoryEnabled;
+  // 说明文字多为长句，窄设置窗口下固定控件列会把每行挤成十几个字，这里统一让开关贴标题行右端。
+  const switchRow = (
+    labelId: string,
+    checked: boolean,
+    onChange: (v: boolean) => void,
+    disabled = false,
+  ) => (
+    <SettingsRow
+      label={text(labelId)}
+      description={text(`${labelId}Description`)}
+      controlPlacement="title"
+      control={
+        <Switch
+          aria-label={text(labelId)}
+          checked={checked}
+          disabled={disabled}
+          onCheckedChange={(next) => {
+            onChange(next);
+          }}
+        />
+      }
+    />
+  );
 
   return (
-    <div className="min-w-0 space-y-3">
-      <div>
-        <h3 className="flex items-center gap-2 text-ui-lg font-semibold text-foreground">
-          <FlaskConical aria-hidden="true" className="size-4 text-foreground-subtle" />
-          {text("settings.forkFeatures.title")}
-        </h3>
-        <p className="mt-1 text-ui-base leading-6 text-foreground-subtle">
-          {text("settings.forkFeatures.description")}
-        </p>
-      </div>
+    <div className="min-w-0 space-y-4">
+      {/* 页面标题由 SettingsPage 公共页头渲染，这里只放分区说明，避免「定制功能」出现两次。 */}
+      <p className="text-ui-base leading-6 text-foreground-subtle">
+        {text("settings.forkFeatures.description")}
+      </p>
 
-      <SettingsGroupCard>
-        <h4 className="text-ui-base font-medium text-foreground">
-          {text("settings.forkFeatures.group.reviewAndPrompt")}
-        </h4>
-        <SettingsRow
-          label={text("settings.oracleReview")}
-          description={text("settings.oracleReviewDescription")}
-          control={
-            <Switch
-              aria-label={text("settings.oracleReview")}
-              checked={oracleReviewEnabled}
-              onCheckedChange={(checked) => {
-                onOracleReviewEnabledChange(checked);
-              }}
-            />
-          }
-        />
+      <SettingsGroupCard title={text("settings.forkFeatures.group.reviewAndPrompt")}>
+        {switchRow("settings.oracleReview", oracleReviewEnabled, onOracleReviewEnabledChange)}
         <OracleReviewModelSetting />
-        <SettingsRow
-          label={text("settings.forkFeatures.promptOptimizer")}
-          description={text("settings.forkFeatures.promptOptimizerDescription")}
-          control={
-            <Switch
-              aria-label={text("settings.forkFeatures.promptOptimizer")}
-              checked={promptOptimizerEnabled}
-              onCheckedChange={(checked) => {
-                onPromptOptimizerEnabledChange(checked);
-              }}
-            />
-          }
-        />
+        {switchRow(
+          "settings.forkFeatures.promptOptimizer",
+          promptOptimizerEnabled,
+          onPromptOptimizerEnabledChange,
+        )}
         <PromptOptimizerSetting />
       </SettingsGroupCard>
 
-      <SettingsGroupCard>
-        <h4 className="text-ui-base font-medium text-foreground">
-          {text("settings.forkFeatures.group.tools")}
-        </h4>
+      <SettingsGroupCard title={text("settings.forkFeatures.group.tools")}>
         {/* 动态工作流由自身在服务端未提供时返回 null，这里不需要额外门。 */}
         <DynamicWorkflowModeSetting />
-        <SettingsRow
-          label={text("settings.forkFeatures.monitorTool")}
-          description={text("settings.forkFeatures.monitorToolDescription")}
-          control={
-            <Switch
-              aria-label={text("settings.forkFeatures.monitorTool")}
-              checked={monitorToolEnabled}
-              onCheckedChange={(checked) => {
-                onMonitorToolEnabledChange(checked);
-              }}
-            />
-          }
-        />
-        <SettingsRow
-          label={text("settings.forkFeatures.notebookEdit")}
-          description={text("settings.forkFeatures.notebookEditDescription")}
-          control={
-            <Switch
-              aria-label={text("settings.forkFeatures.notebookEdit")}
-              checked={notebookEditEnabled}
-              onCheckedChange={(checked) => {
-                onNotebookEditEnabledChange(checked);
-              }}
-            />
-          }
-        />
-        <SettingsRow
-          label={text("settings.forkFeatures.applyPatch")}
-          description={text("settings.forkFeatures.applyPatchDescription")}
-          control={
-            <Switch
-              aria-label={text("settings.forkFeatures.applyPatch")}
-              checked={applyPatchEnabled}
-              onCheckedChange={(checked) => {
-                onApplyPatchEnabledChange(checked);
-              }}
-            />
-          }
-        />
-        <p className="px-0 pt-1 text-ui-sm leading-5 text-foreground-subtle">
+        {switchRow(
+          "settings.forkFeatures.monitorTool",
+          monitorToolEnabled,
+          onMonitorToolEnabledChange,
+        )}
+        {switchRow(
+          "settings.forkFeatures.notebookEdit",
+          notebookEditEnabled,
+          onNotebookEditEnabledChange,
+        )}
+        {switchRow(
+          "settings.forkFeatures.applyPatch",
+          applyPatchEnabled,
+          onApplyPatchEnabledChange,
+        )}
+        <p className="mx-4 my-3 rounded-lg bg-surface/60 px-3 py-2 text-ui-sm leading-5 text-foreground-subtle">
           {text("settings.forkFeatures.toolsApplyImmediately")}
         </p>
       </SettingsGroupCard>
 
-      <SettingsGroupCard>
-        <h4 className="text-ui-base font-medium text-foreground">
-          {text("settings.forkFeatures.group.memory")}
-        </h4>
+      <SettingsGroupCard title={text("settings.forkFeatures.group.memory")}>
         {memoryEnabled ? null : (
-          <p className="text-ui-sm leading-5 text-foreground-subtle">
+          <p className="mx-4 mt-3 rounded-lg bg-surface/60 px-3 py-2 text-ui-sm leading-5 text-foreground-subtle">
             {text("settings.forkFeatures.memoryDisabledHint")}
           </p>
         )}
-        <SettingsRow
-          label={text("settings.forkFeatures.memoryFileEditing")}
-          description={text("settings.forkFeatures.memoryFileEditingDescription")}
-          control={
-            <Switch
-              aria-label={text("settings.forkFeatures.memoryFileEditing")}
-              checked={memoryFileEditingEnabled}
-              disabled={memorySwitchDisabled}
-              onCheckedChange={(checked) => {
-                onMemoryFileEditingEnabledChange(checked);
-              }}
-            />
-          }
-        />
-        <SettingsRow
-          label={text("settings.forkFeatures.memoryCapture")}
-          description={text("settings.forkFeatures.memoryCaptureDescription")}
-          control={
-            <Switch
-              aria-label={text("settings.forkFeatures.memoryCapture")}
-              checked={memoryCaptureEnabled}
-              disabled={memorySwitchDisabled}
-              onCheckedChange={(checked) => {
-                onMemoryCaptureEnabledChange(checked);
-              }}
-            />
-          }
-        />
-        <SettingsRow
-          label={text("settings.forkFeatures.memoryDreamManual")}
-          description={text("settings.forkFeatures.memoryDreamManualDescription")}
-          control={
-            <Switch
-              aria-label={text("settings.forkFeatures.memoryDreamManual")}
-              checked={memoryDreamManualEnabled}
-              disabled={memorySwitchDisabled}
-              onCheckedChange={(checked) => {
-                onMemoryDreamManualEnabledChange(checked);
-              }}
-            />
-          }
-        />
+        {switchRow(
+          "settings.forkFeatures.memoryFileEditing",
+          memoryFileEditingEnabled,
+          onMemoryFileEditingEnabledChange,
+          memorySwitchDisabled,
+        )}
+        {switchRow(
+          "settings.forkFeatures.memoryCapture",
+          memoryCaptureEnabled,
+          onMemoryCaptureEnabledChange,
+          memorySwitchDisabled,
+        )}
+        {switchRow(
+          "settings.forkFeatures.memoryDreamManual",
+          memoryDreamManualEnabled,
+          onMemoryDreamManualEnabledChange,
+          memorySwitchDisabled,
+        )}
       </SettingsGroupCard>
 
       <SettingsGroupCard>
         <SettingsRow
           label={text("settings.forkFeatures.performanceLink")}
           description={text("settings.forkFeatures.performanceLinkDescription")}
+          controlPlacement="title"
           control={
             <Button
               type="button"

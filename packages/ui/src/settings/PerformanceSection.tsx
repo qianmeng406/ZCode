@@ -2,7 +2,7 @@
 // 纯受控组件——所有值与 setter 经 props 注入（照 AppearanceSectionContent 模式），
 // 不读 store、不碰 localStorage；每个开关默认关闭，开启才改变渲染策略。
 import { Switch } from "@/components/ui/switch.js";
-import { SettingsRow } from "@/settings/SettingsPageParts.js";
+import { SettingsGroupCard, SettingsRow } from "@/settings/SettingsPageParts.js";
 import { useZCodeIntl } from "@/i18n/IntlProvider.js";
 
 export interface PerformanceSectionContentProps {
@@ -54,21 +54,19 @@ export function PerformanceSectionContent({
   const text = (id: string) => intl.formatMessage({ id });
 
   return (
-    <div className="min-w-0 space-y-3">
-      <div>
-        <h3 className="text-ui-lg font-semibold text-foreground">
-          {text("settings.performanceTitle")}
-        </h3>
-        <p className="mt-1 text-ui-base leading-6 text-foreground-subtle">
-          {text("settings.performance.description")}
-        </p>
-      </div>
-      <div className="border border-border bg-card py-0 shadow-none">
+    <div className="min-w-0 space-y-4">
+      {/* 页面标题由 SettingsPage 公共页头渲染，这里只放分区说明，避免「性能」出现两次。 */}
+      <p className="text-ui-base leading-6 text-foreground-subtle">
+        {text("settings.performance.description")}
+      </p>
+      <SettingsGroupCard>
         <SettingsRow
           label={text("settings.conversationWindowCollapse")}
           description={text("settings.conversationWindowCollapseDescription")}
+          controlPlacement="title"
           control={
             <Switch
+              aria-label={text("settings.conversationWindowCollapse")}
               checked={conversationWindowCollapseEnabled}
               onCheckedChange={setConversationWindowCollapseEnabled}
             />
@@ -77,8 +75,10 @@ export function PerformanceSectionContent({
         <SettingsRow
           label={text("settings.performance.streamingMarkdownIncremental")}
           description={text("settings.performance.streamingMarkdownIncrementalDescription")}
+          controlPlacement="title"
           control={
             <Switch
+              aria-label={text("settings.performance.streamingMarkdownIncremental")}
               checked={streamingMarkdownIncrementalEnabled}
               onCheckedChange={setStreamingMarkdownIncrementalEnabled}
             />
@@ -87,8 +87,10 @@ export function PerformanceSectionContent({
         <SettingsRow
           label={text("settings.performance.stableRenderUnits")}
           description={text("settings.performance.stableRenderUnitsDescription")}
+          controlPlacement="title"
           control={
             <Switch
+              aria-label={text("settings.performance.stableRenderUnits")}
               checked={stableRenderUnitsEnabled}
               onCheckedChange={setStableRenderUnitsEnabled}
             />
@@ -97,8 +99,10 @@ export function PerformanceSectionContent({
         <SettingsRow
           label={text("settings.performance.scopedPresentationClock")}
           description={text("settings.performance.scopedPresentationClockDescription")}
+          controlPlacement="title"
           control={
             <Switch
+              aria-label={text("settings.performance.scopedPresentationClock")}
               checked={scopedPresentationClockEnabled}
               onCheckedChange={setScopedPresentationClockEnabled}
             />
@@ -107,8 +111,10 @@ export function PerformanceSectionContent({
         <SettingsRow
           label={text("settings.performance.coalescedBottomScroll")}
           description={text("settings.performance.coalescedBottomScrollDescription")}
+          controlPlacement="title"
           control={
             <Switch
+              aria-label={text("settings.performance.coalescedBottomScroll")}
               checked={coalescedBottomScrollEnabled}
               onCheckedChange={setCoalescedBottomScrollEnabled}
             />
@@ -117,8 +123,10 @@ export function PerformanceSectionContent({
         <SettingsRow
           label={text("settings.performance.coalescedDeltaFrames")}
           description={text("settings.performance.coalescedDeltaFramesDescription")}
+          controlPlacement="title"
           control={
             <Switch
+              aria-label={text("settings.performance.coalescedDeltaFrames")}
               checked={coalescedDeltaFramesEnabled}
               onCheckedChange={setCoalescedDeltaFramesEnabled}
             />
@@ -127,8 +135,10 @@ export function PerformanceSectionContent({
         <SettingsRow
           label={text("settings.performance.idleParticlePause")}
           description={text("settings.performance.idleParticlePauseDescription")}
+          controlPlacement="title"
           control={
             <Switch
+              aria-label={text("settings.performance.idleParticlePause")}
               checked={idleParticlePauseEnabled}
               onCheckedChange={setIdleParticlePauseEnabled}
             />
@@ -137,8 +147,10 @@ export function PerformanceSectionContent({
         <SettingsRow
           label={text("settings.performance.boundedHighlightCache")}
           description={text("settings.performance.boundedHighlightCacheDescription")}
+          controlPlacement="title"
           control={
             <Switch
+              aria-label={text("settings.performance.boundedHighlightCache")}
               checked={boundedHighlightCacheEnabled}
               onCheckedChange={setBoundedHighlightCacheEnabled}
             />
@@ -147,8 +159,10 @@ export function PerformanceSectionContent({
         <SettingsRow
           label={text("settings.performance.idleTickScanReduction")}
           description={text("settings.performance.idleTickScanReductionDescription")}
+          controlPlacement="title"
           control={
             <Switch
+              aria-label={text("settings.performance.idleTickScanReduction")}
               checked={idleTickScanReductionEnabled}
               onCheckedChange={setIdleTickScanReductionEnabled}
             />
@@ -157,14 +171,16 @@ export function PerformanceSectionContent({
         <SettingsRow
           label={text("settings.performance.dedupedIdlePolling")}
           description={text("settings.performance.dedupedIdlePollingDescription")}
+          controlPlacement="title"
           control={
             <Switch
+              aria-label={text("settings.performance.dedupedIdlePolling")}
               checked={dedupedIdlePollingEnabled}
               onCheckedChange={setDedupedIdlePollingEnabled}
             />
           }
         />
-      </div>
+      </SettingsGroupCard>
     </div>
   );
 }

@@ -112,13 +112,39 @@ export function SettingsRow({
   control,
   detail,
   controlLayout = "default",
+  controlPlacement = "side",
 }: {
   label: ReactNode;
   description?: ReactNode;
   control: ReactNode;
   detail?: ReactNode;
   controlLayout?: "default" | "wide";
+  /**
+   * "title"：控件贴标签同一行右端，说明文字占满整行宽度。
+   * 窄设置窗口下固定控件列会把说明挤成十几字一行、控件与文字之间留大片空白，
+   * 只有开关这类窄控件适合这种排法；下拉等宽控件仍用 "side" 的控件列。
+   */
+  controlPlacement?: "side" | "title";
 }) {
+  if (controlPlacement === "title") {
+    return (
+      <div className="border-t border-border px-4 py-3.5 first:border-t-0">
+        <div className="flex items-start justify-between gap-4">
+          <div className="min-w-0">
+            <div className="text-ui-base font-medium text-foreground">{label}</div>
+            {description ? (
+              <div className="mt-1 text-ui-base leading-6 text-foreground-subtle">
+                {description}
+              </div>
+            ) : null}
+          </div>
+          <div className="flex shrink-0 items-center gap-2 pt-0.5">{control}</div>
+        </div>
+        {detail ? <div className="mt-3">{detail}</div> : null}
+      </div>
+    );
+  }
+
   return (
     <div className="border-t border-border px-4 py-3 first:border-t-0">
       <div
@@ -145,9 +171,22 @@ export function SettingsRow({
   );
 }
 
-export function SettingsGroupCard({ children }: { children: ReactNode }) {
+export function SettingsGroupCard({
+  title,
+  children,
+}: {
+  /** 分组标题渲染成卡片内的浅色标题条；不传则保持旧的纯内容卡片。 */
+  title?: ReactNode;
+  children: ReactNode;
+}) {
   return (
-    <Card className="overflow-hidden rounded-xl border border-border bg-card py-0 shadow-none">
+    // Card 默认 flex-col + gap-4：标题条必须与内容无缝贴住，否则分组标题和首行之间会多出一条空档。
+    <Card className="gap-0 overflow-hidden rounded-xl border border-border bg-card py-0 shadow-none">
+      {title ? (
+        <div className="bg-surface px-4 py-2.5">
+          <h4 className="text-ui-sm font-medium text-foreground-subtle">{title}</h4>
+        </div>
+      ) : null}
       <CardContent className="space-y-0 px-0">{children}</CardContent>
     </Card>
   );
