@@ -258,7 +258,6 @@ export async function runOracleReview(
     // ── 阶段三：正式审查 ──
     setStage("reviewing", `${request.reviewId}:review`);
     const prompt = buildOracleReviewPrompt({
-      request,
       targetMaterialText: renderOracleTurnMaterialText(
         bundle.material,
         `目标回合 rowId=${request.target.rowId}`,

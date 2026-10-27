@@ -1,11 +1,16 @@
 import type { ModelSelection } from "@zcode/shared";
 import type { TurnHeaderRow } from "@zcode/shared/zcode-protocol-v4";
 import type { ModelSelectionView } from "@zcode/provider";
+import type { OracleReviewDepth } from "@zcode/shared/oracle-review";
 import type { OracleReviewTargetRef, OracleReviewableTurnState } from "./oracleReviewMaterial.js";
 import type { OracleVerdict } from "./oracleReviewVerdict.js";
 
 /**
- * Oracle 审查的纯函数层：审查请求契约 / prompt 构建 / 裁决解析 / 模型偏好存取。
+ * Oracle 审查的 UI 侧控制面：审查请求契约、状态机、模型偏好存取与一键修复。
+ *
+ * 可复用的纯函数层（prompt / 裁决解析 / 材料组装 / 上下文分析 / diff 规则）已下沉到
+ * `@zcode/shared/oracle-review`——CLI 的 `zcode review` 要复用同一套规则，而 CLI
+ * 依赖链上不存在 ui 包。这里保留同名再导出，调用方与测试的 import 路径不变。
  *
  * 双模式语义（v2 改造后）：
  * - standard：单轮对话审查——目标回合的完整材料 + 必要前文，无工具单次生成；
@@ -14,21 +19,26 @@ import type { OracleVerdict } from "./oracleReviewVerdict.js";
  * 改动的纯对话回合同样可审，diff 只降级为辅助证据。
  *
  * 与 usePromptOptimizer 同构：审查走**会话外** workspace generateText 请求，
- * 不产生消息、不进历史；这里是其中所有可脱离 React 单测的部分。
+ * 不产生消息、不进历史。
  */
 
-export const ORACLE_TURN_REVIEW_QUERY_SOURCE = "oracle_turn_review";
-// 全量材料 + 最高推理档的思考可能很久；10 分钟客户端 deadline（宿主会据此派生
-// 取消 signal，跳过 CLI 侧 60s 默认超时），横幅不阻塞输入。
-export const ORACLE_REVIEW_REQUEST_TIMEOUT_MS = 600_000;
-export const ORACLE_DEEP_REVIEW_QUERY_SOURCE = "oracle_deep_review";
-// 深度审查是多轮只读子代理（读文件/搜索/只读 bash 取证），耗时数倍于标准审查。
-export const ORACLE_DEEP_REVIEW_TIMEOUT_MS = 1_200_000;
-// 上下文分析阶段（独立 querySource/operationId，可被独立取消与路由进度）。
-export const ORACLE_CONTEXT_ANALYSIS_QUERY_SOURCE = "oracle_review_context";
-export const ORACLE_CONTEXT_ANALYSIS_TIMEOUT_MS = 300_000;
+export type { OracleReviewDepth };
 
-export type OracleReviewDepth = "standard" | "deep";
+export {
+  ORACLE_TURN_REVIEW_QUERY_SOURCE,
+  ORACLE_REVIEW_REQUEST_TIMEOUT_MS,
+  ORACLE_DEEP_REVIEW_QUERY_SOURCE,
+  ORACLE_DEEP_REVIEW_TIMEOUT_MS,
+  ORACLE_CONTEXT_ANALYSIS_QUERY_SOURCE,
+  ORACLE_CONTEXT_ANALYSIS_TIMEOUT_MS,
+  isOracleReviewQuerySource,
+  formatOraclePatch,
+  buildOracleDiffSections,
+  formatOracleCommitLine,
+  type OracleDiffSection,
+  type OracleReviewDiffHunk,
+  type OracleReviewDiffItem,
+} from "@zcode/shared/oracle-review";
 
 /** 审查请求的全链路身份：各阶段 operationId 由它派生（ctx/review 后缀）。 */
 export interface OracleReviewRequest {
@@ -50,79 +60,9 @@ export interface OracleReviewRequest {
 /** 审查运行阶段：collecting 取材料 → analyzing 上下文分析 → reviewing 正式审查。 */
 export type OracleReviewStage = "collecting" | "analyzing" | "reviewing";
 
-/** 深度审查的进度通知也走同一 workspace/generateTextProgress 通道，按来源认领。 */
-export function isOracleReviewQuerySource(querySource: string): boolean {
-  return (
-    querySource === ORACLE_TURN_REVIEW_QUERY_SOURCE ||
-    querySource === ORACLE_DEEP_REVIEW_QUERY_SOURCE ||
-    querySource === ORACLE_CONTEXT_ANALYSIS_QUERY_SOURCE
-  );
-}
-
 // maxOutputTokens 由 useOracleReview 按模型声明的上限（optionSpecs.maxOutputTokens.max）
 // 传入：省略会被 adapters 校验拒绝（outside the model option range），设小了会被
 // 思考模型的 reasoning 吃光导致空正文（实测 2048 上限 GLM 返回空文本）。
-
-// 注入上下文的长度上限：最近提交行不设限会无上限撑大审查 prompt。
-const MAX_COMMIT_LINE_CHARS = 120;
-
-function truncate(text: string, max: number): string {
-  return text.length > max ? `${text.slice(0, max)}…` : text;
-}
-
-export interface OracleReviewDiffHunk {
-  oldStart: number;
-  oldLines: number;
-  newStart: number;
-  newLines: number;
-  lines: readonly string[];
-}
-
-export interface OracleReviewDiffItem {
-  path: string;
-  additions: number;
-  deletions: number;
-  patches: readonly OracleReviewDiffHunk[];
-}
-
-export interface OracleDiffSection {
-  path: string;
-  text: string;
-}
-
-/** 把 v4 fileChanges 的 hunk 拼成 unified diff 文本（形状同 ConversationFileSummaryPanel 的局部 formatPatch）。 */
-export function formatOraclePatch(path: string, patches: readonly OracleReviewDiffHunk[]): string {
-  if (patches.length === 0) return "";
-  const lines = [`--- a/${path}`, `+++ b/${path}`];
-  for (const patch of patches) {
-    lines.push(
-      `@@ -${patch.oldStart},${patch.oldLines} +${patch.newStart},${patch.newLines} @@`,
-      ...patch.lines,
-    );
-  }
-  return lines.join("\n");
-}
-
-/**
- * diff 原样进 prompt，不做任何裁剪——截断会让审查结论只覆盖部分改动。
- * 空 patch（二进制/无文本差异）跳过。超大 diff 若顶到模型上下文上限，会让上游
- * 报错并如实显示在横幅里，不静默截断。
- */
-export function buildOracleDiffSections(
-  items: readonly OracleReviewDiffItem[],
-): OracleDiffSection[] {
-  const sections: OracleDiffSection[] = [];
-  for (const item of items) {
-    if (item.patches.length === 0) continue;
-    sections.push({ path: item.path, text: formatOraclePatch(item.path, item.patches) });
-  }
-  return sections;
-}
-
-/** 提交行：hash 前 7 位 + subject（截断到单行上限，防超长 subject 撑大 prompt）。 */
-export function formatOracleCommitLine(hash: string, subject: string): string {
-  return truncate(`${hash.slice(0, 7)} ${subject}`, MAX_COMMIT_LINE_CHARS);
-}
 
 export function isOracleDeadlineTimeoutError(error: unknown): boolean {
   return error instanceof Error && error.name === "ZCodeProtocolRequestTimeoutError";
