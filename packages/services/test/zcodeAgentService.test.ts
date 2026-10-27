@@ -11,6 +11,7 @@ import { join } from "node:path";
 import { DatabaseSync } from "node:sqlite";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import {
+  DEFAULT_FORK_FEATURES,
   ZCODE_SESSION_RUNTIME_PREFERENCES_REQUEST_TIMEOUT_MS,
   type ZCodeSessionRuntimePreferencesScope,
 } from "@zcode/shared";
@@ -2061,6 +2062,8 @@ describe("createZCodeAgentService", () => {
         nativeSearchEnhancementsEnabled: boolean;
         subagentRuntimeConfigEnabled: boolean;
         memoryEnabled: boolean;
+        // fork 开关在结果 schema 里带整对象默认值，任何 Host 响应都会带上它。
+        forkFeatures: typeof DEFAULT_FORK_FEATURES;
         toolSearchMode?: "auto" | "local" | "off";
         modelContextBudgetStrategy: "legacy" | "preflight-v1";
       };
@@ -2081,6 +2084,7 @@ describe("createZCodeAgentService", () => {
           nativeSearchEnhancementsEnabled: false,
           subagentRuntimeConfigEnabled: false,
           memoryEnabled: false,
+          forkFeatures: DEFAULT_FORK_FEATURES,
           modelContextBudgetStrategy: "preflight-v1" as const,
         },
         expectedResolverCalls: 1,
@@ -2093,6 +2097,7 @@ describe("createZCodeAgentService", () => {
           nativeSearchEnhancementsEnabled: true,
           subagentRuntimeConfigEnabled: false,
           memoryEnabled: false,
+          forkFeatures: DEFAULT_FORK_FEATURES,
           modelContextBudgetStrategy: "preflight-v1" as const,
         },
         expectedResolverCalls: 0,
