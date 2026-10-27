@@ -1094,3 +1094,8 @@ exceptions:
     paths:
       - packages/ui/src/v4/memory/memoryDreamResult.ts
     reason: fork 定制功能「手动整理记忆」的结果文案映射（status/reason → i18n key，含文件数与行数汇总、失败原因截断）。独立成文件的理由是它能脱离 SessionPane 巨型组件做纯函数单测，并保证服务端机器码 reason 不直接透传给用户；同目录 memoryCapturePrompt.ts 已是同一处理模式。packages/ui 目录未受管，登记为 managed 模块不在本次范围内。
+  - id: fork-features-store-unmanaged-new
+    rule: unmanaged-new-file
+    paths:
+      - packages/services/src/setting/forkFeaturesStore.ts
+    reason: fork 开关从 setting.json 拆到独立文件 fork-features.json 的读写边界（读取失败降级、坏文件隔离、原子写 + 跨进程锁）。独立成文件的理由是它同时被 Host 设置服务与后续 CLI 复用，且要让「正式版 ZCode 重写 setting.json」这条覆盖链在单点上被测试钉住；与同目录 settingService/settingsWriteQueue 同模式。packages/services/src/setting 未受管，登记为 managed 模块不在本次范围内。

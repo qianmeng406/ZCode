@@ -27,6 +27,12 @@ import {
   retainLegacyAccountConnectionFields,
   type LegacyTeamConnection,
 } from "#src/setting/legacyAccountConnectionSettings.js";
+import {
+  pickForkFeatures,
+  readForkFeaturesFile,
+  resolveForkFeaturesFilePath,
+  writeForkFeaturesFile,
+} from "./forkFeaturesStore.js";
 const MAX_RECENT_PROJECTS = 10;
 const SETTINGS_PARSE_RETRY_DELAY_MS = 300;
 const SETTINGS_PARSE_RETRY_COUNT = 3;
@@ -107,6 +113,35 @@ interface ReadSettingsResult {
   needsMigrationPersist: boolean;
 }
 
+/**
+ * fork 开关的唯一权威是 `fork-features.json`：setting.json 里那份可能被正式版写旧，
+ * 文件存在时一律以文件为准；文件缺失时才把 setting.json 的显式值一次性迁过去。
+ */
+async function applyForkFeaturesOverlay(
+  settingsFile: string,
+  rawValue: unknown,
+  settings: AppSettings,
+): Promise<AppSettings> {
+  const forkFeaturesFile = resolveForkFeaturesFilePath(settingsFile);
+  const stored = await readForkFeaturesFile(forkFeaturesFile);
+  if (stored.exists) {
+    return stored.value ? { ...settings, forkFeatures: stored.value } : settings;
+  }
+  const legacy = pickForkFeatures(
+    rawValue && typeof rawValue === "object" && !Array.isArray(rawValue)
+      ? (rawValue as { forkFeatures?: unknown }).forkFeatures
+      : undefined,
+  );
+  if (!legacy) return settings;
+  // 只给"setting.json 里确实写过开关"的用户落地文件，避免给没碰过开关的人凭空造文件。
+  try {
+    await writeForkFeaturesFile(forkFeaturesFile, legacy);
+  } catch (error) {
+    log("fork features migration write failed, keeping in-memory value. error:", error);
+  }
+  return { ...settings, forkFeatures: legacy };
+}
+
 async function readSettingsWithMetaAt(settingsFile: string): Promise<ReadSettingsResult> {
   try {
     // settingService.get() 会被 UI 和远程会话高频调用。
@@ -132,7 +167,8 @@ async function readSettingsWithMetaAt(settingsFile: string): Promise<ReadSetting
       if (rawValue === undefined) {
         await quarantineCorruptSettingsFile(settingsFile, lastParseError);
         return {
-          settings: defaultSettings(),
+          // 即使 setting.json 坏了，独立开关文件仍要读：否则用户会看到开关全被重置。
+          settings: await applyForkFeaturesOverlay(settingsFile, undefined, defaultSettings()),
           needsMigrationPersist: false,
         };
       }
@@ -144,12 +180,12 @@ async function readSettingsWithMetaAt(settingsFile: string): Promise<ReadSetting
         formatZodError(result.error),
       );
       return {
-        settings: defaultSettings(),
+        settings: await applyForkFeaturesOverlay(settingsFile, rawValue, defaultSettings()),
         needsMigrationPersist: false,
       };
     }
     return {
-      settings: result.data,
+      settings: await applyForkFeaturesOverlay(settingsFile, rawValue, result.data),
       needsMigrationPersist: shouldPersistSettingsMigrations(rawValue),
     };
   } catch (err) {
@@ -161,7 +197,7 @@ async function readSettingsWithMetaAt(settingsFile: string): Promise<ReadSetting
     ) {
       debugLog("settings file missing, using defaults");
       return {
-        settings: defaultSettings(),
+        settings: await applyForkFeaturesOverlay(settingsFile, undefined, defaultSettings()),
         needsMigrationPersist: false,
       };
     }
@@ -169,7 +205,7 @@ async function readSettingsWithMetaAt(settingsFile: string): Promise<ReadSetting
     // 文件解析失败等异常兜底返回默认值
     log("read failed, returning defaults. error:", err);
     return {
-      settings: defaultSettings(),
+      settings: await applyForkFeaturesOverlay(settingsFile, undefined, defaultSettings()),
       needsMigrationPersist: false,
     };
   }
@@ -191,6 +227,10 @@ async function writeSettingsAt(
   const raw = await readLegacyAccountConnectionSettingsFile(settingsFile);
   const rollbackFields = retainLegacyAccountConnectionFields(raw);
   const persisted = { ...rollbackFields, ...settings };
+  // fork 开关的唯一权威是 fork-features.json：这里必须剥掉副本，
+  // 否则正式版 ZCode 重写 setting.json 时那份旧值会被读回来，
+  // 白名单式 migrate 又只认 setting.json 里的键，互相覆盖的链路会重新出现。
+  delete (persisted as { forkFeatures?: unknown }).forkFeatures;
   // 旧 Team 尚待 OAuth 补组织时，schema 的默认 {} 不是用户的新选择。
   // 普通偏好保存必须保留新字段缺席；只有迁移提交或用户显式选连接才结束旧导入。
   if (!commitAccountSelection && readIncompleteLegacyTeamConnections(raw).length > 0) {
@@ -333,6 +373,14 @@ export function createSettingServiceWithMigrations(): {
           ) {
             throw new Error("Account connection settings changed");
           }
+        }
+        // fork 开关改由独立文件承载：先落盘，再走其余字段的常规浅合并写。
+        // merged 里的这个值只服务于本次内存快照，setting.json 写入时会剥掉它。
+        if (validatedPatch.forkFeatures && shouldCommit()) {
+          await writeForkFeaturesFile(
+            resolveForkFeaturesFilePath(getSettingsFile()),
+            validatedPatch.forkFeatures,
+          );
         }
         const merged = appSettingsSchema.parse({
           ...current,

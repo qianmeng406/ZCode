@@ -12,6 +12,7 @@ import { mkdir, readFile, writeFile } from "node:fs/promises";
 import { join } from "node:path";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import type { AppSettings } from "@zcode/shared";
+import { DEFAULT_FORK_FEATURES } from "@zcode/shared";
 import type { ISettingService } from "../src/setting/setting.js";
 
 const originalHome = process.env.HOME;
@@ -1500,5 +1501,110 @@ describe("settingService", () => {
       workspacePath: "/tmp/local-demo",
       workspacePurpose: "project",
     });
+  });
+});
+
+describe("settingService forkFeatures 独立落盘", () => {
+  const forkFeaturesFile = (home: string) => join(home, ".zcode/v2/fork-features.json");
+  const settingsFile = (home: string) => join(home, ".zcode/v2/setting.json");
+
+  async function createServiceIn(home: string): Promise<ISettingService> {
+    process.env.HOME = home;
+    // resolveUserHomeDir 优先读桌面注入的 home，两个都指向临时目录才能隔离。
+    process.env.ZCODE_DESKTOP_HOME_DIR = home;
+    vi.resetModules();
+    const mod = await import("../src/setting/settingService.js");
+    return mod.createSettingService();
+  }
+
+  it("更新 forkFeatures 只写独立文件，setting.json 不再保留副本", async () => {
+    const home = makeTempHome();
+    const service = await createServiceIn(home);
+    const next = { ...DEFAULT_FORK_FEATURES, monitorTool: true, memoryCapture: true };
+
+    await service.update({ forkFeatures: next });
+
+    const persistedSettings = JSON.parse(readFileSync(settingsFile(home), "utf-8"));
+    expect(Object.hasOwn(persistedSettings, "forkFeatures")).toBe(false);
+    expect(JSON.parse(readFileSync(forkFeaturesFile(home), "utf-8"))).toEqual(next);
+    expect((await service.get()).forkFeatures).toEqual(next);
+  });
+
+  it("setting.json 里的过期 forkFeatures 不覆盖独立文件（正式版写盘回归）", async () => {
+    const home = makeTempHome();
+    await mkdir(join(home, ".zcode/v2"), { recursive: true });
+    // 正式版 ZCode 用自己的 schema 重写的副本：全部回到默认值。
+    await writeFile(
+      settingsFile(home),
+      JSON.stringify({ locale: "zh-CN", forkFeatures: { ...DEFAULT_FORK_FEATURES } }),
+    );
+    await writeFile(
+      forkFeaturesFile(home),
+      JSON.stringify({ ...DEFAULT_FORK_FEATURES, monitorTool: true }),
+    );
+
+    const service = await createServiceIn(home);
+    expect((await service.get()).forkFeatures).toEqual({
+      ...DEFAULT_FORK_FEATURES,
+      monitorTool: true,
+    });
+
+    // 任意一次无关更新都会把 setting.json 里的旧副本剥掉。
+    await service.update({ locale: "en-US" });
+    expect(
+      Object.hasOwn(JSON.parse(readFileSync(settingsFile(home), "utf-8")), "forkFeatures"),
+    ).toBe(false);
+  });
+
+  it("旧 setting.json 只在显式写过开关时一次性迁移到独立文件", async () => {
+    const home = makeTempHome();
+    await mkdir(join(home, ".zcode/v2"), { recursive: true });
+    await writeFile(
+      settingsFile(home),
+      JSON.stringify({
+        locale: "zh-CN",
+        forkFeatures: { ...DEFAULT_FORK_FEATURES, memoryCapture: true },
+      }),
+    );
+
+    const service = await createServiceIn(home);
+    await service.get();
+
+    expect(JSON.parse(readFileSync(forkFeaturesFile(home), "utf-8"))).toEqual({
+      ...DEFAULT_FORK_FEATURES,
+      memoryCapture: true,
+    });
+  });
+
+  it("从未写过开关的用户不会被凭空创建独立文件", async () => {
+    const home = makeTempHome();
+    await mkdir(join(home, ".zcode/v2"), { recursive: true });
+    await writeFile(settingsFile(home), JSON.stringify({ locale: "zh-CN" }));
+
+    const service = await createServiceIn(home);
+    await service.get();
+
+    expect(existsSync(forkFeaturesFile(home))).toBe(false);
+  });
+
+  it("独立文件缺键时补默认值，坏文件隔离且不阻断读取", async () => {
+    const home = makeTempHome();
+    await mkdir(join(home, ".zcode/v2"), { recursive: true });
+    await writeFile(forkFeaturesFile(home), JSON.stringify({ monitorTool: true }));
+
+    const partial = await createServiceIn(home);
+    expect((await partial.get()).forkFeatures).toEqual({
+      ...DEFAULT_FORK_FEATURES,
+      monitorTool: true,
+    });
+
+    await writeFile(forkFeaturesFile(home), "{ not json");
+    const broken = await createServiceIn(home);
+    expect((await broken.get()).forkFeatures).toEqual(DEFAULT_FORK_FEATURES);
+    expect(
+      readdirSync(join(home, ".zcode/v2")).some((name) =>
+        name.startsWith("fork-features.json.corrupt-"),
+      ),
+    ).toBe(true);
   });
 });

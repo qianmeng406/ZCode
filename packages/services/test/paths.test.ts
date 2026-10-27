@@ -64,7 +64,7 @@ describe("paths", () => {
     expect(existsSync(newPluginLink)).toBe(false);
   });
 
-  it("copyDataDirectory 会跳过 setting.json 及其原子写入瞬时文件", async () => {
+  it("copyDataDirectory 会跳过 setting.json / fork-features.json 及其原子写入瞬时文件", async () => {
     const oldBase = makeTempHome();
     const newBase = makeTempHome();
     const oldV2Dir = join(oldBase, ".zcode", "v2");
@@ -73,6 +73,8 @@ describe("paths", () => {
     writeFileSync(join(oldV2Dir, "setting.json"), '{"dataBaseDir":"/old"}', "utf-8");
     writeFileSync(join(oldV2Dir, "setting.json.lock"), "lock", "utf-8");
     writeFileSync(join(oldV2Dir, "setting.json.123.tmp"), "temp", "utf-8");
+    writeFileSync(join(oldV2Dir, "fork-features.json"), '{"monitorTool":true}', "utf-8");
+    writeFileSync(join(oldV2Dir, "fork-features.json.lock"), "lock", "utf-8");
     writeFileSync(join(oldV2Dir, "app-canary.txt"), "app-data", "utf-8");
 
     vi.resetModules();
@@ -83,6 +85,8 @@ describe("paths", () => {
     expect(existsSync(join(newV2Dir, "setting.json"))).toBe(false);
     expect(existsSync(join(newV2Dir, "setting.json.lock"))).toBe(false);
     expect(existsSync(join(newV2Dir, "setting.json.123.tmp"))).toBe(false);
+    expect(existsSync(join(newV2Dir, "fork-features.json"))).toBe(false);
+    expect(existsSync(join(newV2Dir, "fork-features.json.lock"))).toBe(false);
   });
 
   it("Windows 数据目录不能选择 ZCode 安装目录或其子目录", async () => {

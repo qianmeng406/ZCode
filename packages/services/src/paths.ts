@@ -237,10 +237,18 @@ export function getProviderWorkspaceConfigDir(): string {
     : join(getDataBaseDir(), ".zcode", "cli");
 }
 
+/** 只应留在默认 home 的引导态文件：它们不属于可迁移的用户数据。 */
+const BOOTSTRAP_STATE_BASENAMES = ["setting.json", "fork-features.json"] as const;
+
+/** 命中本体或它的原子写中间态（`.lock`、`.*.tmp`、`.corrupt-*`）。 */
+function isSameOrAtomicSibling(fileName: string, baseName: string): boolean {
+  return fileName === baseName || fileName.startsWith(`${baseName}.`);
+}
+
 /**
  * Copy the .zcode/v2 data directory from one base dir to another.
- * Excludes setting.json and its transient atomic-write siblings — bootstrap
- * state must only live at the default homedir location.
+ * Excludes setting.json / fork-features.json and their transient atomic-write
+ * siblings — bootstrap state must only live at the default homedir location.
  */
 export async function copyDataDirectory(oldBaseDir: string, newBaseDir: string): Promise<void> {
   const oldDir = join(oldBaseDir, ".zcode", "v2");
@@ -250,10 +258,10 @@ export async function copyDataDirectory(oldBaseDir: string, newBaseDir: string):
     force: false,
     filter: (source) => {
       const sourceName = basename(source);
-      if (sourceName === "setting.json" || sourceName.startsWith("setting.json.")) {
+      if (BOOTSTRAP_STATE_BASENAMES.some((name) => isSameOrAtomicSibling(sourceName, name))) {
         // setting.json.lock 和 setting.json.*.tmp 由原子写入短暂创建/删除，
         // 复制过程中扫描到已消失的 lock 会触发 ENOENT，并让数据目录迁移失败。
-        // 这些文件都属于 bootstrap 写入中间态，不能迁移到新数据根。
+        // fork-features.json 同理：它是 fork 开关的权威副本，只应留在默认 home。
         return false;
       }
       // Windows 非提权环境下 fs.cp 无法复制符号链接（EPERM）。
