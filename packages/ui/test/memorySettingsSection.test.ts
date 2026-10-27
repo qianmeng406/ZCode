@@ -5,6 +5,8 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 import type { IMemoryService } from "@zcode/services";
 import {
   TID_SETTINGS_MEMORY_COUNT,
+  TID_SETTINGS_MEMORY_EDIT_HINT,
+  TID_SETTINGS_MEMORY_EDIT_HINT_ACTION,
   TID_SETTINGS_MEMORY_FILE,
   TID_SETTINGS_MEMORY_FILE_EDIT,
   TID_SETTINGS_MEMORY_FILE_EDITOR_ACTIONS,
@@ -36,6 +38,11 @@ vi.mock("@/i18n/IntlProvider.js", () => ({
 
 vi.mock("@/ControlHintTooltip.js", () => ({
   ControlHintTooltip: ({ children }: { children: ReactNode }) => children,
+}));
+
+const setPendingSettingsSection = vi.fn();
+vi.mock("@/lib/settingsNavigation.js", () => ({
+  setPendingSettingsSection: (section: string) => setPendingSettingsSection(section),
 }));
 
 vi.mock("@/WorkspaceEditorButtonGroup.js", () => ({
@@ -296,6 +303,31 @@ describe("MemorySettingsSection", () => {
 });
 
 describe("MemorySettingsSection 记忆文件编辑", () => {
+  it("开关关闭时提示条指向定制功能页，并带跳转按钮", async () => {
+    renderSection(createEditingService(), true, [], { memoryFileEditingEnabled: false });
+    await screen.findByTestId(TID_SETTINGS_MEMORY_SCOPE_TRIGGER);
+
+    expect(screen.getByTestId(TID_SETTINGS_MEMORY_EDIT_HINT)).toBeTruthy();
+    expect(screen.getByText("settings.memory.editor.disabledHint")).toBeTruthy();
+    fireEvent.click(screen.getByTestId(TID_SETTINGS_MEMORY_EDIT_HINT_ACTION));
+    expect(setPendingSettingsSection).toHaveBeenCalledWith("forkFeatures");
+  });
+
+  it("开关打开且宿主支持写方法时不显示提示条", async () => {
+    renderSection(createEditingService(), true, [], { memoryFileEditingEnabled: true });
+    await screen.findByTestId(TID_SETTINGS_MEMORY_SCOPE_TRIGGER);
+
+    expect(screen.queryByTestId(TID_SETTINGS_MEMORY_EDIT_HINT)).toBeNull();
+  });
+
+  it("开关打开但宿主缺写方法时只提示不支持，不给跳转按钮", async () => {
+    renderSection(createService(), true, [], { memoryFileEditingEnabled: true });
+    await screen.findByTestId(TID_SETTINGS_MEMORY_SCOPE_TRIGGER);
+
+    expect(screen.getByText("settings.memory.editor.unsupportedHint")).toBeTruthy();
+    expect(screen.queryByTestId(TID_SETTINGS_MEMORY_EDIT_HINT_ACTION)).toBeNull();
+  });
+
   it("开关关闭时列表行没有编辑入口，即使宿主提供了写方法", async () => {
     renderSection(createEditingService(), true, [], { memoryFileEditingEnabled: false });
     await screen.findByTestId(TID_SETTINGS_MEMORY_SCOPE_TRIGGER);

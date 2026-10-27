@@ -3153,13 +3153,13 @@ const zhCN: Record<string, string> = {
     "记忆功能当前未开启。下面三项需要有记忆数据才有意义，请先在「记忆」页启用记忆。",
   "settings.forkFeatures.memoryFileEditing": "记忆文件编辑",
   "settings.forkFeatures.memoryFileEditingDescription":
-    "允许在记忆查看器中直接编辑或删除记忆文件；保存时做大小与并发冲突校验，删除会同步清理索引中的对应行。",
+    "打开后到「设置 › 记忆」选中工作区，每个记忆文件右侧会多出铅笔按钮，点开即可编辑或删除；保存时校验大小与并发冲突，删除会同步清理索引中的对应行。",
   "settings.forkFeatures.memoryCapture": "一键沉淀为记忆",
   "settings.forkFeatures.memoryCaptureDescription":
-    "在消息操作栏提供「沉淀为记忆」：生成候选条目，确认后写入记忆目录并同步索引。",
+    "打开后把鼠标悬停在任意一条已完成的助手回复上，回复底部动作栏会多出「沉淀为记忆」书签按钮；生成候选条目，确认后写入记忆目录并同步索引。",
   "settings.forkFeatures.memoryDreamManual": "手动触发记忆整理",
   "settings.forkFeatures.memoryDreamManualDescription":
-    "在上下文面板提供「整理记忆」入口：立即执行一次 Dream 巩固（绕过时间与条数门槛，但仍受运行锁保护），并返回改动摘要。",
+    "打开后进入一个已有对话的会话，把鼠标移到输入框右侧、发送按钮左边的上下文用量图标（虚线圆圈中间一个点）上，在弹出的面板里「整理记忆」就在「压缩上下文」下方：立即执行一次 Dream 巩固（绕过时间与条数门槛，但仍受运行锁保护），并返回改动摘要。",
   "settings.forkFeatures.performanceLink": "性能优化",
   "settings.forkFeatures.performanceLinkDescription":
     "流式渲染与长会话的 10 项优化开关在独立分区中管理。",
@@ -3234,6 +3234,11 @@ const zhCN: Record<string, string> = {
   "settings.memory.editor.edit": "编辑",
   "settings.memory.editor.reload": "重新加载",
   "settings.memory.editor.error.disabled": "「记忆文件编辑」开关已关闭，无法写入。",
+  "settings.memory.editor.disabledHint":
+    "记忆文件编辑当前关闭，所以文件右侧没有编辑按钮。开启后即可直接编辑或删除记忆文件。",
+  "settings.memory.editor.disabledAction": "去开启",
+  "settings.memory.editor.unsupportedHint":
+    "当前运行环境不支持直接编辑记忆文件，请在桌面端打开本页。",
   "settings.memory.editor.deleteTitle": "删除记忆文件 {name}？",
   "settings.memory.editor.deleteDescription":
     "文件将被删除，MEMORY.md 中指向它的链接行也会一并移除。此操作不可撤销。",

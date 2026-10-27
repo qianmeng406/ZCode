@@ -1,7 +1,13 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { type IMemoryService, type ProjectMemoryWorkspaceSummary } from "@zcode/services";
-import { TID_SETTINGS_MEMORY_SWITCH } from "@zcode/shared/test-ids";
+import {
+  TID_SETTINGS_MEMORY_EDIT_HINT,
+  TID_SETTINGS_MEMORY_EDIT_HINT_ACTION,
+  TID_SETTINGS_MEMORY_SWITCH,
+} from "@zcode/shared/test-ids";
 import { runUserAction, runUserActionAsync } from "@/lib/userActionTelemetry.js";
+import { setPendingSettingsSection } from "@/lib/settingsNavigation.js";
+import { Button } from "@/components/ui/button.js";
 import { Switch } from "@/components/ui/switch.js";
 import { useZCodeIntl } from "@/i18n/IntlProvider.js";
 import {
@@ -193,6 +199,35 @@ export function MemorySettingsSection({
         />
       </SettingsGroupCard>
 
+      {/* 编辑入口只在「定制功能 › 记忆文件编辑」打开后才出现；不点明这一层，
+          用户会在这个页面反复找不存在的铅笔按钮。 */}
+      {projectMemoryViewerAvailable && memoryEnabled && !memoryEditingService ? (
+        <div
+          data-testid={TID_SETTINGS_MEMORY_EDIT_HINT}
+          className="flex flex-wrap items-center justify-between gap-3 rounded-xl border border-dashed border-border bg-transparent px-4 py-3"
+        >
+          <p className="min-w-0 text-ui-sm leading-5 text-foreground-subtle">
+            {intl.formatMessage({
+              id: memoryFileEditingEnabled
+                ? "settings.memory.editor.unsupportedHint"
+                : "settings.memory.editor.disabledHint",
+            })}
+          </p>
+          {memoryFileEditingEnabled ? null : (
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              data-testid={TID_SETTINGS_MEMORY_EDIT_HINT_ACTION}
+              onClick={() => {
+                setPendingSettingsSection("forkFeatures");
+              }}
+            >
+              {intl.formatMessage({ id: "settings.memory.editor.disabledAction" })}
+            </Button>
+          )}
+        </div>
+      ) : null}
       {!projectMemoryViewerAvailable ? (
         <div className="rounded-xl border border-dashed border-border bg-transparent px-4 py-8 text-center text-ui-base text-foreground-subtle">
           {intl.formatMessage({ id: "settings.memory.viewer.localOnly" })}

@@ -3370,13 +3370,13 @@ const enUS: Record<string, string> = {
     "Memory is currently off. The three options below only matter once memory has data; enable memory on the Memory page first.",
   "settings.forkFeatures.memoryFileEditing": "Memory file editing",
   "settings.forkFeatures.memoryFileEditingDescription":
-    "Edit or delete memory files directly in the memory viewer, with size and concurrent-change checks. Deleting also removes the matching index line.",
+    "Once enabled, open Settings › Memory and pick a workspace: each memory file gets a pencil button that opens it for editing or deleting, with size and concurrent-change checks. Deleting also removes the matching index line.",
   "settings.forkFeatures.memoryCapture": "Save turn as memory",
   "settings.forkFeatures.memoryCaptureDescription":
-    "Adds “Save as memory” to the message actions: generate a candidate entry, review it, then write it into the memory directory and update the index.",
+    "Once enabled, hover any completed assistant reply: a bookmark button appears in its bottom action bar. It generates a candidate entry that you review before it is written to the memory directory and added to the index.",
   "settings.forkFeatures.memoryDreamManual": "Run memory consolidation",
   "settings.forkFeatures.memoryDreamManualDescription":
-    "Adds “Organize memory” to the context panel: runs a Dream consolidation now (bypassing the time and transcript gates, still guarded by the run lock) and returns a change summary.",
+    "Once enabled, open a session that already has messages and hover the context-usage icon to the left of the send button (the dashed circle with a dot): “Organize memory” sits right below “Compact context”. It runs a Dream consolidation now (bypassing the time and transcript gates, still guarded by the run lock) and returns a change summary.",
   "settings.forkFeatures.performanceLink": "Performance",
   "settings.forkFeatures.performanceLinkDescription":
     "The ten streaming and long-session optimizations live in their own section.",
@@ -3456,6 +3456,11 @@ const enUS: Record<string, string> = {
   "settings.memory.editor.edit": "Edit",
   "settings.memory.editor.reload": "Reload",
   "settings.memory.editor.error.disabled": "Memory file editing is turned off in settings.",
+  "settings.memory.editor.disabledHint":
+    "Memory file editing is off, so there is no edit button next to each file. Turn it on to edit or delete memory files here.",
+  "settings.memory.editor.disabledAction": "Turn on",
+  "settings.memory.editor.unsupportedHint":
+    "Editing memory files is not available in this environment; open this page on desktop.",
   "settings.memory.editor.deleteTitle": "Delete memory file {name}?",
   "settings.memory.editor.deleteDescription":
     "The file is deleted and the MEMORY.md lines linking to it are removed as well. This cannot be undone.",

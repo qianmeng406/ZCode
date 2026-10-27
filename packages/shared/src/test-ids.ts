@@ -474,6 +474,10 @@ export const TID_SETTINGS_MEMORY_EDITOR_DELETE = "settings-memory-editor-delete"
 export const TID_SETTINGS_MEMORY_EDITOR_DELETE_CONFIRM = "settings-memory-editor-delete-confirm";
 export const TID_SETTINGS_MEMORY_EDITOR_RELOAD = "settings-memory-editor-reload";
 export const TID_SETTINGS_MEMORY_EDITOR_ERROR = "settings-memory-editor-error";
+/** Memory 页里「编辑入口为何不可用」的提示条（开关关闭 / 宿主不支持） */
+export const TID_SETTINGS_MEMORY_EDIT_HINT = "settings-memory-edit-hint";
+/** 提示条上的「去定制功能开启」按钮 */
+export const TID_SETTINGS_MEMORY_EDIT_HINT_ACTION = "settings-memory-edit-hint-action";
 /** 常规设置中的 AskUserQuestion 自动继续开关 */
 export const TID_SETTINGS_ASK_USER_QUESTION_AUTO_RESOLUTION_SWITCH =
   "settings-ask-user-question-auto-resolution-switch";
