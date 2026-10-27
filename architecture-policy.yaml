@@ -1111,3 +1111,8 @@ exceptions:
       - packages/shared/src/oracle-review/context-fetch.ts
       - packages/shared/src/oracle-review/diff-split.ts
     reason: Oracle 审查的纯逻辑层（材料组装/上下文分析/裁决解析/prompt 构建/取数端口/diff 分段）从 packages/ui 下沉到 shared，供 CLI 的 zcode review 复用。CLI 依赖链上不存在 @zcode/ui（ui 只被 desktop/web 依赖），不搬就只能维护两份审查规则；这些模块无 React、无 localStorage、无 services 依赖，除 zcode-protocol-v4 的类型外零运行时耦合，与 shared 现有 workspace-hook-*、zcode-protocol-v4 等同为未受管契约层。
+  - id: review-command-unmanaged-new
+    rule: unmanaged-new-file
+    paths:
+      - apps/zcode-cli/packages/cli/src/review-command.ts
+    reason: fork 的 `zcode review` 子命令（工作区/提交范围 diff 审查）。材料装配、prompt 与裁决解析全部来自 @zcode/shared/oracle-review，本文件只负责 git 取数、最小 app 引导、退出码与两套输出；与同目录 hooks-trust-command/prompt-command 同模式。apps/zcode-cli 整体未受管，登记 cli 目录为 managed 模块不在本次范围内。

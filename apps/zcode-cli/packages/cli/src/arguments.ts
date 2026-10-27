@@ -105,6 +105,32 @@ export const parseGlobalArgs = (argv: string[]) =>
         multiple: true,
         type: "string",
       },
+      // `zcode review` 子命令旗标：与 plugins 旗标同模式，在这里全局注册
+      // （strict 解析器不接受未注册选项），run.ts 只允许 review 分支消费。
+      base: {
+        type: "string",
+      },
+      staged: {
+        type: "boolean",
+      },
+      deep: {
+        type: "boolean",
+      },
+      model: {
+        type: "string",
+      },
+      "fail-on": {
+        type: "string",
+      },
+      timeout: {
+        type: "string",
+      },
+      "max-diff-bytes": {
+        type: "string",
+      },
+      "no-commits": {
+        type: "boolean",
+      },
     },
     strict: true,
   });

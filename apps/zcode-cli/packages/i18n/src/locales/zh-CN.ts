@@ -21,6 +21,7 @@ export const zhCN: ZCodeCopy = {
   login [zai|bigmodel]  通过浏览器授权登录
   logout     删除共享的 Z.AI 登录凭据
   plugins    管理插件与市场（\`plugins list|install|uninstall|enable|disable|update|validate|marketplace ...\`；别名 plugin）
+  review     用 Oracle 审查工作区或提交范围的改动（\`review --staged|--base <ref> [--deep] [--json]\`）
   skills     列出本地 skills（\`skills list\`）
   tui        打开终端 UI
   version    打印 CLI 版本

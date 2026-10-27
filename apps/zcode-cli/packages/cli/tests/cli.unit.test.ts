@@ -5956,6 +5956,16 @@ test("rejects the removed acp command", async () => {
   assert.equal(ctx.stdout.output(), "");
 });
 
+test("rejects review-only flags on other commands instead of ignoring them", async () => {
+  // 这些旗标注册在全局解析表里（strict 解析器不接受未注册选项），语义只属于 review；
+  // 静默忽略会让 -p 看起来换了模型、实际没换。
+  const ctx = createContext(["-p", "hello", "--base", "main"]);
+  const exitCode = await run(ctx);
+
+  assert.equal(exitCode, 1);
+  assert.match(ctx.stderr.output(), /can only be used with `zcode review`/);
+});
+
 test("returns an error for unknown commands", async () => {
   const ctx = createContext(["missing"]);
   const exitCode = await run(ctx);

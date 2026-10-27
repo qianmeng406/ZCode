@@ -28,6 +28,7 @@ import { isPluginHostInvocation, runPluginHostCommand } from "./plugin-host-comm
 import { isDwfChildInvocation, runDwfChildCommand } from "./dwf-child-command.js";
 import { runPrompt } from "./prompt-command.js";
 import { runPluginsCommand, type PluginsCommandFlags } from "./plugins-command.js";
+import { runReviewCommand, type ReviewCommandFlags } from "./review-command.js";
 import { runSkillsCommand } from "./skills-command.js";
 import { runTuiCommand } from "./tui-command.js";
 import {
@@ -61,6 +62,8 @@ const BROWSER_USE_SCOPE_ERROR =
 const SURFACE_SCOPE_ERROR =
   "--surface can only be used with --prompt, --target, app-server, or agent-server.";
 const MEMORY_BENCH_SCOPE_ERROR = "--memory-bench can only be used with -p/--prompt.";
+const REVIEW_FLAG_SCOPE_ERROR =
+  "--base, --staged, --deep, --model, --fail-on, --timeout, --max-diff-bytes and --no-commits can only be used with `zcode review`.";
 
 const pluginsCommandFlags = (
   values: ReturnType<typeof parseGlobalArgs>["values"],
@@ -73,6 +76,37 @@ const pluginsCommandFlags = (
 });
 
 const commandName = (positionals: string[]): string => positionals[0] ?? "tui";
+
+const reviewCommandFlags = (
+  values: ReturnType<typeof parseGlobalArgs>["values"],
+): ReviewCommandFlags => ({
+  ...(typeof values.base === "string" ? { base: values.base } : {}),
+  ...(values.staged === true ? { staged: true } : {}),
+  ...(values.deep === true ? { deep: true } : {}),
+  ...(values.json === true ? { json: true } : {}),
+  ...(typeof values.model === "string" ? { model: values.model } : {}),
+  ...(typeof values["fail-on"] === "string" ? { failOn: values["fail-on"] } : {}),
+  ...(typeof values.timeout === "string" ? { timeoutSeconds: values.timeout } : {}),
+  ...(typeof values["max-diff-bytes"] === "string"
+    ? { maxDiffBytes: values["max-diff-bytes"] }
+    : {}),
+  ...(values["no-commits"] === true ? { noCommits: true } : {}),
+});
+
+/** 只属于 `zcode review` 的旗标；出现在别的命令上必须报错，不能静默忽略。 */
+const REVIEW_ONLY_FLAGS = [
+  "base",
+  "staged",
+  "deep",
+  "model",
+  "fail-on",
+  "timeout",
+  "max-diff-bytes",
+  "no-commits",
+] as const;
+
+const hasReviewOnlyFlag = (values: ReturnType<typeof parseGlobalArgs>["values"]): boolean =>
+  REVIEW_ONLY_FLAGS.some((flag) => values[flag] !== undefined);
 
 const isForceMcsSupportedInvocation = (input: {
   positionals: string[];
@@ -491,6 +525,15 @@ export const run = async (ctx: RunContext, deps: RunDependencies = {}): Promise<
     return 0;
   }
 
+  // review 专属旗标在别的命令上必须报错：静默忽略会让 `zcode -p ... --model x`
+  // 看起来生效了、实际跑的还是默认模型。
+  if (commandName(parsed.positionals) !== "review" && hasReviewOnlyFlag(parsed.values)) {
+    ctx.stderr.write(
+      `${REVIEW_FLAG_SCOPE_ERROR}\n\nUsage: zcode review [--base <ref>|--staged] [--deep] [--json] ...\n`,
+    );
+    return 1;
+  }
+
   if (
     options.memoryBench &&
     (typeof parsed.values.prompt !== "string" || parsed.positionals.length > 0)
@@ -632,6 +675,8 @@ export const run = async (ctx: RunContext, deps: RunDependencies = {}): Promise<
       return await runLogoutCommand(ctx, options, commandDeps);
     case "commands":
       return await runCommandsCommand(ctx, options, commandDeps, parsed.positionals.slice(1));
+    case "review":
+      return await runReviewCommand(ctx, reviewCommandFlags(parsed.values), commandDeps, version);
     case "plugin":
     case "plugins":
       return await runPluginsCommand(
