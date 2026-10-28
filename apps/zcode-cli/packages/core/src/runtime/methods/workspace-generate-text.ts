@@ -81,6 +81,11 @@ export interface WorkspaceGenerateTextProgress {
   toolName?: string;
   /** 工具调用的展示目标（文件路径 / pattern / 命令），仅工具执行阶段携带。 */
   toolTarget?: string;
+  /**
+   * 自上次回调以来新增的可见正文（不含思考）。供审查面板按轮次回放模型输出；
+   * 累积与窗口合并由调用方（进度通知器）负责，这里只传本次增量。
+   */
+  textDelta?: string;
 }
 
 export interface WorkspaceGenerateTextResult {
@@ -415,7 +420,9 @@ export async function streamModelTextResult(
     if (event.type === "text_delta") {
       text += event.text;
       outputChars += event.text.length;
-      onProgress?.({ outputChars });
+      onProgress?.(
+        event.text.length > 0 ? { outputChars, textDelta: event.text } : { outputChars },
+      );
     } else if (event.type === "reasoning_delta") {
       outputChars += event.text.length;
       onProgress?.({ outputChars });

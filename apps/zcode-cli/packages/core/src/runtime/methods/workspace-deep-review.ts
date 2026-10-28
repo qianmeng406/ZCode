@@ -153,7 +153,11 @@ export async function runDeepReviewAgentLoop(
       roundStartChars = completedRoundsChars;
       const result = await streamModelTextResult(model, request, (progress) => {
         lastOutputChars = roundStartChars + progress.outputChars;
-        input.onProgress?.({ outputChars: lastOutputChars, round });
+        input.onProgress?.({
+          outputChars: lastOutputChars,
+          round,
+          ...(progress.textDelta ? { textDelta: progress.textDelta } : {}),
+        });
       });
       lastText = result.text;
       lastFinishReason = result.finishReason;
@@ -226,7 +230,11 @@ export async function runDeepReviewAgentLoop(
         roundStartChars = completedRoundsChars;
         const result = await streamModelTextResult(model, request, (progress) => {
           lastOutputChars = roundStartChars + progress.outputChars;
-          input.onProgress?.({ outputChars: lastOutputChars, round });
+          input.onProgress?.({
+            outputChars: lastOutputChars,
+            round,
+            ...(progress.textDelta ? { textDelta: progress.textDelta } : {}),
+          });
         });
         lastText = result.text;
         lastFinishReason = result.finishReason;

@@ -105,6 +105,22 @@ test("onProgress 上报正文与思考增量的累计字符数（非 token）", 
   assert.deepEqual(progress, [3, 5, 12, 18]);
 });
 
+test("onProgress 只在可见正文增量上携带 textDelta，思考增量不携带", async () => {
+  const deltas: Array<string | undefined> = [];
+  await streamModelTextResult(
+    fakeModel([
+      { type: "reasoning_delta", text: "思考" },
+      { type: "text_delta", text: "A" },
+      { type: "text_delta", text: "\n\nB" },
+      { type: "finish", finishReason: "stop", usage },
+    ]),
+    request,
+    (p) => deltas.push(p.textDelta),
+  );
+  // 换行必须原样保留（协议侧不许 trim）：审查面板按原文回放。
+  assert.deepEqual(deltas, [undefined, "A", "\n\nB"]);
+});
+
 test("静默看门狗：超过阈值无事件即中止（避免烧满审查超时预算）", async () => {
   const stuck: AsyncIterable<ModelStreamEvent> = {
     [Symbol.asyncIterator]() {

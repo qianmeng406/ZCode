@@ -142,17 +142,11 @@ test("深度审查路径边界：git-bash 盘符路径（/c/...）归一后按�
   } as unknown as Parameters<typeof evaluateDeepReviewToolPolicy>[1];
   // MSYS 盘符路径指向工作区内：不应误拒（模型会复用 Bash 输出的路径形式）。
   assert.deepEqual(
-    evaluateDeepReviewToolPolicy(
-      toolCall("Bash", { command: "ls /c/repo/src" }),
-      winRuntime,
-    ),
+    evaluateDeepReviewToolPolicy(toolCall("Bash", { command: "ls /c/repo/src" }), winRuntime),
     { allowed: true },
   );
   assert.deepEqual(
-    evaluateDeepReviewToolPolicy(
-      toolCall("Read", { file_path: "/c/repo/src/a.ts" }),
-      winRuntime,
-    ),
+    evaluateDeepReviewToolPolicy(toolCall("Read", { file_path: "/c/repo/src/a.ts" }), winRuntime),
     { allowed: true },
   );
   // 其它盘符仍是工作区外。
@@ -296,7 +290,12 @@ test("runDeepReviewAgentLoop：端到端聚合 usage/正文，进度携带轮次
     skillPort: undefined,
   } as unknown as Parameters<typeof runDeepReviewAgentLoop>[0];
 
-  const progress: Array<{ round?: number; toolName?: string; outputChars: number }> = [];
+  const progress: Array<{
+    round?: number;
+    toolName?: string;
+    outputChars: number;
+    textDelta?: string;
+  }> = [];
   const result = await runDeepReviewAgentLoop(runtime, {
     messages: [{ role: "user", content: "review" }],
     model: fakeModel([
@@ -313,6 +312,9 @@ test("runDeepReviewAgentLoop：端到端聚合 usage/正文，进度携带轮次
   // 进度事件：轮 1 工具执行带 round+toolName；轮 2 生成带 round 与产出字符
   assert.ok(progress.some((p) => p.round === 1 && p.toolName === "Read"));
   assert.ok(progress.some((p) => p.round === 2 && p.outputChars > 0));
+  // 正文增量按轮次透传（面板按轮次分组回放）；工具阶段不带正文
+  assert.ok(progress.some((p) => p.round === 2 && p.textDelta === "VERDICT: FAIL"));
+  assert.ok(progress.every((p) => p.toolName === undefined || p.textDelta === undefined));
 });
 
 test("深度审查进度字符跨轮累计：第二轮进度从第一轮末尾继续，不回跳", async () => {
