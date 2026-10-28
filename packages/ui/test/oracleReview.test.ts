@@ -15,6 +15,10 @@ import {
   type OracleReviewRequest,
   ORACLE_REVIEW_TOOL_EVENT_LIMIT,
   appendOracleReviewToolEvent,
+  ORACLE_REVIEW_TRACE_LIMIT,
+  ORACLE_REVIEW_TRACE_TEXT_CAP,
+  appendOracleReviewTraceEntry,
+  type OracleReviewTraceEntry,
 } from "../src/v4/oracleReview/oracleReviewSupport.js";
 import { formatOracleModelLabel } from "../src/v4/oracleReview/oracleReviewModelLabel.js";
 import {
@@ -1472,4 +1476,110 @@ test("审查模型名：空值与无可解析前缀原样返回", () => {
   assert.equal(formatOracleModelLabel(undefined, []), undefined);
   assert.equal(formatOracleModelLabel("   ", []), undefined);
   assert.equal(formatOracleModelLabel("glm-5", []), "glm-5");
+});
+
+// ── 审查轨迹（侧栏面板的会话流）──
+
+test("轨迹：正文增量按 stage+round 合并，不把条目上限吃掉", () => {
+  let trace: OracleReviewTraceEntry[] = [];
+  trace = appendOracleReviewTraceEntry(trace, {
+    kind: "stage",
+    stage: "reviewing",
+    at: 1,
+  });
+  for (const text of ["第一段", "，", "第二段"]) {
+    trace = appendOracleReviewTraceEntry(trace, {
+      kind: "text",
+      stage: "reviewing",
+      round: 1,
+      text,
+    });
+  }
+  assert.equal(trace.length, 2);
+  const text = trace[1];
+  assert.equal(text?.kind, "text");
+  assert.equal(text?.kind === "text" ? text.text : "", "第一段，第二段");
+});
+
+test("轨迹：不同轮次/阶段的正文各自成条", () => {
+  let trace: OracleReviewTraceEntry[] = [];
+  trace = appendOracleReviewTraceEntry(trace, {
+    kind: "text",
+    stage: "analyzing",
+    round: 1,
+    text: "上下文",
+  });
+  trace = appendOracleReviewTraceEntry(trace, {
+    kind: "text",
+    stage: "reviewing",
+    round: 1,
+    text: "结论",
+  });
+  trace = appendOracleReviewTraceEntry(trace, {
+    kind: "text",
+    stage: "reviewing",
+    round: 2,
+    text: "补充",
+  });
+  assert.deepEqual(
+    trace.map((entry) => (entry.kind === "text" ? `${entry.stage}:${entry.round}` : entry.kind)),
+    ["analyzing:1", "reviewing:1", "reviewing:2"],
+  );
+});
+
+test("轨迹：正文超过上限保留尾部并标记截断", () => {
+  let trace: OracleReviewTraceEntry[] = [];
+  trace = appendOracleReviewTraceEntry(trace, {
+    kind: "text",
+    stage: "reviewing",
+    round: 1,
+    text: "A".repeat(ORACLE_REVIEW_TRACE_TEXT_CAP),
+  });
+  trace = appendOracleReviewTraceEntry(trace, {
+    kind: "text",
+    stage: "reviewing",
+    round: 1,
+    text: "TAIL",
+  });
+  const entry = trace[0];
+  assert.equal(entry?.kind, "text");
+  if (entry?.kind !== "text") return;
+  assert.equal(entry.text.length, ORACLE_REVIEW_TRACE_TEXT_CAP);
+  assert.ok(entry.text.endsWith("TAIL"));
+  assert.equal(entry.truncated, true);
+});
+
+test("轨迹：条目上限保留最近 N 条（阶段/工具/正文共用预算）", () => {
+  let trace: OracleReviewTraceEntry[] = [];
+  for (let round = 1; round <= ORACLE_REVIEW_TRACE_LIMIT + 5; round += 1) {
+    trace = appendOracleReviewTraceEntry(trace, {
+      kind: "tool",
+      round,
+      toolName: "Read",
+      target: `f${round}.ts`,
+      at: round,
+    });
+  }
+  assert.equal(trace.length, ORACLE_REVIEW_TRACE_LIMIT);
+  const first = trace[0];
+  assert.equal(first?.kind, "tool");
+  assert.equal(first?.kind === "tool" ? first.round : 0, 6);
+});
+
+test("轨迹：恢复的历史记录不带轨迹（只回放结论）", () => {
+  const restored = oracleReviewRecordToRestoredResult({
+    reviewId: "r1",
+    sessionId: "s1",
+    depth: "standard",
+    mode: "manual",
+    target: { rowId: 1, entityId: "e1" },
+    verdict: "warn",
+    summary: "s",
+    findings: "f",
+    modelLabel: "p/m",
+    createdAt: 1,
+    completedAt: 2,
+  });
+  assert.equal("trace" in restored ? restored.trace : undefined, undefined);
+  assert.equal(restored.status === "result" ? restored.restored : false, true);
 });

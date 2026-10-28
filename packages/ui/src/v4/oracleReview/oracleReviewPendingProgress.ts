@@ -3,6 +3,7 @@ import type { ConversationSnapshot, TurnHeaderRow } from "@zcode/shared/zcode-pr
 import { useOptionalServices } from "@/hooks/useServices.js";
 import {
   appendOracleReviewToolEvent,
+  appendOracleReviewTraceEntry,
   isOracleReviewQuerySource,
   type OracleReviewState,
 } from "./oracleReviewSupport.js";
@@ -98,14 +99,35 @@ export function useOracleReviewPendingProgress(params: {
       setPendingOutputChars(progress.outputChars);
       // 深度审查的轮次/工具名/工具事件写进 store 的 pending 条目（工具执行阶段带
       // toolName，生成阶段不带——直接赋值让上一次的工具名随新轮次清空）。
+      // 可见正文增量同时写进轨迹（即使标准审查没有 round/工具，也要落文本）。
       const hasToolEvent = Boolean(progress.toolName);
-      if (sessionId !== null && (progress.round !== undefined || hasToolEvent)) {
+      const hasText = Boolean(progress.textDelta);
+      if (sessionId !== null && (progress.round !== undefined || hasToolEvent || hasText)) {
         const current = getOracleReviewState(sessionId);
         if (current.status === "pending") {
+          const round = progress.round ?? current.round ?? 1;
+          let trace = current.trace ?? [];
+          if (hasText && progress.textDelta) {
+            trace = appendOracleReviewTraceEntry(trace, {
+              kind: "text",
+              stage: current.stage,
+              round,
+              text: progress.textDelta,
+            });
+          }
+          if (hasToolEvent && progress.toolName) {
+            trace = appendOracleReviewTraceEntry(trace, {
+              kind: "tool",
+              round,
+              toolName: progress.toolName,
+              ...(progress.toolTarget ? { target: progress.toolTarget } : {}),
+              at: Date.now(),
+            });
+          }
           const toolEvents =
             hasToolEvent && progress.toolName
               ? appendOracleReviewToolEvent(current.toolEvents ?? [], {
-                  round: progress.round ?? current.round ?? 1,
+                  round,
                   toolName: progress.toolName,
                   ...(progress.toolTarget ? { target: progress.toolTarget } : {}),
                 })
@@ -116,6 +138,7 @@ export function useOracleReviewPendingProgress(params: {
             toolName: progress.toolName,
             toolTarget: progress.toolTarget,
             ...(toolEvents ? { toolEvents } : {}),
+            trace,
           });
         }
       }

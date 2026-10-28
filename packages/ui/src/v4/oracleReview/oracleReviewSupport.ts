@@ -103,6 +103,54 @@ export function appendOracleReviewToolEvent(
     : appended;
 }
 
+/**
+ * 审查过程轨迹（侧栏面板的「会话流」）：阶段、工具调用与逐轮可见正文。
+ * 与 toolEvents 的分工：trace 是面板的唯一渲染来源且跨阶段累计；toolEvents
+ * 只服务输入框卡片的紧凑计数（新阶段开始即清空）。
+ */
+export type OracleReviewTraceEntry =
+  | { kind: "stage"; stage: OracleReviewStage; at: number }
+  | { kind: "tool"; round: number; toolName: string; target?: string; at: number }
+  | {
+      kind: "text";
+      stage: OracleReviewStage;
+      round: number;
+      text: string;
+      /** 超过单条上限、只保留尾部时置位（面板显示「已截断」提示）。 */
+      truncated?: boolean;
+    };
+
+/** 轨迹条目上限：面板只回放最近 200 条，避免长审查把内存与渲染拖住。 */
+export const ORACLE_REVIEW_TRACE_LIMIT = 200;
+/** 单条正文上限（按字符）：超出保留尾部，实时流继续可见。 */
+export const ORACLE_REVIEW_TRACE_TEXT_CAP = 20_000;
+
+/**
+ * 追加一条轨迹。正文条目按 stage+round 与上一条合并（流式增量很多，逐条存
+ * 会把 200 条上限吃掉）；合并后仍超上限时保留尾部并标记 truncated。
+ */
+export function appendOracleReviewTraceEntry(
+  trace: readonly OracleReviewTraceEntry[],
+  entry: OracleReviewTraceEntry,
+): OracleReviewTraceEntry[] {
+  if (entry.kind === "text") {
+    const last = trace[trace.length - 1];
+    if (last?.kind === "text" && last.stage === entry.stage && last.round === entry.round) {
+      const merged = last.text + entry.text;
+      const truncated = last.truncated === true || merged.length > ORACLE_REVIEW_TRACE_TEXT_CAP;
+      const text = truncated ? merged.slice(-ORACLE_REVIEW_TRACE_TEXT_CAP) : merged;
+      return [
+        ...trace.slice(0, -1),
+        { ...last, text, ...(truncated ? { truncated: true as const } : {}) },
+      ];
+    }
+  }
+  const appended = [...trace, entry];
+  return appended.length > ORACLE_REVIEW_TRACE_LIMIT
+    ? appended.slice(appended.length - ORACLE_REVIEW_TRACE_LIMIT)
+    : appended;
+}
+
 export type OracleReviewState =
   | { status: "idle" }
   | {
@@ -129,6 +177,8 @@ export type OracleReviewState =
       toolTarget?: string;
       /** 深度审查已执行的工具调用（有界），供横幅列出已读文件/命令。 */
       toolEvents?: readonly OracleReviewToolEvent[];
+      /** 审查过程轨迹（阶段/工具/逐轮正文），供侧栏面板回放；跨阶段累计。 */
+      trace?: readonly OracleReviewTraceEntry[];
     }
   | {
       status: "result";
@@ -153,6 +203,8 @@ export type OracleReviewState =
       restored?: boolean;
       /** 锁定的审查请求（「重新审查」按原目标/深度重试，不重选最近成功轮）。 */
       request?: OracleReviewRequest;
+      /** 本次审查的过程轨迹；持久恢复的记录没有轨迹（只回放结论）。 */
+      trace?: readonly OracleReviewTraceEntry[];
     }
   | {
       status: "error";
@@ -164,6 +216,8 @@ export type OracleReviewState =
       depth: OracleReviewDepth;
       /** 锁定的审查请求（错误重试必须回到同一目标，不重新选择最近成功轮）。 */
       request?: OracleReviewRequest;
+      /** 失败前已产生的轨迹（面板可定位卡在哪个阶段）。 */
+      trace?: readonly OracleReviewTraceEntry[];
     };
 
 /** 一键修复：把 findings 原文注入下一轮请求，由用户亲手触发，不自动循环。 */
@@ -293,6 +347,11 @@ export interface OracleReviewController {
   /** 按原请求重试（同目标/同深度/同模式），错误与中断卡片共用；无请求时退化为手动审查。 */
   retryReview: () => void;
   dismiss: () => void;
+  /**
+   * 展开右侧审查面板（完整结论 + 逐轮过程）。宿主未接线时缺席，卡片不显示「展开」。
+   * 与 dismiss 不同：只切查看位置，不改变审查状态。
+   */
+  onOpenPanel?: () => void;
   /**
    * 落盘「这条审查用户已确认」（✕ 关闭 / 按建议处理）。持久化后会话重启不再把它
    * 恢复成卡片；best-effort，失败只记日志不影响界面。

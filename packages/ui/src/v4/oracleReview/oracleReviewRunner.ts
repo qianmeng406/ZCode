@@ -4,6 +4,7 @@ import type { ModelSelectionView } from "@zcode/provider";
 import type { useOptionalServices } from "@/hooks/useServices.js";
 import { logger } from "@/logger.js";
 import {
+  appendOracleReviewTraceEntry,
   isOracleDeadlineTimeoutError,
   ORACLE_DEEP_REVIEW_QUERY_SOURCE,
   ORACLE_DEEP_REVIEW_TIMEOUT_MS,
@@ -14,6 +15,7 @@ import {
   type OracleReviewRequest,
   type OracleReviewRequestMode,
   type OracleReviewState,
+  type OracleReviewTraceEntry,
 } from "./oracleReviewSupport.js";
 import {
   findTurnHeaderByRef,
@@ -180,12 +182,18 @@ export async function runOracleReview(
     modelLabel: pendingModelLabel,
     depth: request.depth,
     request,
+    trace: [{ kind: "stage", stage: "collecting", at: Date.now() }],
   });
   const requestSeq = nextOracleReviewSeq(sid);
   const applyIfCurrent = (next: OracleReviewState) => {
     if (isCurrentOracleReviewSeq(sid, requestSeq)) {
       setOracleReviewState(sid, next);
     }
+  };
+  // 终态带上完整轨迹：pending 期间由进度订阅写 store，这里只读取当前值。
+  const currentTrace = (): readonly OracleReviewTraceEntry[] => {
+    const current = getOracleReviewState(sid);
+    return current.status === "idle" ? [] : (current.trace ?? []);
   };
   // 阶段推进：仅当仍是本请求的 pending 时合并（迟到写回被 seq 守卫拦截）。
   const setStage = (stage: "collecting" | "analyzing" | "reviewing", operationId: string) => {
@@ -195,11 +203,16 @@ export async function runOracleReview(
         ...current,
         stage,
         operationId,
-        // 新阶段开始：上一阶段的轮次/工具线索随之清空。
+        // 新阶段开始：上一阶段的轮次/工具线索随之清空（trace 跨阶段累计，不清）。
         round: undefined,
         toolName: undefined,
         toolTarget: undefined,
         toolEvents: [],
+        trace: appendOracleReviewTraceEntry(current.trace ?? [], {
+          kind: "stage",
+          stage,
+          at: Date.now(),
+        }),
       });
     }
   };
@@ -241,6 +254,7 @@ export async function runOracleReview(
           message: "目标回合没有可审查的对话内容（输入/回复/工具记录均为空）",
         },
         depth: request.depth,
+        trace: currentTrace(),
       });
       return;
     }
@@ -316,6 +330,7 @@ export async function runOracleReview(
           ...(result.finishReason ? { finishReason: result.finishReason } : {}),
         },
         modelLabel: pendingModelLabel,
+        trace: currentTrace(),
       });
       return;
     }
@@ -347,6 +362,7 @@ export async function runOracleReview(
       depth: request.depth,
       completedAt,
       request,
+      trace: currentTrace(),
     });
     // ── 持久化 + 历史（fire-and-forget；失败不影响结果展示）──
     const record = {
@@ -394,6 +410,7 @@ export async function runOracleReview(
       failure,
       modelLabel: pendingModelLabel,
       depth: request.depth,
+      trace: currentTrace(),
     });
   }
 }
