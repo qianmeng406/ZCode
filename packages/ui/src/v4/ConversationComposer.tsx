@@ -2915,6 +2915,7 @@ function ConversationComposerImpl({
           providers={modelSelectionView?.providers}
           pendingElapsedSeconds={oracleReview.pendingElapsedSeconds}
           pendingOutputChars={oracleReview.pendingOutputChars}
+          onOpenPanel={oracleReview.onOpenPanel}
           onRereview={oracleReview.retryReview}
           onDismiss={oracleReview.dismiss}
           onFix={handleOracleFixRequest}

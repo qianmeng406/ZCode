@@ -584,6 +584,15 @@ const enUS: Record<string, string> = {
   "chat.oracleReview.restoredBadge": "Restored",
   "chat.oracleReview.fix": "Address findings",
   "chat.oracleReview.rereview": "Review again",
+  "chat.oracleReview.expand": "Expand",
+  "chat.oracleReview.panel.title": "Oracle Review",
+  "chat.oracleReview.panel.process": "Review process",
+  "chat.oracleReview.panel.failure": "Failure",
+  "chat.oracleReview.panel.empty": "No review process in this session yet",
+  "chat.oracleReview.panel.truncated": "Long output; only the latest {chars} characters are kept",
+  "chat.oracleReview.panel.noTrace":
+    "Restored from history: the process cannot be replayed (conclusion only)",
+  "chat.oracleReview.panel.duration": "Took {duration}",
   "chat.oracleReview.error.noTurn": "No reviewable turn (wait for the current turn to finish)",
   "chat.oracleReview.error.noModel":
     "No review model available. Select one in model settings first",
@@ -1634,6 +1643,7 @@ const enUS: Record<string, string> = {
   "sidePane.openTab": "New tab",
   "sidePane.subagent": "Subagent",
   "sidePane.subagentDirectory": "Subagents",
+  "sidePane.oracleReview": "Review",
   "sidePane.selectionChat": "Side conversation",
   "sidePane.workflowRun": "Workflow run",
   "sidePane.workflowDirectory": "Workflow runs",

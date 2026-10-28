@@ -59,6 +59,9 @@ export function getSidePaneTabSearchHint(tab: WorkspaceSidePaneTab): string {
   if (tab.type === "subagent-directory") {
     return `${tab.rootSessionId} ${tab.parentSessionId} subagent directory`;
   }
+  if (tab.type === "oracle-review") {
+    return `${tab.sessionId} oracle review findings verdict`;
+  }
   if (tab.type === "browser-permissions") return `${tab.origin} permissions settings`;
   if (tab.type === "browser") return tab.initialUrl ?? "";
   if (tab.type === "file-explorer") return "files file explorer tree 文件 文件树";

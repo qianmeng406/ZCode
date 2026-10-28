@@ -364,6 +364,7 @@ import type {
   OpenScopedSubagentSideTabRequest,
   OpenBackgroundBashSideTabRequest,
   OpenScopedSubagentDirectorySideTabRequest,
+  OpenOracleReviewSidePaneRequest,
   OpenSelectionSideChatRequest,
   SyncSubagentSessionTabsRequest,
   OpenSubagentSideTabRequest,
@@ -461,6 +462,8 @@ export interface SessionPaneProps {
   onOpenBackgroundBash?: (request: OpenBackgroundBashSideTabRequest) => void;
   onOpenSubagentSession?: (request: OpenScopedSubagentSideTabRequest) => void;
   onOpenSubagentDirectory?: (request: OpenScopedSubagentDirectorySideTabRequest) => void;
+  /** Oracle 审查卡片「展开」→ 右侧审查面板（完整结论与逐轮过程）。 */
+  onOpenOracleReviewPanel?: (request: OpenOracleReviewSidePaneRequest) => void;
   onSyncSubagentSessionTabs?: (request: SyncSubagentSessionTabsRequest) => void;
   onOpenSelectionSideChat?: (request: OpenSelectionSideChatRequest) => void;
   onOpenPlanDetail?: (request: OpenScopedPlanDetailSideTabRequest) => void;
@@ -698,6 +701,7 @@ export function SessionPane({
   onOpenSubagentSession,
   onOpenBackgroundBash,
   onOpenSubagentDirectory,
+  onOpenOracleReviewPanel,
   onSyncSubagentSessionTabs,
   onOpenSelectionSideChat,
   onOpenPlanDetail,
@@ -6017,9 +6021,29 @@ export function SessionPane({
       retryReview: oracleReview.retryReview,
       dismiss: oracleReview.dismiss,
       acknowledge: oracleReview.acknowledge,
+      // 「展开」把完整结论与逐轮过程移到右侧面板；未接线的宿主（子会话只读视图等）
+      // 或还没有实际会话（draft）时不提供入口，卡片位宽保持原样。
+      ...(onOpenOracleReviewPanel && effectiveSessionId
+        ? {
+            onOpenPanel: () =>
+              onOpenOracleReviewPanel({
+                sessionId: effectiveSessionId,
+                workspacePath,
+                ...(workspaceIdentity ? { workspaceIdentity } : {}),
+                ...(remoteSessionId ? { remoteSessionId } : {}),
+              }),
+          }
+        : {}),
     }),
     // 依赖逐字段列出：oracleReview 是 store 聚合对象，整体引用每渲染都变。
-    Object.values(oracleReview) as unknown as unknown[],
+    [
+      ...(Object.values(oracleReview) as unknown as unknown[]),
+      onOpenOracleReviewPanel,
+      effectiveSessionId,
+      workspacePath,
+      workspaceIdentity,
+      remoteSessionId,
+    ],
   );
 
   const composerNode = readOnly ? null : (

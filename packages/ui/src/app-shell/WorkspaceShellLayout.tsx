@@ -436,6 +436,7 @@ const WorkspaceShellLayoutContent = memo(function WorkspaceShellLayoutComponent(
   handleOpenSubagentSession,
   handleOpenBackgroundBash,
   handleOpenSubagentDirectory,
+  handleOpenOracleReviewPanel,
   handleSyncSubagentSessionTabs,
   handleOpenSelectionSideChat,
   handleOpenPlanDetail,
@@ -2235,6 +2236,7 @@ const WorkspaceShellLayoutContent = memo(function WorkspaceShellLayoutComponent(
                   onOpenBackgroundBash={handleOpenBackgroundBash}
                   onOpenSubagentSession={handleOpenSubagentSession}
                   onOpenSubagentDirectory={handleOpenSubagentDirectory}
+                  onOpenOracleReviewPanel={handleOpenOracleReviewPanel}
                   onSyncSubagentSessionTabs={handleSyncSubagentSessionTabs}
                   onOpenPlanDetail={handleOpenPlanDetail}
                   onOpenWorkflowRun={handleOpenWorkflowRun}
@@ -2681,6 +2683,7 @@ const WorkspaceShellLayoutContent = memo(function WorkspaceShellLayoutComponent(
                                 onOpenBackgroundBash={handleOpenBackgroundBash}
                                 onOpenSubagentSession={handleOpenSubagentSession}
                                 onOpenSubagentDirectory={handleOpenSubagentDirectory}
+                                onOpenOracleReviewPanel={handleOpenOracleReviewPanel}
                                 onSyncSubagentSessionTabs={handleSyncSubagentSessionTabs}
                                 onOpenSelectionSideChat={handleOpenSelectionSideChat}
                                 onOpenPlanDetail={handleOpenPlanDetail}

@@ -19,6 +19,7 @@ import {
   NotepadTextIcon,
   PackageIcon,
   PaletteIcon,
+  ScanSearchIcon,
   ShieldCheckIcon,
   SquareTerminalIcon,
   TerminalIcon,
@@ -314,6 +315,10 @@ export function SidePaneTabIcon({ tab }: { tab: WorkspaceSidePaneTab }) {
     return <ListTreeIcon className="size-3.5" />;
   }
 
+  if (tab.type === "oracle-review") {
+    return <ScanSearchIcon className="size-3.5" />;
+  }
+
   if (tab.type === "browser") {
     return <BrowserTabFavicon faviconUrl={tab.faviconUrl} />;
   }
@@ -532,6 +537,10 @@ export function getSidePaneTabTitle(
 
   if (tab.type === "subagent-directory") {
     return formatMessage({ id: "sidePane.subagentDirectory" });
+  }
+
+  if (tab.type === "oracle-review") {
+    return formatMessage({ id: "sidePane.oracleReview" });
   }
 
   if (tab.type === "browser") {

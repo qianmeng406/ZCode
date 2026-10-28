@@ -1,7 +1,7 @@
-import { useMemo, useState } from "react";
+import { useMemo } from "react";
 import {
-  ChevronRightIcon,
   Loader2Icon,
+  Maximize2Icon,
   OctagonAlertIcon,
   RefreshCwIcon,
   WrenchIcon,
@@ -9,30 +9,21 @@ import {
 } from "lucide-react";
 import { Button } from "@/components/ui/button.js";
 import { cn } from "@/components/lib/utils.js";
-import {
-  Collapsible,
-  CollapsibleContent,
-  CollapsibleTrigger,
-} from "@/components/ui/collapsible.js";
 import { useZCodeIntl } from "@/i18n/IntlProvider.js";
 import { buildOracleFixPrompt } from "./oracleReviewSupport.js";
 import type { OracleReviewState } from "./oracleReviewSupport.js";
 import { formatOracleModelLabel, type OracleModelLabelProvider } from "./oracleReviewModelLabel.js";
-import {
-  VERDICT_PRESETS,
-  failureDetail,
-  ResultSection,
-  STAGE_LABEL_KEYS,
-} from "./OracleReviewBannerParts.js";
+import { VERDICT_PRESETS, failureDetail, STAGE_LABEL_KEYS } from "./OracleReviewBannerParts.js";
 
 /** 等待超过该秒数后在 pending 卡片上提示「渠道响应慢，可换把关模型」。 */
 const SLOW_REVIEW_HINT_SECONDS = 120;
 
 /**
- * Oracle 审查结果横幅：挂在输入框上方（与 ChatErrorBanner 同层）。
- * pending 展示阶段（取材料/上下文分析/审查中）；result 展示裁决 + 摘要 + 可折叠的
- * 问题清单、需求核验（深度）与范围/限制；error 展示失败原因与按原请求重试。
- * 全部状态都不阻塞输入。
+ * Oracle 审查横幅：挂在输入框上方（与 ChatErrorBanner 同层）。
+ *
+ * 只保留「一眼可判」的信息（阶段/裁决 + 单行摘要 + 模型）与四个动作；完整结论、
+ * 逐轮正文与工具取证在右侧审查面板（`OracleReviewSidePane`）里查看，避免输入区
+ * 被长报告撑开。全部状态都不阻塞输入。
  */
 
 export function OracleReviewBanner({
@@ -40,6 +31,7 @@ export function OracleReviewBanner({
   providers,
   pendingElapsedSeconds = 0,
   pendingOutputChars = 0,
+  onOpenPanel,
   onRereview,
   onDismiss,
   onFix,
@@ -51,15 +43,13 @@ export function OracleReviewBanner({
   pendingElapsedSeconds?: number;
   /** pending 期间模型已累计输出字符数（CLI 流式进度推送，宿主按 500ms 节流）；0 表示尚无产出。 */
   pendingOutputChars?: number;
+  /** 展开右侧审查面板（查看完整结论与逐轮过程）。 */
+  onOpenPanel?: () => void;
   onRereview: () => void;
   onDismiss: () => void;
   onFix: (fixPrompt: string) => void;
 }) {
   const { intl } = useZCodeIntl();
-  const [findingsOpen, setFindingsOpen] = useState(false);
-  const [toolLogOpen, setToolLogOpen] = useState(false);
-  // 摘要默认展开：审查结论是用户最关心的一段，单行省略号下无法看全（用户实测）。
-  const [summaryOpen, setSummaryOpen] = useState(true);
   const modelLabelOf = (label: string | undefined): string | undefined =>
     formatOracleModelLabel(label, providers ?? []);
   const pending = state.status === "pending";
@@ -121,21 +111,6 @@ export function OracleReviewBanner({
               <span className="hidden shrink-0 rounded-sm bg-input px-1.5 py-0.5 text-ui-xs text-foreground-subtle md:inline">
                 {intl.formatMessage({ id: STAGE_LABEL_KEYS[state.stage] })}
               </span>
-              {state.status === "pending" && state.toolName ? (
-                <span className="hidden shrink-0 text-ui-sm text-foreground-subtle md:inline">
-                  {intl.formatMessage(
-                    { id: "chat.oracleReview.pendingDeepTool" },
-                    { tool: state.toolName },
-                  )}
-                  {state.toolTarget ? (
-                    // inline-block：行内元素上 max-width/truncate 不生效，长命令
-                    // 会撑出卡片把右侧计数挤出可视区（用户实测）。
-                    <span className="ml-1 inline-block max-w-48 truncate font-mono align-bottom">
-                      {state.toolTarget}
-                    </span>
-                  ) : null}
-                </span>
-              ) : null}
               {state.status === "pending" && toolEvents.length > 0 ? (
                 <span className="hidden shrink-0 tabular-nums text-ui-sm text-foreground-subtle md:inline">
                   {intl.formatMessage(
@@ -215,6 +190,19 @@ export function OracleReviewBanner({
             </>
           ) : null}
           <div className="flex shrink-0 items-center gap-0.5">
+            {onOpenPanel ? (
+              <Button
+                type="button"
+                variant="ghost"
+                size="sm"
+                className="h-7 gap-1.5 px-2 text-ui-base text-foreground-subtle"
+                data-testid="v4-oracle-review-expand"
+                onClick={onOpenPanel}
+              >
+                <Maximize2Icon className="size-3.5" />
+                <span>{intl.formatMessage({ id: "chat.oracleReview.expand" })}</span>
+              </Button>
+            ) : null}
             {!pending ? (
               <>
                 {canFix ? (
@@ -254,111 +242,6 @@ export function OracleReviewBanner({
             </Button>
           </div>
         </div>
-        {state.status === "pending" && toolEvents.length > 0 ? (
-          <Collapsible open={toolLogOpen} onOpenChange={setToolLogOpen}>
-            <CollapsibleTrigger asChild>
-              <button
-                type="button"
-                className="flex w-full items-center gap-1.5 border-t border-border/60 px-3 py-1.5 text-left text-ui-sm text-foreground-subtle transition-colors hover:text-foreground"
-                data-testid="v4-oracle-review-tool-log"
-              >
-                <ChevronRightIcon
-                  aria-hidden
-                  className={cn(
-                    "size-3.5 shrink-0 transition-transform",
-                    toolLogOpen ? "rotate-90" : "rotate-0",
-                  )}
-                />
-                <span>
-                  {intl.formatMessage(
-                    { id: "chat.oracleReview.pendingDeepTools" },
-                    { count: String(toolEvents.length), files: String(readFilesCount) },
-                  )}
-                </span>
-              </button>
-            </CollapsibleTrigger>
-            <CollapsibleContent>
-              <div className="max-h-48 overflow-y-auto border-t border-border/60 px-3 py-2 font-mono text-ui-sm text-foreground">
-                {toolEvents.map((event, index) => (
-                  <div
-                    key={`${index}-${event.toolName}-${event.target ?? ""}`}
-                    className="truncate"
-                  >
-                    {event.round > 1 ? (
-                      <span className="text-foreground-subtlest">#{event.round} </span>
-                    ) : null}
-                    {event.toolName}
-                    {event.target ? (
-                      <span className="text-foreground-subtle"> {event.target}</span>
-                    ) : null}
-                  </div>
-                ))}
-              </div>
-            </CollapsibleContent>
-          </Collapsible>
-        ) : null}
-        {result ? (
-          <>
-            {result.summary ? (
-              <Collapsible open={summaryOpen} onOpenChange={setSummaryOpen}>
-                <CollapsibleTrigger asChild>
-                  <button
-                    type="button"
-                    className="flex w-full items-center gap-1.5 border-t border-border/60 px-3 py-1.5 text-left text-ui-sm text-foreground-subtle transition-colors hover:text-foreground"
-                    aria-label={intl.formatMessage({ id: "chat.oracleReview.summaryToggle" })}
-                    data-testid="v4-oracle-review-summary"
-                  >
-                    <ChevronRightIcon
-                      aria-hidden
-                      className={cn(
-                        "size-3.5 shrink-0 transition-transform",
-                        summaryOpen ? "rotate-90" : "rotate-0",
-                      )}
-                    />
-                    <span>{intl.formatMessage({ id: "chat.oracleReview.summary" })}</span>
-                  </button>
-                </CollapsibleTrigger>
-                <CollapsibleContent>
-                  <p className="max-h-96 overflow-y-auto whitespace-pre-wrap break-words border-t border-border/60 px-3 py-2 text-ui-sm leading-relaxed text-foreground">
-                    {result.summary}
-                  </p>
-                </CollapsibleContent>
-              </Collapsible>
-            ) : null}
-            <Collapsible open={findingsOpen} onOpenChange={setFindingsOpen}>
-              <CollapsibleTrigger asChild>
-                <button
-                  type="button"
-                  className="flex w-full items-center gap-1.5 border-t border-border/60 px-3 py-1.5 text-left text-ui-sm text-foreground-subtle transition-colors hover:text-foreground"
-                  aria-label={intl.formatMessage({ id: "chat.oracleReview.findingsToggle" })}
-                >
-                  <ChevronRightIcon
-                    aria-hidden
-                    className={cn(
-                      "size-3.5 shrink-0 transition-transform",
-                      findingsOpen ? "rotate-90" : "rotate-0",
-                    )}
-                  />
-                  <span>{intl.formatMessage({ id: "chat.oracleReview.findings" })}</span>
-                </button>
-              </CollapsibleTrigger>
-              <CollapsibleContent>
-                <pre className="max-h-72 overflow-y-auto whitespace-pre-wrap break-words border-t border-border/60 px-3 py-2 font-mono text-ui-sm text-foreground">
-                  {findings || intl.formatMessage({ id: "chat.oracleReview.findingsEmpty" })}
-                </pre>
-              </CollapsibleContent>
-            </Collapsible>
-            {result.requirements ? (
-              <ResultSection titleKey="chat.oracleReview.requirements" body={result.requirements} />
-            ) : null}
-            {result.scope ? (
-              <ResultSection titleKey="chat.oracleReview.scope" body={result.scope} />
-            ) : null}
-            {result.limits ? (
-              <ResultSection titleKey="chat.oracleReview.limits" body={result.limits} />
-            ) : null}
-          </>
-        ) : null}
       </div>
     </div>
   );

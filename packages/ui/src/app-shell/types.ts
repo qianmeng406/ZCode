@@ -344,6 +344,9 @@ export interface WorkspaceShellLayoutProps extends Omit<AppProps, "baseFeedbackS
   handleOpenSubagentDirectory: (
     request: import("@/lib/workspaceSidePane.js").OpenScopedSubagentDirectorySideTabRequest,
   ) => void;
+  handleOpenOracleReviewPanel: (
+    request: import("@/lib/workspaceSidePane.js").OpenOracleReviewSidePaneRequest,
+  ) => void;
   handleSyncSubagentSessionTabs: (
     request: import("@/lib/workspaceSidePane.js").SyncSubagentSessionTabsRequest,
   ) => void;

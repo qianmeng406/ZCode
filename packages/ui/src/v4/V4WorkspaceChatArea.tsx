@@ -14,6 +14,7 @@ import type {
   OpenScopedSubagentSideTabRequest,
   OpenBackgroundBashSideTabRequest,
   OpenScopedSubagentDirectorySideTabRequest,
+  OpenOracleReviewSidePaneRequest,
   OpenSelectionSideChatRequest,
   OpenScopedPlanDetailSideTabRequest,
   OpenScopedWorkflowArtifactSideTabRequest,
@@ -101,6 +102,8 @@ export interface V4WorkspaceChatAreaProps {
   onOpenBackgroundBash?: (request: OpenBackgroundBashSideTabRequest) => void;
   onOpenSubagentSession?: (request: OpenScopedSubagentSideTabRequest) => void;
   onOpenSubagentDirectory?: (request: OpenScopedSubagentDirectorySideTabRequest) => void;
+  /** Oracle 审查面板：审查卡片「展开」→ 右侧 tab（工作区多 pane 共用同一入口）。 */
+  onOpenOracleReviewPanel?: (request: OpenOracleReviewSidePaneRequest) => void;
   onSyncSubagentSessionTabs?: (request: SyncSubagentSessionTabsRequest) => void;
   onOpenSelectionSideChat?: (request: OpenSelectionSideChatRequest) => void;
   onOpenPlanDetail?: (request: OpenScopedPlanDetailSideTabRequest) => void;
@@ -164,6 +167,7 @@ export function V4WorkspaceChatArea({
   onOpenSubagentSession,
   onOpenBackgroundBash,
   onOpenSubagentDirectory,
+  onOpenOracleReviewPanel,
   onSyncSubagentSessionTabs,
   onOpenSelectionSideChat,
   onOpenPlanDetail,
@@ -291,6 +295,7 @@ export function V4WorkspaceChatArea({
       onOpenSubagentSession,
       onOpenBackgroundBash,
       onOpenSubagentDirectory,
+      onOpenOracleReviewPanel,
       onSyncSubagentSessionTabs,
       onOpenSelectionSideChat,
       onOpenPlanDetail,
@@ -338,6 +343,7 @@ export function V4WorkspaceChatArea({
       onOpenSubagentSession,
       onOpenBackgroundBash,
       onOpenSubagentDirectory,
+      onOpenOracleReviewPanel,
       onSyncSubagentSessionTabs,
       onOpenSelectionSideChat,
       onOpenPlanDetail,

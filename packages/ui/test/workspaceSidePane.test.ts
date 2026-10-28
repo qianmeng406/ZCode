@@ -12,6 +12,7 @@ import {
   closeOtherSidePaneTabs,
   closeSidePaneTab,
   getActiveSelectionSideChatTab,
+  openOracleReviewSidePane,
   getActiveSidePaneTab,
   getVisibleSidePaneTabs,
   isSidePaneTabVisibleInScope,
@@ -2880,4 +2881,50 @@ it("站点设置独立标签按 workspace/owner/origin 复用，不替换网页"
   expect(
     openBrowserPermissionsSidePane(opened, { ...options, ownerTaskId: "task-b" }).tabs,
   ).toHaveLength(3);
+});
+
+describe("Oracle 审查面板 tab", () => {
+  const request = { sessionId: "s1", workspacePath: "/repo" };
+
+  it("每会话唯一：重复打开只激活已有 tab", () => {
+    const first = openOracleReviewSidePane(null, request);
+    expect(first.tabs).toHaveLength(1);
+    const second = openOracleReviewSidePane(first, request);
+    expect(second.tabs).toHaveLength(1);
+    expect(second.activeTabId).toBe(first.tabs[0]?.id);
+    expect(second.tabs[0]).toMatchObject({
+      type: "oracle-review",
+      sessionId: "s1",
+      rootSessionId: "s1",
+    });
+  });
+
+  it("不同会话各自一个 tab", () => {
+    const first = openOracleReviewSidePane(null, request);
+    const second = openOracleReviewSidePane(first, { ...request, sessionId: "s2" });
+    expect(second.tabs).toHaveLength(2);
+  });
+
+  it("可见性按 rootSessionId 归属：只在自己的会话 scope 出现", () => {
+    const state = openOracleReviewSidePane(null, request);
+    expect(
+      getVisibleSidePaneTabs(state.tabs, { workspaceKey: "/repo", ownerTaskId: "s1" }),
+    ).toHaveLength(1);
+    expect(
+      getVisibleSidePaneTabs(state.tabs, { workspaceKey: "/repo", ownerTaskId: "s2" }),
+    ).toHaveLength(0);
+    expect(
+      getVisibleSidePaneTabs(state.tabs, { workspaceKey: "/other", ownerTaskId: "s1" }),
+    ).toHaveLength(0);
+  });
+
+  it("远端身份打开时复用同一 tab 并刷新 workspace 字段", () => {
+    const first = openOracleReviewSidePane(null, request);
+    const second = openOracleReviewSidePane(first, { ...request, workspaceIdentity: "remote:x" });
+    expect(second.tabs).toHaveLength(1);
+    expect(second.tabs[0]).toMatchObject({
+      workspaceIdentity: "remote:x",
+      workspaceKey: "remote:x",
+    });
+  });
 });

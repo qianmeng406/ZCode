@@ -18,6 +18,8 @@ const SURFACES = [
   "src/v4/memory/MemoryCaptureDialog.tsx",
   "src/v4/memory/memoryDreamResult.ts",
   "src/chat-input-toolbar/contextUsage.tsx",
+  "src/v4/oracleReview/OracleReviewBanner.tsx",
+  "src/app-shell/OracleReviewSidePane.tsx",
 ] as const;
 
 /** 只认值形态的 key 字面量（模板字符串拼接的动态后缀不会命中，避免误判）。 */
@@ -49,6 +51,24 @@ describe("fork feature surfaces i18n", () => {
       "settings.memory.viewer.fileChanged",
       "settings.memory.viewer.fileTooLarge",
       "settings.memory.viewer.fileLoading",
+    ]) {
+      expect(zhCN[key], key).toBeTruthy();
+      expect(enUS[key], key).toBeTruthy();
+    }
+  });
+
+  it("审查面板与侧栏 tab 的文案 key 都已注册", () => {
+    // 面板标题/过程/空态与 tab 名：漏注册会把机器 key 直接显示在侧栏上。
+    for (const key of [
+      "chat.oracleReview.expand",
+      "chat.oracleReview.panel.title",
+      "chat.oracleReview.panel.process",
+      "chat.oracleReview.panel.failure",
+      "chat.oracleReview.panel.empty",
+      "chat.oracleReview.panel.truncated",
+      "chat.oracleReview.panel.noTrace",
+      "chat.oracleReview.panel.duration",
+      "sidePane.oracleReview",
     ]) {
       expect(zhCN[key], key).toBeTruthy();
       expect(enUS[key], key).toBeTruthy();

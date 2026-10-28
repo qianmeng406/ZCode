@@ -68,6 +68,7 @@ import { SidePaneTabOverview } from "@/app-shell/SidePaneTabOverview.js";
 import { FileExplorerSidePane } from "@/app-shell/FileExplorerSidePane.js";
 import { SubagentSessionSidePane } from "@/app-shell/SubagentSessionSidePane.js";
 import { SubagentDirectorySidePane } from "@/app-shell/SubagentDirectorySidePane.js";
+import { OracleReviewSidePane } from "@/app-shell/OracleReviewSidePane.js";
 import { SelectionSideChatPane } from "@/app-shell/SelectionSideChatPane.js";
 import { BackgroundBashOutputSidePane } from "@/app-shell/BackgroundBashOutputSidePane.js";
 import { PlanDetailSidePane } from "@/app-shell/PlanDetailSidePane.js";
@@ -1262,6 +1263,8 @@ export function AnimatedSidePanePanel({
                             tab={tab}
                             onOpenSubagentSession={onOpenSubagentSession}
                           />
+                        ) : tab.type === "oracle-review" ? (
+                          <OracleReviewSidePane tab={tab} onClose={() => onCloseTab(tab.id)} />
                         ) : tab.type === "selection-side-chat" ? (
                           <SelectionSideChatPane
                             tab={tab}
