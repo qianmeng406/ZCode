@@ -524,6 +524,35 @@ test("材料渲染：中途指导（guided）不冒充用户主请求，标签�
   assert.ok(!text.includes("- [用户] 改用方案 B"));
 });
 
+test("材料渲染：Oracle 移交行（按建议处理）标记 oracleHandoff，不冒充用户主请求", () => {
+  const bundle = extractTurnMaterialFromRows({ rowId: 2, turnId: "t2", productTurnId: "pt2" }, [
+    turnHeader(2),
+    row({
+      kind: "userInput",
+      rowId: 3,
+      turnId: "t2",
+      productTurnId: "pt2",
+      origin: "realUser",
+      text: "实现 baseline 抑制",
+    }),
+    row({
+      kind: "userInput",
+      rowId: 4,
+      turnId: "t2",
+      productTurnId: "pt2",
+      origin: "realUser",
+      source: { kind: "oracleReviewHandoff", reviewId: "rv-1" },
+      text: "上一轮经过了 Oracle 审查，以下是审查方的完整结论…",
+    }),
+  ]);
+  assert.equal(bundle.material.userInputs[1]!.oracleHandoff, true);
+  const text = renderOracleTurnMaterialText(bundle.material, "目标回合 rowId=2");
+  assert.ok(text.includes("- [用户] 实现 baseline 抑制"));
+  assert.ok(text.includes("- [用户（审查移交）] 上一轮经过了 Oracle 审查"));
+  // 移交行不得以普通「用户」身份出现
+  assert.ok(!text.includes("- [用户] 上一轮经过了 Oracle 审查"));
+});
+
 test("材料渲染：epilogueStart=0（nudge 轮）整条引擎文本，不冒充用户原话", () => {
   const bundle = extractTurnMaterialFromRows({ rowId: 2, turnId: "t2", productTurnId: "pt2" }, [
     turnHeader(2),
@@ -1130,10 +1159,13 @@ test("持久记录 → 已恢复结果卡片映射", () => {
 
 // ── 杂项 ──
 
-test("一键修复 prompt 引用 findings 原文并要求逐条复述", () => {
-  const prompt = buildOracleFixPrompt("- [高] a.ts:1 — 空");
-  assert.ok(prompt.includes("- [高] a.ts:1 — 空"));
+test("一键移交 prompt 携带审查方全文并要求逐条处理", () => {
+  const raw = "VERDICT: WARN\n\nFINDINGS:\n- [高] a.ts:1 — 空";
+  const prompt = buildOracleFixPrompt(raw);
+  assert.ok(prompt.includes(raw));
   assert.ok(prompt.includes("逐条"));
+  // 全文整段嵌入，不依赖调用方先做段切片。
+  assert.ok(prompt.includes("VERDICT"));
 });
 
 test("超时判定只认协议超时错误类型，不匹配消息字样", () => {
@@ -1301,6 +1333,28 @@ test("请求文本取数：翻页到顶仍无命中 / 查询失败 → missing�
     },
   });
   assert.deepEqual(failed, { text: "", source: "missing" });
+});
+
+test("请求文本取数：Oracle 移交行不是本回合请求，跳过取更早的真实输入", async () => {
+  const lookup = await findOracleUserRequestBeforeTurn({
+    windowRows: [
+      userRow(1, "实现 baseline 抑制"),
+      turnRow(2),
+      {
+        kind: "userInput",
+        rowId: 3,
+        origin: "realUser",
+        source: { kind: "oracleReviewHandoff", reviewId: "rv-1" },
+        text: "上一轮经过了 Oracle 审查，以下是审查方的完整结论…",
+      },
+      turnRow(4),
+    ],
+    turnRowId: 4,
+    fetchRowsBefore: async () => {
+      throw new Error("不应翻页：窗口内已有真实请求");
+    },
+  });
+  assert.deepEqual(lookup, { text: "实现 baseline 抑制", source: "window" });
 });
 
 // ── 工作区 diff 兜底 ──

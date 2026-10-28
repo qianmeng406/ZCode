@@ -292,6 +292,8 @@ export interface ConversationRowViewProps {
   assistantCodeCommentCards?: AssistantCodeCommentCard[];
   /** 由 TurnGroup 统一裁决整轮正文是否隐藏 code-comment 协议原文。 */
   assistantCodeCommentProjectionEnabled?: boolean;
+  /** 该行所属轮是否仍在运行（TurnGroup 的 unit.isRunning）：驱动移交行的读取中态。 */
+  turnRunning?: boolean;
 }
 
 // ── 每种行拆成独立 memo 叶子：虚拟列表下父级重渲染时，只有 props 真变的行重渲染；
@@ -1914,7 +1916,7 @@ function MarkerDividerRow({
   onClick,
 }: {
   rowId: number;
-  markerType: TimelineMarkerRow["marker"]["type"];
+  markerType: TimelineMarkerRow["marker"]["type"] | "oracleReviewHandoff";
   markerStatus: string;
   markerOrigin?: string;
   markerSourceCommandId?: string;
@@ -2370,6 +2372,53 @@ const SubagentRowView = memo(function SubagentRowView({ row }: { row: SubagentRo
 });
 
 /**
+ * Oracle 移交行：「按建议处理」把审查方完整结论注入主会话的那条 userInput。
+ * 逻辑上它是启动下一轮的真实输入（排队/抢占语义与手打发送一致），视觉上画成
+ * compact marker 同款状态分隔线——轮运行中显示「正在读取审查结果」流光，结束后
+ * 固化为「已读取审查结果」。完整结论仍在右侧审查面板可查。
+ */
+const OracleHandoffRowView = memo(function OracleHandoffRowView({
+  row,
+  turnRunning = false,
+}: {
+  row: UserInputRow;
+  context: ConversationRowRenderContext;
+  turnRunning?: boolean;
+}) {
+  const { intl } = useZCodeIntl();
+  return (
+    <div
+      data-row-id={row.rowId}
+      data-row-kind="userInput"
+      data-origin={row.origin}
+      data-source-kind={row.source?.kind}
+      data-testid={testId(TID_V4_ROW, String(row.rowId))}
+      className="flex w-full items-center gap-3 px-4 py-2 text-ui-base text-[var(--color-foreground-subtle)]"
+    >
+      <div aria-hidden="true" className="h-px min-w-8 flex-1 bg-border/50" />
+      <span className="inline-flex min-w-0 shrink items-center justify-center gap-1.5 text-center leading-5">
+        {turnRunning ? null : (
+          <ScanSearchIcon
+            aria-hidden="true"
+            className="size-3.5 shrink-0 text-[var(--color-foreground-subtle)]"
+          />
+        )}
+        <span
+          className={`min-w-0 break-words${turnRunning ? " animated-gradient-text font-medium" : ""}`}
+        >
+          {intl.formatMessage({
+            id: turnRunning
+              ? "chat.oracleReview.handoffRunning"
+              : "chat.oracleReview.handoffCompleted",
+          })}
+        </span>
+      </span>
+      <div aria-hidden="true" className="h-px min-w-8 flex-1 bg-border/50" />
+    </div>
+  );
+});
+
+/**
  * v4 row 渲染分发。memo：虚拟列表逐行渲染，父投影变化时只有 props 真正变化的行才重渲染
  * （前提是 onFork/onRetry/onEdit 为稳定引用 + context 引用稳定，见 SessionPane 的
  * useCallback/useMemo）。
@@ -2391,9 +2440,15 @@ function ConversationRowViewImpl({
   assistantCodeCommentProjectionEnabled,
   reasoningContentVariant,
   userInputStatus,
+  turnRunning,
 }: ConversationRowViewProps) {
   switch (row.kind) {
     case "userInput":
+      // Oracle 移交行（按建议处理）：正文是审查方完整结论，UI 画成状态分隔线而非
+      // 用户气泡（与 compact marker 同款视觉）；运行态来自所属轮的 unit.isRunning。
+      if (row.source?.kind === "oracleReviewHandoff") {
+        return <OracleHandoffRowView row={row} context={context} turnRunning={turnRunning} />;
+      }
       return (
         <UserInputRowView
           row={row}

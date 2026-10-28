@@ -38,6 +38,8 @@ interface ConversationTurnRowProps {
   assistantCodeCommentProjectionEnabled?: boolean;
   reasoningContentVariant?: "default" | "nested";
   userInputStatus?: string;
+  /** 该行所属轮是否运行中（unit.isRunning）：驱动 Oracle 移交行的读取中态。 */
+  turnRunning?: boolean;
 }
 
 export function ConversationTurnRow({
@@ -57,6 +59,7 @@ export function ConversationTurnRow({
   assistantCodeCommentProjectionEnabled,
   reasoningContentVariant,
   userInputStatus,
+  turnRunning,
 }: ConversationTurnRowProps) {
   return (
     <ConversationRowView
@@ -76,6 +79,7 @@ export function ConversationTurnRow({
       assistantCodeCommentProjectionEnabled={assistantCodeCommentProjectionEnabled}
       reasoningContentVariant={reasoningContentVariant}
       userInputStatus={userInputStatus}
+      turnRunning={turnRunning}
     />
   );
 }

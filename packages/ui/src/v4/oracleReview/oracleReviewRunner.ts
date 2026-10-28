@@ -375,6 +375,8 @@ export async function runOracleReview(
       ...(parsed.requirements ? { requirements: parsed.requirements } : {}),
       ...(parsed.scope ? { scope: parsed.scope } : {}),
       ...(parsed.limits ? { limits: parsed.limits } : {}),
+      // 「按建议处理」移交的是这份未切片全文，不是解析产物：解析只影响卡片外观。
+      rawOutput: result.text,
       modelLabel: `${result.selection.providerId}/${result.selection.modelId}`,
       depth: request.depth,
       completedAt,
@@ -394,6 +396,7 @@ export async function runOracleReview(
       ...(parsed.requirements ? { requirements: parsed.requirements } : {}),
       ...(parsed.scope ? { scope: parsed.scope } : {}),
       ...(parsed.limits ? { limits: parsed.limits } : {}),
+      rawOutput: result.text,
       modelLabel: `${result.selection.providerId}/${result.selection.modelId}`,
       createdAt: request.createdAt,
       completedAt,

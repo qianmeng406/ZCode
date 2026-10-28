@@ -42,6 +42,9 @@ export interface OracleUserInputEntry {
    * 无 guided）。必须单独标记，否则指导文本会以「用户」标签冒充主请求。
    */
   guided?: boolean;
+  /** Oracle 移交行（按建议处理）：正文是上一轮审查结论，不是用户主请求，不参与
+   * targetUserRequest 识别；标签区分同 guided。 */
+  oracleHandoff?: boolean;
   /** 引擎附加文本下标（epilogue 不属于用户原话；0 = 整条都是引擎文本）。 */
   epilogueStart?: number;
 }
@@ -206,6 +209,7 @@ function materialFromRows(
         text: row.text,
         origin: row.origin,
         ...(row.guided ? { guided: true } : {}),
+        ...(row.source?.kind === "oracleReviewHandoff" ? { oracleHandoff: true } : {}),
         ...(row.epilogueStart !== undefined ? { epilogueStart: row.epilogueStart } : {}),
       });
     } else if (row.kind === "assistantText") {
@@ -371,6 +375,8 @@ function originLabel(input: OracleUserInputEntry): string {
   // 中途指导（turn-steer）的 origin 也是 realUser，必须靠 guided 标记区分，
   // 否则指导文本会以「用户」身份冒充主请求。
   if (input.guided) return "用户（中途指导）";
+  // Oracle 移交行同理：正文是上一轮审查结论，不能以「用户」身份冒充主请求。
+  if (input.oracleHandoff) return "用户（审查移交）";
   return ORIGIN_LABELS[input.origin] ?? input.origin;
 }
 

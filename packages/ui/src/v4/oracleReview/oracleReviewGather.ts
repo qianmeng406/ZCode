@@ -174,8 +174,11 @@ export async function analyzeOracleReviewContext(params: {
     fetchRowsBefore,
   });
   // 目标请求文本：只认非 guided 的真实用户输入（中途指导的 origin 同样是
-  // realUser，选中它会把「改用方案 B」之类指导当成整轮主请求）。
-  const realUserInputs = params.material.userInputs.filter((entry) => !entry.guided);
+  // realUser，选中它会把「改用方案 B」之类指导当成整轮主请求）。Oracle 移交行
+  // （上一轮的审查结论全文）同理排除，否则它会被当成该轮主请求。
+  const realUserInputs = params.material.userInputs.filter(
+    (entry) => !entry.guided && !entry.oracleHandoff,
+  );
   const targetUserRequest =
     realUserInputs.find((entry) => entry.origin === "realUser")?.text ??
     realUserInputs[0]?.text ??

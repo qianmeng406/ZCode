@@ -22,8 +22,17 @@ const pluginUiInputSourceSchema = z
     toolCallId: z.string().min(1),
   })
   .strict();
+/** Oracle 审查「按建议处理」把审查方完整结论移交主会话：用户确认的系统动作，
+ * UI 把这条 userInput 画成状态分隔线（正在/已读取审查结果）而不是用户气泡。 */
+const oracleReviewHandoffSourceSchema = z
+  .object({
+    kind: z.literal("oracleReviewHandoff"),
+    reviewId: z.string().min(1),
+  })
+  .strict();
 export const conversationInputSourceSchema = z.discriminatedUnion("kind", [
   pluginUiInputSourceSchema,
+  oracleReviewHandoffSourceSchema,
   z
     .object({
       kind: z.literal("genUi"),

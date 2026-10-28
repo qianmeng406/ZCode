@@ -2658,6 +2658,9 @@ export const zcodeOracleReviewRecordSchema = z
     requirements: z.string().optional(),
     scope: z.string().optional(),
     limits: z.string().optional(),
+    /** 审查方最终输出全文（未做段切片）；「按建议处理」整段移交主会话，不依赖格式解析。
+     * 旧记录缺席时回退 findings。 */
+    rawOutput: z.string().optional(),
     modelLabel: nonEmptyString,
     createdAt: z.number().int().positive(),
     completedAt: z.number().int().positive(),

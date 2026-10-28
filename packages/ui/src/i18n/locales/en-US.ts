@@ -570,9 +570,11 @@ const enUS: Record<string, string> = {
   "chat.oracleReview.verdict.warn": "Warnings",
   "chat.oracleReview.verdict.fail": "Needs fixes",
   "chat.oracleReview.verdict.insufficient": "Insufficient information",
-  "chat.oracleReview.verdict.unknown": "Unparseable verdict",
+  "chat.oracleReview.verdict.unknown": "Non-standard format",
   "chat.oracleReview.verdict.unknownSummary":
-    "The model did not follow the format. Expand for raw text",
+    "The verdict was not sectioned in the standard format; raw text is preserved — expand to view or hand off as-is",
+  "chat.oracleReview.handoffRunning": "Reading review findings",
+  "chat.oracleReview.handoffCompleted": "Review findings read",
   "chat.oracleReview.findings": "Findings",
   "chat.oracleReview.findingsEmpty": "(no findings)",
   "chat.oracleReview.findingsToggle": "Toggle findings",

@@ -4063,9 +4063,13 @@ export function SessionPane({
       const readyAttachments = options?.attachments ?? [];
       const sharedContextRefs = options?.sharedContextRefs;
       const contextAttachmentCount = options?.contextAttachmentCount ?? 0;
-      const slashCommand = parseV4VisibleSlashCommand(text, readyAttachments, {
-        contextAttachmentCount,
-      });
+      // Oracle 移交正文是审查结论原文，可能以 / 开头：它不是用户命令，跳过斜杠解析直发。
+      const isOracleHandoff = options?.source?.kind === "oracleReviewHandoff";
+      const slashCommand = isOracleHandoff
+        ? null
+        : parseV4VisibleSlashCommand(text, readyAttachments, {
+            contextAttachmentCount,
+          });
 
       if (!(await ensureDraftModelReadyForSend())) {
         return "blocked" as const;
@@ -4073,6 +4077,7 @@ export function SessionPane({
 
       const selectionSideSlashCommand =
         sessionId &&
+        !isOracleHandoff &&
         appSlashCommands?.some((command) => command.value === "side" || command.value === "btw")
           ? parseSelectionSideSlashCommand(text, readyAttachments, {
               contextAttachmentCount,

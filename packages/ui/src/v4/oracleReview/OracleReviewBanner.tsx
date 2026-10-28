@@ -47,7 +47,7 @@ export function OracleReviewBanner({
   onOpenPanel?: () => void;
   onRereview: () => void;
   onDismiss: () => void;
-  onFix: (fixPrompt: string) => void;
+  onFix: (fixPrompt: string, reviewId: string) => void;
 }) {
   const { intl } = useZCodeIntl();
   const modelLabelOf = (label: string | undefined): string | undefined =>
@@ -63,17 +63,17 @@ export function OracleReviewBanner({
       .filter((event) => event.toolName === "Read" && event.target)
       .map((event) => event.target),
   ).size;
-  // 「无」这类占位结论不给修复按钮；只有可行动的问题清单才注入下一轮。
-  // 信息不足（insufficient）不是问题清单，同样不给。
+  // 移交的是审查方最终输出全文（rawOutput），格式解析不再决定「能不能处理」：
+  // unknown/insufficient 同样可移交，由主会话自行判读。唯一豁免是「通过且无问题」
+  // 的占位结论——没有可处理的内容，注入下一轮只是浪费一轮。
+  const handoffOutput = result?.rawOutput || findings;
   const canFix =
     Boolean(result) &&
-    result!.verdict !== "unknown" &&
-    result!.verdict !== "insufficient" &&
-    findings.length > 0 &&
-    !/^(无|none)\s*。?$/i.test(findings);
+    handoffOutput.length > 0 &&
+    !(result!.verdict === "pass" && /^(无|none)\s*。?$/i.test(findings));
   const fixPrompt = useMemo(
-    () => (canFix ? buildOracleFixPrompt(findings) : ""),
-    [canFix, findings],
+    () => (canFix ? buildOracleFixPrompt(handoffOutput) : ""),
+    [canFix, handoffOutput],
   );
 
   if (state.status === "idle") return null;
@@ -212,7 +212,7 @@ export function OracleReviewBanner({
                     size="sm"
                     className="h-7 gap-1.5 px-2 text-ui-base"
                     data-testid="v4-oracle-review-fix"
-                    onClick={() => onFix(fixPrompt)}
+                    onClick={() => onFix(fixPrompt, result!.reviewId)}
                   >
                     <WrenchIcon className="size-3.5" />
                     <span>{intl.formatMessage({ id: "chat.oracleReview.fix" })}</span>

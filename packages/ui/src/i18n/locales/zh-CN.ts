@@ -520,8 +520,11 @@ const zhCN: Record<string, string> = {
   "chat.oracleReview.verdict.warn": "有注意事项",
   "chat.oracleReview.verdict.fail": "需要修复",
   "chat.oracleReview.verdict.insufficient": "信息不足",
-  "chat.oracleReview.verdict.unknown": "无法解析结论",
-  "chat.oracleReview.verdict.unknownSummary": "模型未按格式给出结论，展开查看原文",
+  "chat.oracleReview.verdict.unknown": "未按标准格式解析",
+  "chat.oracleReview.verdict.unknownSummary":
+    "结论未按标准格式分段，原文已保留，可展开查看或直接移交处理",
+  "chat.oracleReview.handoffRunning": "正在读取审查结果",
+  "chat.oracleReview.handoffCompleted": "已读取审查结果",
   "chat.oracleReview.findings": "问题清单",
   "chat.oracleReview.findingsEmpty": "（无问题清单）",
   "chat.oracleReview.findingsToggle": "展开或收起问题清单",

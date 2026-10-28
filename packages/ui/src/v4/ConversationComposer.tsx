@@ -1539,8 +1539,17 @@ function ConversationComposerImpl({
       expectedHeldQueueItemIds?: readonly string[],
       existingTelemetrySeed?: ConversationPromptTelemetrySeed,
       requestedDelivery?: "startNow" | "queue" | "guide",
+      /**
+       * Oracle 审查移交（「按建议处理」）：正文来自审查方结论而非输入框，随 sendText
+       * 带 oracleReviewHandoff source 落库，UI 画成状态分隔线而非用户气泡。此路径
+       * 完全不触碰输入框——不打断用户正在编辑的草稿，也不写 prompt history。
+       */
+      handoff?: {
+        source: import("@zcode/shared/zcode-protocol-v4").ConversationInputSource;
+        text: string;
+      },
     ) => {
-      const trimmed = textRef.current.trim();
+      const trimmed = handoff ? handoff.text.trim() : textRef.current.trim();
       const submittedQueueItemIds =
         snapshotRef.current?.queue.items.map((item) => item.queueItemId) ?? [];
       const hasPendingAttachments = attachmentsApi.attachments.length > 0;
@@ -1578,7 +1587,7 @@ function ConversationComposerImpl({
         !submissionReady ||
         runtimeBlocked ||
         (createSubmissionFromComposer !== undefined && submission === null) ||
-        attachmentsApi.hasUnreadyAttachments
+        (!handoff && attachmentsApi.hasUnreadyAttachments)
       ) {
         return;
       }
@@ -1686,6 +1695,8 @@ function ConversationComposerImpl({
       const settleSubmittedContent = async () => {
         if (submittedContentSettled) return;
         submittedContentSettled = true;
+        // 移交路径未占用任何输入框事实（草稿/附件/上下文），settled 时也一律不碰。
+        if (handoff) return;
         await attachmentsApi.adoptSentAttachments(submittedAttachmentIds);
         // 权威 projection 已确认原 command 被接管；等待期间的新正文属于下一次提交。
         if (contentRevisionRef.current === cleanupRevision) {
@@ -1744,7 +1755,8 @@ function ConversationComposerImpl({
       };
       try {
         // 二次门禁：只消费预传完成的 ref，不在点击发送时回落上传。
-        const readyAttachmentRefs = await attachmentsApi.prepareForSend();
+        // 移交路径不消费用户的待传附件/上下文——移交内容只有审查结论本身。
+        const readyAttachmentRefs = handoff ? [] : await attachmentsApi.prepareForSend();
         if (readyAttachmentRefs === null) {
           if (telemetrySeed.localTtft)
             getLocalTtftObserver()?.exclude(telemetrySeed.localTtft, "rejected");
@@ -1766,21 +1778,23 @@ function ConversationComposerImpl({
         // share URL 塞进发给模型的正文。模型侧内容由隐藏的 shared_context 消息经
         // inputIntent.sharedContextRefs 注入，与正文无关。
         const promptText = serializeComposerPromptContexts(trimmed, {
-          codeComments: currentCodeCommentContexts,
+          // 移交正文就是完整审查结论，不混入输入框里待发的上下文块。
+          codeComments: handoff ? [] : currentCodeCommentContexts,
           conversationSelections: [],
-          webElements: currentWebElementContexts,
-          pptxElements: currentPptxElementReferences,
-          pluginUiContexts: currentPluginUiContexts,
+          webElements: handoff ? [] : currentWebElementContexts,
+          pptxElements: handoff ? [] : currentPptxElementReferences,
+          pluginUiContexts: handoff ? [] : currentPluginUiContexts,
         });
-        const contextAttachmentCount =
-          countComposerPromptContexts({
-            codeComments: currentCodeCommentContexts,
-            conversationSelections: currentConversationSelections,
-            webElements: currentWebElementContexts,
-            pptxElements: currentPptxElementReferences,
-            pluginUiContexts: currentPluginUiContexts,
-          }) + (submittedShareContext ? 1 : 0);
-        if (trimmed) {
+        const contextAttachmentCount = handoff
+          ? 0
+          : countComposerPromptContexts({
+              codeComments: currentCodeCommentContexts,
+              conversationSelections: currentConversationSelections,
+              webElements: currentWebElementContexts,
+              pptxElements: currentPptxElementReferences,
+              pluginUiContexts: currentPluginUiContexts,
+            }) + (submittedShareContext ? 1 : 0);
+        if (trimmed && !handoff) {
           promptHistoryBeforeSend = readPromptHistoryEntries(workspacePath);
           promptHistoryAfterAppend = appendPromptHistoryEntry(promptHistoryBeforeSend, trimmed);
           if (!arePromptHistoryEntriesEqual(promptHistoryBeforeSend, promptHistoryAfterAppend)) {
@@ -1793,7 +1807,7 @@ function ConversationComposerImpl({
             setPromptHistory(promptHistoryAfterAppend);
           }
         }
-        claimSubmittedDraft();
+        if (!handoff) claimSubmittedDraft();
         if (requestedDelivery === "startNow") {
           // 原子抢占需要等旧 turn 退出并提交新 TurnStarted ACK；
           // 若编辑器也等整条链路才清空，用户会误以为快捷键未生效。
@@ -1804,8 +1818,9 @@ function ConversationComposerImpl({
           editorClearedOptimistically = true;
         }
         const sendResult = await onSendText(promptText, {
-          submittedDraftText: submittedDraft.text,
+          submittedDraftText: handoff ? handoff.text : submittedDraft.text,
           submission,
+          ...(handoff ? { source: handoff.source } : {}),
           ...(currentConversationSelections.length
             ? {
                 conversationQuotes: currentConversationSelections.map(
@@ -2111,25 +2126,22 @@ function ConversationComposerImpl({
     () => deriveComposerTurnMetricsFact(snapshot?.rows.window, snapshot?.usage?.cumulative),
     [snapshot?.rows.window, snapshot?.usage?.cumulative],
   );
-  // Oracle 一键修复：把问题清单写入输入框后直接走主发送路径（含草稿抢占/队列语义）。
+  // Oracle 一键移交：审查方完整结论经 sendText + oracleReviewHandoff source 直发
+  // 主会话（排队/抢占语义与手打发送一致），但不落输入框、不显示为用户气泡——
+  // 对话流里只出现「正在/已读取审查结果」状态分隔线。
   const handleOracleFixRequest = useCallback(
-    (fixPrompt: string) => {
+    (fixPrompt: string, reviewId: string) => {
       if (!fixPrompt || pendingRef.current) {
         return;
       }
       // 「按建议处理」= 用户已确认这条审查：与 ✕ 一样落盘，避免处理完重启又弹回来。
       oracleReview?.acknowledge();
-      inputApiRef.current?.setText(fixPrompt);
-      updateText(fixPrompt);
-      // Lexical 的 onChange 在 replaceEditorText 之后异步回吐一次 updateText，会把
-      // contentRevision 推到 submit 冻结的 cleanupRevision 之后——发送成功后
-      // 「revision 未变才清空输入框」的检查因此永不成立，已发送的修复提示词会留在
-      // 输入栏。推迟一个宏任务让编辑器事件先 settle，使本路径与手打发送完全同构。
-      window.setTimeout(() => {
-        void submit();
-      }, 0);
+      void submit(undefined, undefined, undefined, undefined, {
+        source: { kind: "oracleReviewHandoff", reviewId },
+        text: fixPrompt,
+      });
     },
-    [oracleReview, submit, updateText],
+    [oracleReview, submit],
   );
 
   useEffect(() => {

@@ -207,6 +207,9 @@ export type OracleReviewState =
       scope?: string;
       /** 审查限制（LIMITS 段）。 */
       limits?: string;
+      /** 审查方最终输出全文（未做段切片）：「按建议处理」整段移交主会话，不依赖格式
+       * 解析成功与否。持久恢复的旧记录缺席时回退 findings。 */
+      rawOutput?: string;
       modelLabel: string;
       depth: OracleReviewDepth;
       completedAt: number;
@@ -231,12 +234,16 @@ export type OracleReviewState =
       trace?: readonly OracleReviewTraceEntry[];
     };
 
-/** 一键修复：把 findings 原文注入下一轮请求，由用户亲手触发，不自动循环。 */
-export function buildOracleFixPrompt(findings: string): string {
+/**
+ * 一键修复：把审查方最终输出全文整段移交主会话（VERDICT/SUMMARY/FINDINGS/REQUIREMENTS
+ * 等全部段落），由用户亲手触发，不自动循环。不再只移交解析出的 FINDINGS 切片——格式
+ * 解析只决定卡片分类外观，段边界切错或整场解析失败都不能丢审查内容，也不阻断移交。
+ */
+export function buildOracleFixPrompt(reviewOutput: string): string {
   return [
-    "上一轮经过了 Oracle 审查，发现以下问题，请逐条处理：",
+    "上一轮经过了 Oracle 审查，以下是审查方的完整结论，请逐条处理其中的问题点：",
     "",
-    findings,
+    reviewOutput.trim(),
     "",
     "完成后逐条说明每个问题的处理方式；如某条经核实不成立，请说明理由而不是静默忽略。",
   ].join("\n");

@@ -170,6 +170,7 @@ export function oracleReviewRecordToRestoredResult(
     ...(record.requirements ? { requirements: record.requirements } : {}),
     ...(record.scope ? { scope: record.scope } : {}),
     ...(record.limits ? { limits: record.limits } : {}),
+    ...(record.rawOutput ? { rawOutput: record.rawOutput } : {}),
     modelLabel: record.modelLabel,
     depth: record.depth,
     completedAt: record.completedAt,

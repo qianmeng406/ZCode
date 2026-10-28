@@ -798,6 +798,8 @@ function ConversationWorkSegmentFlow({
               context={context}
               onEdit={item.row.actions?.canEdit === true ? onEdit : undefined}
               editWorkspaceRewindAvailability={editWorkspaceRewindAvailability}
+              // Oracle 移交行的「读取中」态：该行启动的轮仍在运行。
+              turnRunning={segment.workStatus?.state === "running"}
             />
           );
           content = userRow;

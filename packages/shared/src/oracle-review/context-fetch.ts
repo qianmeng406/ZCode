@@ -41,6 +41,9 @@ function findRealUserInputBefore(
     if (!row || row.kind !== "userInput" || row.rowId >= turnRowId) continue;
     // 非真实用户输入（后台结果/工作流启动等）不是本回合的请求文本。
     if (row.origin !== undefined && row.origin !== "realUser") continue;
+    // Oracle 移交行（按建议处理）的正文是上一轮审查结论全文——正是这里要防的
+    // 「findings 被当成本回合任务」污染源，必须跳过。
+    if (row.source?.kind === "oracleReviewHandoff") continue;
     return row.text;
   }
   return null;
