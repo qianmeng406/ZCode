@@ -3,6 +3,7 @@ import { Loader2Icon, OctagonAlertIcon, XIcon } from "lucide-react";
 import { Button } from "@/components/ui/button.js";
 import { cn } from "@/components/lib/utils.js";
 import { ScrollFadeViewport } from "@/components/ui/scroll-fade-viewport.js";
+import { MessageResponse } from "@/components/ai-elements/message.js";
 import { useZCodeIntl } from "@/i18n/IntlProvider.js";
 import { useModelSelectionView } from "@/hooks/useModelSelectionView.js";
 import type { OracleReviewSidePaneTab } from "@/lib/workspaceSidePane.js";
@@ -98,6 +99,21 @@ export function OracleReviewSidePane({
   const modelLabel = result?.modelLabel ?? (state.status === "idle" ? undefined : state.modelLabel);
   const restored = result?.restored === true;
   const durationLabel = useDurationLabel(state);
+  // 结果已解析出 summary/findings 等分节时，最后一轮「审查中」的原始正文就是同一份
+  // 结论，再在过程里重复一遍会让面板显得冗长；只隐藏最后一条（深度审查此前的
+  // 取证叙述仍保留）。
+  const lastReviewingTextIndex = (() => {
+    for (let index = trace.length - 1; index >= 0; index -= 1) {
+      const entry = trace[index];
+      if (entry?.kind === "text" && entry.stage === "reviewing") return index;
+    }
+    return -1;
+  })();
+  const hideFinalReportText = state.status === "result";
+  const isHiddenTextEntry = (entry: OracleReviewTraceEntry, index: number): boolean =>
+    entry.kind === "text" &&
+    // 上下文分析阶段的正文是内部 JSON（写入侧已跳过，这里再兜一层旧数据）。
+    (entry.stage === "analyzing" || (hideFinalReportText && index === lastReviewingTextIndex));
 
   return (
     <div
@@ -173,9 +189,7 @@ export function OracleReviewSidePane({
               <h3 className="text-ui-sm font-medium text-foreground-subtle">
                 {intl.formatMessage({ id: "chat.oracleReview.summary" })}
               </h3>
-              <p className="whitespace-pre-wrap break-words text-ui-base leading-relaxed text-foreground">
-                {result.summary}
-              </p>
+              <MessageResponse className="text-ui-base">{result.summary}</MessageResponse>
             </section>
           ) : null}
           {failure ? (
@@ -201,9 +215,15 @@ export function OracleReviewSidePane({
               </p>
             ) : (
               <div className="flex flex-col gap-1.5">
-                {trace.map((entry, index) => (
-                  <TraceEntry key={traceKey(entry, index)} entry={entry} />
-                ))}
+                {trace.map((entry, index) =>
+                  isHiddenTextEntry(entry, index) ? null : (
+                    <TraceEntry
+                      key={traceKey(entry, index)}
+                      entry={entry}
+                      streaming={pending && index === trace.length - 1}
+                    />
+                  ),
+                )}
               </div>
             )}
           </section>
@@ -212,9 +232,7 @@ export function OracleReviewSidePane({
               <h3 className="text-ui-sm font-medium text-foreground-subtle">
                 {intl.formatMessage({ id: "chat.oracleReview.findings" })}
               </h3>
-              <pre className="whitespace-pre-wrap break-words font-mono text-ui-sm leading-relaxed text-foreground">
-                {result.findings}
-              </pre>
+              <MessageResponse className="text-ui-sm">{result.findings}</MessageResponse>
             </section>
           ) : null}
           {result?.requirements ? (
@@ -232,7 +250,7 @@ export function OracleReviewSidePane({
   );
 }
 
-function TraceEntry({ entry }: { entry: OracleReviewTraceEntry }) {
+function TraceEntry({ entry, streaming }: { entry: OracleReviewTraceEntry; streaming: boolean }) {
   const { intl } = useZCodeIntl();
   if (entry.kind === "stage") {
     return (
@@ -257,14 +275,33 @@ function TraceEntry({ entry }: { entry: OracleReviewTraceEntry }) {
       </div>
     );
   }
-  return (
-    <div className="pl-3">
+  if (entry.kind === "note") {
+    const hasContext = entry.priorCount + entry.turnCount + entry.constraintCount > 0;
+    return (
       <div
-        className="whitespace-pre-wrap break-words text-ui-sm leading-relaxed text-foreground"
-        data-testid="v4-oracle-review-panel-text"
+        className="pl-3 text-ui-sm text-foreground-subtle"
+        data-testid="v4-oracle-review-panel-note"
       >
-        {entry.text}
+        {hasContext
+          ? intl.formatMessage(
+              { id: "chat.oracleReview.panel.contextCandidates" },
+              {
+                prior: String(entry.priorCount),
+                turns: String(entry.turnCount),
+                constraints: String(entry.constraintCount),
+              },
+            )
+          : intl.formatMessage({ id: "chat.oracleReview.panel.contextEmpty" })}
       </div>
+    );
+  }
+  return (
+    <div className="pl-3" data-testid="v4-oracle-review-panel-text">
+      {/* 与会话正文同一套 markdown/代码块渲染：审查正文里的列表、表格、代码块
+          不再以裸文本展示。 */}
+      <MessageResponse streaming={streaming} className="text-ui-sm">
+        {entry.text}
+      </MessageResponse>
       {entry.truncated ? (
         <div className="mt-1 text-ui-xs text-foreground-subtle">
           {intl.formatMessage(
@@ -303,5 +340,6 @@ function useDurationLabel(state: OracleReviewState): string | null {
 function traceKey(entry: OracleReviewTraceEntry, index: number): string {
   if (entry.kind === "stage") return `s-${entry.stage}-${entry.at}-${index}`;
   if (entry.kind === "tool") return `t-${entry.round}-${entry.at}-${index}`;
+  if (entry.kind === "note") return `n-${entry.note}-${index}`;
   return `x-${entry.stage}-${entry.round}-${index}`;
 }

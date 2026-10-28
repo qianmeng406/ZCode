@@ -541,6 +541,9 @@ const zhCN: Record<string, string> = {
   "chat.oracleReview.panel.truncated": "过程较长，只保留最近 {chars} 个字符",
   "chat.oracleReview.panel.noTrace": "这条审查来自历史恢复，过程不可回放（仅保留结论）",
   "chat.oracleReview.panel.duration": "耗时 {duration}",
+  "chat.oracleReview.panel.contextCandidates":
+    "已关联 {prior} 条历史上下文 · {turns} 个相关轮次 · {constraints} 条现行约束",
+  "chat.oracleReview.panel.contextEmpty": "未关联历史上下文，直接审查目标回合",
   "chat.oracleReview.error.noTurn": "没有可审查的回合（等待当前回合结束后再试）",
   "chat.oracleReview.error.noModel": "没有可用的把关模型，请先在模型设置中选择",
   "chat.oracleReview.error.staleTarget": "目标回合已不可审查",

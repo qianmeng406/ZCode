@@ -68,6 +68,8 @@ describe("fork feature surfaces i18n", () => {
       "chat.oracleReview.panel.truncated",
       "chat.oracleReview.panel.noTrace",
       "chat.oracleReview.panel.duration",
+      "chat.oracleReview.panel.contextCandidates",
+      "chat.oracleReview.panel.contextEmpty",
       "sidePane.oracleReview",
     ]) {
       expect(zhCN[key], key).toBeTruthy();

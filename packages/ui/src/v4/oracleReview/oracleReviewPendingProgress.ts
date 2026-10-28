@@ -105,9 +105,13 @@ export function useOracleReviewPendingProgress(params: {
       if (sessionId !== null && (progress.round !== undefined || hasToolEvent || hasText)) {
         const current = getOracleReviewState(sessionId);
         if (current.status === "pending") {
+          // 上下文分析阶段模型输出的是内部 JSON（候选历史/约束的机器格式），
+          // 不当正文记录；该阶段的可读结论由 runner 在分析完成后以 note 写入。
+          const wantsText = hasText && current.stage !== "analyzing";
+          if (progress.round === undefined && !hasToolEvent && !wantsText) return;
           const round = progress.round ?? current.round ?? 1;
           let trace = current.trace ?? [];
-          if (hasText && progress.textDelta) {
+          if (wantsText && progress.textDelta) {
             trace = appendOracleReviewTraceEntry(trace, {
               kind: "text",
               stage: current.stage,

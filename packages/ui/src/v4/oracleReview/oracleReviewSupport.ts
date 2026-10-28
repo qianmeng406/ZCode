@@ -104,7 +104,7 @@ export function appendOracleReviewToolEvent(
 }
 
 /**
- * 审查过程轨迹（侧栏面板的「会话流」）：阶段、工具调用与逐轮可见正文。
+ * 审查过程轨迹（侧栏面板的「会话流」）：阶段、工具调用、逐轮可见正文与结构化备注。
  * 与 toolEvents 的分工：trace 是面板的唯一渲染来源且跨阶段累计；toolEvents
  * 只服务输入框卡片的紧凑计数（新阶段开始即清空）。
  */
@@ -118,6 +118,17 @@ export type OracleReviewTraceEntry =
       text: string;
       /** 超过单条上限、只保留尾部时置位（面板显示「已截断」提示）。 */
       truncated?: boolean;
+    }
+  /**
+   * 结构化备注：上下文分析阶段模型输出的是内部 JSON，直接当正文渲染既难读也
+   * 会误导用户；这里只保留「筛出了多少条历史/轮次/约束」的结论。
+   */
+  | {
+      kind: "note";
+      note: "context-candidates";
+      priorCount: number;
+      turnCount: number;
+      constraintCount: number;
     };
 
 /** 轨迹条目上限：面板只回放最近 200 条，避免长审查把内存与渲染拖住。 */

@@ -7,6 +7,7 @@ import {
   TriangleAlertIcon,
 } from "lucide-react";
 import { cn } from "@/components/lib/utils.js";
+import { MessageResponse } from "@/components/ai-elements/message.js";
 import {
   Collapsible,
   CollapsibleContent,
@@ -141,9 +142,10 @@ export function ResultSection({
         </button>
       </CollapsibleTrigger>
       <CollapsibleContent>
-        <pre className="max-h-48 overflow-y-auto whitespace-pre-wrap break-words border-t border-border/60 px-3 py-2 font-mono text-ui-sm text-foreground">
-          {body}
-        </pre>
+        {/* 与会话正文同源渲染：需求核验常是 markdown 表格，按原文排出可读结构。 */}
+        <div className="max-h-72 overflow-y-auto border-t border-border/60 px-3 py-2">
+          <MessageResponse className="text-ui-sm">{body}</MessageResponse>
+        </div>
       </CollapsibleContent>
     </Collapsible>
   );

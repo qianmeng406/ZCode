@@ -269,6 +269,23 @@ export async function runOracleReview(
       material: bundle.material,
     });
     completenessNotes.push(...analyzed.completenessNotes);
+    // 分析阶段的模型输出是内部 JSON，轨迹里只留可读结论（筛出多少历史/轮次/约束）；
+    // 原始文本随后由「审查中」阶段覆盖，用户不需要看到机器格式。
+    if (analyzed.analysis) {
+      const current = getOracleReviewState(sid);
+      if (current.status === "pending" && isCurrentOracleReviewSeq(sid, requestSeq)) {
+        setOracleReviewState(sid, {
+          ...current,
+          trace: appendOracleReviewTraceEntry(current.trace ?? [], {
+            kind: "note",
+            note: "context-candidates",
+            priorCount: analyzed.analysis.priorContext.length,
+            turnCount: analyzed.analysis.relatedTurnRowIds.length,
+            constraintCount: analyzed.analysis.activeConstraints.length,
+          }),
+        });
+      }
+    }
     // ── 阶段三：正式审查 ──
     setStage("reviewing", `${request.reviewId}:review`);
     const prompt = buildOracleReviewPrompt({

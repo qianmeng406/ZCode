@@ -593,6 +593,10 @@ const enUS: Record<string, string> = {
   "chat.oracleReview.panel.noTrace":
     "Restored from history: the process cannot be replayed (conclusion only)",
   "chat.oracleReview.panel.duration": "Took {duration}",
+  "chat.oracleReview.panel.contextCandidates":
+    "Linked {prior} prior messages · {turns} related turns · {constraints} active constraints",
+  "chat.oracleReview.panel.contextEmpty":
+    "No prior context linked; the target turn is reviewed directly",
   "chat.oracleReview.error.noTurn": "No reviewable turn (wait for the current turn to finish)",
   "chat.oracleReview.error.noModel":
     "No review model available. Select one in model settings first",
