@@ -157,6 +157,7 @@ export async function runDeepReviewAgentLoop(
           outputChars: lastOutputChars,
           round,
           ...(progress.textDelta ? { textDelta: progress.textDelta } : {}),
+          ...(progress.reasoningDelta ? { reasoningDelta: progress.reasoningDelta } : {}),
         });
       });
       lastText = result.text;
@@ -234,6 +235,7 @@ export async function runDeepReviewAgentLoop(
             outputChars: lastOutputChars,
             round,
             ...(progress.textDelta ? { textDelta: progress.textDelta } : {}),
+            ...(progress.reasoningDelta ? { reasoningDelta: progress.reasoningDelta } : {}),
           });
         });
         lastText = result.text;

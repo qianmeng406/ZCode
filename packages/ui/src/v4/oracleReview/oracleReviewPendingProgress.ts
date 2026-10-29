@@ -99,18 +99,34 @@ export function useOracleReviewPendingProgress(params: {
       setPendingOutputChars(progress.outputChars);
       // 深度审查的轮次/工具名/工具事件写进 store 的 pending 条目（工具执行阶段带
       // toolName，生成阶段不带——直接赋值让上一次的工具名随新轮次清空）。
-      // 可见正文增量同时写进轨迹（即使标准审查没有 round/工具，也要落文本）。
+      // 可见正文/思考增量同时写进轨迹（即使标准审查没有 round/工具，也要落文本）。
       const hasToolEvent = Boolean(progress.toolName);
       const hasText = Boolean(progress.textDelta);
-      if (sessionId !== null && (progress.round !== undefined || hasToolEvent || hasText)) {
+      const hasReasoning = Boolean(progress.reasoningDelta);
+      if (
+        sessionId !== null &&
+        (progress.round !== undefined || hasToolEvent || hasText || hasReasoning)
+      ) {
         const current = getOracleReviewState(sessionId);
         if (current.status === "pending") {
           // 上下文分析阶段模型输出的是内部 JSON（候选历史/约束的机器格式），
           // 不当正文记录；该阶段的可读结论由 runner 在分析完成后以 note 写入。
+          // 思考不受此限：它是自然语言，正好解释「为什么选这些材料」。
           const wantsText = hasText && current.stage !== "analyzing";
-          if (progress.round === undefined && !hasToolEvent && !wantsText) return;
+          if (progress.round === undefined && !hasToolEvent && !wantsText && !hasReasoning) return;
           const round = progress.round ?? current.round ?? 1;
           let trace = current.trace ?? [];
+          if (hasReasoning && progress.reasoningDelta) {
+            const now = Date.now();
+            trace = appendOracleReviewTraceEntry(trace, {
+              kind: "reasoning",
+              stage: current.stage,
+              round,
+              text: progress.reasoningDelta,
+              at: now,
+              updatedAt: now,
+            });
+          }
           if (wantsText && progress.textDelta) {
             trace = appendOracleReviewTraceEntry(trace, {
               kind: "text",

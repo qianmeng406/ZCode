@@ -2620,11 +2620,17 @@ export const zcodeWorkspaceGenerateTextProgressSchema = z
     /** 工具调用的展示目标（文件路径 / pattern / 命令）。 */
     toolTarget: nonEmptyString.optional(),
     /**
-     * 自上次进度通知以来新增的**可见正文**增量（思考增量只计入 outputChars）。
+     * 自上次进度通知以来新增的**可见正文**增量。
      * 用刻意不做 trim 的 min(1)：换行/缩进是正文格式的一部分，trim 会破坏
      * Markdown 段落；空串由发送方省略，不占字段。
      */
     textDelta: z.string().min(1).optional(),
+    /**
+     * 自上次进度通知以来新增的**思考正文**增量（reasoning_delta）。
+     * 与 textDelta 同样是原始字符流、不 trim；思考不计入 review 结论，
+     * 只用于面板里的「思考过程」块。
+     */
+    reasoningDelta: z.string().min(1).optional(),
   })
   .strict();
 export type ZCodeWorkspaceGenerateTextProgress = z.infer<

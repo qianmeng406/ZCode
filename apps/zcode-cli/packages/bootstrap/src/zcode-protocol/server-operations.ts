@@ -2946,6 +2946,7 @@ export function createWorkspaceGenerateTextProgressNotifier(options: {
     toolName?: string;
     toolTarget?: string;
     textDelta?: string;
+    reasoningDelta?: string;
   }) => void;
   flush: () => void;
 } {
@@ -2955,22 +2956,25 @@ export function createWorkspaceGenerateTextProgressNotifier(options: {
   let lastRound: number | undefined;
   let lastToolName: string | undefined;
   let lastToolTarget: string | undefined;
-  // 可见正文的待发增量：窗口内累积，随下一次成功发送一次性带出并清空。
-  // 不在这里做长度上限——UI 侧按条目/字符 cap 收敛，CLI 只负责不丢正文。
+  // 可见正文 / 思考正文的待发增量：窗口内各自累积，随下一次成功发送一次性带出并清空。
+  // 不在这里做长度上限——UI 侧按条目/字符 cap 收敛，CLI 只负责不丢增量。
   let pendingText = "";
+  let pendingReasoning = "";
   // throttled=字符流（窗口合并 + 值未变不发）；tool=工具事件（只要求有变化，不受窗口约束）；
-  // flush=收尾补发（不受窗口约束，但仅在有新字符/正文时发）。
+  // flush=收尾补发（不受窗口约束，但仅在有新字符/正文/思考时发）。
   const emit = (mode: "throttled" | "tool" | "flush") => {
     const now = Date.now();
     const hasPendingText = pendingText.length > 0;
+    const hasPendingReasoning = pendingReasoning.length > 0;
+    const hasPendingContent = hasPendingText || hasPendingReasoning;
     if (mode === "throttled") {
       if (
         (lastEmitAt !== 0 && now - lastEmitAt < WORKSPACE_GENERATE_TEXT_PROGRESS_INTERVAL_MS) ||
-        (lastChars === lastEmittedChars && !hasPendingText)
+        (lastChars === lastEmittedChars && !hasPendingContent)
       ) {
         return;
       }
-    } else if (mode === "flush" && lastChars === lastEmittedChars && !hasPendingText) {
+    } else if (mode === "flush" && lastChars === lastEmittedChars && !hasPendingContent) {
       return;
     }
     lastEmitAt = now;
@@ -2987,11 +2991,13 @@ export function createWorkspaceGenerateTextProgressNotifier(options: {
           ...(lastToolName ? { toolName: lastToolName } : {}),
           ...(lastToolTarget ? { toolTarget: lastToolTarget } : {}),
           ...(hasPendingText ? { textDelta: pendingText } : {}),
+          ...(hasPendingReasoning ? { reasoningDelta: pendingReasoning } : {}),
         },
       });
       // 发送成功才清空：通道短暂故障时保留增量，下一次成功发送一并带出（字符水位
       // 已经推进，合并逻辑不会因此重复计数）。
       pendingText = "";
+      pendingReasoning = "";
     } catch (error) {
       // 进度通知是旁路信号：client 断开等故障不得向外抛——既不能打断流中的
       // 模型请求（onProgress 调用方），也不能在 finally 里覆盖原始返回值/异常。
@@ -3011,6 +3017,7 @@ export function createWorkspaceGenerateTextProgressNotifier(options: {
       lastToolName = progress.toolName;
       lastToolTarget = progress.toolTarget;
       if (progress.textDelta) pendingText += progress.textDelta;
+      if (progress.reasoningDelta) pendingReasoning += progress.reasoningDelta;
       // 新工具调用（名称或目标变化）强制发送；同一工具的后续进度仍走节流。
       const isNewToolEvent =
         Boolean(progress.toolName) &&

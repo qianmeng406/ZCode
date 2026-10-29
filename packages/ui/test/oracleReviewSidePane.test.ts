@@ -100,8 +100,14 @@ describe("OracleReviewSidePane", () => {
     expect(stages.map((node) => node.textContent)).toEqual(["取材料", "上下文分析", "审查中"]);
     const tools = screen.getAllByTestId("v4-oracle-review-panel-tool");
     expect(tools).toHaveLength(2);
-    expect(tools[0]?.textContent).toContain("Read");
+    // 会话同款工具行：动作标签 + 文件 chip（文件名），完整路径在次行；
+    // 不再是 `#1 Read src/a.ts` 的等宽清单。
+    expect(tools[0]?.textContent).toContain("读取");
+    expect(tools[0]?.textContent).toContain("a.ts");
     expect(tools[0]?.textContent).toContain("src/a.ts");
+    expect(tools[0]?.textContent).not.toContain("#1");
+    expect(tools[1]?.textContent).toContain("搜索");
+    expect(tools[1]?.textContent).toContain("TODO");
 
     // 内部分析 JSON 不上屏；最终一轮正文已解析成上方各分节，不再重复。
     expect(container.textContent).not.toContain("priorContext");
@@ -112,6 +118,86 @@ describe("OracleReviewSidePane", () => {
 
     expect(screen.getByTestId("v4-oracle-review-panel-note").textContent).toBe(
       "已关联 2 条历史上下文 · 1 个相关轮次 · 1 条现行约束",
+    );
+  });
+
+  it("工具行按会话工具卡渲染：Bash 指令走次行，未知工具保留原名", () => {
+    setOracleReviewState(SESSION_ID, {
+      status: "pending",
+      mode: "manual",
+      reviewId: "r-tools",
+      startedAt: Date.now(),
+      stage: "reviewing",
+      modelLabel: "p/m",
+      depth: "deep",
+      request: {
+        reviewId: "r-tools",
+        depth: "deep",
+        mode: "manual",
+        sessionId: SESSION_ID,
+        workspacePath: "/repo",
+        target: { rowId: 1, entityId: "e1" },
+        createdAt: Date.now(),
+      },
+      trace: [
+        { kind: "stage", stage: "reviewing", at: 1 },
+        { kind: "tool", round: 1, toolName: "Bash", target: "git log --oneline -6", at: 2 },
+        { kind: "tool", round: 1, toolName: "Lookup", target: "acme", at: 3 },
+      ],
+    });
+    render(createElement(OracleReviewSidePane, { tab, onClose: () => {} }));
+
+    const [bashRow, unknownRow] = screen.getAllByTestId("v4-oracle-review-panel-tool");
+    expect(bashRow?.textContent).toContain("终端");
+    expect(bashRow?.textContent).toContain("git log --oneline -6");
+    expect(unknownRow?.textContent).toContain("Lookup");
+    expect(unknownRow?.textContent).toContain("acme");
+  });
+
+  it("思考：用会话原生思考块渲染，默认收起、点开可见全文", () => {
+    setOracleReviewState(SESSION_ID, {
+      status: "pending",
+      mode: "manual",
+      reviewId: "r-reasoning",
+      startedAt: Date.now(),
+      stage: "reviewing",
+      modelLabel: "p/m",
+      depth: "deep",
+      request: {
+        reviewId: "r-reasoning",
+        depth: "deep",
+        mode: "manual",
+        sessionId: SESSION_ID,
+        workspacePath: "/repo",
+        target: { rowId: 1, entityId: "e1" },
+        createdAt: Date.now(),
+      },
+      trace: [
+        { kind: "stage", stage: "reviewing", at: 1 },
+        {
+          kind: "reasoning",
+          stage: "reviewing",
+          round: 1,
+          text: "先确认调用方是否传了 stage",
+          at: 1000,
+          updatedAt: 6000,
+        },
+        { kind: "text", stage: "reviewing", round: 1, text: "结论" },
+      ],
+    });
+    render(createElement(OracleReviewSidePane, { tab, onClose: () => {} }));
+
+    expect(screen.getByTestId("v4-oracle-review-panel-reasoning")).toBeTruthy();
+    // 时长按轨迹时间戳还原（1000→6000 即 5 秒），与会话原生块同款。
+    expect(screen.getByTestId("chat-reasoning-trigger").textContent).toContain("持续了 5 秒");
+    // 收起态只保留折叠容器（Radix 的 hidden），思考正文不渲染（与会话一致）。
+    const collapsed = screen.getByTestId("chat-reasoning-content");
+    expect(collapsed.hasAttribute("hidden")).toBe(true);
+    expect(collapsed.textContent).toBe("");
+
+    fireEvent.click(screen.getByTestId("chat-reasoning-trigger"));
+    expect(screen.getByTestId("chat-reasoning-content").textContent).toContain(
+      "先确认调用方是否传了 stage",
     );
   });
 
@@ -250,7 +336,8 @@ describe("OracleReviewSidePane", () => {
     render(createElement(OracleReviewSidePane, { tab, onClose }));
 
     expect(screen.getByTestId("v4-oracle-review-panel-history")).toBeTruthy();
-    expect(screen.getAllByTestId("v4-oracle-review-history-item")).toHaveLength(1);
+    const items = screen.getAllByTestId("v4-oracle-review-history-item");
+    expect(items).toHaveLength(1);
     const historyText = (): string =>
       screen.getAllByTestId("v4-oracle-review-history-item")[0]?.textContent ?? "";
     expect(historyText()).toContain("分段判据存在合理疑点");

@@ -86,6 +86,11 @@ export interface WorkspaceGenerateTextProgress {
    * 累积与窗口合并由调用方（进度通知器）负责，这里只传本次增量。
    */
   textDelta?: string;
+  /**
+   * 自上次回调以来新增的思考正文（reasoning_delta）。与 textDelta 同为原始字符流，
+   * 面板用会话原生思考块渲染；同样由调用方累积合并。
+   */
+  reasoningDelta?: string;
 }
 
 export interface WorkspaceGenerateTextResult {
@@ -425,7 +430,11 @@ export async function streamModelTextResult(
       );
     } else if (event.type === "reasoning_delta") {
       outputChars += event.text.length;
-      onProgress?.({ outputChars });
+      onProgress?.(
+        event.text.length > 0
+          ? { outputChars, reasoningDelta: event.text }
+          : { outputChars },
+      );
     } else if (event.type === "tool_call") {
       pushToolCall(event.toolCall);
     } else if (event.type === "tool_input_start") {

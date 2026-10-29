@@ -120,6 +120,22 @@ export type OracleReviewTraceEntry =
       truncated?: boolean;
     }
   /**
+   * 思考正文（reasoning_delta）。与 text 分开成条：面板用会话原生思考块渲染，
+   * 折叠摘要/流式提示走它自己那套，不能和回答正文混成一段。
+   *
+   * at/updatedAt 记录首末增量时间：面板据此给出与会话一致的「思考 · 持续了 N 秒」，
+   * 面板晚于流式结束才打开时也能还原时长（组件自己的计时只在挂载后开始）。
+   */
+  | {
+      kind: "reasoning";
+      stage: OracleReviewStage;
+      round: number;
+      text: string;
+      at: number;
+      updatedAt?: number;
+      truncated?: boolean;
+    }
+  /**
    * 结构化备注：上下文分析阶段模型输出的是内部 JSON，直接当正文渲染既难读也
    * 会误导用户；这里只保留「筛出了多少条历史/轮次/约束」的结论。
    */
@@ -137,8 +153,8 @@ export const ORACLE_REVIEW_TRACE_LIMIT = 200;
 export const ORACLE_REVIEW_TRACE_TEXT_CAP = 20_000;
 
 /**
- * 追加一条轨迹。正文条目按 stage+round 与上一条合并（流式增量很多，逐条存
- * 会把 200 条上限吃掉）；合并后仍超上限时保留尾部并标记 truncated。
+ * 追加一条轨迹。正文与思考条目按 kind+stage+round 与上一条合并（流式增量很多，
+ * 逐条存会把 200 条上限吃掉）；合并后仍超上限时保留尾部并标记 truncated。
  */
 export function appendOracleReviewTraceEntry(
   trace: readonly OracleReviewTraceEntry[],
@@ -147,19 +163,50 @@ export function appendOracleReviewTraceEntry(
   if (entry.kind === "text") {
     const last = trace[trace.length - 1];
     if (last?.kind === "text" && last.stage === entry.stage && last.round === entry.round) {
-      const merged = last.text + entry.text;
-      const truncated = last.truncated === true || merged.length > ORACLE_REVIEW_TRACE_TEXT_CAP;
-      const text = truncated ? merged.slice(-ORACLE_REVIEW_TRACE_TEXT_CAP) : merged;
-      return [
-        ...trace.slice(0, -1),
-        { ...last, text, ...(truncated ? { truncated: true as const } : {}) },
-      ];
+      return [...trace.slice(0, -1), mergeTraceText(last, entry.text)];
+    }
+  }
+  if (entry.kind === "reasoning") {
+    const last = trace[trace.length - 1];
+    if (last?.kind === "reasoning" && last.stage === entry.stage && last.round === entry.round) {
+      return [...trace.slice(0, -1), mergeReasoningText(last, entry)];
     }
   }
   const appended = [...trace, entry];
   return appended.length > ORACLE_REVIEW_TRACE_LIMIT
     ? appended.slice(appended.length - ORACLE_REVIEW_TRACE_LIMIT)
     : appended;
+}
+
+function mergeTraceText(last: Extract<OracleReviewTraceEntry, { kind: "text" }>, delta: string) {
+  const body = mergeTraceTextBody(last.text, delta, last.truncated === true);
+  return { ...last, text: body.text, ...(body.truncated ? { truncated: true as const } : {}) };
+}
+
+function mergeReasoningText(
+  last: Extract<OracleReviewTraceEntry, { kind: "reasoning" }>,
+  entry: Extract<OracleReviewTraceEntry, { kind: "reasoning" }>,
+) {
+  const body = mergeTraceTextBody(last.text, entry.text, last.truncated === true);
+  return {
+    ...last,
+    text: body.text,
+    updatedAt: entry.updatedAt ?? entry.at,
+    ...(body.truncated ? { truncated: true as const } : {}),
+  };
+}
+
+function mergeTraceTextBody(
+  text: string,
+  delta: string,
+  alreadyTruncated: boolean,
+): { text: string; truncated: boolean } {
+  const merged = text + delta;
+  const truncated = alreadyTruncated || merged.length > ORACLE_REVIEW_TRACE_TEXT_CAP;
+  return {
+    text: truncated ? merged.slice(-ORACLE_REVIEW_TRACE_TEXT_CAP) : merged,
+    truncated,
+  };
 }
 
 export type OracleReviewState =
@@ -235,6 +282,21 @@ export type OracleReviewState =
     };
 
 /**
+ * 右侧审查面板的自动关闭裁决。
+ *
+ * 审查状态回到 `idle` 表示卡片被关闭 / 清空；此时若本会话已有持久审查历史，
+ * 面板必须留着让用户继续回看结论（关闭卡片不等于丢弃结论）。代价是：只要本会话
+ * 审查过一次，面板就不再自行消失，只能由用户点 ✕ 关闭——这是为可达性有意付出的
+ * 行为变更。完全没有历史的 idle（切换 workspace 后恢复的陈旧 tab）仍自动收起。
+ */
+export function resolveOracleReviewPaneAutoClose(input: {
+  status: OracleReviewState["status"];
+  historyCount: number;
+}): boolean {
+  return input.status === "idle" && input.historyCount === 0;
+}
+
+/**
  * Oracle 移交行的「正在读取 / 已读取」判定。
  *
  * 判据必须只看整轮（render unit）的产出事实：accepted guide 会按段切分工作流
@@ -301,21 +363,6 @@ export function readStoredOracleModelSelection(): ModelSelection | null {
         : null;
     const reasoningLevel =
       optionsRecord && typeof optionsRecord.reasoningLevel === "string"
-/**
- * 右侧审查面板的自动关闭裁决。
- *
- * 审查状态回到 `idle` 表示卡片被关闭 / 清空；此时若本会话已有持久审查历史，
- * 面板必须留着让用户继续回看结论（关闭卡片不等于丢弃结论）。代价是：只要本会话
- * 审查过一次，面板就不再自行消失，只能由用户点 ✕ 关闭——这是为可达性有意付出的
- * 行为变更。完全没有历史的 idle（切换 workspace 后恢复的陈旧 tab）仍自动收起。
- */
-export function resolveOracleReviewPaneAutoClose(input: {
-  status: OracleReviewState["status"];
-  historyCount: number;
-}): boolean {
-  return input.status === "idle" && input.historyCount === 0;
-}
-
         ? optionsRecord.reasoningLevel.trim()
         : "";
     return {

@@ -1121,3 +1121,8 @@ exceptions:
     paths:
       - packages/ui/src/app-shell/OracleReviewSidePane.tsx
     reason: Oracle 审查面板（右侧 tab）只订阅模块级审查 store 并渲染轨迹与结论，不持有审查状态、不发请求；放在 app-shell 与 SubagentSessionSidePane/SubagentDirectorySidePane 同层，是因为它和它们一样是「侧栏 tab 内容」而非会话内组件。packages/ui/src/app-shell 目录未受管，登记为 managed 模块不在本次范围内。
+  - id: oracle-review-trace-tool-row-unmanaged-new
+    rule: unmanaged-new-file
+    paths:
+      - packages/ui/src/v4/oracleReview/OracleReviewTraceToolRow.tsx
+    reason: 审查面板的工具行只把 trace 里的 (toolName, target) 映射成主对话 ToolLayout 的摘要渲染属性（图标/动作标签/文件 chip/命令），不持有状态、不发请求；放在 oracleReview 目录是为了与取数、裁决解析同属一套审查 UI，且必须复用主对话的渲染约定而不是再造一套。packages/ui/src/v4/oracleReview 目录未受管，登记为 managed 模块不在本次范围内。

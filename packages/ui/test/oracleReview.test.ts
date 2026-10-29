@@ -22,7 +22,6 @@ import {
   resolveOracleReviewPaneAutoClose,
   resolveOracleHandoffReading,
 } from "../src/v4/oracleReview/oracleReviewSupport.js";
-import { resolveOracleHandoffReading } from "../src/v4/oracleReview/oracleHandoffReading.js";
 import { formatOracleModelLabel } from "../src/v4/oracleReview/oracleReviewModelLabel.js";
 import {
   assembleOracleTurnMaterial,
@@ -1634,6 +1633,78 @@ test("轨迹：正文超过上限保留尾部并标记截断", () => {
   const entry = trace[0];
   assert.equal(entry?.kind, "text");
   if (entry?.kind !== "text") return;
+  assert.equal(entry.text.length, ORACLE_REVIEW_TRACE_TEXT_CAP);
+  assert.ok(entry.text.endsWith("TAIL"));
+  assert.equal(entry.truncated, true);
+});
+
+test("轨迹：思考增量按 stage+round 合并，且不与正文互相合并", () => {
+  let trace: OracleReviewTraceEntry[] = [];
+  trace = appendOracleReviewTraceEntry(trace, {
+    kind: "reasoning",
+    stage: "reviewing",
+    round: 1,
+    text: "先看",
+    at: 1000,
+    updatedAt: 1000,
+  });
+  trace = appendOracleReviewTraceEntry(trace, {
+    kind: "reasoning",
+    stage: "reviewing",
+    round: 1,
+    text: "实现",
+    at: 4000,
+    updatedAt: 4000,
+  });
+  trace = appendOracleReviewTraceEntry(trace, {
+    kind: "text",
+    stage: "reviewing",
+    round: 1,
+    text: "结论",
+  });
+  trace = appendOracleReviewTraceEntry(trace, {
+    kind: "reasoning",
+    stage: "reviewing",
+    round: 2,
+    text: "再看",
+    at: 9000,
+    updatedAt: 9000,
+  });
+  assert.deepEqual(
+    trace.map((entry) =>
+      entry.kind === "reasoning" || entry.kind === "text"
+        ? `${entry.kind}:${entry.round}:${entry.text}`
+        : entry.kind,
+    ),
+    ["reasoning:1:先看实现", "text:1:结论", "reasoning:2:再看"],
+  );
+  // 时长依赖首末增量时间：合并保留首个 at，updatedAt 跟随最后一次增量。
+  const merged = trace[0];
+  assert.equal(merged?.kind === "reasoning" ? merged.at : 0, 1000);
+  assert.equal(merged?.kind === "reasoning" ? merged.updatedAt : 0, 4000);
+});
+
+test("轨迹：思考正文同样受单条上限约束并保留尾部", () => {
+  let trace: OracleReviewTraceEntry[] = [];
+  trace = appendOracleReviewTraceEntry(trace, {
+    kind: "reasoning",
+    stage: "reviewing",
+    round: 1,
+    text: "A".repeat(ORACLE_REVIEW_TRACE_TEXT_CAP),
+    at: 1,
+    updatedAt: 1,
+  });
+  trace = appendOracleReviewTraceEntry(trace, {
+    kind: "reasoning",
+    stage: "reviewing",
+    round: 1,
+    text: "TAIL",
+    at: 2,
+    updatedAt: 2,
+  });
+  const entry = trace[0];
+  assert.equal(entry?.kind, "reasoning");
+  if (entry?.kind !== "reasoning") return;
   assert.equal(entry.text.length, ORACLE_REVIEW_TRACE_TEXT_CAP);
   assert.ok(entry.text.endsWith("TAIL"));
   assert.equal(entry.truncated, true);

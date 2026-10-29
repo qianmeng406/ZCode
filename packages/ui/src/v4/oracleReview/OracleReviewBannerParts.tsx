@@ -144,7 +144,7 @@ export function ResultSection({
       <CollapsibleContent>
         {/* 与会话正文同源渲染：需求核验常是 markdown 表格，按原文排出可读结构。 */}
         <div className="max-h-72 overflow-y-auto border-t border-border/60 px-3 py-2">
-          <MessageResponse className="text-ui-sm">{body}</MessageResponse>
+          <MessageResponse>{body}</MessageResponse>
         </div>
       </CollapsibleContent>
     </Collapsible>

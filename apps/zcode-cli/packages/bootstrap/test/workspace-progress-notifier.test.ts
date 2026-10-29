@@ -87,9 +87,42 @@ test("工具事件带出待发正文并清空，避免轮末丢尾", () => {
   assert.equal("textDelta" in (notifications[notifications.length - 1] ?? {}), false);
 });
 
-test("思考增量只推进字符数，不产生正文", () => {
+test("思考增量单独带出 reasoningDelta，不混入正文", () => {
   const { notifier, notifications } = collectNotifier();
-  notifier.onProgress({ outputChars: 8, round: 1 });
+  notifier.onProgress({ outputChars: 4, round: 1, reasoningDelta: "先看" });
+  const first = notifications[notifications.length - 1];
+  assert.equal(first?.reasoningDelta, "先看");
+  assert.equal("textDelta" in (first ?? {}), false);
+
+  // 窗口内继续思考：合并到下一次发送，不逐条刷
+  const before = notifications.length;
+  notifier.onProgress({ outputChars: 6, round: 1, reasoningDelta: "上下文" });
+  notifier.onProgress({ outputChars: 8, round: 1, reasoningDelta: "。" });
+  assert.equal(notifications.length, before);
   notifier.flush();
-  assert.equal("textDelta" in (notifications[notifications.length - 1] ?? {}), false);
+  const merged = notifications[notifications.length - 1];
+  assert.equal(merged?.reasoningDelta, "上下文。");
+  assert.equal("textDelta" in (merged ?? {}), false);
+
+  // 没有新思考时 flush 不新增通知；后续纯工具事件也不携带空 reasoningDelta
+  const beforeIdleFlush = notifications.length;
+  notifier.flush();
+  assert.equal(notifications.length, beforeIdleFlush);
+  notifier.onProgress({ outputChars: 9, round: 1, toolName: "Read", toolTarget: "a.ts" });
+  assert.equal("reasoningDelta" in (notifications[notifications.length - 1] ?? {}), false);
+});
+
+test("同一窗口内正文与思考各自累积，工具事件把两者一起带出", () => {
+  const { notifier, notifications } = collectNotifier();
+  notifier.onProgress({ outputChars: 2, round: 1, reasoningDelta: "想" });
+  assert.equal(notifications[notifications.length - 1]?.reasoningDelta, "想");
+  // 首次发送后窗口内继续累积，二者各自独立合并
+  notifier.onProgress({ outputChars: 5, round: 1, textDelta: "答" });
+  notifier.onProgress({ outputChars: 6, round: 1, reasoningDelta: "完" });
+  notifier.onProgress({ outputChars: 6, round: 1, toolName: "Read", toolTarget: "a.ts" });
+
+  const last = notifications[notifications.length - 1];
+  assert.equal(last?.reasoningDelta, "完");
+  assert.equal(last?.textDelta, "答");
+  assert.equal(last?.toolName, "Read");
 });
