@@ -139,3 +139,33 @@ export function parseOracleVerdict(raw: string): OracleVerdictParse {
     ...(limits ? { limits } : {}),
   };
 }
+
+/**
+ * findings 是否为空（结构化判空，供「通过且无问题」的唯一移交豁免使用）。
+ *
+ * 模型对「没有问题」的写法有无限变体（「无」「无问题清单」「（无）」「None」「N/A」…），
+ * 按措辞正则匹配会漏；这里先归一化——去空白、去掉括号/引号/标点这类包装后，只认
+ * 少量明确的空语义占位词，其余一律视为「有问题」。宁可多给一次移交入口，也不把
+ * 真实问题当空结论吞掉。
+ */
+const ORACLE_EMPTY_FINDINGS_WORDS = new Set([
+  "无",
+  "无问题",
+  "无问题清单",
+  "没有问题",
+  "none",
+  "nothing",
+  // 归一化会去掉空白与 "/"，这里存的是归一化后的形态。
+  "nofindings",
+  "noissues",
+  "na",
+]);
+
+export function isOracleFindingsEmpty(text: string): boolean {
+  const normalized = text
+    // 全角空格/零宽字符与所有包装标点不参与判空。
+    .replace(/[\s\u3000\u200b]+/gu, "")
+    .replace(/[（）()【】\[\]「」『』“”"'’‘<>《》。．.，,、:：;；!！?？—–\-_*/\\|~`]/gu, "")
+    .toLowerCase();
+  return normalized.length === 0 || ORACLE_EMPTY_FINDINGS_WORDS.has(normalized);
+}

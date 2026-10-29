@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import {
   buildOracleReviewPrompt,
   isOracleDiffExcludedPath,
+  isOracleFindingsEmpty,
   parseOracleVerdict,
   splitUnifiedDiffIntoOracleSections,
 } from "../src/oracle-review/index.js";
@@ -168,5 +169,41 @@ describe("parseOracleVerdict", () => {
     expect(parsed.findings).toContain("[高] a.ts:1 越界");
     expect(parsed.scope).toBe("工作区改动");
     expect(parsed.limits).toBe("未跑测试");
+  });
+});
+
+describe("isOracleFindingsEmpty", () => {
+  it("空文本与常见空语义占位词判空（含包装标点/全角/大小写变体）", () => {
+    for (const text of [
+      "",
+      "   ",
+      "无",
+      "无。",
+      "（无）",
+      "【无】",
+      "「无」",
+      "无问题清单",
+      "(no issues)",
+      "None",
+      "N/A",
+      "  n/a  ",
+      "没有问题",
+      "无\u3000",
+    ]) {
+      expect(isOracleFindingsEmpty(text), JSON.stringify(text)).toBe(true);
+    }
+  });
+
+  it("任何真实问题文本都不判空（宁可多给移交入口，也不吞掉问题）", () => {
+    for (const text of [
+      "- [高] a.ts:1 越界",
+      "无问题清单，但建议补测试",
+      "没有明显问题，只有命名风格小节",
+      "none of the requirements are covered",
+      "（无）但 [[中]] b.ts 未处理异常",
+      "1",
+    ]) {
+      expect(isOracleFindingsEmpty(text), JSON.stringify(text)).toBe(false);
+    }
   });
 });

@@ -1808,7 +1808,9 @@ function ConversationComposerImpl({
           }
         }
         if (!handoff) claimSubmittedDraft();
-        if (requestedDelivery === "startNow") {
+        // 显式保护而非依赖调用点不传 delivery：移交正文不属于输入框，无论是否被
+        // 传入 startNow 覆盖，都不能清空用户正在编辑的草稿。
+        if (!handoff && requestedDelivery === "startNow") {
           // 原子抢占需要等旧 turn 退出并提交新 TurnStarted ACK；
           // 若编辑器也等整条链路才清空，用户会误以为快捷键未生效。
           // 先清空可见正文；命令拒绝时用冻结 editor state 原样恢复。

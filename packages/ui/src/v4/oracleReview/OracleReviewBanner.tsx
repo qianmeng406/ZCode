@@ -1,4 +1,5 @@
 import { useMemo } from "react";
+import { isOracleFindingsEmpty } from "@zcode/shared/oracle-review";
 import {
   Loader2Icon,
   Maximize2Icon,
@@ -65,12 +66,13 @@ export function OracleReviewBanner({
   ).size;
   // 移交的是审查方最终输出全文（rawOutput），格式解析不再决定「能不能处理」：
   // unknown/insufficient 同样可移交，由主会话自行判读。唯一豁免是「通过且无问题」
-  // 的占位结论——没有可处理的内容，注入下一轮只是浪费一轮。
+  // 的空结论——按结构化判空（isOracleFindingsEmpty）而不是匹配个别措辞，模型写
+  // 「（无）」「无问题清单」「None」等变体时不误给移交按钮，也不会把真实问题吞掉。
   const handoffOutput = result?.rawOutput || findings;
   const canFix =
     Boolean(result) &&
     handoffOutput.length > 0 &&
-    !(result!.verdict === "pass" && /^(无|none)\s*。?$/i.test(findings));
+    !(result!.verdict === "pass" && isOracleFindingsEmpty(findings));
   const fixPrompt = useMemo(
     () => (canFix ? buildOracleFixPrompt(handoffOutput) : ""),
     [canFix, handoffOutput],
