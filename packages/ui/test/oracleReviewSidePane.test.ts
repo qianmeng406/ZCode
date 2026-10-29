@@ -1,12 +1,13 @@
 // @vitest-environment jsdom
 import { createElement } from "react";
-import { act, cleanup, render, screen } from "@testing-library/react";
+import { act, cleanup, fireEvent, render, screen } from "@testing-library/react";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import zhCN from "@/i18n/locales/zh-CN.js";
 import { OracleReviewSidePane } from "@/app-shell/OracleReviewSidePane.js";
 import { createOracleReviewSidePaneTab } from "@/lib/workspaceSidePane.js";
 import {
   clearOracleReviewStoreForTests,
+  seedOracleReviewHistory,
   setOracleReviewState,
 } from "@/v4/oracleReview/oracleReviewStore.js";
 import type { OracleReviewTraceEntry } from "@/v4/oracleReview/oracleReviewSupport.js";
@@ -225,5 +226,100 @@ describe("OracleReviewSidePane", () => {
     const onClose = vi.fn();
     render(createElement(OracleReviewSidePane, { tab, onClose }));
     expect(onClose).toHaveBeenCalled();
+  });
+
+  it("idle 但有持久历史：面板保留，渲染历史结论与完整原文", () => {
+    seedOracleReviewHistory(SESSION_ID, [
+      {
+        reviewId: "rv-hist",
+        sessionId: SESSION_ID,
+        depth: "standard",
+        mode: "manual",
+        target: { rowId: 933, entityId: "e-hist" },
+        verdict: "warn",
+        summary: "分段判据存在合理疑点",
+        findings: "[中] 读取态判据依赖 segment 内部构成",
+        rawOutput: "VERDICT: WARN\n\n原始结论全文",
+        modelLabel: "p/m",
+        createdAt: 1_700_000_000_000,
+        completedAt: 1_700_000_060_000,
+        acknowledgedAt: 1_700_000_070_000,
+      },
+    ]);
+    const onClose = vi.fn();
+    render(createElement(OracleReviewSidePane, { tab, onClose }));
+
+    expect(screen.getByTestId("v4-oracle-review-panel-history")).toBeTruthy();
+    expect(screen.getAllByTestId("v4-oracle-review-history-item")).toHaveLength(1);
+    const historyText = (): string =>
+      screen.getAllByTestId("v4-oracle-review-history-item")[0]?.textContent ?? "";
+    expect(historyText()).toContain("分段判据存在合理疑点");
+    expect(historyText()).toContain("已关闭");
+
+    // 分节默认收起（与会话正文同源渲染），展开后必须能看到问题清单与整段原文。
+    const sectionButton = (title: string): HTMLElement => {
+      const node = screen
+        .getAllByRole("button")
+        .find((candidate) => candidate.textContent === title);
+      expect(node, `找不到分节：${title}`).toBeTruthy();
+      return node!;
+    };
+    fireEvent.click(sectionButton("问题清单"));
+    expect(historyText()).toContain("读取态判据依赖 segment 内部构成");
+    // 格式解析失败时唯一保留的整段原文也必须可回看。
+    fireEvent.click(sectionButton("完整结论"));
+    expect(historyText()).toContain("原始结论全文");
+    // 关掉卡片不等于丢结论：有历史时绝不能自动收起。
+    expect(onClose).not.toHaveBeenCalled();
+  });
+
+  it("历史与当前结果同时存在：当前结果不重复出现在历史区", () => {
+    setOracleReviewState(SESSION_ID, {
+      status: "result",
+      mode: "manual",
+      reviewId: "rv-current",
+      turnRowId: 1,
+      entityId: "e1",
+      verdict: "pass",
+      summary: "当前结论",
+      findings: "无",
+      modelLabel: "p/m",
+      depth: "standard",
+      completedAt: 20,
+    });
+    seedOracleReviewHistory(SESSION_ID, [
+      {
+        reviewId: "rv-current",
+        sessionId: SESSION_ID,
+        depth: "standard",
+        mode: "manual",
+        target: { rowId: 1, entityId: "e1" },
+        verdict: "pass",
+        summary: "当前结论",
+        findings: "无",
+        modelLabel: "p/m",
+        createdAt: 10,
+        completedAt: 20,
+      },
+      {
+        reviewId: "rv-older",
+        sessionId: SESSION_ID,
+        depth: "standard",
+        mode: "manual",
+        target: { rowId: 2, entityId: "e2" },
+        verdict: "fail",
+        summary: "更早的结论",
+        findings: "旧问题",
+        modelLabel: "p/m",
+        createdAt: 1,
+        completedAt: 2,
+      },
+    ]);
+    const { container } = render(createElement(OracleReviewSidePane, { tab, onClose: () => {} }));
+
+    const items = screen.getAllByTestId("v4-oracle-review-history-item");
+    expect(items).toHaveLength(1);
+    expect(items[0]?.textContent).toContain("更早的结论");
+    expect(container.textContent?.split("当前结论").length).toBe(2);
   });
 });

@@ -23,6 +23,7 @@ import {
 } from "@/v4/oracleReview/oracleReviewStore.js";
 import {
   ORACLE_REVIEW_TRACE_TEXT_CAP,
+  resolveOracleReviewPaneAutoClose,
   type OracleReviewState,
   type OracleReviewTraceEntry,
 } from "@/v4/oracleReview/oracleReviewSupport.js";
@@ -82,13 +83,15 @@ export function OracleReviewSidePane({
   const modelLabelOf = (label: string | undefined): string | undefined =>
     formatOracleModelLabel(label, providers);
 
-  // 审查卡片被关闭（store 回到 idle）时面板随之关闭；但持久历史还在时保留面板，
-  // 让用户关闭卡片后仍能回看历次结论（历史条目是 CLI 持久记录，不是状态机）。
-  // 首次挂载即 idle 且无历史的 tab 是陈旧 tab（例如切换 workspace 后恢复的），直接收起。
+  // 审查卡片被关闭（store 回到 idle）时面板随之关闭；但有持久历史时保留面板，
+  // 让用户关闭卡片后仍能回看历次结论。副作用：本会话审查过一次后，面板就不再
+  // 自行消失，只能由用户点 ✕（裁决集中在 resolveOracleReviewPaneAutoClose）。
   // onClose 是宿主内联函数，每次渲染身份都会变；用 ref 保证只请求关闭一次。
   const closeRequestedRef = useRef(false);
   useEffect(() => {
-    if (state.status !== "idle" || history.length > 0 || closeRequestedRef.current) return;
+    if (closeRequestedRef.current) return;
+    if (!resolveOracleReviewPaneAutoClose({ status: state.status, historyCount: history.length }))
+      return;
     closeRequestedRef.current = true;
     onClose();
   }, [state.status, history.length, onClose]);

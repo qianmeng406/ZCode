@@ -19,7 +19,10 @@ import {
   ORACLE_REVIEW_TRACE_TEXT_CAP,
   appendOracleReviewTraceEntry,
   type OracleReviewTraceEntry,
+  resolveOracleReviewPaneAutoClose,
+  resolveOracleHandoffReading,
 } from "../src/v4/oracleReview/oracleReviewSupport.js";
+import { resolveOracleHandoffReading } from "../src/v4/oracleReview/oracleHandoffReading.js";
 import { formatOracleModelLabel } from "../src/v4/oracleReview/oracleReviewModelLabel.js";
 import {
   assembleOracleTurnMaterial,
@@ -1669,4 +1672,53 @@ test("轨迹：恢复的历史记录不带轨迹（只回放结论）", () => {
   });
   assert.equal("trace" in restored ? restored.trace : undefined, undefined);
   assert.equal(restored.status === "result" ? restored.restored : false, true);
+});
+
+test("移交读取态：判据只吃整轮产出事实，段内只剩 userInput 不会卡住", () => {
+  // 本轮还在跑且没有任何产出：结论确实还在读取。
+  assert.equal(
+    resolveOracleHandoffReading({
+      isRunning: true,
+      assistantWorkRowCount: 0,
+      hasAssistantText: false,
+    }),
+    true,
+  );
+  // 出现第一条工作行（思考/工具）即视为已读取并进入处理。
+  assert.equal(
+    resolveOracleHandoffReading({
+      isRunning: true,
+      assistantWorkRowCount: 1,
+      hasAssistantText: false,
+    }),
+    false,
+  );
+  // 只有正文（无工具）同理。
+  assert.equal(
+    resolveOracleHandoffReading({
+      isRunning: true,
+      assistantWorkRowCount: 0,
+      hasAssistantText: true,
+    }),
+    false,
+  );
+  // 本轮结束后一律「已读取」——「正在读取」只属于运行中的空产出窗口。
+  assert.equal(
+    resolveOracleHandoffReading({
+      isRunning: false,
+      assistantWorkRowCount: 0,
+      hasAssistantText: false,
+    }),
+    false,
+  );
+});
+
+test("审查面板自动关闭：只有 idle 且无历史才收起", () => {
+  assert.equal(resolveOracleReviewPaneAutoClose({ status: "idle", historyCount: 0 }), true);
+  // 有历史：关掉卡片不等于丢结论，面板保留（副作用是有历史后只能手动 ✕）。
+  assert.equal(resolveOracleReviewPaneAutoClose({ status: "idle", historyCount: 3 }), false);
+  // 运行中/结果态本来就不该关闭。
+  assert.equal(resolveOracleReviewPaneAutoClose({ status: "pending", historyCount: 0 }), false);
+  assert.equal(resolveOracleReviewPaneAutoClose({ status: "result", historyCount: 0 }), false);
+  assert.equal(resolveOracleReviewPaneAutoClose({ status: "error", historyCount: 0 }), false);
 });

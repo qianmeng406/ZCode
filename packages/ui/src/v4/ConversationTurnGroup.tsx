@@ -62,6 +62,7 @@ import {
   type HighspeedShareMetrics,
 } from "@/highspeed/highspeedTurnStore.js";
 import { isOracleReviewableTurnState } from "@/v4/oracleReview/oracleReviewMaterial.js";
+import { resolveOracleHandoffReading } from "@/v4/oracleReview/oracleReviewSupport.js";
 import type { AssistantPreviewCard } from "@/lib/assistantPreviewCards.js";
 import { useAssistantCodeCommentFeatureEnabled } from "@/AssistantCodeCommentFeatureProvider.js";
 import {
@@ -727,7 +728,7 @@ function ConversationWorkSegmentFlow({
   segment,
   sourceCommandIds,
   context,
-  turnRunning,
+  handoffReading,
   onFork,
   onRetry,
   onEdit,
@@ -745,8 +746,8 @@ function ConversationWorkSegmentFlow({
   segment: ConversationTurnWorkSegment;
   sourceCommandIds: readonly string[];
   context: ConversationRowRenderContext;
-  /** 所属轮的运行态（unit.isRunning）；segment.workStatus 在 controlOnly 等情况下缺席。 */
-  turnRunning?: boolean;
+  /** 移交结论仍处于「正在读取」：由整轮是否已开始产出决定，与 segment 无关。 */
+  handoffReading?: boolean;
   onFork?: (target: ConversationRowTarget) => void;
   onRetry?: (target: ConversationRowTarget) => void;
   onEdit?: ConversationTurnGroupProps["onEdit"];
@@ -795,19 +796,16 @@ function ConversationWorkSegmentFlow({
         let content: React.ReactNode;
 
         if (item.kind === "userInput") {
-          // Oracle 移交行的「读取中」只在主会话还没开始产出时显示：一旦本轮出现
-          // 任何思考/正文/工具行，结论已经被读取并进入处理，必须切换为「已读取」。
-          // 不能用整轮的 isRunning（那样会一直读到本轮结束）。
-          const handoffReading =
-            turnRunning === true &&
-            segment.flowItems.every((flowItem) => flowItem.kind === "userInput");
+          // Oracle 移交行的「读取中」表示结论还没被主会话开始处理。判据必须取整轮的
+          // 产出事实：guide 定界会按段切分，移交输入可能单独成段，段内判据会永远停在
+          // 「正在读取」。产出事实由调用方按 unit 计算后传入。
           const userRow = (
             <ConversationTurnRow
               row={item.row}
               context={context}
               onEdit={item.row.actions?.canEdit === true ? onEdit : undefined}
               editWorkspaceRewindAvailability={editWorkspaceRewindAvailability}
-              turnRunning={handoffReading}
+              turnRunning={handoffReading === true}
             />
           );
           content = userRow;
@@ -1006,6 +1004,13 @@ function ConversationTurnFlow({
   const latestAssistantTextRow = unit.latestAssistantTextRow;
   const canRetryLatestAssistant = latestAssistantTextRow?.actions?.canRetry === true;
   const canForkLatestAssistant = latestAssistantTextRow?.actions?.canFork === true;
+  // 整轮是否已开始产出：工作行（思考/工具）或任一正文都算。只看 unit 级事实，
+  // 不用 segment 内容——guide 会把移交输入与后续产出切到不同段。
+  const handoffReading = resolveOracleHandoffReading({
+    isRunning: unit.isRunning,
+    assistantWorkRowCount: unit.assistantWorkRows.length,
+    hasAssistantText: unit.latestAssistantTextRow !== undefined,
+  });
 
   // 即使恢复了 guide 的 row 全序，也不能让所有 history chunk 共享同一个
   // Collapsible。accepted guide 现在由 CLI workSegments 定界，每段组件自行维护折叠状态。
@@ -1015,7 +1020,7 @@ function ConversationTurnFlow({
         <ConversationWorkSegmentFlow
           key={segment.key}
           segment={segment}
-          turnRunning={unit.isRunning}
+          handoffReading={handoffReading}
           sourceCommandIds={[
             ...segment.flowItems.flatMap((item) =>
               item.kind === "userInput" && item.row.sourceCommandId

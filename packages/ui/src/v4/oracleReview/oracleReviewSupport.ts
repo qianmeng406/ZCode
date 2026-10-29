@@ -235,6 +235,26 @@ export type OracleReviewState =
     };
 
 /**
+ * Oracle 移交行的「正在读取 / 已读取」判定。
+ *
+ * 判据必须只看整轮（render unit）的产出事实：accepted guide 会按段切分工作流
+ * （`unit.workSegments`，新 CLI 直接下发），移交输入可能单独成段，段内判据
+ * （「本段除 userInput 外没有别的条目」）会永远成立，状态行就停在「正在读取」。
+ * 一旦本轮出现任何工作行（思考/工具）或正文，结论就已经被读取并进入处理。
+ */
+export function resolveOracleHandoffReading(input: {
+  /** 所属轮是否仍在运行。 */
+  isRunning: boolean;
+  /** 本轮已产生的工作行（思考/工具调用）数量。 */
+  assistantWorkRowCount: number;
+  /** 本轮是否已有正文行。 */
+  hasAssistantText: boolean;
+}): boolean {
+  if (!input.isRunning) return false;
+  return input.assistantWorkRowCount === 0 && !input.hasAssistantText;
+}
+
+/**
  * 一键修复：把审查方最终输出全文整段移交主会话（VERDICT/SUMMARY/FINDINGS/REQUIREMENTS
  * 等全部段落），由用户亲手触发，不自动循环。不再只移交解析出的 FINDINGS 切片——格式
  * 解析只决定卡片分类外观，段边界切错或整场解析失败都不能丢审查内容，也不阻断移交。
@@ -281,6 +301,21 @@ export function readStoredOracleModelSelection(): ModelSelection | null {
         : null;
     const reasoningLevel =
       optionsRecord && typeof optionsRecord.reasoningLevel === "string"
+/**
+ * 右侧审查面板的自动关闭裁决。
+ *
+ * 审查状态回到 `idle` 表示卡片被关闭 / 清空；此时若本会话已有持久审查历史，
+ * 面板必须留着让用户继续回看结论（关闭卡片不等于丢弃结论）。代价是：只要本会话
+ * 审查过一次，面板就不再自行消失，只能由用户点 ✕ 关闭——这是为可达性有意付出的
+ * 行为变更。完全没有历史的 idle（切换 workspace 后恢复的陈旧 tab）仍自动收起。
+ */
+export function resolveOracleReviewPaneAutoClose(input: {
+  status: OracleReviewState["status"];
+  historyCount: number;
+}): boolean {
+  return input.status === "idle" && input.historyCount === 0;
+}
+
         ? optionsRecord.reasoningLevel.trim()
         : "";
     return {
