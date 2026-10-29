@@ -3368,6 +3368,20 @@ const enUS: Record<string, string> = {
   "settings.forkFeatures.title": "Fork features",
   "settings.forkFeatures.description":
     "Capabilities this build adds on top of upstream. With a switch off, behavior returns to how it was before that feature existed; enable items individually.",
+  "settings.forkFeatures.experimentalBadge": "Experimental",
+  "settings.forkFeatures.noticeTitle": "These features are off by default",
+  "settings.forkFeatures.noticeBody":
+    "This version adds six opt-in features, all off by default. Turn them on one by one, or use a recommended combo below. With a switch off, behavior matches the version before the feature existed.",
+  "settings.forkFeatures.noticeDismiss": "Got it",
+  "settings.forkFeatures.group.presets": "Recommended combos",
+  "settings.forkFeatures.preset.tools": "Long tasks and multi-file edits",
+  "settings.forkFeatures.preset.toolsDescription":
+    "Turns on Monitor, Notebook editing, and multi-file patches at once: wait for conditions, edit notebooks, and change several files in one call.",
+  "settings.forkFeatures.preset.memory": "Editable and capturable memory",
+  "settings.forkFeatures.preset.memoryDescription":
+    "Turns on memory file editing, one-click capture, and manual consolidation so memory becomes maintainable instead of read-only.",
+  "settings.forkFeatures.preset.apply": "Turn on",
+  "settings.forkFeatures.preset.applied": "All on",
   "settings.forkFeatures.group.reviewAndPrompt": "Review and prompting",
   "settings.forkFeatures.group.tools": "Workflows and tools",
   "settings.forkFeatures.group.memory": "Memory",

@@ -40,6 +40,8 @@ function renderSection(overrides: Partial<Parameters<typeof ForkFeaturesSectionC
     onMemoryFileEditingEnabledChange: vi.fn(),
     onMemoryCaptureEnabledChange: vi.fn(),
     onMemoryDreamManualEnabledChange: vi.fn(),
+    onApplyPreset: vi.fn(),
+    onDismissNotice: vi.fn(),
   };
   render(
     createElement(ForkFeaturesSectionContent, {
@@ -52,6 +54,7 @@ function renderSection(overrides: Partial<Parameters<typeof ForkFeaturesSectionC
       memoryCaptureEnabled: false,
       memoryDreamManualEnabled: false,
       memoryEnabled: true,
+      showNotice: false,
       ...handlers,
       ...overrides,
     }),
@@ -125,5 +128,57 @@ describe("ForkFeaturesSectionContent", () => {
 
     fireEvent.click(screen.getByText("settings.forkFeatures.performanceLinkAction"));
     expect(setPendingSettingsSection).toHaveBeenCalledWith("performance");
+  });
+
+  it("applies a recommended preset in one click", () => {
+    const handlers = renderSection();
+
+    fireEvent.click(screen.getAllByText("settings.forkFeatures.preset.apply")[0]);
+    expect(handlers.onApplyPreset).toHaveBeenCalledWith("tools");
+
+    fireEvent.click(screen.getAllByText("settings.forkFeatures.preset.apply")[1]);
+    expect(handlers.onApplyPreset).toHaveBeenCalledWith("memory");
+  });
+
+  it("marks a fully enabled preset as applied and does not dispatch again", () => {
+    const handlers = renderSection({
+      monitorToolEnabled: true,
+      notebookEditEnabled: true,
+      applyPatchEnabled: true,
+    });
+
+    const applied = screen.getByText("settings.forkFeatures.preset.applied");
+    fireEvent.click(applied);
+    expect(handlers.onApplyPreset).not.toHaveBeenCalled();
+  });
+
+  it("disables the memory preset while memory itself is off", () => {
+    renderSection({ memoryEnabled: false });
+
+    // 推荐组合区两个按钮都在，但记忆那个被置灰。
+    const presetButtons = screen
+      .getAllByText("settings.forkFeatures.preset.apply")
+      .map((node) => node.closest("button") as HTMLButtonElement | null);
+    expect(presetButtons).toHaveLength(2);
+    expect(presetButtons.filter((button) => button?.disabled === true)).toHaveLength(1);
+  });
+
+  it("shows the first-visit notice only when asked and reports dismissal", () => {
+    const hidden = renderSection({ showNotice: false });
+    expect(screen.queryByText("settings.forkFeatures.noticeTitle")).toBeNull();
+    cleanup();
+
+    const shown = renderSection({ showNotice: true });
+    expect(screen.getByText("settings.forkFeatures.noticeTitle")).toBeTruthy();
+    fireEvent.click(screen.getByText("settings.forkFeatures.noticeDismiss"));
+    expect(shown.onDismissNotice).toHaveBeenCalledTimes(1);
+    expect(hidden.onDismissNotice).not.toHaveBeenCalled();
+  });
+
+  it("labels default-off features as experimental without tagging shipped ones", () => {
+    renderSection();
+
+    // 6 项默认关闭的功能各一个徽标；promptOptimizer 与 Oracle 审查已随版本发布，不标实验。
+    expect(screen.getAllByText("settings.forkFeatures.experimentalBadge")).toHaveLength(6);
   });
 });

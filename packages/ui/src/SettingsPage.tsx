@@ -29,7 +29,7 @@ import type {
   ZCodeInteractionBehavior,
 } from "@zcode/shared";
 import { BUILTIN_MODEL_PROVIDER_IDS } from "@zcode/shared";
-import { resolveForkFeatures, type ForkFeatureKey } from "@zcode/shared";
+import { resolveForkFeatures, type ForkFeatureKey, type ForkFeatures } from "@zcode/shared";
 import {
   TID_SETTINGS_BACK_BUTTON,
   TID_SETTINGS_PAGE,
@@ -130,6 +130,12 @@ import { useOptionalRemoteWorkspaceController } from "@/remote/useRemoteWorkspac
 import { AppearanceSectionContent } from "./settingsCodePreview.js";
 import { PerformanceSectionContent } from "./settings/PerformanceSection.js";
 import { ForkFeaturesSectionContent } from "./settings/fork-features/ForkFeaturesSection.js";
+import {
+  FORK_FEATURE_PRESETS,
+  dismissForkFeaturesNotice,
+  readForkFeaturesNoticeDismissed,
+  type ForkFeaturePresetId,
+} from "./settings/fork-features/ForkFeaturesSection.js";
 import type { SettingsSectionId } from "@/lib/settingsNavigation.js";
 import { requestPluginStoreOpen } from "@/lib/pluginStoreNavigation.js";
 import {
@@ -1328,6 +1334,28 @@ export function SettingsPage({
     },
     [forkFeatures, updateSharedSettings],
   );
+  const [forkFeaturesNoticeVisible, setForkFeaturesNoticeVisible] = useState(
+    () => !readForkFeaturesNoticeDismissed(),
+  );
+  const handleDismissForkFeaturesNotice = useCallback(() => {
+    dismissForkFeaturesNotice();
+    setForkFeaturesNoticeVisible(false);
+  }, []);
+  const handleApplyForkFeaturePreset = useCallback(
+    async (preset: ForkFeaturePresetId) => {
+      const next: ForkFeatures = { ...forkFeatures };
+      for (const key of FORK_FEATURE_PRESETS[preset]) next[key] = true;
+      await runSettingsActionAsync({
+        featureId: "settings.fork_features",
+        action: `apply_fork_feature_preset_${preset}`,
+        trigger: "button",
+        // 与单项开关同一条写路径：必须提交完整对象，浅合并会把未列出的开关重置。
+        operation: () => updateSharedSettings({ forkFeatures: next }),
+        completed: { resultSource: "shared_settings", stateAfter: "enabled" },
+      });
+    },
+    [forkFeatures, updateSharedSettings],
+  );
   const handleDesktopChromiumHardwareAccelerationChange = useCallback(
     async (enabled: boolean) => {
       await runSettingsActionAsync({
@@ -2408,6 +2436,11 @@ export function SettingsPage({
                               onMemoryDreamManualEnabledChange={(enabled) => {
                                 void handleForkFeatureToggle("memoryDreamManual", enabled);
                               }}
+                              onApplyPreset={(preset) => {
+                                void handleApplyForkFeaturePreset(preset);
+                              }}
+                              showNotice={forkFeaturesNoticeVisible}
+                              onDismissNotice={handleDismissForkFeaturesNotice}
                               memoryEnabled={memoryEnabled}
                             />
                           ) : activeSection === "shortcuts" ? (

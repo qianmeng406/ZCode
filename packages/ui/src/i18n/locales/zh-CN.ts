@@ -3150,6 +3150,20 @@ const zhCN: Record<string, string> = {
   "settings.forkFeatures.title": "定制功能",
   "settings.forkFeatures.description":
     "本版本相对上游新增的能力集中在这里。每个开关关闭时行为回到该功能引入之前，可逐项独立启用。",
+  "settings.forkFeatures.experimentalBadge": "实验",
+  "settings.forkFeatures.noticeTitle": "这些功能默认关闭",
+  "settings.forkFeatures.noticeBody":
+    "本版本新增 6 项定制能力，默认全部关闭。可以逐项开启，也可以用下面的推荐组合一次打开；每个开关关闭时行为回到该功能引入之前。",
+  "settings.forkFeatures.noticeDismiss": "知道了",
+  "settings.forkFeatures.group.presets": "推荐组合",
+  "settings.forkFeatures.preset.tools": "长任务与多文件编辑",
+  "settings.forkFeatures.preset.toolsDescription":
+    "一次开启 Monitor、Notebook 编辑与多文件补丁：等条件、改 notebook、跨文件改动能直接用。",
+  "settings.forkFeatures.preset.memory": "记忆可编辑与沉淀",
+  "settings.forkFeatures.preset.memoryDescription":
+    "一次开启记忆文件编辑、一键沉淀与手动整理，让记忆从只读变成可维护。",
+  "settings.forkFeatures.preset.apply": "一键开启",
+  "settings.forkFeatures.preset.applied": "已全部开启",
   "settings.forkFeatures.group.reviewAndPrompt": "审查与提示词",
   "settings.forkFeatures.group.tools": "工作流与工具",
   "settings.forkFeatures.group.memory": "记忆",
