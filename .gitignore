@@ -75,3 +75,11 @@ packages/desktop/resources/macos-window-bounds/
 __pycache__/
 *.pyc
 .zcode-runtime
+
+# 本地构建/门禁调试的一次性产物：日志、校验和清单，以及为单次推送临时写的 gate-*.cmd。
+# 这些只对当前机器/当前一轮有效，入库会污染历史（脚本里带本机绝对路径）。
+/*.log
+/build-sha256.txt
+/gate*.cmd
+/gate-*.cjs
+/dev-gate.cmd
