@@ -2786,3 +2786,14 @@ function memoryFileSystemPort(
   };
   return port as FileSystemPort;
 }
+
+describe("Bash provider description", () => {
+  it("只在 Monitor 已注册时引导模型改用 Monitor", () => {
+    const withMonitor = createBashToolEntry({ monitorEnabled: true }).metadata.description ?? "";
+    const withoutMonitor = createBashToolEntry({ monitorEnabled: false }).metadata.description ?? "";
+
+    expect(withMonitor).toContain("Monitor");
+    // 关闭时必须一字不提：指向一个本会话不存在的工具只会让模型白烧一个回合。
+    expect(withoutMonitor).not.toContain("Monitor");
+  });
+});

@@ -2,6 +2,8 @@ export function createBashProviderDescription(input: {
   defaultTimeoutMs: number;
   embeddedSearchEnabled?: boolean;
   maxTimeoutMs: number;
+  /** Monitor 是否在本会话注册；描述必须与工具面同源，否则会把模型指向不存在的工具。 */
+  monitorEnabled?: boolean;
 }): string {
   const avoidCommands = input.embeddedSearchEnabled
     ? "`cat`, `head`, `tail`, `sed`, `awk`, or `echo`"
@@ -14,6 +16,11 @@ export function createBashProviderDescription(input: {
     `- IMPORTANT: Avoid using this tool to run ${avoidCommands} commands, unless explicitly instructed or after you have verified that a dedicated tool cannot accomplish your task. Instead, use the appropriate dedicated tool as this will provide a much better experience for the user.`,
     `- \`timeout\` is in milliseconds: default ${input.defaultTimeoutMs}, max ${input.maxTimeoutMs}.`,
     "- `run_in_background` runs the command detached: it keeps running across turns and re-invokes you when it exits. No `&` needed.",
+    ...(input.monitorEnabled === true
+      ? [
+          "- To wait for a condition (a dev server becoming ready, a file appearing, a port accepting connections, a URL answering), use the Monitor tool instead of `sleep` or repeated polling. A long foreground `sleep` blocks the turn and spends context for nothing.",
+        ]
+      : []),
     "",
     "# Git",
     "- Interactive flags (`-i`, e.g. `git rebase -i`, `git add -i`) are not supported in this environment.",

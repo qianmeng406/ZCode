@@ -543,6 +543,7 @@ export function createBashToolEntry(
   options: {
     bashTimeoutPolicy?: BashTimeoutPolicy;
     embeddedSearchEnabled?: boolean;
+    monitorEnabled?: boolean;
   } = {},
 ): ToolEntry {
   const timeoutPolicy = options.bashTimeoutPolicy ?? DEFAULT_BASH_TIMEOUT_POLICY;
@@ -557,6 +558,7 @@ export function createBashToolEntry(
         defaultTimeoutMs: timeoutPolicy.defaultTimeoutMs,
         embeddedSearchEnabled: options.embeddedSearchEnabled,
         maxTimeoutMs: timeoutPolicy.maxTimeoutMs,
+        monitorEnabled: options.monitorEnabled,
       }),
       timeoutMs: timeoutPolicy.defaultTimeoutMs,
     },

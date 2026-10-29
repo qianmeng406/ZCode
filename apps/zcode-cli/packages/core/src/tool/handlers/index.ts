@@ -322,6 +322,8 @@ function resolveBuiltInToolEntryForBranch(
     return createBashToolEntry({
       bashTimeoutPolicy: options.bashTimeoutPolicy,
       embeddedSearchEnabled: options.embeddedSearchEnabled,
+      // 描述与注册用同一个 includeMonitor：关闭时 Bash 不能提一个本会话不存在的工具。
+      monitorEnabled: options.includeMonitor === true,
     });
   }
   if (entry.metadata.name === SUBMIT_RESULT_TOOL_NAME && options.submitResultSchema !== undefined) {

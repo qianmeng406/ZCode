@@ -404,10 +404,13 @@ describe("Edit tool contract", () => {
     });
   });
 
-  it("rejects notebooks in favor of NotebookEdit", async () => {
+  it("rejects notebooks in favor of NotebookEdit when the tool is available", async () => {
     const file = join(tmpDir, "notebook.ipynb");
     const fs = createMemoryFileSystem({ [file]: '{"cells":[]}' });
-    const context = contextWith(fs, { readFileState: createReadFileState(file, '{"cells":[]}') });
+    const context = contextWith(fs, {
+      providerVisibleToolNames: ["Edit", "Read", "Write", "NotebookEdit"],
+      readFileState: createReadFileState(file, '{"cells":[]}'),
+    });
 
     await expect(
       editHandler({ file_path: file, old_string: "cells", new_string: "metadata" }, context),
@@ -416,6 +419,25 @@ describe("Edit tool contract", () => {
       errorCode: 5,
       message: "File is a Jupyter Notebook. Use the NotebookEdit to edit this file.",
     });
+  });
+
+  it("points at a usable path when NotebookEdit is not registered", async () => {
+    const file = join(tmpDir, "notebook.ipynb");
+    const fs = createMemoryFileSystem({ [file]: '{"cells":[]}' });
+    const context = contextWith(fs, {
+      providerVisibleToolNames: ["Edit", "Read", "Write"],
+      readFileState: createReadFileState(file, '{"cells":[]}'),
+    });
+
+    const failure = await editHandler(
+      { file_path: file, old_string: "cells", new_string: "metadata" },
+      context,
+    );
+
+    expect(failure).toMatchObject({ result: false, errorCode: 5 });
+    const message = failure.result === false ? failure.message : "";
+    expect(message).toContain("rewrite the whole document with Write");
+    expect(message).not.toContain("Use the NotebookEdit");
   });
 
   it("requires existing nonempty files to be read before editing", async () => {
@@ -800,6 +822,7 @@ describe("Edit tool contract", () => {
 function contextWith(
   fileSystemPort: MemoryFileSystem,
   options: {
+    providerVisibleToolNames?: readonly string[];
     readFileState?: ReadFileStateMap;
     workingDirectory?: string;
     workspaceRoot?: string;
@@ -812,6 +835,7 @@ function contextWith(
     abortSignal: new AbortController().signal,
     fileSystemPort,
     readFileState: options.readFileState,
+    providerVisibleToolNames: options.providerVisibleToolNames,
     workingDirectory: options.workingDirectory ?? tmpDir,
     workspaceRoot: options.workspaceRoot ?? tmpDir,
     sessionId: "sess_test",

@@ -32,9 +32,13 @@ function revisionFor(path: string, content: string): FileSystemRevision {
   return { id: `rev:${path}:${content.length}`, sizeBytes: content.length, mtimeMs: 1 };
 }
 
-function createMemoryFileSystem(initial: Record<string, string>): MemoryFileSystem {
+function createMemoryFileSystem(
+  initial: Record<string, string>,
+  options: { failWritePaths?: readonly string[] } = {},
+): MemoryFileSystem {
   const files = new Map(Object.entries(initial));
   const written: string[] = [];
+  const failWritePaths = new Set(options.failWritePaths ?? []);
   const port = {
     async stat(request: { path: string }) {
       const content = files.get(request.path);
@@ -74,6 +78,13 @@ function createMemoryFileSystem(initial: Record<string, string>): MemoryFileSyst
       };
     },
     async writeTextFile(request: { path: string; content: string }) {
+      if (failWritePaths.has(request.path)) {
+        throw createFileSystemError({
+          code: "io_error",
+          message: `write failed: ${request.path}`,
+          path: request.path,
+        });
+      }
       files.set(request.path, request.content);
       written.push(request.path);
       return {
@@ -196,6 +207,52 @@ describe("ApplyPatch integration", () => {
       sourceTool: "ApplyPatch",
     });
     expect(readFileState.has(createReadFileStateKey(fileB, 1, undefined))).toBe(false);
+  });
+
+  it("写入中途失败时回滚已应用的文件，工作区回到补丁前", async () => {
+    const fileSystem = createMemoryFileSystem(
+      { [fileA]: "one\ntwo\n", [fileB]: "bye\n" },
+      { failWritePaths: [fileC] },
+    );
+
+    await expect(
+      applyPatchHandler(
+        {
+          patch_text: patch(
+            `*** Update File: ${fileA}`,
+            "@@",
+            "-two",
+            "+changed",
+            `*** Add File: ${fileC}`,
+            "+created",
+          ),
+        },
+        createContext(fileSystem),
+      ),
+    ).rejects.toThrow(/all changes were rolled back/);
+
+    expect(fileSystem.files.get(fileA)).toBe("one\ntwo\n");
+    expect(fileSystem.files.has(fileC)).toBe(false);
+    expect(fileSystem.files.get(fileB)).toBe("bye\n");
+  });
+
+  it("纯重命名：只有 movePath 没有 hunk 也能应用", async () => {
+    const fileSystem = createMemoryFileSystem({ [fileA]: "one\ntwo\n" });
+
+    const output = (await applyPatchHandler(
+      { patch_text: patch(`*** Update File: ${fileA}`, `*** Move to: ${movedA}`) },
+      createContext(fileSystem),
+    )) as ApplyPatchOutput;
+
+    expect(fileSystem.files.has(fileA)).toBe(false);
+    expect(fileSystem.files.get(movedA)).toBe("one\ntwo\n");
+    expect(output.files[0]).toMatchObject({
+      filePath: fileA,
+      type: "move",
+      movePath: movedA,
+      originalFile: "one\ntwo\n",
+      content: "one\ntwo\n",
+    });
   });
 
   it("rewind 候选覆盖全部文件，删除项以 content=null 表示文件不再存在", async () => {

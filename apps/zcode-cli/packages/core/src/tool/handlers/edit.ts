@@ -19,6 +19,7 @@ import {
   EditOutputJsonSchema,
   EditOutputSchema,
   EditErrorCode,
+  NOTEBOOK_EDIT_TOOL_NAME,
   createCoreError,
   isFileSystemPortError,
   type EditInput,
@@ -190,10 +191,16 @@ export const editHandler: ToolHandler = async (input, context) => {
     });
   }
 
-  if (filePath.endsWith(".ipynb")) {
+  if (filePath.toLowerCase().endsWith(".ipynb")) {
+    // NotebookEdit 是否注册就是 fork 开关的运行时事实（与 Read 的 notebook 投影同源）。
+    // 开关关闭时继续指向一个本会话不存在的工具，只会让模型白烧一个回合。
+    const notebookEditAvailable =
+      context.providerVisibleToolNames?.includes(NOTEBOOK_EDIT_TOOL_NAME) === true;
     return editFailure(
       EditErrorCode.NOTEBOOK_FILE,
-      "File is a Jupyter Notebook. Use the NotebookEdit to edit this file.",
+      notebookEditAvailable
+        ? "File is a Jupyter Notebook. Use the NotebookEdit to edit this file."
+        : "File is a Jupyter Notebook and NotebookEdit is not available in this session. Read it as JSON first, then rewrite the whole document with Write to change it.",
     );
   }
 

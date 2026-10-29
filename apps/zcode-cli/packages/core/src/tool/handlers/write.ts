@@ -2,9 +2,14 @@
 // Write Tool Handler
 // ============================================================
 
-import type { ToolHandler, ToolEntry } from "../types.js";
+import type {
+  ToolHandler,
+  ToolHandlerFailure,
+  ToolEntry,
+} from "../types.js";
 import {
   CoreErrorType,
+  NOTEBOOK_EDIT_TOOL_NAME,
   WriteInputJsonSchema,
   WriteInputSchema,
   WriteOutputJsonSchema,
@@ -45,6 +50,14 @@ const WRITE_USER_MODIFIED_NOTE = " The user modified your proposed content befor
 const WRITE_NOT_READ_MESSAGE = "File has not been read yet. Read it first before writing to it.";
 const WRITE_STALE_MESSAGE =
   "File has been modified since read, either by the user or by a linter. Read it again before attempting to write it.";
+
+const WRITE_NOTEBOOK_FILE_ERROR_CODE = 1;
+const WRITE_NOTEBOOK_MESSAGE =
+  "File is a Jupyter Notebook. Use the NotebookEdit tool to edit it cell by cell; Write refuses notebooks so other cells, outputs and metadata are preserved.";
+
+function writeFailure(errorCode: number, message: string): ToolHandlerFailure {
+  return { result: false, errorCode, message };
+}
 
 function formatWriteModelContent(output: unknown): string {
   if (!isRecord(output)) {
@@ -87,6 +100,16 @@ export const writeHandler: ToolHandler = async (input, context) => {
     workingDirectory: context.workingDirectory,
     workspaceRoot: context.workspaceRoot,
   });
+
+  // 与 NotebookEdit 的 provider 描述保持一致：NotebookEdit 可用时 Write 不能整体覆盖 notebook，
+  // 否则 cell 级保真（outputs / metadata）会被绕过。开关关闭时 NotebookEdit 不存在，
+  // Write 必须继续可写，否则 .ipynb 在本会话里就完全改不了了。
+  if (
+    filePath.toLowerCase().endsWith(".ipynb") &&
+    context.providerVisibleToolNames?.includes(NOTEBOOK_EDIT_TOOL_NAME) === true
+  ) {
+    return writeFailure(WRITE_NOTEBOOK_FILE_ERROR_CODE, WRITE_NOTEBOOK_MESSAGE);
+  }
 
   let originalFile: string | null = null;
   let originalEncoding: FileSystemTextEncoding | undefined;

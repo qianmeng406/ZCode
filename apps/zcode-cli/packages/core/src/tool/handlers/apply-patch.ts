@@ -26,6 +26,7 @@ const APPLY_PATCH_MODEL_INSTRUCTIONS = [
   "Use `*** Update File: <path>` with `@@` hunks for existing files. Prefix context lines with a space, removed lines with `-`, and added lines with `+`.",
   "Use `*** Add File: <path>` for new files and prefix every content line with `+`.",
   "Use `*** Delete File: <path>` only when deleting the file is intentional.",
+  "To rename a file, use `*** Update File: <old path>` followed by `*** Move to: <new path>`; hunks are optional and can be omitted for a pure rename.",
   "Patch hunks are logical Unicode text, just like Read output. Updates preserve each existing file's detected original text encoding and line endings when possible, including GB2312, GBK, and GB18030.",
   "If verification fails, re-read the relevant range and provide more exact context; do not switch to Python or shell replacement scripts.",
 ];
@@ -78,56 +79,29 @@ export const applyPatchHandler: ToolHandler = async (input, context) => {
     changes.push(await verifySection(section, context, trace));
   }
 
-  for (const change of changes) {
-    if (change.type === "delete") {
-      await fileSystemPort.removeFile(
-        { path: change.filePath, trace },
-        { signal: context.abortSignal },
-      );
-      context.readFileState?.delete(createReadFileStateKey(change.filePath, 1, undefined));
-      continue;
+  // 多文件补丁不是事务：全部 verify 通过后仍可能在第 N 个文件写入时失败。
+  // 之前的行为是直接抛出、已写文件留在半改状态，模型看到的是一条失败消息，
+  // 但工作区已经变了。这里记录已应用项，失败时按逆序回滚，把「失败」还原成
+  // 「什么都没发生」；回滚自身失败才如实报告残留文件。
+  const applied: VerifiedPatchChange[] = [];
+  try {
+    for (const change of changes) {
+      await applyChange(change, context, trace);
+      applied.push(change);
     }
-
-    const targetPath = change.movePath ?? change.filePath;
-    const writeResult = await fileSystemPort.writeTextFile(
+  } catch (error) {
+    const unrestored = await rollbackChanges(applied, context, trace);
+    throw createPatchError(
+      unrestored.length > 0
+        ? `Patch failed after writing ${applied.length} file(s); rollback could not restore: ${unrestored.join(", ")}. Re-read those files before continuing.`
+        : `Patch failed after writing ${applied.length} file(s); all changes were rolled back. ${describeError(error)}`,
+      ApplyPatchErrorCode.IO_ERROR,
       {
-        path: targetPath,
-        content: change.newContent,
-        encoding: change.encoding,
-        lineEndings: change.lineEndings,
-        createParents: true,
-        atomic: true,
-        expectedRevision: change.type === "update" ? change.revision : undefined,
-        trace,
+        toolCallId: context.toolCallId,
+        ...(unrestored.length > 0 ? { unrestoredFiles: unrestored } : { rolledBack: true }),
       },
-      { signal: context.abortSignal },
+      error,
     );
-
-    // 写后刷新 readFileState：否则同一会话里紧接着的 Edit 会以「未读/陈旧」被拒。
-    // 多文件变更只有一份 metadata 槽位，因此这里不写 readFileStateMetadata——
-    // 单文件工具（Edit/Write/NotebookEdit）才承担 resume 后的 freshness 恢复。
-    if (context.readFileState) {
-      context.readFileState.set(createReadFileStateKey(targetPath, 1, undefined), {
-        path: targetPath,
-        content: change.newContent,
-        offset: undefined,
-        limit: undefined,
-        isPartialView: false,
-        readAt: new Date(),
-        sourceTool: "ApplyPatch",
-        revisionId: writeResult.revision?.id,
-        mtimeMs: normalizeReadFileStateMtimeMs(writeResult.revision?.mtimeMs),
-        sizeBytes: writeResult.revision?.sizeBytes ?? Buffer.byteLength(change.newContent, "utf8"),
-      });
-    }
-
-    if (change.type === "move") {
-      await fileSystemPort.removeFile(
-        { path: change.filePath, trace },
-        { signal: context.abortSignal },
-      );
-      context.readFileState?.delete(createReadFileStateKey(change.filePath, 1, undefined));
-    }
   }
 
   const files = changes.map(toOutputFileChange);
@@ -137,6 +111,142 @@ export const applyPatchHandler: ToolHandler = async (input, context) => {
     summary: files.map(formatSummaryLine).join("\n"),
   } satisfies ApplyPatchOutput;
 };
+
+async function applyChange(
+  change: VerifiedPatchChange,
+  context: Parameters<typeof applyPatchHandler>[1],
+  trace: TraceContext,
+): Promise<void> {
+  const fileSystemPort = context.fileSystemPort!;
+  if (change.type === "delete") {
+    await fileSystemPort.removeFile(
+      { path: change.filePath, trace },
+      { signal: context.abortSignal },
+    );
+    context.readFileState?.delete(createReadFileStateKey(change.filePath, 1, undefined));
+    return;
+  }
+
+  const targetPath = change.movePath ?? change.filePath;
+  const writeResult = await fileSystemPort.writeTextFile(
+    {
+      path: targetPath,
+      content: change.newContent,
+      encoding: change.encoding,
+      lineEndings: change.lineEndings,
+      createParents: true,
+      atomic: true,
+      expectedRevision: change.type === "update" ? change.revision : undefined,
+      trace,
+    },
+    { signal: context.abortSignal },
+  );
+
+  // 写后刷新 readFileState：否则同一会话里紧接着的 Edit 会以「未读/陈旧」被拒。
+  // 多文件变更只有一份 metadata 槽位，因此这里不写 readFileStateMetadata——
+  // 单文件工具（Edit/Write/NotebookEdit）才承担 resume 后的 freshness 恢复。
+  if (context.readFileState) {
+    context.readFileState.set(createReadFileStateKey(targetPath, 1, undefined), {
+      path: targetPath,
+      content: change.newContent,
+      offset: undefined,
+      limit: undefined,
+      isPartialView: false,
+      readAt: new Date(),
+      sourceTool: "ApplyPatch",
+      revisionId: writeResult.revision?.id,
+      mtimeMs: normalizeReadFileStateMtimeMs(writeResult.revision?.mtimeMs),
+      sizeBytes: writeResult.revision?.sizeBytes ?? Buffer.byteLength(change.newContent, "utf8"),
+    });
+  }
+
+  if (change.type === "move") {
+    await fileSystemPort.removeFile(
+      { path: change.filePath, trace },
+      { signal: context.abortSignal },
+    );
+    context.readFileState?.delete(createReadFileStateKey(change.filePath, 1, undefined));
+  }
+}
+
+/**
+ * 逆序撤销已应用的文件变更。
+ *
+ * 回滚是清理路径，不能被调用方的取消信号打断（写入失败本身常常就是 abort），
+ * 所以这里固定使用一个全新的 signal。返回无法恢复的路径列表。
+ */
+async function rollbackChanges(
+  applied: readonly VerifiedPatchChange[],
+  context: Parameters<typeof applyPatchHandler>[1],
+  trace: TraceContext,
+): Promise<string[]> {
+  const fileSystemPort = context.fileSystemPort!;
+  const signal = new AbortController().signal;
+  const unrestored: string[] = [];
+
+  for (const change of [...applied].reverse()) {
+    try {
+      if (change.type === "add") {
+        await removeIfExists(fileSystemPort, change.filePath, trace, signal);
+      } else if (change.type === "move") {
+        // 目标可能已写入、也可能写失败：两种情况下都先清掉目标，再把源恢复成原内容。
+        await removeIfExists(fileSystemPort, change.movePath ?? change.filePath, trace, signal);
+        await fileSystemPort.writeTextFile(
+          {
+            path: change.filePath,
+            content: change.oldContent,
+            encoding: change.encoding,
+            lineEndings: change.lineEndings,
+            createParents: true,
+            atomic: true,
+            trace,
+          },
+          { signal },
+        );
+      } else {
+        await fileSystemPort.writeTextFile(
+          {
+            path: change.filePath,
+            content: change.oldContent,
+            encoding: change.encoding,
+            lineEndings: change.lineEndings,
+            createParents: true,
+            atomic: true,
+            trace,
+          },
+          { signal },
+        );
+      }
+      // 回滚后磁盘内容与 readFileState 是否一致不再有保证：统一丢弃缓存，要求重新读。
+      context.readFileState?.delete(createReadFileStateKey(change.filePath, 1, undefined));
+      if (change.movePath) {
+        context.readFileState?.delete(createReadFileStateKey(change.movePath, 1, undefined));
+      }
+    } catch {
+      unrestored.push(change.movePath ?? change.filePath);
+    }
+  }
+
+  return unrestored;
+}
+
+async function removeIfExists(
+  fileSystemPort: NonNullable<Parameters<typeof applyPatchHandler>[1]["fileSystemPort"]>,
+  filePath: string,
+  trace: TraceContext,
+  signal: AbortSignal,
+): Promise<void> {
+  try {
+    await fileSystemPort.removeFile({ path: filePath, trace }, { signal });
+  } catch (error) {
+    if (isFileSystemPortError(error) && error.code === "not_found") return;
+    throw error;
+  }
+}
+
+function describeError(error: unknown): string {
+  return error instanceof Error ? error.message : String(error);
+}
 
 async function verifySection(
   section: ParsedPatch,
@@ -199,7 +309,9 @@ async function verifyUpdate(
   context: Parameters<typeof applyPatchHandler>[1],
   trace: TraceContext,
 ): Promise<VerifiedPatchChange> {
-  if (section.chunks.length === 0) {
+  // 纯重命名（`*** Update File:` + `*** Move to:` 且没有 hunk）是合法补丁：
+  // 内容不变，只是换路径。之前要求至少一个 hunk，把「重命名」误判成非法补丁。
+  if (section.chunks.length === 0 && section.movePath === undefined) {
     throw createPatchError("Update file section has no hunks", ApplyPatchErrorCode.INVALID_PATCH, {
       filePath: section.path,
       toolCallId: context.toolCallId,
@@ -208,19 +320,21 @@ async function verifyUpdate(
 
   const filePath = resolvePatchPath(section.path, context);
   const read = await readExisting(filePath, context, trace);
-  let patched: string;
-  try {
-    patched = derivePatchedContent(read.content, section.chunks).content;
-  } catch (error) {
-    throw createPatchError(
-      error instanceof Error ? error.message : String(error),
-      ApplyPatchErrorCode.HUNK_NOT_FOUND,
-      {
-        filePath,
-        toolCallId: context.toolCallId,
-      },
-      error,
-    );
+  let patched = read.content;
+  if (section.chunks.length > 0) {
+    try {
+      patched = derivePatchedContent(read.content, section.chunks).content;
+    } catch (error) {
+      throw createPatchError(
+        error instanceof Error ? error.message : String(error),
+        ApplyPatchErrorCode.HUNK_NOT_FOUND,
+        {
+          filePath,
+          toolCallId: context.toolCallId,
+        },
+        error,
+      );
+    }
   }
 
   const movePath = section.movePath ? resolvePatchPath(section.movePath, context) : undefined;

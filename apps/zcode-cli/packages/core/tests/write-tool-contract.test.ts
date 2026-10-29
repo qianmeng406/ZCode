@@ -618,6 +618,7 @@ async function executeWrite(input: unknown, fileSystemPort: FileSystemPort) {
 function contextWith(
   fileSystemPort: FileSystemPort,
   options: {
+    providerVisibleToolNames?: readonly string[];
     readFileState?: ReadFileStateMap;
     workingDirectory?: string;
     workspaceRoot?: string;
@@ -630,6 +631,7 @@ function contextWith(
     abortSignal: new AbortController().signal,
     fileSystemPort,
     readFileState: options.readFileState,
+    providerVisibleToolNames: options.providerVisibleToolNames,
     workingDirectory: options.workingDirectory ?? tmpDir,
     workspaceRoot: options.workspaceRoot ?? tmpDir,
     sessionId: "sess_test",
@@ -857,3 +859,36 @@ function revisionFor(path: string, content: string, mtimeMs = 1): FileSystemRevi
     sizeBytes: Buffer.byteLength(content, "utf8"),
   };
 }
+
+describe("Write notebook guard", () => {
+  it("refuses .ipynb when NotebookEdit is available", async () => {
+    const file = join(tmpDir, "notebook.ipynb");
+    const fs = createMemoryFileSystem({});
+
+    const failure = await writeHandler(
+      { file_path: file, content: '{"cells":[]}' },
+      contextWith(fs, {
+        providerVisibleToolNames: ["Edit", "Read", "Write", "NotebookEdit"],
+      }),
+    );
+
+    expect(failure).toMatchObject({ result: false });
+    const message = failure.result === false ? failure.message : "";
+    expect(message).toContain("Use the NotebookEdit");
+    expect(fs.files.has(file)).toBe(false);
+  });
+
+  it("allows .ipynb when NotebookEdit is not registered", async () => {
+    const file = join(tmpDir, "notebook.ipynb");
+    const fs = createMemoryFileSystem({});
+
+    await expect(
+      writeHandler(
+        { file_path: file, content: '{"cells":[]}' },
+        contextWith(fs, { providerVisibleToolNames: ["Edit", "Read", "Write"] }),
+      ),
+    ).resolves.toMatchObject({ type: "create", filePath: file });
+
+    expect(fs.files.get(file)).toBe('{"cells":[]}');
+  });
+});
