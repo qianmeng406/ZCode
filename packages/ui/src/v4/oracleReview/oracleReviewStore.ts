@@ -99,9 +99,46 @@ export function isCurrentOracleReviewSeq(sessionId: string, seq: number): boolea
 
 // ── 历史投影（持久记录的内存镜像）──
 
-export function getOracleReviewHistory(sessionId: string): readonly ZCodeOracleReviewRecord[] {
-  return histories.get(sessionId) ?? [];
+/** 历史变化订阅：侧栏面板据此在种子/追加后立刻刷新（历史条目是持久事实，不是状态机）。 */
+const historyListeners = new Map<string, Set<() => void>>();
+
+export function subscribeOracleReviewHistory(
+  sessionId: string | null,
+  listener: () => void,
+): () => void {
+  if (sessionId === null) {
+    return () => {};
+  }
+  let sessionListeners = historyListeners.get(sessionId);
+  if (!sessionListeners) {
+    sessionListeners = new Set();
+    historyListeners.set(sessionId, sessionListeners);
+  }
+  sessionListeners.add(listener);
+  return () => {
+    const current = historyListeners.get(sessionId);
+    if (!current) return;
+    current.delete(listener);
+    if (current.size === 0) {
+      historyListeners.delete(sessionId);
+    }
+  };
 }
+
+function notifyOracleReviewHistory(sessionId: string): void {
+  const sessionListeners = historyListeners.get(sessionId);
+  if (!sessionListeners) return;
+  for (const listener of [...sessionListeners]) {
+    listener();
+  }
+}
+
+export function getOracleReviewHistory(sessionId: string): readonly ZCodeOracleReviewRecord[] {
+  return histories.get(sessionId) ?? EMPTY_ORACLE_REVIEW_HISTORY;
+}
+
+/** 稳定的空数组：useSyncExternalStore 的快照必须引用稳定。 */
+const EMPTY_ORACLE_REVIEW_HISTORY: readonly ZCodeOracleReviewRecord[] = Object.freeze([]);
 
 /** 追加一条终态记录（同 reviewId 去重，completedAt 降序，有界保留）。 */
 export function appendOracleReviewHistory(
@@ -117,6 +154,7 @@ export function appendOracleReviewHistory(
       ? merged.slice(0, ORACLE_REVIEW_HISTORY_LIMIT)
       : merged,
   );
+  notifyOracleReviewHistory(sessionId);
 }
 
 /** 会话加载时种入持久记录（空数组也标记已种，避免每次挂载重查）。 */
@@ -137,6 +175,7 @@ export function seedOracleReviewHistory(
       : merged,
   );
   seededSessions.add(sessionId);
+  notifyOracleReviewHistory(sessionId);
 }
 
 export function hasOracleReviewHistoryBeenSeeded(sessionId: string): boolean {
@@ -182,6 +221,7 @@ export function oracleReviewRecordToRestoredResult(
 export function clearOracleReviewStoreForTests(): void {
   states.clear();
   listeners.clear();
+  historyListeners.clear();
   seqs.clear();
   histories.clear();
   seededSessions.clear();

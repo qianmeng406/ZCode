@@ -795,14 +795,19 @@ function ConversationWorkSegmentFlow({
         let content: React.ReactNode;
 
         if (item.kind === "userInput") {
+          // Oracle 移交行的「读取中」只在主会话还没开始产出时显示：一旦本轮出现
+          // 任何思考/正文/工具行，结论已经被读取并进入处理，必须切换为「已读取」。
+          // 不能用整轮的 isRunning（那样会一直读到本轮结束）。
+          const handoffReading =
+            turnRunning === true &&
+            segment.flowItems.every((flowItem) => flowItem.kind === "userInput");
           const userRow = (
             <ConversationTurnRow
               row={item.row}
               context={context}
               onEdit={item.row.actions?.canEdit === true ? onEdit : undefined}
               editWorkspaceRewindAvailability={editWorkspaceRewindAvailability}
-              // Oracle 移交行的「读取中」态：该行启动的轮仍在运行（unit 级事实）。
-              turnRunning={turnRunning}
+              turnRunning={handoffReading}
             />
           );
           content = userRow;

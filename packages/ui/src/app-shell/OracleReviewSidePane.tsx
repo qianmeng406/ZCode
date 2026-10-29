@@ -1,15 +1,24 @@
 import { useCallback, useEffect, useRef, useState, useSyncExternalStore } from "react";
+import type { ZCodeOracleReviewRecord } from "@zcode/shared";
 import { Loader2Icon, OctagonAlertIcon, XIcon } from "lucide-react";
 import { Button } from "@/components/ui/button.js";
 import { cn } from "@/components/lib/utils.js";
 import { ScrollFadeViewport } from "@/components/ui/scroll-fade-viewport.js";
 import { MessageResponse } from "@/components/ai-elements/message.js";
+import {
+  Reasoning,
+  ReasoningContent,
+  ReasoningTrigger,
+} from "@/components/ai-elements/reasoning.js";
+import { GenUiMessageResponse } from "@/gen-ui/index.js";
 import { useZCodeIntl } from "@/i18n/IntlProvider.js";
 import { useModelSelectionView } from "@/hooks/useModelSelectionView.js";
 import type { OracleReviewSidePaneTab } from "@/lib/workspaceSidePane.js";
 import { formatOracleModelLabel } from "@/v4/oracleReview/oracleReviewModelLabel.js";
 import {
+  getOracleReviewHistory,
   getOracleReviewState,
+  subscribeOracleReviewHistory,
   subscribeOracleReviewState,
 } from "@/v4/oracleReview/oracleReviewStore.js";
 import {
@@ -23,6 +32,7 @@ import {
   failureDetail,
   ResultSection,
 } from "@/v4/oracleReview/OracleReviewBannerParts.js";
+import { OracleReviewTraceToolRow } from "@/v4/oracleReview/OracleReviewTraceToolRow.js";
 
 /**
  * Oracle 审查面板：把输入框上方卡片里的「完整结论 + 审查过程」搬到右侧栏。
@@ -51,6 +61,13 @@ export function OracleReviewSidePane({
   );
   const getSnapshot = useCallback(() => getOracleReviewState(sessionId), [sessionId]);
   const state = useSyncExternalStore(subscribe, getSnapshot);
+  // 持久审查历史（会话加载时由 CLI 记录种入）：卡片关闭后仍能在这里查看历次结论。
+  const subscribeHistory = useCallback(
+    (listener: () => void) => subscribeOracleReviewHistory(sessionId, listener),
+    [sessionId],
+  );
+  const getHistorySnapshot = useCallback(() => getOracleReviewHistory(sessionId), [sessionId]);
+  const history = useSyncExternalStore(subscribeHistory, getHistorySnapshot, getHistorySnapshot);
   const modelSelectionView = useModelSelectionView(
     tab.workspacePath,
     tab.remoteSessionId,
@@ -65,15 +82,16 @@ export function OracleReviewSidePane({
   const modelLabelOf = (label: string | undefined): string | undefined =>
     formatOracleModelLabel(label, providers);
 
-  // 审查卡片被关闭（store 回到 idle）时面板随之关闭：面板只在有审查时才有内容。
-  // 首次挂载即 idle 的 tab 是陈旧 tab（例如切换 workspace 后恢复的），直接收起。
+  // 审查卡片被关闭（store 回到 idle）时面板随之关闭；但持久历史还在时保留面板，
+  // 让用户关闭卡片后仍能回看历次结论（历史条目是 CLI 持久记录，不是状态机）。
+  // 首次挂载即 idle 且无历史的 tab 是陈旧 tab（例如切换 workspace 后恢复的），直接收起。
   // onClose 是宿主内联函数，每次渲染身份都会变；用 ref 保证只请求关闭一次。
   const closeRequestedRef = useRef(false);
   useEffect(() => {
-    if (state.status !== "idle" || closeRequestedRef.current) return;
+    if (state.status !== "idle" || history.length > 0 || closeRequestedRef.current) return;
     closeRequestedRef.current = true;
     onClose();
-  }, [state.status, onClose]);
+  }, [state.status, history.length, onClose]);
 
   const viewportRef = useRef<HTMLDivElement | null>(null);
   const previousStatusRef = useRef<OracleReviewState["status"]>(state.status);
@@ -98,6 +116,8 @@ export function OracleReviewSidePane({
   const failure = error ? failureDetail(error) : null;
   const modelLabel = result?.modelLabel ?? (state.status === "idle" ? undefined : state.modelLabel);
   const restored = result?.restored === true;
+  // 历史列表不含当前正在展示的这条结果，避免同一份结论在面板里出现两次。
+  const historyRecords = history.filter((record) => record.reviewId !== result?.reviewId);
   const durationLabel = useDurationLabel(state);
   // 结果已解析出 summary/findings 等分节时，最后一轮「审查中」的原始正文就是同一份
   // 结论，再在过程里重复一遍会让面板显得冗长；只隐藏最后一条（深度审查此前的
@@ -189,7 +209,7 @@ export function OracleReviewSidePane({
               <h3 className="text-ui-sm font-medium text-foreground-subtle">
                 {intl.formatMessage({ id: "chat.oracleReview.summary" })}
               </h3>
-              <MessageResponse className="text-ui-base">{result.summary}</MessageResponse>
+              <MessageResponse>{result.summary}</MessageResponse>
             </section>
           ) : null}
           {failure ? (
@@ -214,13 +234,14 @@ export function OracleReviewSidePane({
                   : intl.formatMessage({ id: "chat.oracleReview.panel.empty" })}
               </p>
             ) : (
-              <div className="flex flex-col gap-1.5">
+              <div className="flex flex-col gap-2">
                 {trace.map((entry, index) =>
                   isHiddenTextEntry(entry, index) ? null : (
                     <TraceEntry
                       key={traceKey(entry, index)}
                       entry={entry}
                       streaming={pending && index === trace.length - 1}
+                      tab={tab}
                     />
                   ),
                 )}
@@ -232,7 +253,7 @@ export function OracleReviewSidePane({
               <h3 className="text-ui-sm font-medium text-foreground-subtle">
                 {intl.formatMessage({ id: "chat.oracleReview.findings" })}
               </h3>
-              <MessageResponse className="text-ui-sm">{result.findings}</MessageResponse>
+              <MessageResponse>{result.findings}</MessageResponse>
             </section>
           ) : null}
           {result?.requirements ? (
@@ -244,44 +265,71 @@ export function OracleReviewSidePane({
           {result?.limits ? (
             <ResultSection titleKey="chat.oracleReview.limits" body={result.limits} />
           ) : null}
+          {historyRecords.length > 0 ? (
+            <section
+              className="flex flex-col gap-2 border-t border-border/60 pt-3"
+              data-testid="v4-oracle-review-panel-history"
+            >
+              <h3 className="text-ui-sm font-medium text-foreground-subtle">
+                {intl.formatMessage({ id: "chat.oracleReview.panel.history" })}
+              </h3>
+              {historyRecords.map((record) => (
+                <HistoryRecordEntry
+                  key={record.reviewId}
+                  record={record}
+                  modelLabel={modelLabelOf(record.modelLabel) ?? record.modelLabel}
+                />
+              ))}
+            </section>
+          ) : null}
         </div>
       </ScrollFadeViewport>
     </div>
   );
 }
 
-function TraceEntry({ entry, streaming }: { entry: OracleReviewTraceEntry; streaming: boolean }) {
+function TraceEntry({
+  entry,
+  streaming,
+  tab,
+}: {
+  entry: OracleReviewTraceEntry;
+  streaming: boolean;
+  tab: OracleReviewSidePaneTab;
+}) {
   const { intl } = useZCodeIntl();
   if (entry.kind === "stage") {
     return (
       <div
-        className="flex items-center gap-1.5 text-ui-sm font-medium text-foreground-subtle"
+        className="flex items-center gap-2 pt-1 text-ui-sm font-medium text-foreground-subtle"
         data-testid="v4-oracle-review-panel-stage"
       >
         <span className="size-1.5 shrink-0 rounded-full bg-foreground-subtle/60" />
-        <span>{intl.formatMessage({ id: STAGE_LABEL_KEYS[entry.stage] })}</span>
+        <span className="shrink-0">
+          {intl.formatMessage({ id: STAGE_LABEL_KEYS[entry.stage] })}
+        </span>
+        <span className="h-px min-w-0 flex-1 bg-border/60" />
       </div>
     );
   }
   if (entry.kind === "tool") {
+    // 会话同款工具行（图标 + 动作标签 + 文件 chip / 命令 + hover），不再是
+    // `#1 Bash …` 的等宽清单：面板里的过程应该和主对话读起来一样。
     return (
-      <div
-        className="flex min-w-0 items-baseline gap-1 pl-3 font-mono text-ui-sm text-foreground-subtle"
-        data-testid="v4-oracle-review-panel-tool"
-      >
-        <span className="shrink-0 tabular-nums">#{entry.round}</span>
-        <span className="shrink-0 text-foreground">{entry.toolName}</span>
-        {entry.target ? <span className="min-w-0 truncate">{entry.target}</span> : null}
+      <div data-testid="v4-oracle-review-panel-tool" data-round={entry.round}>
+        <OracleReviewTraceToolRow
+          toolId={`oracle-review-tool-${entry.round}-${entry.at}`}
+          toolName={entry.toolName}
+          {...(entry.target !== undefined ? { target: entry.target } : {})}
+          workspacePath={tab.workspacePath}
+        />
       </div>
     );
   }
   if (entry.kind === "note") {
     const hasContext = entry.priorCount + entry.turnCount + entry.constraintCount > 0;
     return (
-      <div
-        className="pl-3 text-ui-sm text-foreground-subtle"
-        data-testid="v4-oracle-review-panel-note"
-      >
+      <div className="text-ui-sm text-foreground-subtle" data-testid="v4-oracle-review-panel-note">
         {hasContext
           ? intl.formatMessage(
               { id: "chat.oracleReview.panel.contextCandidates" },
@@ -295,13 +343,42 @@ function TraceEntry({ entry, streaming }: { entry: OracleReviewTraceEntry; strea
       </div>
     );
   }
+  if (entry.kind === "reasoning") {
+    // 会话同款思考块：默认收起，流式时摘要行只显示最新一行；用户点开看完整过程。
+    // 时长优先用轨迹时间戳：面板晚于流式结束才打开时，组件自身计时还没开始。
+    const durationSeconds =
+      !streaming && entry.updatedAt !== undefined
+        ? Math.max(1, Math.ceil((entry.updatedAt - entry.at) / 1000))
+        : undefined;
+    return (
+      <div data-testid="v4-oracle-review-panel-reasoning">
+        <Reasoning
+          className="w-full"
+          isStreaming={streaming}
+          autoCollapseKey={streaming ? null : `${entry.stage}:${entry.round}`}
+          {...(durationSeconds !== undefined ? { duration: durationSeconds } : {})}
+        >
+          <ReasoningTrigger streamingText={entry.text} />
+          <ReasoningContent>{entry.text}</ReasoningContent>
+        </Reasoning>
+      </div>
+    );
+  }
   return (
-    <div className="pl-3" data-testid="v4-oracle-review-panel-text">
-      {/* 与会话正文同一套 markdown/代码块渲染：审查正文里的列表、表格、代码块
-          不再以裸文本展示。 */}
-      <MessageResponse streaming={streaming} className="text-ui-sm">
+    <div data-testid="v4-oracle-review-panel-text">
+      {/* 会话正文同一个渲染器（GenUiMessageResponse → streamdown）：审查正文里的
+          列表、表格、代码块与 gen-ui 引用都按会话里的样子排出。 */}
+      <GenUiMessageResponse
+        completed={!streaming}
+        messageKey={`oracle-review:${entry.stage}:${entry.round}`}
+        streaming={streaming}
+        workspacePath={tab.workspacePath}
+        sessionId={tab.sessionId}
+        {...(tab.workspaceIdentity ? { workspaceIdentity: tab.workspaceIdentity } : {})}
+        {...(tab.remoteSessionId ? { workspaceRemoteSessionId: tab.remoteSessionId } : {})}
+      >
         {entry.text}
-      </MessageResponse>
+      </GenUiMessageResponse>
       {entry.truncated ? (
         <div className="mt-1 text-ui-xs text-foreground-subtle">
           {intl.formatMessage(
@@ -341,5 +418,79 @@ function traceKey(entry: OracleReviewTraceEntry, index: number): string {
   if (entry.kind === "stage") return `s-${entry.stage}-${entry.at}-${index}`;
   if (entry.kind === "tool") return `t-${entry.round}-${entry.at}-${index}`;
   if (entry.kind === "note") return `n-${entry.note}-${index}`;
+  if (entry.kind === "reasoning") return `r-${entry.stage}-${entry.round}-${index}`;
   return `x-${entry.stage}-${entry.round}-${index}`;
+}
+
+/** 历史条目时间（月-日 时:分）：IntlInstance 只暴露 formatMessage，这里手拼以保持确定性。 */
+function formatHistoryTime(completedAt: number): string {
+  const date = new Date(completedAt);
+  const pad = (value: number): string => String(value).padStart(2, "0");
+  return `${pad(date.getMonth() + 1)}-${pad(date.getDate())} ${pad(date.getHours())}:${pad(date.getMinutes())}`;
+}
+
+/**
+ * 持久审查历史条目：审查卡片关闭（acknowledged）后，结论仍可在这里回看。
+ * 数据来自 CLI 持久记录（会话加载时种入 store），不是运行时状态机的投影；
+ * rawOutput 存在时提供整段「完整结论」——格式解析失败时它是唯一完整原文。
+ */
+function HistoryRecordEntry({
+  record,
+  modelLabel,
+}: {
+  record: ZCodeOracleReviewRecord;
+  modelLabel: string;
+}) {
+  const { intl } = useZCodeIntl();
+  const preset = VERDICT_PRESETS[record.verdict];
+  return (
+    <div className="flex flex-col gap-1" data-testid="v4-oracle-review-history-item">
+      <div className="flex min-w-0 items-center gap-2 text-ui-sm">
+        <preset.icon className={cn("size-3.5 shrink-0", preset.iconClassName)} />
+        <span className={cn("shrink-0 font-medium", preset.iconClassName)}>
+          {intl.formatMessage({ id: preset.labelKey })}
+        </span>
+        <span className="shrink-0 tabular-nums text-ui-xs text-foreground-subtle">
+          {formatHistoryTime(record.completedAt)}
+        </span>
+        {record.depth === "deep" ? (
+          <span className="shrink-0 rounded-sm bg-input px-1 py-0.5 text-ui-xs text-foreground-subtle">
+            {intl.formatMessage({ id: "chat.oracleReview.deepBadge" })}
+          </span>
+        ) : null}
+        {record.acknowledgedAt !== undefined ? (
+          <span className="shrink-0 rounded-sm bg-input px-1 py-0.5 text-ui-xs text-foreground-subtle">
+            {intl.formatMessage({ id: "chat.oracleReview.panel.historyAcknowledged" })}
+          </span>
+        ) : null}
+        <span className="min-w-0 flex-1" />
+        <span
+          className="min-w-0 shrink-0 truncate font-mono text-ui-xs text-foreground-subtle"
+          title={record.modelLabel}
+        >
+          {modelLabel}
+        </span>
+      </div>
+      {record.summary ? (
+        <p className="whitespace-pre-wrap break-words text-ui-sm text-foreground">
+          {record.summary}
+        </p>
+      ) : null}
+      {record.findings ? (
+        <ResultSection titleKey="chat.oracleReview.findings" body={record.findings} />
+      ) : null}
+      {record.rawOutput ? (
+        <ResultSection titleKey="chat.oracleReview.panel.rawOutput" body={record.rawOutput} />
+      ) : null}
+      {record.requirements ? (
+        <ResultSection titleKey="chat.oracleReview.requirements" body={record.requirements} />
+      ) : null}
+      {record.scope ? (
+        <ResultSection titleKey="chat.oracleReview.scope" body={record.scope} />
+      ) : null}
+      {record.limits ? (
+        <ResultSection titleKey="chat.oracleReview.limits" body={record.limits} />
+      ) : null}
+    </div>
+  );
 }

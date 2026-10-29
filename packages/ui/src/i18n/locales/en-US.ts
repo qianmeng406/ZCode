@@ -594,6 +594,9 @@ const enUS: Record<string, string> = {
   "chat.oracleReview.panel.truncated": "Long output; only the latest {chars} characters are kept",
   "chat.oracleReview.panel.noTrace":
     "Restored from history: the process cannot be replayed (conclusion only)",
+  "chat.oracleReview.panel.history": "Review history",
+  "chat.oracleReview.panel.historyAcknowledged": "Dismissed",
+  "chat.oracleReview.panel.rawOutput": "Full conclusion",
   "chat.oracleReview.panel.duration": "Took {duration}",
   "chat.oracleReview.panel.contextCandidates":
     "Linked {prior} prior messages · {turns} related turns · {constraints} active constraints",

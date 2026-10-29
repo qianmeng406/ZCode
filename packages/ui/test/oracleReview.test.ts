@@ -57,6 +57,7 @@ import {
   oracleReviewRecordToRestoredResult,
   seedOracleReviewHistory,
   selectRestorableOracleReviewRecord,
+  subscribeOracleReviewHistory,
   setOracleReviewState,
   subscribeOracleReviewState,
 } from "../src/v4/oracleReview/oracleReviewStore.js";
@@ -1104,6 +1105,38 @@ test("审查历史：追加去重、降序、有界；种子合并并标记已�
   );
   assert.equal(hasOracleReviewHistoryBeenSeeded("sess-hist"), true);
   assert.equal(hasOracleReviewHistoryBeenSeeded("sess-other"), false);
+});
+
+test("审查历史：追加/种入通知订阅者，快照引用稳定（侧栏面板依赖）", () => {
+  clearOracleReviewStoreForTests();
+  const record = (reviewId: string, completedAt: number) => ({
+    reviewId,
+    sessionId: "sess-sub",
+    depth: "standard" as const,
+    mode: "manual" as const,
+    target: { rowId: 1, entityId: "e1" },
+    verdict: "pass" as const,
+    summary: "s",
+    findings: "无",
+    modelLabel: "m/x",
+    createdAt: completedAt - 1000,
+    completedAt,
+  });
+  let calls = 0;
+  const unsubscribe = subscribeOracleReviewHistory("sess-sub", () => {
+    calls += 1;
+  });
+  appendOracleReviewHistory("sess-sub", record("a", 100));
+  seedOracleReviewHistory("sess-sub", [record("b", 200)]);
+  assert.equal(calls, 2);
+  // useSyncExternalStore 要求快照引用稳定：未变更时同一引用。
+  const snapshot = getOracleReviewHistory("sess-sub");
+  assert.equal(getOracleReviewHistory("sess-sub"), snapshot);
+  // 无历史的会话返回同一个冻结空数组。
+  assert.equal(getOracleReviewHistory("sess-none"), getOracleReviewHistory("sess-other-none"));
+  unsubscribe();
+  appendOracleReviewHistory("sess-sub", record("c", 300));
+  assert.equal(calls, 2);
 });
 
 test("审查历史：超过上限保留最新", () => {
