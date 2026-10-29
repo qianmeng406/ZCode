@@ -7,6 +7,7 @@ import {
   PROJECT_MEMORY_PREVIEW_LIMIT_EXCEEDED_ERROR_CODE,
   type IMemoryService,
   type MemoryServiceOptions,
+  type ProjectMemoryEditFeature,
   type ProjectMemoryFileSummary,
   type ProjectMemoryWorkspaceSummary,
 } from "./memory.js";
@@ -224,12 +225,35 @@ function getMemoryFileName(_agentId: string): string {
  * 创建 Memory 服务实例
  */
 export function createMemoryService(options: MemoryServiceOptions = {}): IMemoryService {
+  async function isForkFeatureEnabled(feature: ProjectMemoryEditFeature): Promise<boolean> {
+    const reader = options.isForkFeatureEnabled;
+    return reader ? (await reader(feature)) === true : false;
+  }
+
   async function assertMemoryFileEditingEnabled(): Promise<void> {
-    const isEnabled = options.isForkFeatureEnabled;
-    const enabled: boolean = isEnabled ? await isEnabled("memoryFileEditing") : false;
-    if (!enabled) {
+    if (!(await isForkFeatureEnabled("memoryFileEditing"))) {
       throw createMemoryFileError(
         "Project Memory file editing is disabled by settings",
+        FORK_FEATURE_DISABLED_ERROR_CODE,
+      );
+    }
+  }
+
+  /**
+   * 写入路径必须同时认「编辑」和「沉淀」两个开关。
+   *
+   * 一键沉淀走的就是 writeProjectMemoryFile：只开 memoryCapture 时如果这里只认
+   * memoryFileEditing，用户会在确认对话框点保存后收到 FORK_FEATURE_DISABLED——
+   * 两个功能各自独立可用，写入能力必须取并集。
+   */
+  async function assertMemoryFileWriteEnabled(): Promise<void> {
+    const [editing, capture] = await Promise.all([
+      isForkFeatureEnabled("memoryFileEditing"),
+      isForkFeatureEnabled("memoryCapture"),
+    ]);
+    if (!editing && !capture) {
+      throw createMemoryFileError(
+        "Project Memory file writing is disabled by settings",
         FORK_FEATURE_DISABLED_ERROR_CODE,
       );
     }
@@ -501,7 +525,7 @@ export function createMemoryService(options: MemoryServiceOptions = {}): IMemory
     content: string;
     expectedUpdatedAt?: number;
   }): Promise<{ updatedAt: number; size: number }> {
-    await assertMemoryFileEditingEnabled();
+    await assertMemoryFileWriteEnabled();
     const size = Buffer.byteLength(params.content, "utf8");
     if (size > PROJECT_MEMORY_WRITE_MAX_BYTES) {
       throw createMemoryFileError(

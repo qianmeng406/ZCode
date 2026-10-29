@@ -423,6 +423,23 @@ describe("memoryService Project Memory file editing", () => {
     ).rejects.toMatchObject({ code: "FORK_FEATURE_DISABLED" });
   });
 
+  it("只开一键沉淀（memoryCapture）也能写入，但删除仍要求编辑开关", async () => {
+    await writeMemoryFile(workspaceId, "seed.md", "original");
+    const service = createMemoryService({
+      isForkFeatureEnabled: async (feature) => feature === "memoryCapture",
+    });
+
+    // 一键沉淀走的就是 writeProjectMemoryFile：只开 capture 必须能落盘。
+    await expect(
+      service.writeProjectMemoryFile({ workspaceId, fileName: "seed.md", content: "changed" }),
+    ).resolves.toMatchObject({ size: "changed".length });
+
+    // 沉淀不会删文件，删除能力仍然只属于「记忆文件编辑」。
+    await expect(
+      service.deleteProjectMemoryFile({ workspaceId, fileName: "seed.md" }),
+    ).rejects.toMatchObject({ code: "FORK_FEATURE_DISABLED" });
+  });
+
   it("新增条目并返回写入后的 updatedAt/size", async () => {
     await writeMemoryFile(workspaceId, "MEMORY.md", "- [Seed](seed.md) — seed\n");
     const service = enabledService();

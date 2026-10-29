@@ -10,7 +10,13 @@ export const FORK_FEATURE_DISABLED_ERROR_CODE = "FORK_FEATURE_DISABLED";
 /** 索引文件（MEMORY.md）不允许删除：删掉它等于丢掉整个 workspace 的记忆目录结构。 */
 export const PROJECT_MEMORY_INDEX_PROTECTED_ERROR_CODE = "PROJECT_MEMORY_INDEX_PROTECTED";
 
-export type ProjectMemoryEditFeature = "memoryFileEditing";
+/**
+ * 记忆写入口读的 fork 开关。
+ *
+ * `memoryFileEditing` 管「编辑/删除已有记忆」，`memoryCapture` 管「把会话沉淀成新记忆」。
+ * 两者都要写文件，所以写入路径认任意一个；删除只认前者（沉淀不会删文件）。
+ */
+export type ProjectMemoryEditFeature = "memoryFileEditing" | "memoryCapture";
 
 export interface MemoryServiceOptions {
   /**
