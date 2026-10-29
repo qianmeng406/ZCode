@@ -1126,3 +1126,8 @@ exceptions:
     paths:
       - packages/ui/src/v4/oracleReview/OracleReviewTraceToolRow.tsx
     reason: 审查面板的工具行只把 trace 里的 (toolName, target) 映射成主对话 ToolLayout 的摘要渲染属性（图标/动作标签/文件 chip/命令），不持有状态、不发请求；放在 oracleReview 目录是为了与取数、裁决解析同属一套审查 UI，且必须复用主对话的渲染约定而不是再造一套。packages/ui/src/v4/oracleReview 目录未受管，登记为 managed 模块不在本次范围内。
+  - id: review-findings-unmanaged-new
+    rule: unmanaged-new-file
+    paths:
+      - apps/zcode-cli/packages/cli/src/review-findings.ts
+    reason: 从 review-command 拆出的「正文 → 结构化发现项」与「基线指纹读写」纯函数层：解析规则与基线格式各自只有一个真相来源，review-command 因此保持在 800 行以内。无服务依赖、无 UI 依赖，只做文本/JSON 转换，与 cli 目录其余未受管文件同模式。

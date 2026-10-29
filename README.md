@@ -75,27 +75,44 @@ zcode review --base origin/main --json
 zcode review --deep --model zai/glm-4.6
 ```
 
-| 选项                             | 说明                                                                                                                      |
-| -------------------------------- | ------------------------------------------------------------------------------------------------------------------------- |
-| `--base <ref>`                   | 审 `<ref>...HEAD`；与 `--staged` 互斥                                                                                     |
-| `--staged`                       | 只审暂存区                                                                                                                |
-| `--deep`                         | 只读工具多轮取证（默认预算 1200s，标准审查 600s）                                                                         |
-| `--model <providerId>/<modelId>` | 指定审查模型；缺省用 CLI 配置的默认模型                                                                                   |
-| `--fail-on <fail\|warn\|never>`  | 达到该裁决时退出码 1（默认 `fail`）                                                                                       |
-| `--timeout <seconds>`            | 覆盖请求预算                                                                                                              |
-| `--max-diff-bytes <n>`           | 纳入审查的 diff 文本预算（默认 800000）                                                                                   |
-| `--no-commits`                   | 不把最近 8 条提交摘要喂给审查方                                                                                           |
-| `--json`                         | 输出机器可读报告（含 `verdict` / `summary` / `findings` / `scope` / `limits` / `model` / `diff` / `usage` / `elapsedMs`） |
+| 选项                             | 说明                                                                                  |
+| -------------------------------- | ------------------------------------------------------------------------------------- |
+| `--base <ref>`                   | 审 `<ref>...HEAD`；与 `--staged` 互斥                                                 |
+| `--staged`                       | 只审暂存区                                                                            |
+| `--deep`                         | 只读工具多轮取证（默认预算 1200s，标准审查 600s）                                     |
+| `--model <providerId>/<modelId>` | 指定审查模型；缺省用 CLI 配置的默认模型                                               |
+| `--fail-on <fail\|warn\|never>`  | 达到该裁决时退出码 1（默认 `fail`）                                                   |
+| `--timeout <seconds>`            | 覆盖请求预算                                                                          |
+| `--max-diff-bytes <n>`           | 纳入审查的 diff 文本预算（默认 800000）                                               |
+| `--no-commits`                   | 不把最近 8 条提交摘要喂给审查方                                                       |
+| `--allow-empty`                  | 「没有可审改动」按成功处理（退出 0，不调用模型）；CI 里处理空 PR 用                   |
+| `--baseline <file>`              | 抑制基线文件里已接受的发现项；与 `--write-baseline` 互斥                              |
+| `--write-baseline <file>`        | 把本次发现项写成基线文件并退出 0（生成动作，不阻断）                                  |
+| `--format <text\|json\|sarif>`   | 输出格式（默认 `text`）；`sarif` 是 SARIF 2.1.0，可接 code scanning / 行内 annotation |
+| `--json`                         | 等价于 `--format json`（两者同时给出且不一致会报用法错误）                            |
 
-**退出码**：`0` 未被阻断；`1` 达到 `--fail-on` 阈值；`2` 运维错误（无改动、无可用模型、超时、上游异常）。`--json` 在错误时输出 `{ schemaVersion, error: { code, message } }`，`code` 与退出码一一对应。**稳定契约只有 `schemaVersion`、`error.code` 与退出码**；`error.message` 面向人读，会随提示改进而变化（例如补充可用模型列表），CI 不要匹配它的原文。
+`--format json` 的输出含 `verdict` / `summary` / `findings` / **`findingsStructured`** / `scope` / `limits` / `model` / `diff` / `usage` / `elapsedMs`。`findingsStructured` 是 `findings` 自由文本的保守解析：行首的等级词决定 `severity`，正文里出现 `path:line` 时才带 `file`/`line`，识别不到不猜位置。用 `--baseline` 时另带 `suppressedFindings` 与 `baseline: { file, suppressed, verdictBeforeBaseline }`。
+
+**基线（抑制历史问题）**：先把当前结果落盘，再由人审阅后提交，之后每次审查都带上它。
+
+```bash
+zcode review --write-baseline .zcode/review-baseline.json   # 生成（退出 0）
+zcode review --baseline .zcode/review-baseline.json         # 之后每次都带
+```
+
+匹配用的是**指纹**，生成与匹配共用同一算法：发现项带 `file:line` 时按位置匹配（模型换措辞不会让基线失效）；只有文件没有行号时按「文件 + 摘要」；完全没有位置时只按摘要。**取舍写在明处**：位置匹配意味着同一行上的新问题也会被一并抑制，所以基线必须由人审阅，它不是「忽略所有警告」的开关。只有当全部发现项都被基线吸收时裁决才降级为 `pass`；模型判了 FAIL 但一条可解析发现都没有时，基线无从匹配，仍然阻断。
+
+**退出码**：`0` 未被阻断；`1` 达到 `--fail-on` 阈值；`2` 运维错误（无改动且未加 `--allow-empty`、无可用模型、超时、上游异常、基线文件不可读）。`--json`/`--format sarif` 在错误时输出 `{ schemaVersion, error: { code, message } }`，`code` 与退出码一一对应。**稳定契约只有 `schemaVersion`、`error.code` 与退出码**；`error.message` 面向人读，会随提示改进而变化（例如补充可用模型列表），CI 不要匹配它的原文。
 
 CI 示例（不依赖桌面端）：
 
 ```yaml
-- run: zcode review --base "origin/${{ github.base_ref }}" --json --fail-on warn
+- run: zcode review --base "origin/${{ github.base_ref }}" --format json --fail-on warn --allow-empty --baseline .zcode/review-baseline.json
 ```
 
-**边界**：不写会话记录（没有 session 就没有 `conversation_review` 行），`--json` 就是产物；不含会话轮次级审查（`--session/--turn`）；依赖目录、构建产物与 `.zcode/.git` 等路径按仓库统一规则不参与审查，跳过的数量会写进 `diff.excluded`。字段只会按需增补，消费方应忽略不认识的键，不要把 `summary`/`findings` 的措辞当契约。
+仓库内置了 [`.github/workflows/ai-review.yml`](.github/workflows/ai-review.yml)：默认**不启用**（需要 reviewer 模型凭据，凭据不应出现在公共流水线），设置仓库变量 `ZCODE_AI_REVIEW_ENABLED=true` 后才在 PR 上运行，产出 SARIF artifact、job summary 与 code scanning 上传。
+
+**边界**：不写会话记录（没有 session 就没有 `conversation_review` 行），`--json` 就是产物；不含会话轮次级审查（`--session/--turn`）；依赖目录、构建产物与 `.zcode/.git` 等路径按仓库统一规则不参与审查，跳过的数量会写进 `diff.excluded`；未跟踪文件不在 `git diff HEAD` 范围内，CI 里若要覆盖新增文件需先 `git add -N`。字段只会按需增补，消费方应忽略不认识的键，不要把 `summary`/`findings` 的措辞当契约。
 
 ## fork 开关的存储位置
 

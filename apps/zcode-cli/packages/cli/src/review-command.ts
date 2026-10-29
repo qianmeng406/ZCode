@@ -16,6 +16,15 @@ import type { ZCodeApp } from "@zcode/bootstrap";
 import type { RunContext } from "@zcode/shared-types";
 import { loadBootstrapModule } from "./bootstrap-loader.js";
 import type { BootstrapModule, RunDependencies } from "./cli-types.js";
+import {
+  findingFingerprint,
+  parseStructuredFindings,
+  prepareBaselineFile,
+  readBaselineFile,
+  severityForVerdict,
+  writeBaselineFile,
+  type StructuredFinding,
+} from "./review-findings.js";
 
 /**
  * `zcode review`：用 Oracle 审查规则检查工作区或提交范围的改动。
@@ -43,7 +52,11 @@ Options:
   --timeout <seconds>     Override the request budget (default: 600, or 1200 with --deep)
   --max-diff-bytes <n>    Budget for included diff text (default: 800000)
   --no-commits            Do not include recent commit subjects in the prompt
-  --json                  Print a machine-readable report
+  --allow-empty           Treat "no reviewable changes" as success (exit 0) instead of 2
+  --baseline <file>       Suppress findings already accepted in this baseline file
+  --write-baseline <file> Write current findings as a baseline and exit 0 (does not block)
+  --format <text|json|sarif>  Output format (default: text). SARIF is for CI code scanning
+  --json                  Alias for --format json
 
 Exit codes: 0 not blocked, 1 blocked by --fail-on, 2 operational error.
 `;
@@ -57,6 +70,9 @@ const GIT_TIMEOUT_MS = 60_000;
 type FailOn = "fail" | "warn" | "never";
 const FAIL_ON_VALUES = new Set<FailOn>(["fail", "warn", "never"]);
 
+type OutputFormat = "text" | "json" | "sarif";
+const OUTPUT_FORMATS = new Set<OutputFormat>(["text", "json", "sarif"]);
+
 export interface ReviewCommandFlags {
   base?: string;
   staged?: boolean;
@@ -67,6 +83,10 @@ export interface ReviewCommandFlags {
   timeoutSeconds?: string;
   maxDiffBytes?: string;
   noCommits?: boolean;
+  allowEmpty?: boolean;
+  format?: string;
+  baseline?: string;
+  writeBaseline?: string;
 }
 
 export interface ReviewCommandDependencies extends RunDependencies {
@@ -79,12 +99,15 @@ interface ReviewPlan {
   readonly staged: boolean;
   readonly base?: string;
   readonly deep: boolean;
-  readonly json: boolean;
+  readonly format: OutputFormat;
   readonly failOn: FailOn;
   readonly model?: string;
   readonly timeoutMs: number;
   readonly maxDiffBytes: number;
   readonly includeCommits: boolean;
+  readonly allowEmpty: boolean;
+  readonly baselinePath?: string;
+  readonly writeBaselinePath?: string;
 }
 
 interface ReviewEvidence {
@@ -100,8 +123,13 @@ interface ReviewEvidence {
   readonly completenessNotes: readonly string[];
 }
 
-function reviewError(ctx: RunContext, json: boolean, code: string, message: string): number {
-  if (json) {
+function reviewError(
+  ctx: RunContext,
+  machineReadable: boolean,
+  code: string,
+  message: string,
+): number {
+  if (machineReadable) {
     ctx.stdout.write(
       `${JSON.stringify({ schemaVersion: 1, error: { code, message } }, null, 2)}\n`,
     );
@@ -136,11 +164,29 @@ function parseReviewFlags(flags: ReviewCommandFlags): ReviewPlan | { error: stri
     return { error: `--max-diff-bytes expects a positive integer, got: ${flags.maxDiffBytes}` };
   }
   const deep = flags.deep === true;
+  // --json 是 --format json 的别名；两者同时给出时只允许一致，避免「说了 json 却拿到 text」。
+  const requestedFormat = (flags.format ?? (flags.json === true ? "json" : "text"))
+    .trim()
+    .toLowerCase();
+  if (!OUTPUT_FORMATS.has(requestedFormat as OutputFormat)) {
+    return {
+      error: `Unsupported --format value: ${flags.format}. Use text, json, or sarif.`,
+    };
+  }
+  if (flags.json === true && flags.format !== undefined && requestedFormat !== "json") {
+    return { error: "--json and --format conflict: use --format json instead of both." };
+  }
+  const baselinePath = flags.baseline?.trim();
+  const writeBaselinePath = flags.writeBaseline?.trim();
+  if (baselinePath && writeBaselinePath) {
+    // 一边读基线一边覆盖它，结果取决于执行顺序，属于说不清的行为。
+    return { error: "--baseline and --write-baseline are mutually exclusive." };
+  }
   return {
     staged: flags.staged === true,
     ...(flags.base?.trim() ? { base: flags.base.trim() } : {}),
     deep,
-    json: flags.json === true,
+    format: requestedFormat as OutputFormat,
     failOn: failOn as FailOn,
     ...(flags.model?.trim() ? { model: flags.model.trim() } : {}),
     timeoutMs:
@@ -151,6 +197,9 @@ function parseReviewFlags(flags: ReviewCommandFlags): ReviewPlan | { error: stri
           : ORACLE_REVIEW_REQUEST_TIMEOUT_MS,
     maxDiffBytes: maxDiffBytes ?? DEFAULT_MAX_DIFF_BYTES,
     includeCommits: flags.noCommits !== true,
+    allowEmpty: flags.allowEmpty === true,
+    ...(baselinePath ? { baselinePath } : {}),
+    ...(writeBaselinePath ? { writeBaselinePath } : {}),
   };
 }
 
@@ -307,6 +356,8 @@ function formatHumanReport(input: {
   evidence: ReviewEvidence;
   elapsedMs: number;
   outputTokens?: number;
+  /** 基线相关的补充说明（抑制了多少、写到了哪里）。 */
+  baselineNote?: string;
 }): string {
   const { evidence, verdict } = input;
   const lines = [
@@ -322,11 +373,118 @@ function formatHumanReport(input: {
   if (input.requirements) lines.push("", "REQUIREMENTS:", input.requirements);
   if (input.scope) lines.push("", `SCOPE: ${input.scope}`);
   if (input.limits) lines.push(`LIMITS: ${input.limits}`);
+  if (input.baselineNote) lines.push(`BASELINE: ${input.baselineNote}`);
   lines.push(
     "",
     `elapsed: ${(input.elapsedMs / 1000).toFixed(1)}s${input.outputTokens !== undefined ? ` · output tokens: ${input.outputTokens}` : ""}`,
   );
   return `${lines.join("\n")}\n`;
+}
+
+interface SarifResult {
+  ruleId: string;
+  level: StructuredFinding["severity"];
+  message: { text: string };
+  locations?: Array<{
+    physicalLocation: {
+      artifactLocation: { uri: string };
+      region?: { startLine: number };
+    };
+  }>;
+}
+
+/** 最小 SARIF 2.1.0：只声明 tool/results/invocations，够 GitHub code scanning 吃。 */
+function buildSarifReport(input: {
+  verdict: OracleVerdict;
+  summary: string;
+  findings: readonly StructuredFinding[];
+  evidence: ReviewEvidence;
+  model: ModelSelection;
+  elapsedMs: number;
+  version: string;
+  baselineSuppressed?: number;
+}): string {
+  const results: SarifResult[] = input.findings.map((finding) => ({
+    ruleId: "oracle-review-finding",
+    level: finding.severity,
+    message: { text: finding.message },
+    ...(finding.file
+      ? {
+          locations: [
+            {
+              physicalLocation: {
+                artifactLocation: { uri: finding.file },
+                ...(finding.line ? { region: { startLine: finding.line } } : {}),
+              },
+            },
+          ],
+        }
+      : {}),
+  }));
+  // 裁决为 fail/warn 但模型没给出可解析的发现项时，至少让 SARIF 体现出这次红。
+  if (results.length === 0 && input.verdict !== "pass") {
+    results.push({
+      ruleId: "oracle-review-verdict",
+      level: severityForVerdict(input.verdict),
+      message: { text: input.summary || `Oracle review verdict: ${input.verdict}` },
+    });
+  }
+
+  return `${JSON.stringify(
+    {
+      $schema: "https://json.schemastore.org/sarif-2.1.0.json",
+      version: "2.1.0",
+      runs: [
+        {
+          tool: {
+            driver: {
+              name: "zcode-review",
+              version: input.version,
+              informationUri: "https://github.com/zai-org/ZCode",
+              rules: [
+                {
+                  id: "oracle-review-finding",
+                  name: "OracleReviewFinding",
+                  shortDescription: { text: "Finding reported by the Oracle reviewer" },
+                  defaultConfiguration: { level: "warning" },
+                },
+                {
+                  id: "oracle-review-verdict",
+                  name: "OracleReviewVerdict",
+                  shortDescription: { text: "Overall Oracle review verdict" },
+                  defaultConfiguration: { level: "warning" },
+                },
+              ],
+            },
+          },
+          results,
+          invocations: [{ executionSuccessful: true }],
+          properties: {
+            oracleVerdict: input.verdict,
+            oracleSummary: input.summary,
+            oracleModel: `${input.model.providerId}/${input.model.modelId}`,
+            oracleDiffFiles: input.evidence.fileCount,
+            oracleDiffTruncated: input.evidence.truncated,
+            oracleElapsedMs: input.elapsedMs,
+            ...(input.baselineSuppressed !== undefined
+              ? { oracleBaselineSuppressed: input.baselineSuppressed }
+              : {}),
+          },
+        },
+      ],
+    },
+    null,
+    2,
+  )}\n`;
+}
+
+/** plan 还没建立时（用法错误）也要判断「用户要的是机器可读输出」。 */
+function wantsMachineOutput(flags: ReviewCommandFlags): boolean {
+  if (flags.format !== undefined) {
+    const format = flags.format.trim().toLowerCase();
+    return format === "json" || format === "sarif";
+  }
+  return flags.json === true;
 }
 
 export async function runReviewCommand(
@@ -336,24 +494,82 @@ export async function runReviewCommand(
   version: string,
 ): Promise<number> {
   const parsed = parseReviewFlags(flags);
-  if ("error" in parsed) return reviewError(ctx, flags.json === true, "usage", parsed.error);
+  if ("error" in parsed) {
+    return reviewError(ctx, wantsMachineOutput(flags), "usage", parsed.error);
+  }
   const plan = parsed;
   const cwd = (deps.cwd ?? process.cwd)();
   const runGit = deps.runGit ?? defaultRunGit;
+
+  // 基线是纯本地文件：启动模型前先读写预检，路径写错不必等完整审查跑完才发现。
+  const baselineFingerprints = plan.baselinePath
+    ? readBaselineFile(plan.baselinePath)
+    : undefined;
+  if (baselineFingerprints instanceof Error) {
+    return reviewError(
+      ctx,
+      plan.format !== "text",
+      "usage",
+      `Cannot read baseline: ${baselineFingerprints.message}`,
+    );
+  }
+  if (plan.writeBaselinePath) {
+    const prepareError = prepareBaselineFile(plan.writeBaselinePath);
+    if (prepareError) {
+      return reviewError(
+        ctx,
+        plan.format !== "text",
+        "usage",
+        `Cannot write baseline ${plan.writeBaselinePath}: ${prepareError.message}`,
+      );
+    }
+  }
 
   const evidence = await collectReviewEvidence({ cwd, plan, runGit }).catch((error: unknown) =>
     error instanceof Error ? error : new Error(String(error)),
   );
   if (evidence instanceof Error) {
-    return reviewError(ctx, plan.json, "git", evidence.message);
+    return reviewError(ctx, plan.format !== "text", "git", evidence.message);
   }
   if (evidence.sections.length === 0) {
-    return reviewError(
-      ctx,
-      plan.json,
-      "no-diff",
-      `No reviewable ${plan.staged ? "staged " : ""}changes found (cwd: ${cwd}).`,
-    );
+    const emptyMessage = `No reviewable ${plan.staged ? "staged " : ""}changes found (cwd: ${cwd}).`;
+    if (!plan.allowEmpty) {
+      return reviewError(ctx, plan.format !== "text", "no-diff", emptyMessage);
+    }
+    // CI 里「PR 没有改动」是正常状态，默认按运维错误退出 2 会让整条流水线红。
+    // --allow-empty 把它变成一次成功但不调用模型的结果。
+    if (plan.format === "text") {
+      ctx.stdout.write(`${emptyMessage} Nothing to review (--allow-empty).\n`);
+    } else {
+      ctx.stdout.write(
+        `${JSON.stringify(
+          {
+            schemaVersion: 1,
+            verdict: "pass",
+            summary: emptyMessage,
+            findings: "",
+            findingsStructured: [],
+            requirements: null,
+            scope: null,
+            limits: null,
+            model: null,
+            diff: {
+              source: evidence.source,
+              ref: evidence.ref ?? null,
+              files: evidence.fileCount,
+              bytes: evidence.bytes,
+              truncated: evidence.truncated,
+              excluded: evidence.excluded,
+            },
+            elapsedMs: 0,
+            empty: true,
+          },
+          null,
+          2,
+        )}\n`,
+      );
+    }
+    return 0;
   }
 
   const prompt = buildOracleReviewPrompt({
@@ -405,7 +621,7 @@ export async function runReviewCommand(
     if (plan.model && !requested) {
       return reviewError(
         ctx,
-        plan.json,
+        plan.format !== "text",
         "bad-model",
         `Expected --model <providerId>/<modelId>, got: ${plan.model}`,
       );
@@ -420,7 +636,7 @@ export async function runReviewCommand(
         .map((model) => `${model.ref.providerId}/${model.ref.modelId}`);
       return reviewError(
         ctx,
-        plan.json,
+        plan.format !== "text",
         "no-model",
         [
           "No reviewer model configured.",
@@ -449,15 +665,68 @@ export async function runReviewCommand(
     const parsedVerdict = parseOracleVerdict(result.text);
     const elapsedMs = Date.now() - startedAt;
     const outputTokens = result.usage?.outputTokens;
+    const structuredFindings = parseStructuredFindings(parsedVerdict.findings, parsedVerdict.verdict);
 
-    if (plan.json) {
+    // 基线：写模式把当前结果落盘当"已知问题"清单；读模式把命中项从结果与裁决里摘掉。
+    let keptFindings = structuredFindings;
+    let suppressedFindings: StructuredFinding[] = [];
+    let effectiveVerdict = parsedVerdict.verdict;
+    let baselineNote: string | undefined;
+    let baselineWritten: string | undefined;
+
+    if (plan.writeBaselinePath) {
+      try {
+        writeBaselineFile(plan.writeBaselinePath, structuredFindings);
+      } catch (error) {
+        return reviewError(
+          ctx,
+          plan.format !== "text",
+          "usage",
+          `Cannot write baseline ${plan.writeBaselinePath}: ${error instanceof Error ? error.message : String(error)}`,
+        );
+      }
+      baselineWritten = plan.writeBaselinePath;
+      baselineNote = `wrote ${structuredFindings.length} finding(s) to ${plan.writeBaselinePath}`;
+    } else if (plan.baselinePath && baselineFingerprints) {
+      const fingerprints = baselineFingerprints;
+      suppressedFindings = structuredFindings.filter((finding) =>
+        fingerprints.has(findingFingerprint(finding)),
+      );
+      keptFindings = structuredFindings.filter(
+        (finding) => !fingerprints.has(findingFingerprint(finding)),
+      );
+      // 只有当「全部可定位的发现项都被基线吸收」时才降级裁决；
+      // 模型给了 FAIL 却一条可解析发现都没有时，基线无从匹配，必须继续阻断。
+      if (suppressedFindings.length > 0 && keptFindings.length === 0) {
+        effectiveVerdict = "pass";
+      }
+      baselineNote =
+        suppressedFindings.length > 0
+          ? `${suppressedFindings.length} suppressed by ${plan.baselinePath}${effectiveVerdict === "pass" ? " (verdict downgraded to pass)" : ""}`
+          : `no finding matched ${plan.baselinePath}`;
+    }
+
+    if (plan.format === "json") {
       ctx.stdout.write(
         `${JSON.stringify(
           {
             schemaVersion: 1,
-            verdict: parsedVerdict.verdict,
+            verdict: effectiveVerdict,
             summary: parsedVerdict.summary,
             findings: parsedVerdict.findings,
+            // 自由文本之外额外给一份可机读的发现项；位置只在正文里真的有 path:line 时才有。
+            findingsStructured: keptFindings,
+            ...(suppressedFindings.length > 0 ? { suppressedFindings } : {}),
+            ...(plan.baselinePath
+              ? {
+                  baseline: {
+                    file: plan.baselinePath,
+                    suppressed: suppressedFindings.length,
+                    verdictBeforeBaseline: parsedVerdict.verdict,
+                  },
+                }
+              : {}),
+            ...(baselineWritten ? { baselineWritten } : {}),
             requirements: parsedVerdict.requirements ?? null,
             scope: parsedVerdict.scope ?? null,
             limits: parsedVerdict.limits ?? null,
@@ -481,26 +750,43 @@ export async function runReviewCommand(
           2,
         )}\n`,
       );
+    } else if (plan.format === "sarif") {
+      ctx.stdout.write(
+        buildSarifReport({
+          verdict: effectiveVerdict,
+          summary: parsedVerdict.summary,
+          findings: keptFindings,
+          evidence,
+          model: result.selection,
+          elapsedMs,
+          version,
+          ...(plan.baselinePath ? { baselineSuppressed: suppressedFindings.length } : {}),
+        }),
+      );
     } else {
       ctx.stdout.write(
         formatHumanReport({
           ...parsedVerdict,
+          verdict: effectiveVerdict,
           model: result.selection,
           deep: plan.deep,
           evidence,
           elapsedMs,
           ...(outputTokens !== undefined ? { outputTokens } : {}),
+          ...(baselineNote ? { baselineNote } : {}),
         }),
       );
     }
 
-    return resolveExitCode(parsedVerdict.verdict, plan.failOn);
+    // 写基线是一次生成动作，用它的结果去阻断本次运行没有意义。
+    if (plan.writeBaselinePath) return 0;
+    return resolveExitCode(effectiveVerdict, plan.failOn);
   } catch (error) {
     const message = error instanceof Error ? error.message : String(error);
     const aborted = controller.signal.aborted;
     return reviewError(
       ctx,
-      plan.json,
+      plan.format !== "text",
       aborted ? "timeout" : "request",
       aborted ? `Review timed out after ${Math.round(plan.timeoutMs / 1000)}s.` : message,
     );

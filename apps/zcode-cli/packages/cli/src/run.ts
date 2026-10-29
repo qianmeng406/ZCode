@@ -91,6 +91,12 @@ const reviewCommandFlags = (
     ? { maxDiffBytes: values["max-diff-bytes"] }
     : {}),
   ...(values["no-commits"] === true ? { noCommits: true } : {}),
+  ...(typeof values.format === "string" ? { format: values.format } : {}),
+  ...(values["allow-empty"] === true ? { allowEmpty: true } : {}),
+  ...(typeof values.baseline === "string" ? { baseline: values.baseline } : {}),
+  ...(typeof values["write-baseline"] === "string"
+    ? { writeBaseline: values["write-baseline"] }
+    : {}),
 });
 
 /** 只属于 `zcode review` 的旗标；出现在别的命令上必须报错，不能静默忽略。 */
@@ -103,6 +109,10 @@ const REVIEW_ONLY_FLAGS = [
   "timeout",
   "max-diff-bytes",
   "no-commits",
+  "format",
+  "allow-empty",
+  "baseline",
+  "write-baseline",
 ] as const;
 
 const hasReviewOnlyFlag = (values: ReturnType<typeof parseGlobalArgs>["values"]): boolean =>

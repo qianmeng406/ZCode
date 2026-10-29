@@ -1,4 +1,7 @@
 import assert from "node:assert/strict";
+import { existsSync, mkdirSync, mkdtempSync, readFileSync, readdirSync, rmSync, writeFileSync } from "node:fs";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
 import test from "node:test";
 import type { ModelSelection } from "@zcode/shared";
 import {
@@ -6,6 +9,7 @@ import {
   type ReviewCommandDependencies,
   type ReviewCommandFlags,
 } from "../src/review-command.js";
+import { prepareBaselineFile } from "../src/review-findings.js";
 
 const SAMPLE_DIFF = [
   "diff --git a/src/a.ts b/src/a.ts",
@@ -375,4 +379,264 @@ test("review: 排除依赖目录的改动后不进入审查材料", async () => 
   );
   assert.equal(exitCode, 2);
   assert.equal(harness.generateCalls.length, 0);
+});
+
+test("review: --allow-empty 把「无改动」变成成功且不调用模型", async () => {
+  const harness = createHarness();
+  const { ctx, stdout } = createContext();
+  const exitCode = await runReviewCommand(
+    ctx,
+    { json: true, allowEmpty: true },
+    createDeps({ module: harness.module, diff: "" }),
+    "1.0.0",
+  );
+
+  assert.equal(exitCode, 0);
+  assert.equal(harness.generateCalls.length, 0);
+  const payload = JSON.parse(stdout.output());
+  assert.equal(payload.empty, true);
+  assert.equal(payload.verdict, "pass");
+  assert.equal(payload.findingsStructured.length, 0);
+});
+
+test("review: --json 额外给出结构化发现项（file/line 来自正文）", async () => {
+  const harness = createHarness({
+    text: "VERDICT: FAIL\nSUMMARY: 有缺陷\nFINDINGS:\n- [高] a.ts:1 越界",
+  });
+  const { ctx, stdout } = createContext();
+  await runReviewCommand(
+    ctx,
+    { format: "json" },
+    createDeps({ module: harness.module }),
+    "1.0.0",
+  );
+
+  const payload = JSON.parse(stdout.output());
+  assert.deepEqual(payload.findingsStructured, [
+    { severity: "error", message: "[高] a.ts:1 越界", file: "a.ts", line: 1 },
+  ]);
+});
+
+test("review: --format sarif 输出 2.1.0 报告，带等级与位置", async () => {
+  const harness = createHarness({
+    text: "VERDICT: FAIL\nSUMMARY: 有缺陷\nFINDINGS:\n- a.ts:12 越界",
+  });
+  const { ctx, stdout } = createContext();
+  const exitCode = await runReviewCommand(
+    ctx,
+    { format: "sarif" },
+    createDeps({ module: harness.module }),
+    "1.0.0",
+  );
+
+  assert.equal(exitCode, 1);
+  const payload = JSON.parse(stdout.output());
+  assert.equal(payload.version, "2.1.0");
+  const run = payload.runs[0];
+  assert.equal(run.tool.driver.name, "zcode-review");
+  assert.equal(run.results[0].ruleId, "oracle-review-finding");
+  assert.equal(run.results[0].level, "error");
+  assert.equal(
+    run.results[0].locations[0].physicalLocation.artifactLocation.uri,
+    "a.ts",
+  );
+  assert.equal(run.results[0].locations[0].physicalLocation.region.startLine, 12);
+  assert.equal(run.properties.oracleVerdict, "fail");
+});
+
+test("review: --format 非法值与 --json 冲突都按用法错误退出", async () => {
+  const harness = createHarness();
+
+  const unsupported = createContext();
+  assert.equal(
+    await runReviewCommand(
+      unsupported.ctx,
+      { format: "yaml" },
+      createDeps({ module: harness.module }),
+      "1.0.0",
+    ),
+    2,
+  );
+  assert.match(unsupported.stderr.output(), /Unsupported --format value/);
+
+  const conflicting = createContext();
+  assert.equal(
+    await runReviewCommand(
+      conflicting.ctx,
+      { json: true, format: "text" },
+      createDeps({ module: harness.module }),
+      "1.0.0",
+    ),
+    2,
+  );
+  assert.match(conflicting.stderr.output(), /--json and --format conflict/);
+});
+
+const BASELINE_FINDINGS = "VERDICT: FAIL\nSUMMARY: 有缺陷\nFINDINGS:\n- a.ts:12 越界";
+
+function withTempDir<T>(run: (dir: string) => Promise<T>): Promise<T> {
+  const dir = mkdtempSync(join(tmpdir(), "zcode-review-baseline-"));
+  return run(dir).finally(() => {
+    rmSync(dir, { recursive: true, force: true });
+  });
+}
+
+function baselinePayload(fingerprints: readonly string[]): string {
+  return JSON.stringify({
+    schemaVersion: 1,
+    accepted: fingerprints.map((fingerprint) => ({
+      fingerprint,
+      ruleId: "oracle-review-finding",
+      severity: "error",
+      message: "越界",
+    })),
+  });
+}
+
+test("review: --baseline 命中后抑制发现项并把裁决降级为 pass", async () => {
+  await withTempDir(async (dir) => {
+    const baselinePath = join(dir, "baseline.json");
+    writeFileSync(baselinePath, baselinePayload(["loc|a.ts|12"]), "utf8");
+
+    const harness = createHarness({ text: BASELINE_FINDINGS });
+    const { ctx, stdout } = createContext();
+    const exitCode = await runReviewCommand(
+      ctx,
+      { format: "json", baseline: baselinePath },
+      createDeps({ module: harness.module }),
+      "1.0.0",
+    );
+
+    assert.equal(exitCode, 0);
+    const payload = JSON.parse(stdout.output());
+    assert.equal(payload.verdict, "pass");
+    assert.deepEqual(payload.findingsStructured, []);
+    assert.equal(payload.suppressedFindings.length, 1);
+    assert.deepEqual(payload.baseline, {
+      file: baselinePath,
+      suppressed: 1,
+      verdictBeforeBaseline: "fail",
+    });
+  });
+});
+
+test("review: --baseline 未命中时仍然阻断", async () => {
+  await withTempDir(async (dir) => {
+    const baselinePath = join(dir, "baseline.json");
+    writeFileSync(baselinePath, baselinePayload(["loc|a.ts|99"]), "utf8");
+
+    const harness = createHarness({ text: BASELINE_FINDINGS });
+    const { ctx, stdout } = createContext();
+    const exitCode = await runReviewCommand(
+      ctx,
+      { format: "json", baseline: baselinePath },
+      createDeps({ module: harness.module }),
+      "1.0.0",
+    );
+
+    assert.equal(exitCode, 1);
+    const payload = JSON.parse(stdout.output());
+    assert.equal(payload.verdict, "fail");
+    assert.equal(payload.findingsStructured.length, 1);
+    assert.equal(payload.suppressedFindings, undefined);
+  });
+});
+
+test("review: --write-baseline 落盘当前发现项且不阻断", async () => {
+  await withTempDir(async (dir) => {
+    const baselinePath = join(dir, "nested", "baseline.json");
+    const harness = createHarness({ text: BASELINE_FINDINGS });
+    const { ctx, stdout } = createContext();
+    const exitCode = await runReviewCommand(
+      ctx,
+      { format: "json", writeBaseline: baselinePath },
+      createDeps({ module: harness.module }),
+      "1.0.0",
+    );
+
+    assert.equal(exitCode, 0);
+    const payload = JSON.parse(stdout.output());
+    assert.equal(payload.baselineWritten, baselinePath);
+
+    const written = JSON.parse(readFileSync(baselinePath, "utf8"));
+    assert.equal(written.schemaVersion, 1);
+    assert.equal(written.accepted.length, 1);
+    assert.equal(written.accepted[0].fingerprint, "loc|a.ts|12");
+    assert.equal(written.accepted[0].file, "a.ts");
+    assert.equal(written.accepted[0].line, 12);
+  });
+});
+
+test("review: 基线文件不可读或结构不对时按用法错误退出", async () => {
+  await withTempDir(async (dir) => {
+    const broken = join(dir, "broken.json");
+    writeFileSync(broken, "{ not json", "utf8");
+    const harness = createHarness({ text: BASELINE_FINDINGS });
+
+    const malformed = createContext();
+    assert.equal(
+      await runReviewCommand(
+        malformed.ctx,
+        { baseline: broken },
+        createDeps({ module: harness.module }),
+        "1.0.0",
+      ),
+      2,
+    );
+    assert.match(malformed.stderr.output(), /Cannot read baseline/);
+
+    const wrongShape = join(dir, "wrong.json");
+    writeFileSync(wrongShape, JSON.stringify({ schemaVersion: 1, accepted: [{}] }), "utf8");
+    const shape = createContext();
+    assert.equal(
+      await runReviewCommand(
+        shape.ctx,
+        { baseline: wrongShape },
+        createDeps({ module: harness.module }),
+        "1.0.0",
+      ),
+      2,
+    );
+    assert.match(shape.stderr.output(), /non-empty "fingerprint"/);
+  });
+});
+
+test("review: --baseline 与 --write-baseline 互斥", async () => {
+  const harness = createHarness();
+  const { ctx, stderr } = createContext();
+  assert.equal(
+    await runReviewCommand(
+      ctx,
+      { baseline: "a.json", writeBaseline: "b.json" },
+      createDeps({ module: harness.module }),
+      "1.0.0",
+    ),
+    2,
+  );
+  assert.match(stderr.output(), /mutually exclusive/);
+});
+
+test("review-findings: prepareBaselineFile 真的探测可写性且不破坏已有文件", async () => {
+  await withTempDir(async (dir) => {
+    const existing = join(dir, "existing.json");
+    const content = '{"schemaVersion":1,"accepted":[]}';
+    writeFileSync(existing, content, "utf8");
+
+    assert.equal(prepareBaselineFile(existing), undefined);
+    // 追加模式打开不应截断或改写已有基线。
+    assert.equal(readFileSync(existing, "utf8"), content);
+
+    // 父目录不存在时创建后探测通过，且不留下探针文件。
+    assert.equal(prepareBaselineFile(join(dir, "a", "b", "x.json")), undefined);
+    assert.equal(existsSync(join(dir, "a", "b", "x.json")), false);
+    assert.deepEqual(
+      readdirSync(join(dir, "a", "b")).filter((name) => name.startsWith(".zcode-baseline-probe-")),
+      [],
+    );
+
+    // 目标本身是目录：父目录存在但目标不可写，这正是 mkdir 预检漏掉的情形。
+    const asDirectory = join(dir, "sub");
+    mkdirSync(asDirectory);
+    assert.ok(prepareBaselineFile(asDirectory) instanceof Error);
+  });
 });

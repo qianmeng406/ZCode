@@ -1,0 +1,146 @@
+name: AI Review (Oracle)
+
+# 把 `zcode review` 接进 PR 门禁：改动交给第二个模型审一遍，按裁决阻断。
+# 规则与桌面端「Oracle 审查」完全同源（@zcode/shared/oracle-review），这里只是换了个入口。
+#
+# 为什么默认不跑：审查需要一个已配置的 reviewer 模型，而后台 CI 没有 `~/.zcode`
+# provider 配置，凭据也不该出现在公共流水线里。启用方式二选一：
+#   1) 在有凭据的 self-hosted runner 上跑：
+#        仓库变量 ZCODE_AI_REVIEW_ENABLED=true，可选 ZCODE_AI_REVIEW_RUNNER=<runner-label>
+#   2) 托管 runner 上先在 job 里从 secret 恢复 `~/.zcode`（例如加一步解压配置目录），
+#      再打开同一个变量。
+# 未启用时 job 直接跳过，PR 不会因此变红。
+#
+# 可选仓库变量：
+#   ZCODE_AI_REVIEW_FAIL_ON   fail | warn | never（默认 warn：警告也阻断，适合新仓库）
+#   ZCODE_AI_REVIEW_MODEL     <providerId>/<modelId>（默认用 CLI 已配置的默认模型）
+#   ZCODE_AI_REVIEW_RUNNER    self-hosted runner 的 label
+on:
+  pull_request:
+    types: [opened, synchronize, reopened]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  # 上传 SARIF 到 code scanning 需要；私有仓库没有 GHAS 时该步骤已设为不阻断。
+  security-events: write
+
+concurrency:
+  group: ai-review-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+env:
+  NODE_VERSION: "24.14.0"
+  PNPM_VERSION: "10.33.2"
+
+jobs:
+  oracle-review:
+    if: ${{ vars.ZCODE_AI_REVIEW_ENABLED == 'true' }}
+    runs-on: ${{ vars.ZCODE_AI_REVIEW_RUNNER || 'ubuntu-latest' }}
+    timeout-minutes: 30
+    steps:
+      - name: Checkout
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+
+      - name: Setup pnpm
+        uses: pnpm/action-setup@b906affcce14559ad1aafd4ab0e942779e9f58b1 # v4
+        with:
+          version: ${{ env.PNPM_VERSION }}
+
+      - name: Setup Node
+        uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: pnpm
+
+      - name: Install
+        run: pnpm install --frozen-lockfile
+
+      - name: Build CLI
+        run: pnpm --dir apps/zcode-cli build
+
+      # 退出码即门禁：0 未阻断、1 达到 --fail-on 阈值、2 运维错误（无模型/超时/git 失败）。
+      # 2 也让 job 红：CI 里静默通过比红更危险。
+      - name: Oracle review
+        env:
+          REVIEW_MODEL: ${{ vars.ZCODE_AI_REVIEW_MODEL }}
+          REVIEW_FAIL_ON: ${{ vars.ZCODE_AI_REVIEW_FAIL_ON || 'warn' }}
+        run: |
+          set -euo pipefail
+          base="origin/${{ github.base_ref }}"
+          if [ -z "${{ github.base_ref }}" ]; then
+            base="HEAD~1"
+          fi
+          model_args=()
+          if [ -n "${REVIEW_MODEL:-}" ]; then
+            model_args=(--model "$REVIEW_MODEL")
+          fi
+          # 仓库若提交了基线（已接受的历史问题），审查时带上它；没有就不传。
+          baseline_args=()
+          if [ -f .zcode/review-baseline.json ]; then
+            baseline_args=(--baseline .zcode/review-baseline.json)
+          fi
+          node apps/zcode-cli/packages/cli/dist/zcode.cjs review \
+            --base "$base" \
+            --format sarif \
+            --fail-on "$REVIEW_FAIL_ON" \
+            --allow-empty \
+            "${baseline_args[@]}" \
+            "${model_args[@]}" > oracle-review.sarif
+
+      # 把 SARIF 里人能读的部分写进 job summary，失败时也要有上下文。
+      - name: Summarize findings
+        if: always() && hashFiles('oracle-review.sarif') != ''
+        run: |
+          node <<'NODE'
+          const fs = require("node:fs");
+          const path = "oracle-review.sarif";
+          if (!fs.existsSync(path)) process.exit(0);
+          const sarif = JSON.parse(fs.readFileSync(path, "utf8"));
+          const run = (sarif.runs || [])[0] || {};
+          const props = run.properties || {};
+          const lines = [
+            "## Oracle review",
+            "",
+            `- Verdict: **${props.oracleVerdict ?? "unknown"}**`,
+            `- Model: ${props.oracleModel ?? "?"}`,
+            `- Files: ${props.oracleDiffFiles ?? "?"}${props.oracleDiffTruncated ? " (truncated)" : ""}`,
+            ...(props.oracleBaselineSuppressed !== undefined
+              ? [`- Suppressed by baseline: ${props.oracleBaselineSuppressed}`]
+              : []),
+            "",
+          ];
+          const results = run.results || [];
+          if (results.length === 0) {
+            lines.push("No findings reported.");
+          } else {
+            lines.push("| Level | Finding |", "| --- | --- |");
+            for (const result of results) {
+              const text = String(result.message?.text ?? "").replace(/\|/gu, "\\|").replace(/\s+/gu, " ");
+              lines.push(`| ${result.level} | ${text} |`);
+            }
+          }
+          fs.appendFileSync(process.env.GITHUB_STEP_SUMMARY, `${lines.join("\n")}\n`);
+          NODE
+
+      - name: Upload SARIF artifact
+        if: always() && hashFiles('oracle-review.sarif') != ''
+        continue-on-error: true
+        uses: actions/upload-artifact@v4
+        with:
+          name: oracle-review-sarif
+          path: oracle-review.sarif
+          if-no-files-found: ignore
+
+      # 仓库启用 GitHub code scanning 后，这一步会把发现项显示成 PR 行内 annotation。
+      # 私有仓库未开 GHAS 时会上传失败，因此不阻断。
+      - name: Upload to code scanning
+        if: always() && hashFiles('oracle-review.sarif') != ''
+        continue-on-error: true
+        uses: github/codeql-action/upload-sarif@v3
+        with:
+          sarif_file: oracle-review.sarif
+          category: oracle-review

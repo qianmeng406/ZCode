@@ -131,6 +131,20 @@ export const parseGlobalArgs = (argv: string[]) =>
       "no-commits": {
         type: "boolean",
       },
+      // 与全局 --output-format 分开：那个只有 text/json/stream-json 三种，
+      // review 还需要 sarif，且不该让别的命令接受它。
+      format: {
+        type: "string",
+      },
+      "allow-empty": {
+        type: "boolean",
+      },
+      baseline: {
+        type: "string",
+      },
+      "write-baseline": {
+        type: "string",
+      },
     },
     strict: true,
   });
