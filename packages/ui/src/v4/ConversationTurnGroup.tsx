@@ -727,6 +727,7 @@ function ConversationWorkSegmentFlow({
   segment,
   sourceCommandIds,
   context,
+  turnRunning,
   onFork,
   onRetry,
   onEdit,
@@ -744,6 +745,8 @@ function ConversationWorkSegmentFlow({
   segment: ConversationTurnWorkSegment;
   sourceCommandIds: readonly string[];
   context: ConversationRowRenderContext;
+  /** 所属轮的运行态（unit.isRunning）；segment.workStatus 在 controlOnly 等情况下缺席。 */
+  turnRunning?: boolean;
   onFork?: (target: ConversationRowTarget) => void;
   onRetry?: (target: ConversationRowTarget) => void;
   onEdit?: ConversationTurnGroupProps["onEdit"];
@@ -798,8 +801,8 @@ function ConversationWorkSegmentFlow({
               context={context}
               onEdit={item.row.actions?.canEdit === true ? onEdit : undefined}
               editWorkspaceRewindAvailability={editWorkspaceRewindAvailability}
-              // Oracle 移交行的「读取中」态：该行启动的轮仍在运行。
-              turnRunning={segment.workStatus?.state === "running"}
+              // Oracle 移交行的「读取中」态：该行启动的轮仍在运行（unit 级事实）。
+              turnRunning={turnRunning}
             />
           );
           content = userRow;
@@ -1007,6 +1010,7 @@ function ConversationTurnFlow({
         <ConversationWorkSegmentFlow
           key={segment.key}
           segment={segment}
+          turnRunning={unit.isRunning}
           sourceCommandIds={[
             ...segment.flowItems.flatMap((item) =>
               item.kind === "userInput" && item.row.sourceCommandId

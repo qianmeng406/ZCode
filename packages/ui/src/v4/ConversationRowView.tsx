@@ -1900,6 +1900,37 @@ const MARKER_MODEL_ICON = (
 );
 
 /**
+ * 分隔线视觉本体：两侧细横线 + 居中「图标 + 文案」pill（compact/fork/goal/modelChange
+ * 与 Oracle 移交行共用；样式只有这一份，避免两处拷贝漂移）。
+ */
+function MarkerDividerVisual({
+  icon,
+  label,
+  running = false,
+  clickable = false,
+}: {
+  icon: React.ReactNode;
+  label: React.ReactNode;
+  running?: boolean;
+  clickable?: boolean;
+}) {
+  return (
+    <>
+      <div aria-hidden="true" className="h-px min-w-8 flex-1 bg-border/50" />
+      <span className="inline-flex min-w-0 shrink items-center justify-center gap-1.5 text-center leading-5">
+        {running ? null : icon}
+        <span
+          className={`min-w-0 break-words${running ? " animated-gradient-text font-medium" : ""}${clickable ? " underline-offset-4 group-hover/marker:underline" : ""}`}
+        >
+          {label}
+        </span>
+      </span>
+      <div aria-hidden="true" className="h-px min-w-8 flex-1 bg-border/50" />
+    </>
+  );
+}
+
+/**
  * 系统标记分隔线壳：两侧细横线 + 居中「图标 + 文案」pill，视觉对齐旧版
  * ChatMessage synthetic-timeline dividers（fork / compaction / goal 同款）。
  * running（压缩/校验进行中）隐藏图标、文案走 animated-gradient-text 流光（同旧版）。
@@ -1916,7 +1947,7 @@ function MarkerDividerRow({
   onClick,
 }: {
   rowId: number;
-  markerType: TimelineMarkerRow["marker"]["type"] | "oracleReviewHandoff";
+  markerType: TimelineMarkerRow["marker"]["type"];
   markerStatus: string;
   markerOrigin?: string;
   markerSourceCommandId?: string;
@@ -1930,18 +1961,7 @@ function MarkerDividerRow({
   const rowClassName =
     "flex w-full items-center gap-3 px-4 py-2 text-ui-base text-[var(--color-foreground-subtle)]";
   const inner = (
-    <>
-      <div aria-hidden="true" className="h-px min-w-8 flex-1 bg-border/50" />
-      <span className="inline-flex min-w-0 shrink items-center justify-center gap-1.5 text-center leading-5">
-        {running ? null : icon}
-        <span
-          className={`min-w-0 break-words${running ? " animated-gradient-text font-medium" : ""}${clickable ? " underline-offset-4 group-hover/marker:underline" : ""}`}
-        >
-          {label}
-        </span>
-      </span>
-      <div aria-hidden="true" className="h-px min-w-8 flex-1 bg-border/50" />
-    </>
+    <MarkerDividerVisual icon={icon} label={label} running={running} clickable={clickable} />
   );
   if (onClick) {
     // 整行 <button>（对齐旧版 fork divider）：hover 变亮 + 文案下划线示意可点。
@@ -2373,12 +2393,13 @@ const SubagentRowView = memo(function SubagentRowView({ row }: { row: SubagentRo
 
 /**
  * Oracle 移交行：「按建议处理」把审查方完整结论注入主会话的那条 userInput。
- * 逻辑上它是启动下一轮的真实输入（排队/抢占语义与手打发送一致），视觉上画成
- * compact marker 同款状态分隔线——轮运行中显示「正在读取审查结果」流光，结束后
- * 固化为「已读取审查结果」。完整结论仍在右侧审查面板可查。
+ * 逻辑上它是启动下一轮的真实输入（排队/抢占语义与手打发送一致），视觉上复用
+ * MarkerDividerVisual 画成状态分隔线——轮运行中显示「正在读取审查结果」流光，
+ * 结束后固化为「已读取审查结果」；点击打开右侧审查面板查看完整结论与逐轮过程。
  */
 const OracleHandoffRowView = memo(function OracleHandoffRowView({
   row,
+  context,
   turnRunning = false,
 }: {
   row: UserInputRow;
@@ -2386,6 +2407,42 @@ const OracleHandoffRowView = memo(function OracleHandoffRowView({
   turnRunning?: boolean;
 }) {
   const { intl } = useZCodeIntl();
+  const label = intl.formatMessage({
+    id: turnRunning ? "chat.oracleReview.handoffRunning" : "chat.oracleReview.handoffCompleted",
+  });
+  const icon = (
+    <ScanSearchIcon
+      aria-hidden="true"
+      className="size-3.5 shrink-0 text-[var(--color-foreground-subtle)]"
+    />
+  );
+  const inner = (
+    <MarkerDividerVisual
+      icon={icon}
+      label={label}
+      running={turnRunning}
+      clickable={Boolean(context.onOpenOracleReviewPanel)}
+    />
+  );
+  const rowClassName =
+    "flex w-full items-center gap-3 px-4 py-2 text-ui-base text-[var(--color-foreground-subtle)]";
+  // 点击打开右侧审查面板（与横幅「展开」同一条路径）；宿主未接线时保持静态分隔线。
+  if (context.onOpenOracleReviewPanel) {
+    return (
+      <button
+        type="button"
+        data-row-id={row.rowId}
+        data-row-kind="userInput"
+        data-origin={row.origin}
+        data-source-kind={row.source?.kind}
+        data-testid={testId(TID_V4_ROW, String(row.rowId))}
+        onClick={context.onOpenOracleReviewPanel}
+        className={`group/marker ${rowClassName} text-left transition-colors hover:text-[var(--color-foreground)]`}
+      >
+        {inner}
+      </button>
+    );
+  }
   return (
     <div
       data-row-id={row.rowId}
@@ -2393,27 +2450,9 @@ const OracleHandoffRowView = memo(function OracleHandoffRowView({
       data-origin={row.origin}
       data-source-kind={row.source?.kind}
       data-testid={testId(TID_V4_ROW, String(row.rowId))}
-      className="flex w-full items-center gap-3 px-4 py-2 text-ui-base text-[var(--color-foreground-subtle)]"
+      className={rowClassName}
     >
-      <div aria-hidden="true" className="h-px min-w-8 flex-1 bg-border/50" />
-      <span className="inline-flex min-w-0 shrink items-center justify-center gap-1.5 text-center leading-5">
-        {turnRunning ? null : (
-          <ScanSearchIcon
-            aria-hidden="true"
-            className="size-3.5 shrink-0 text-[var(--color-foreground-subtle)]"
-          />
-        )}
-        <span
-          className={`min-w-0 break-words${turnRunning ? " animated-gradient-text font-medium" : ""}`}
-        >
-          {intl.formatMessage({
-            id: turnRunning
-              ? "chat.oracleReview.handoffRunning"
-              : "chat.oracleReview.handoffCompleted",
-          })}
-        </span>
-      </span>
-      <div aria-hidden="true" className="h-px min-w-8 flex-1 bg-border/50" />
+      {inner}
     </div>
   );
 });

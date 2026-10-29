@@ -3371,6 +3371,19 @@ export function SessionPane({
       // 该开关只控「回合成功后的自动把关」（见 useOracleReview 的 completedSuccess 边沿）。
       reviewTurn: oracleReview.reviewTurnHeader,
       reviewTurnDeep: oracleReview.reviewTurnHeaderDeep,
+      // 移交行点击「已读取审查结果」打开右侧审查面板（完整结论与逐轮过程）。
+      // 与横幅 onOpenPanel 同一份请求形状；只读视图或未接线宿主不提供入口。
+      ...(onOpenOracleReviewPanel && sessionId
+        ? {
+            onOpenOracleReviewPanel: () =>
+              onOpenOracleReviewPanel({
+                sessionId,
+                workspacePath,
+                ...(workspaceIdentity ? { workspaceIdentity } : {}),
+                ...(remoteSessionId ? { remoteSessionId } : {}),
+              }),
+          }
+        : {}),
       captureMemoryTurn: canCaptureMemory
         ? (header, assistantText) => {
             void captureMemoryTurn(header, assistantText);
@@ -3418,6 +3431,7 @@ export function SessionPane({
       handleAutoOpenAssistantPptx,
       assistantPreviewPptxAutoOpenTarget,
       onOpenFileLink,
+      onOpenOracleReviewPanel,
       onOpenSubagentSession,
       handleOpenSubagentSession,
       onOpenPlanDetail,

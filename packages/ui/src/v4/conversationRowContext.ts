@@ -94,6 +94,8 @@ export interface ConversationRowRenderContext {
   assistantPreviewPptxAutoOpenTarget?: { turnId: string; key: string } | null;
   /** Assistant markdown 本地文件链接入口：由 shell 统一 stat 后分流到预览或文件树。 */
   onOpenFileLink?: (target: MessageFileLinkTarget) => void;
+  /** Oracle 审查移交行：点击打开右侧审查面板（完整结论与逐轮过程）；未接线的宿主缺席。 */
+  onOpenOracleReviewPanel?: () => void;
   onOpenSubagentSession?: (request: OpenSubagentSideTabRequest) => void;
   onOpenPlanDetail?: (request: OpenPlanDetailSideTabRequest) => void;
   /** 插件 UI：内联卡片请求在侧栏打开；RowView 补 parentSessionId 与 workspace 字段。 */

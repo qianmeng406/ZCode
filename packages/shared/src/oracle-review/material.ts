@@ -43,7 +43,12 @@ export interface OracleUserInputEntry {
    */
   guided?: boolean;
   /** Oracle 移交行（按建议处理）：正文是上一轮审查结论，不是用户主请求，不参与
-   * targetUserRequest 识别；标签区分同 guided。 */
+   * targetUserRequest 识别；标签区分同 guided。
+   *
+   * 刻意**保留**在材料正文里（与 guided 同一先例），不做物理剔除：它是下一轮的真实
+   * 输入，审查方需要看到「上一轮结论已被移交」才能正确归因助手的改动；剔除会造成
+   * 助手行为缺少前因的材料缺口。防污染落在请求识别两处：
+   * oracleReviewGather 的 targetUserRequest 与 context-fetch 的请求文本取数。 */
   oracleHandoff?: boolean;
   /** 引擎附加文本下标（epilogue 不属于用户原话；0 = 整条都是引擎文本）。 */
   epilogueStart?: number;
