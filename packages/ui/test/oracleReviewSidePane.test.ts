@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
 import { createElement } from "react";
-import { act, cleanup, fireEvent, render, screen } from "@testing-library/react";
+import { act, cleanup, fireEvent, render, screen, within } from "@testing-library/react";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import zhCN from "@/i18n/locales/zh-CN.js";
 import { OracleReviewSidePane } from "@/app-shell/OracleReviewSidePane.js";
@@ -343,7 +343,12 @@ describe("OracleReviewSidePane", () => {
     expect(historyText()).toContain("分段判据存在合理疑点");
     expect(historyText()).toContain("已关闭");
 
-    // 分节默认收起（与会话正文同源渲染），展开后必须能看到问题清单与整段原文。
+    // 条目默认折叠：先展开卡片，再展开分节（分节正文与会话正文同源渲染）。
+    const item = () => screen.getAllByTestId("v4-oracle-review-history-item")[0]!;
+    expect(item().getAttribute("data-open")).toBe("false");
+    fireEvent.click(within(item()).getAllByRole("button")[0]!);
+    expect(item().getAttribute("data-open")).toBe("true");
+
     const sectionButton = (title: string): HTMLElement => {
       const node = screen
         .getAllByRole("button")

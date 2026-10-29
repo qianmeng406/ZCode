@@ -544,6 +544,7 @@ const zhCN: Record<string, string> = {
   "chat.oracleReview.panel.truncated": "过程较长，只保留最近 {chars} 个字符",
   "chat.oracleReview.panel.noTrace": "这条审查来自历史恢复，过程不可回放（仅保留结论）",
   "chat.oracleReview.panel.history": "审查历史",
+  "chat.oracleReview.panel.historyCount": "共 {count} 条",
   "chat.oracleReview.panel.historyAcknowledged": "已关闭",
   "chat.oracleReview.panel.rawOutput": "完整结论",
   "chat.oracleReview.panel.duration": "耗时 {duration}",

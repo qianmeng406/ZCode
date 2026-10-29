@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useRef, useState, useSyncExternalStore } from "react";
 import type { ZCodeOracleReviewRecord } from "@zcode/shared";
-import { Loader2Icon, OctagonAlertIcon, XIcon } from "lucide-react";
+import { ChevronRightIcon, Loader2Icon, OctagonAlertIcon, XIcon } from "lucide-react";
 import { Button } from "@/components/ui/button.js";
 import { cn } from "@/components/lib/utils.js";
 import { ScrollFadeViewport } from "@/components/ui/scroll-fade-viewport.js";
@@ -121,6 +121,9 @@ export function OracleReviewSidePane({
   const restored = result?.restored === true;
   // 历史列表不含当前正在展示的这条结果，避免同一份结论在面板里出现两次。
   const historyRecords = history.filter((record) => record.reviewId !== result?.reviewId);
+  // 没有当前审查、只剩历史时，「审查过程」的空态提示只是噪音——历史本身就是内容。
+  const showTraceSection =
+    trace.length > 0 || result !== null || error !== null || historyRecords.length === 0;
   const durationLabel = useDurationLabel(state);
   // 结果已解析出 summary/findings 等分节时，最后一轮「审查中」的原始正文就是同一份
   // 结论，再在过程里重复一遍会让面板显得冗长；只隐藏最后一条（深度审查此前的
@@ -226,31 +229,33 @@ export function OracleReviewSidePane({
               </p>
             </section>
           ) : null}
-          <section className="flex flex-col gap-1.5" data-testid="v4-oracle-review-panel-trace">
-            <h3 className="text-ui-sm font-medium text-foreground-subtle">
-              {intl.formatMessage({ id: "chat.oracleReview.panel.process" })}
-            </h3>
-            {trace.length === 0 ? (
-              <p className="text-ui-sm text-foreground-subtle">
-                {restored
-                  ? intl.formatMessage({ id: "chat.oracleReview.panel.noTrace" })
-                  : intl.formatMessage({ id: "chat.oracleReview.panel.empty" })}
-              </p>
-            ) : (
-              <div className="flex flex-col gap-2">
-                {trace.map((entry, index) =>
-                  isHiddenTextEntry(entry, index) ? null : (
-                    <TraceEntry
-                      key={traceKey(entry, index)}
-                      entry={entry}
-                      streaming={pending && index === trace.length - 1}
-                      tab={tab}
-                    />
-                  ),
-                )}
-              </div>
-            )}
-          </section>
+          {showTraceSection ? (
+            <section className="flex flex-col gap-1.5" data-testid="v4-oracle-review-panel-trace">
+              <h3 className="text-ui-sm font-medium text-foreground-subtle">
+                {intl.formatMessage({ id: "chat.oracleReview.panel.process" })}
+              </h3>
+              {trace.length === 0 ? (
+                <p className="text-ui-sm text-foreground-subtle">
+                  {restored
+                    ? intl.formatMessage({ id: "chat.oracleReview.panel.noTrace" })
+                    : intl.formatMessage({ id: "chat.oracleReview.panel.empty" })}
+                </p>
+              ) : (
+                <div className="flex flex-col gap-2">
+                  {trace.map((entry, index) =>
+                    isHiddenTextEntry(entry, index) ? null : (
+                      <TraceEntry
+                        key={traceKey(entry, index)}
+                        entry={entry}
+                        streaming={pending && index === trace.length - 1}
+                        tab={tab}
+                      />
+                    ),
+                  )}
+                </div>
+              )}
+            </section>
+          ) : null}
           {result?.findings ? (
             <section className="flex flex-col gap-1">
               <h3 className="text-ui-sm font-medium text-foreground-subtle">
@@ -273,8 +278,14 @@ export function OracleReviewSidePane({
               className="flex flex-col gap-2 border-t border-border/60 pt-3"
               data-testid="v4-oracle-review-panel-history"
             >
-              <h3 className="text-ui-sm font-medium text-foreground-subtle">
+              <h3 className="flex items-center gap-1.5 text-ui-sm font-medium text-foreground-subtle">
                 {intl.formatMessage({ id: "chat.oracleReview.panel.history" })}
+                <span className="rounded-sm bg-input px-1 py-0.5 tabular-nums text-ui-xs">
+                  {intl.formatMessage(
+                    { id: "chat.oracleReview.panel.historyCount" },
+                    { count: String(historyRecords.length) },
+                  )}
+                </span>
               </h3>
               {historyRecords.map((record) => (
                 <HistoryRecordEntry
@@ -436,6 +447,9 @@ function formatHistoryTime(completedAt: number): string {
  * 持久审查历史条目：审查卡片关闭（acknowledged）后，结论仍可在这里回看。
  * 数据来自 CLI 持久记录（会话加载时种入 store），不是运行时状态机的投影；
  * rawOutput 存在时提供整段「完整结论」——格式解析失败时它是唯一完整原文。
+ *
+ * 一条记录默认折叠成「裁决 + 时间 + 摘要两行」，避免多轮审查叠成一面墙；
+ * 展开后才露出各分节（合并在一个分组容器里，不再每节一条全宽横线）。
  */
 function HistoryRecordEntry({
   record,
@@ -445,54 +459,103 @@ function HistoryRecordEntry({
   modelLabel: string;
 }) {
   const { intl } = useZCodeIntl();
+  const [open, setOpen] = useState(false);
   const preset = VERDICT_PRESETS[record.verdict];
+  const sections = [
+    record.findings
+      ? { key: "findings", titleKey: "chat.oracleReview.findings", body: record.findings }
+      : null,
+    record.rawOutput
+      ? { key: "rawOutput", titleKey: "chat.oracleReview.panel.rawOutput", body: record.rawOutput }
+      : null,
+    record.requirements
+      ? {
+          key: "requirements",
+          titleKey: "chat.oracleReview.requirements",
+          body: record.requirements,
+        }
+      : null,
+    record.scope ? { key: "scope", titleKey: "chat.oracleReview.scope", body: record.scope } : null,
+    record.limits
+      ? { key: "limits", titleKey: "chat.oracleReview.limits", body: record.limits }
+      : null,
+  ].filter((entry): entry is { key: string; titleKey: string; body: string } => entry !== null);
+  const expandable = sections.length > 0;
   return (
-    <div className="flex flex-col gap-1" data-testid="v4-oracle-review-history-item">
-      <div className="flex min-w-0 items-center gap-2 text-ui-sm">
-        <preset.icon className={cn("size-3.5 shrink-0", preset.iconClassName)} />
-        <span className={cn("shrink-0 font-medium", preset.iconClassName)}>
-          {intl.formatMessage({ id: preset.labelKey })}
+    <div
+      className={cn(
+        "overflow-hidden rounded-md border border-border/60 transition-colors",
+        open ? "bg-input/20" : "bg-input/10 hover:bg-input/30",
+      )}
+      data-testid="v4-oracle-review-history-item"
+      data-open={String(open)}
+    >
+      <button
+        type="button"
+        className="flex w-full flex-col gap-1 px-2.5 py-2 text-left disabled:cursor-default"
+        aria-expanded={open}
+        disabled={!expandable}
+        onClick={() => setOpen((current) => !current)}
+      >
+        {/* 窄面板（最小 240px）一行放不下裁决 + 时间 + 徽标 + 模型，允许换行而不是溢出。 */}
+        <span className="flex min-w-0 flex-wrap items-center gap-x-2 gap-y-1 text-ui-sm">
+          <preset.icon className={cn("size-3.5 shrink-0", preset.iconClassName)} />
+          <span className={cn("shrink-0 font-medium", preset.iconClassName)}>
+            {intl.formatMessage({ id: preset.labelKey })}
+          </span>
+          <span className="shrink-0 tabular-nums text-ui-xs text-foreground-subtle">
+            {formatHistoryTime(record.completedAt)}
+          </span>
+          {record.depth === "deep" ? (
+            <span className="shrink-0 rounded-sm bg-input px-1 py-0.5 text-ui-xs text-foreground-subtle">
+              {intl.formatMessage({ id: "chat.oracleReview.deepBadge" })}
+            </span>
+          ) : null}
+          {record.acknowledgedAt !== undefined ? (
+            <span className="shrink-0 rounded-sm bg-input px-1 py-0.5 text-ui-xs text-foreground-subtle">
+              {intl.formatMessage({ id: "chat.oracleReview.panel.historyAcknowledged" })}
+            </span>
+          ) : null}
+          <span className="ml-auto flex min-w-0 items-center gap-1">
+            <span
+              className="min-w-0 max-w-[10rem] shrink truncate rounded-sm bg-input px-1 py-0.5 font-mono text-ui-xs text-foreground-subtle"
+              title={record.modelLabel}
+            >
+              {modelLabel}
+            </span>
+            {expandable ? (
+              <ChevronRightIcon
+                aria-hidden
+                className={cn(
+                  "size-3.5 shrink-0 text-foreground-subtle transition-transform",
+                  open ? "rotate-90" : "rotate-0",
+                )}
+              />
+            ) : null}
+          </span>
         </span>
-        <span className="shrink-0 tabular-nums text-ui-xs text-foreground-subtle">
-          {formatHistoryTime(record.completedAt)}
-        </span>
-        {record.depth === "deep" ? (
-          <span className="shrink-0 rounded-sm bg-input px-1 py-0.5 text-ui-xs text-foreground-subtle">
-            {intl.formatMessage({ id: "chat.oracleReview.deepBadge" })}
+        {record.summary ? (
+          <span
+            className={cn(
+              "whitespace-pre-wrap break-words text-ui-sm",
+              open ? "text-foreground" : "line-clamp-2 text-foreground-subtle",
+            )}
+          >
+            {record.summary}
           </span>
         ) : null}
-        {record.acknowledgedAt !== undefined ? (
-          <span className="shrink-0 rounded-sm bg-input px-1 py-0.5 text-ui-xs text-foreground-subtle">
-            {intl.formatMessage({ id: "chat.oracleReview.panel.historyAcknowledged" })}
-          </span>
-        ) : null}
-        <span className="min-w-0 flex-1" />
-        <span
-          className="min-w-0 shrink-0 truncate font-mono text-ui-xs text-foreground-subtle"
-          title={record.modelLabel}
-        >
-          {modelLabel}
-        </span>
-      </div>
-      {record.summary ? (
-        <p className="whitespace-pre-wrap break-words text-ui-sm text-foreground">
-          {record.summary}
-        </p>
-      ) : null}
-      {record.findings ? (
-        <ResultSection titleKey="chat.oracleReview.findings" body={record.findings} />
-      ) : null}
-      {record.rawOutput ? (
-        <ResultSection titleKey="chat.oracleReview.panel.rawOutput" body={record.rawOutput} />
-      ) : null}
-      {record.requirements ? (
-        <ResultSection titleKey="chat.oracleReview.requirements" body={record.requirements} />
-      ) : null}
-      {record.scope ? (
-        <ResultSection titleKey="chat.oracleReview.scope" body={record.scope} />
-      ) : null}
-      {record.limits ? (
-        <ResultSection titleKey="chat.oracleReview.limits" body={record.limits} />
+      </button>
+      {open ? (
+        <div className="flex flex-col divide-y divide-border/60 border-t border-border/60">
+          {sections.map((section) => (
+            <ResultSection
+              key={section.key}
+              titleKey={section.titleKey}
+              body={section.body}
+              grouped
+            />
+          ))}
+        </div>
       ) : null}
     </div>
   );

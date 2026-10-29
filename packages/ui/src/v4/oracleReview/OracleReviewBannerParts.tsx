@@ -117,10 +117,13 @@ export function ResultSection({
   titleKey,
   body,
   defaultOpen = false,
+  grouped = false,
 }: {
   titleKey: string;
   body: string;
   defaultOpen?: boolean;
+  /** 放在自带分隔线的分组容器里时去掉自身 border-t，避免首行出现双线。 */
+  grouped?: boolean;
 }) {
   const { intl } = useZCodeIntl();
   const [open, setOpen] = useState(defaultOpen);
@@ -129,7 +132,10 @@ export function ResultSection({
       <CollapsibleTrigger asChild>
         <button
           type="button"
-          className="flex w-full items-center gap-1.5 border-t border-border/60 px-3 py-1.5 text-left text-ui-sm text-foreground-subtle transition-colors hover:text-foreground"
+          className={cn(
+            "flex w-full items-center gap-1.5 px-3 py-1.5 text-left text-ui-sm text-foreground-subtle transition-colors hover:text-foreground",
+            !grouped && "border-t border-border/60",
+          )}
         >
           <ChevronRightIcon
             aria-hidden
