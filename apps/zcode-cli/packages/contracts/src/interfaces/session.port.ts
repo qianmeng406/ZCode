@@ -327,6 +327,7 @@ export interface HighspeedMessageMetadata {
 /** 协议无关的输入 intent metadata；bootstrap v4 在事件边界组装为 ConversationInputIntent。 */
 export type TurnInputSourceMetadata =
   | { kind: "pluginUi"; pluginId: string; toolCallId: string }
+  | { kind: "oracleReviewHandoff"; reviewId: string }
   | { kind: "genUi"; path: string; title?: string };
 
 export interface TurnInputIntentMetadata {
