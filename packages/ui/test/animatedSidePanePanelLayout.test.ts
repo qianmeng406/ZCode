@@ -130,6 +130,21 @@ describe("AnimatedSidePanePanel layout", () => {
     ).toEqual(["files", "browser", "terminal", "review", "file-explorer"]);
   });
 
+  it("offers the review-history launcher only when an active session exists", () => {
+    // Oracle 审查历史按 sessionId 键控：没有活动会话时启动器里不该出现这个入口。
+    expect(
+      resolveOpenTabLauncherItemIds({ developerToolsEnabled: false, hasReviewTab: false }),
+    ).not.toContain("oracle-review");
+
+    expect(
+      resolveOpenTabLauncherItemIds({
+        canOpenOracleReview: true,
+        developerToolsEnabled: false,
+        hasReviewTab: false,
+      }),
+    ).toEqual(["files", "browser", "terminal", "review", "oracle-review", "file-explorer"]);
+  });
+
   it("adds the side conversation launcher only when a desktop parent task is available", () => {
     expect(
       resolveOpenTabLauncherItemIds({

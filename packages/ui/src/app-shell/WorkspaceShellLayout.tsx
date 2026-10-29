@@ -1269,6 +1269,23 @@ const WorkspaceShellLayoutContent = memo(function WorkspaceShellLayoutComponent(
         : null,
     [activeTaskId, workspaceAbsPath, workspaceIdentity, workspaceRemoteSessionId],
   );
+  // 侧栏「新标签页」的「审查记录」入口：Oracle 审查历史按会话键控，没有活动会话就没有可看的记录，
+  // 因此没有会话时连启动器项都不渲染（见 AnimatedSidePanePanel 的 canOpenOracleReview）。
+  const handleOpenOracleReviewHistory = useCallback(() => {
+    if (!activeTaskId) return;
+    handleOpenOracleReviewPanel({
+      sessionId: activeTaskId,
+      workspacePath: workspaceAbsPath,
+      ...(workspaceIdentity?.trim() ? { workspaceIdentity } : {}),
+      ...(workspaceRemoteSessionId ? { remoteSessionId: workspaceRemoteSessionId } : {}),
+    });
+  }, [
+    activeTaskId,
+    handleOpenOracleReviewPanel,
+    workspaceAbsPath,
+    workspaceIdentity,
+    workspaceRemoteSessionId,
+  ]);
   // 切入草稿曾改变侧栏选任务回调，让全部项目重渲染；点击时使用最近已提交的绑定，保留分屏导航语义。
   const shellWorkbenchBindingRef = useRef(shellWorkbenchBinding);
   useLayoutEffect(() => {
@@ -1914,6 +1931,7 @@ const WorkspaceShellLayoutContent = memo(function WorkspaceShellLayoutComponent(
       isMacDesktop={isMacDesktop}
       onOpenTerminalTab={handleOpenTerminalTab}
       onOpenReviewTab={handleToggleGit}
+      onOpenOracleReviewTab={activeTaskId ? handleOpenOracleReviewHistory : undefined}
       onOpenSelectionSideConversation={handleOpenSelectionSideConversationLauncher}
       onRevealGitFileInTree={handleRevealGitFileInTree}
       onOpenBrowserUrl={handleOpenBrowserUrl}

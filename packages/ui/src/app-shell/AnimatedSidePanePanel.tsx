@@ -130,6 +130,7 @@ import {
   FolderIcon,
   FolderOpenIcon,
   GlobeIcon,
+  HistoryIcon,
   MessageSquareTextIcon,
   PlusIcon,
   SquareTerminalIcon,
@@ -373,6 +374,7 @@ export function AnimatedSidePanePanel({
   onCreateTask,
   onOpenTerminalTab,
   onOpenReviewTab,
+  onOpenOracleReviewTab,
   onOpenFileExplorerTab,
   onOpenSelectionSideConversation,
   onRevealGitFileInTree,
@@ -464,6 +466,8 @@ export function AnimatedSidePanePanel({
   onCreateTask?: (request?: CreateTaskRequest) => void;
   onOpenTerminalTab: () => void;
   onOpenReviewTab: () => void;
+  /** 「审查记录」启动器：打开活动会话的 Oracle 审查面板（历史结论常驻在那里）。 */
+  onOpenOracleReviewTab?: () => void;
   onOpenFileExplorerTab: () => void;
   onOpenSelectionSideConversation: () => void;
   onRevealGitFileInTree?: (path: string) => void;
@@ -834,6 +838,13 @@ export function AnimatedSidePanePanel({
       icon: FileDiffIcon,
       onOpen: onOpenReviewTab,
     },
+    "oracle-review": {
+      id: "oracle-review",
+      label: intl.formatMessage({ id: "sidePane.oracleReviewHistory" }),
+      description: intl.formatMessage({ id: "sidePane.launcher.oracle-review" }),
+      icon: HistoryIcon,
+      onOpen: () => onOpenOracleReviewTab?.(),
+    },
     "file-explorer": {
       id: "file-explorer",
       label: intl.formatMessage({ id: "fileExplorer.title" }),
@@ -868,6 +879,7 @@ export function AnimatedSidePanePanel({
     developerToolsEnabled,
     hasReviewTab,
     hasFileExplorerTab,
+    canOpenOracleReview: onOpenOracleReviewTab !== undefined,
     supportsEmbeddedBrowser,
   })
     .filter((itemId) => !isOfficeMode || (itemId !== "terminal" && itemId !== "review"))

@@ -48,6 +48,16 @@ const LINKS: Array<{ file: string; pattern: RegExp; why: string }> = [
     why: "Composer 把 controller 回调交给审查卡片",
   },
   {
+    file: "src/app-shell/WorkspaceShellLayout.tsx",
+    pattern: /onOpenOracleReviewTab=\{activeTaskId \? handleOpenOracleReviewHistory : undefined\}/,
+    why: "侧栏「新标签页」的审查记录入口：有活动会话时才下发回调（历史按会话键控）",
+  },
+  {
+    file: "src/app-shell/AnimatedSidePanePanel.tsx",
+    pattern: /canOpenOracleReview: onOpenOracleReviewTab !== undefined/,
+    why: "启动器把回调是否存在翻译成是否列出「审查记录」项",
+  },
+  {
     file: "src/v4/oracleReview/OracleReviewBanner.tsx",
     pattern: /data-testid="v4-oracle-review-expand"/,
     why: "卡片渲染「展开」入口",

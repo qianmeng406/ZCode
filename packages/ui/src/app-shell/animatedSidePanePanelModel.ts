@@ -4,6 +4,7 @@ export type OpenTabLauncherItemId =
   | "selection-side-conversation"
   | "files"
   | "review"
+  | "oracle-review"
   | "file-explorer"
   | "terminal"
   | "browser"
@@ -14,12 +15,15 @@ export function resolveOpenTabLauncherItemIds({
   hasReviewTab,
   hasFileExplorerTab = false,
   canOpenSelectionSideConversation = false,
+  canOpenOracleReview = false,
   supportsEmbeddedBrowser = true,
 }: {
   developerToolsEnabled: boolean;
   hasReviewTab: boolean;
   hasFileExplorerTab?: boolean;
   canOpenSelectionSideConversation?: boolean;
+  /** 有活动会话才有「审查记录」可看：Oracle 审查历史按 sessionId 键控。 */
+  canOpenOracleReview?: boolean;
   supportsEmbeddedBrowser?: boolean;
 }): OpenTabLauncherItemId[] {
   const itemIds: OpenTabLauncherItemId[] = ["files"];
@@ -32,6 +36,10 @@ export function resolveOpenTabLauncherItemIds({
 
   if (!hasReviewTab) {
     itemIds.push("review");
+  }
+
+  if (canOpenOracleReview) {
+    itemIds.push("oracle-review");
   }
 
   if (!hasFileExplorerTab) {

@@ -1698,7 +1698,9 @@ const enUS: Record<string, string> = {
   "chat.selections.limit.total":
     "Conversation selections can contain at most 16,000 characters in total.",
   "sidePane.launcher.selection-side-conversation": "Continue a conversation in the side pane.",
+  "sidePane.oracleReviewHistory": "Review history",
   "sidePane.launcher.review": "Review code changes and diffs.",
+  "sidePane.launcher.oracle-review": "Browse past Oracle review conclusions.",
   "sidePane.launcher.terminal": "Run commands and view output.",
   "sidePane.launcher.browser": "Browse websites and preview apps.",
   "sidePane.launcher.developer-tools": "Inspect and debug the app.",
