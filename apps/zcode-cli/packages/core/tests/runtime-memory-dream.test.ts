@@ -270,11 +270,19 @@ describe("AgentRuntime Dream handler", () => {
     await runtime.executeTurn("next");
     const expectedUpdate = MEMORY_UPDATE_FIXTURE.replaceAll("<MEMORY_ROOT>", memoryRoot);
     const nextRequest = mainRequests[1] ?? [];
+    // provider content 现在可能是分块数组（upstream 的 meta_user 投影），按文本比较；
+    // fixture 里的路径按 POSIX 写，Windows 上 join 产出反斜杠，比较前统一分隔符。
+    const normalizeSeparators = (value: string) => value.split("\\").join("/");
     const updateIndex = nextRequest.findIndex(
-      (message) => message.role === "system" && message.content === expectedUpdate,
+      (message) =>
+        message.role === "system" &&
+        normalizeSeparators(providerMessagesToText([message])) ===
+          normalizeSeparators(expectedUpdate),
     );
     expect(updateIndex).toBe(nextRequest.length - 1);
-    expect(nextRequest[updateIndex]).toEqual({ role: "system", content: expectedUpdate });
+    expect(normalizeSeparators(providerMessagesToText([nextRequest[updateIndex]]))).toBe(
+      normalizeSeparators(expectedUpdate),
+    );
     expect((runtime as any).pendingMemoryUpdate).toBeUndefined();
 
     await runtime.executeTurn("again");

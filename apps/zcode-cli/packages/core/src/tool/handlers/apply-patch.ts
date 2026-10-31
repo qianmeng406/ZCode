@@ -463,6 +463,7 @@ function traceFor(context: Parameters<typeof applyPatchHandler>[1]): TraceContex
 export const applyPatchToolEntry: ToolEntry = {
   capability: "Apply a structured patch through the file-system adapter",
   metadata: {
+    shouldDefer: true,
     name: "ApplyPatch",
     description: "Apply structured file patches with verification before writing.",
     modelInstructions: APPLY_PATCH_MODEL_INSTRUCTIONS,

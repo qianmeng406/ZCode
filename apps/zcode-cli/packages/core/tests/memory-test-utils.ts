@@ -1,14 +1,70 @@
 import { createFileSystemError, type FileSystemPort } from "@zcode/contracts";
 
+/**
+ * 测试用文件系统按「路径形状」而不是「当前平台」匹配键。
+ *
+ * 产品代码一律用 node:path 解析路径，Windows 上 `/workspace/x` 会被解析成
+ * `C:\workspace\x`；fixture 却按 POSIX 字面量写键。若这里按字面量匹配，整套
+ * core 测试在 Windows 上会把「路径解析正确」误报成「文件不存在」（读不到、写不进去）。
+ * 因此读写都先做与平台无关的规范化：统一分隔符并去掉盘符，两侧得到同一形状。
+ */
+const DRIVE_PREFIX_PATTERN = /^[A-Za-z]:(?=[\\/])/;
+
+function canonicalPath(path: string): string {
+  return path.replace(/\\/g, "/").replace(DRIVE_PREFIX_PATTERN, "");
+}
+
 export class MemoryFileSystem implements FileSystemPort {
   readonly createdDirectories = new Set<string>();
   readonly readRequests: Array<{ maxBytes?: number; path: string }> = [];
   readonly searchFileRequests: Array<{ maxResults?: number; path: string; pattern: string }> = [];
+  /** 原始键形状（保留测试写入时的写法）→ 内容。 */
+  private readonly entries = new Map<string, { content: string; path: string }>();
+  private readonly mtimes = new Map<string, number>();
+  /** 对外仍是一个普通对象：按规范化路径读写，遍历时返回写入时的原始写法。 */
+  readonly files: Record<string, string>;
 
   constructor(
-    readonly files: Record<string, string>,
-    private readonly fileMtimes: Readonly<Record<string, number>> = {},
-  ) {}
+    files: Record<string, string>,
+    fileMtimes: Readonly<Record<string, number>> = {},
+  ) {
+    this.files = new Proxy({} as Record<string, string>, {
+      get: (_target, property) =>
+        typeof property === "string"
+          ? this.entries.get(canonicalPath(property))?.content
+          : undefined,
+      set: (_target, property, value: string) => {
+        if (typeof property !== "string") return false;
+        this.entries.set(canonicalPath(property), { content: value, path: property });
+        return true;
+      },
+      has: (_target, property) =>
+        typeof property === "string" && this.entries.has(canonicalPath(property)),
+      deleteProperty: (_target, property) => {
+        if (typeof property !== "string") return false;
+        return this.entries.delete(canonicalPath(property));
+      },
+      ownKeys: () => [...this.entries.values()].map((entry) => entry.path),
+      getOwnPropertyDescriptor: (_target, property) => {
+        if (typeof property !== "string") return undefined;
+        const entry = this.entries.get(canonicalPath(property));
+        if (!entry) return undefined;
+        return { configurable: true, enumerable: true, value: entry.content, writable: true };
+      },
+    });
+    for (const [path, content] of Object.entries(files)) this.files[path] = content;
+    for (const [path, mtimeMs] of Object.entries(fileMtimes)) {
+      this.mtimes.set(canonicalPath(path), mtimeMs);
+    }
+  }
+
+  private contentOf(path: string): string | undefined {
+    return this.entries.get(canonicalPath(path))?.content;
+  }
+
+  private mtimeOf(path: string): number | undefined {
+    return this.mtimes.get(canonicalPath(path));
+  }
 
   async createDirectory(request: { path: string }) {
     this.createdDirectories.add(request.path);
@@ -19,19 +75,19 @@ export class MemoryFileSystem implements FileSystemPort {
     if (this.createdDirectories.has(request.path)) {
       return { kind: "directory" as const, path: request.path, sizeBytes: 0 };
     }
-    const content = this.files[request.path];
+    const content = this.contentOf(request.path);
     if (content === undefined) throw missingFile(request.path);
     return {
       kind: "file" as const,
       path: request.path,
       sizeBytes: Buffer.byteLength(content),
-      mtimeMs: this.fileMtimes[request.path],
+      mtimeMs: this.mtimeOf(request.path),
     };
   }
 
   async readTextFile(request: { path: string; encoding?: BufferEncoding; maxBytes?: number }) {
     this.readRequests.push({ maxBytes: request.maxBytes, path: request.path });
-    const content = this.files[request.path];
+    const content = this.contentOf(request.path);
     if (content === undefined) throw missingFile(request.path);
     const sizeBytes = Buffer.byteLength(content, "utf8");
     const maxBytes = request.maxBytes ?? sizeBytes;
@@ -49,7 +105,7 @@ export class MemoryFileSystem implements FileSystemPort {
 
   async readBinaryFile(request: { path: string; maxBytes?: number }) {
     this.readRequests.push({ maxBytes: request.maxBytes, path: request.path });
-    const content = this.files[request.path];
+    const content = this.contentOf(request.path);
     if (content === undefined) throw missingFile(request.path);
     const buffer = Buffer.from(content, "utf8");
     if (request.maxBytes !== undefined && buffer.byteLength > request.maxBytes) {
@@ -75,7 +131,7 @@ export class MemoryFileSystem implements FileSystemPort {
     maxBytes?: number;
   }) {
     this.readRequests.push({ maxBytes: request.maxBytes, path: request.path });
-    const content = this.files[request.path];
+    const content = this.contentOf(request.path);
     if (content === undefined) throw missingFile(request.path);
     const sizeBytes = Buffer.byteLength(content, "utf8");
     if (request.maxBytes !== undefined && sizeBytes > request.maxBytes) {
@@ -112,18 +168,18 @@ export class MemoryFileSystem implements FileSystemPort {
   }
 
   async removeFile(request: { missingOk?: boolean; path: string }) {
-    const existed = this.files[request.path] !== undefined;
+    const existed = this.contentOf(request.path) !== undefined;
     if (!existed && request.missingOk !== true) throw missingFile(request.path);
     delete this.files[request.path];
     return { path: request.path, removed: existed };
   }
 
   async listDirectory(request: { path: string }) {
-    const prefix = `${request.path.replace(/\/+$/, "")}/`;
+    const prefix = `${canonicalPath(request.path).replace(/\/+$/, "")}/`;
     const seen = new Set<string>();
-    const entries = Object.keys(this.files).flatMap((path) => {
-      if (!path.startsWith(prefix)) return [];
-      const rest = path.slice(prefix.length);
+    const entries = [...this.entries.keys()].flatMap((canonical) => {
+      if (!canonical.startsWith(prefix)) return [];
+      const rest = canonical.slice(prefix.length);
       const [name] = rest.split("/");
       if (!name || seen.has(name)) return [];
       seen.add(name);
@@ -150,10 +206,11 @@ export class MemoryFileSystem implements FileSystemPort {
       path: request.path,
       pattern: request.pattern,
     });
-    const prefix = `${request.path.replace(/\/+$/, "")}/`;
-    const files = Object.keys(this.files)
-      .filter((path) => path.startsWith(prefix))
-      .filter((path) => !path.slice(prefix.length).includes("/"))
+    const prefix = `${canonicalPath(request.path).replace(/\/+$/, "")}/`;
+    const files = [...this.entries.values()]
+      .map((entry) => entry.path)
+      .filter((path) => canonicalPath(path).startsWith(prefix))
+      .filter((path) => !canonicalPath(path).slice(prefix.length).includes("/"))
       .filter((path) => (request.pattern === "*.md" ? path.endsWith(".md") : true))
       .slice(0, request.maxResults);
     return {

@@ -61,6 +61,7 @@ export function installRuntimeExecutionState(
   runtime: AgentRuntimeInternal,
   next: ExecutionState,
   previous: ExecutionState = readRuntimeExecutionState(runtime),
+  options: { restored?: boolean } = {},
 ): void {
   // 自包含解析：缺省档位按 next.mode 做旧 minimal 兼容映射。
   // 「改权限/Plan/授权保留档位」由 patch 语义的 resolveExecutionState(input, previous)
@@ -78,19 +79,28 @@ export function installRuntimeExecutionState(
   ) {
     return;
   }
-  // 模式 activation 变化（含 update→build→update 重新进入）后，下一个模式提醒必须全文；
-  // 不能靠「最后一个 runtime_mode 是不是同名」判定，否则重新进入会被旧节流压掉。
-  if (
-    resolveRuntimeModeIdentity(previous.mode, previous.planEnabled) !==
-    resolveRuntimeModeIdentity(resolved.mode, resolved.planEnabled)
-  ) {
-    runtime.runtimeModeReminderPendingFull = true;
+  // 恢复不是用户切换：冷恢复先用 mode-only 事件、再用 execution-state entry 两次安装，
+  // 中间的 planEnabled=false 只是临时值。若按 activation 变化处理，会把「重新进入」的
+  // pending-full 打开——恢复后第一条提醒就变成全文，节流边界与历史计数脱节。
+  // 真实切换（命令/工具/config）仍走下面的 activation 判定。
+  if (!options.restored) {
+    // 模式 activation 变化（含 update→build→update 重新进入）后，下一个模式提醒必须全文；
+    // 不能靠「最后一个 runtime_mode 是不是同名」判定，否则重新进入会被旧节流压掉。
+    if (
+      resolveRuntimeModeIdentity(previous.mode, previous.planEnabled) !==
+      resolveRuntimeModeIdentity(resolved.mode, resolved.planEnabled)
+    ) {
+      runtime.runtimeModeReminderPendingFull = true;
+    }
+    if (previous.planEnabled !== resolved.planEnabled)
+      runtime.needsPlanModeExitReminder = !resolved.planEnabled;
   }
-  if (previous.planEnabled !== resolved.planEnabled)
-    runtime.needsPlanModeExitReminder = !resolved.planEnabled;
   // 最小运行态替身（测试 stub）可能未安装方法；真实 runtime 由 methods/index 统一挂载。
   runtime.invalidateToolCache?.();
-  runtime.contextProjectionRevision += 1;
+  // 只有档位（minimal/fusion）改变提示词前缀；Plan／权限切换只影响工具与提醒，
+  // 不推进派生版本，否则每次进出 Plan 都会白重建一次 context prefix（prompt cache 失效）。
+  if (resolveContextProfile(previous) !== resolved.contextProfile)
+    runtime.contextProjectionRevision += 1;
 }
 
 /** 权限与 Plan 是一个已消费状态；保存失败不发布成功快照，也不提前改内存。 */

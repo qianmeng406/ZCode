@@ -36,3 +36,11 @@ apps/zcode-cli/packages/visualize-plugin/skills/visualize/assets/** -text -white
 # Gen UI 内联运行时的构建期完整性校验同样按字节算 sha256（与 runtime-manifest.json 对齐），
 # Windows autocrlf 的 CRLF 检出会让该测试误报失配。
 packages/desktop/src/renderer/src/plugin-sandbox/genUiTweakRuntime.js text eol=lf
+
+# core 单测的 frozen fixture 按字节与 LF 字符串比对；autocrlf 检出成 CRLF 会让
+# context-builder / persistent-agent-memory 等契约测试在 Windows 上整组误报。
+apps/zcode-cli/packages/core/tests/fixtures/** text eol=lf
+
+# 动态工作流图契约：expected/*.mmd 逐行解析，autocrlf 的 CRLF 检出会让控制流商
+# 等整组断言在 Windows 上误报。
+apps/zcode-cli/packages/dynamic-workflow/tests/graphs/** text eol=lf

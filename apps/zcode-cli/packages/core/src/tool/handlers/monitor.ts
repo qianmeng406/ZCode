@@ -115,6 +115,7 @@ export const monitorToolEntry: ToolEntry = {
   capability: "wait for a condition on a background task, file, TCP port, or URL",
   maxModelChars: 8_000,
   metadata: {
+    shouldDefer: true,
     name: MONITOR_TOOL_NAME,
     description: MONITOR_PROVIDER_DESCRIPTION,
     readOnly: true,

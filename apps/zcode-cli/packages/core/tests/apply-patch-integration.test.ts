@@ -12,7 +12,7 @@ import {
   getFileMutationCheckpointCandidates,
   stringifyWorkspaceCheckpointArtifact,
 } from "../src/runtime/helpers/rewind.js";
-import { createReadFileStateKey } from "../src/tool/read-file-state.js";
+import { createReadFileStatePathKey } from "../src/tool/read-file-state.js";
 import type { ReadFileStateEntry, ToolExecutionContext } from "../src/tool/types.js";
 import { createTestRuntimeModel } from "./test-runtime-model.js";
 
@@ -145,7 +145,7 @@ describe("ApplyPatch integration", () => {
     });
     const readFileState = new Map<string, ReadFileStateEntry>([
       [
-        createReadFileStateKey(fileB, 1, undefined),
+        createReadFileStatePathKey(fileB),
         {
           path: fileB,
           content: "bye\n",
@@ -196,17 +196,17 @@ describe("ApplyPatch integration", () => {
       content: null,
     });
 
-    expect(readFileState.get(createReadFileStateKey(fileA, 1, undefined))).toMatchObject({
+    expect(readFileState.get(createReadFileStatePathKey(fileA))).toMatchObject({
       path: fileA,
       content: "one\nchanged\n",
       sourceTool: "ApplyPatch",
     });
-    expect(readFileState.get(createReadFileStateKey(fileC, 1, undefined))).toMatchObject({
+    expect(readFileState.get(createReadFileStatePathKey(fileC))).toMatchObject({
       path: fileC,
       content: "created\n",
       sourceTool: "ApplyPatch",
     });
-    expect(readFileState.has(createReadFileStateKey(fileB, 1, undefined))).toBe(false);
+    expect(readFileState.has(createReadFileStatePathKey(fileB))).toBe(false);
   });
 
   it("写入中途失败时回滚已应用的文件，工作区回到补丁前", async () => {

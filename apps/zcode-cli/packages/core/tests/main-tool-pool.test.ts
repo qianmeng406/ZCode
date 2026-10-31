@@ -50,6 +50,18 @@ describe("main agent tool pool", () => {
       "Bash",
       "WebFetch",
       "WebSearch",
+      // research 模式检索渠道（fork 定制）按 builtInTools 注册顺序紧随 WebSearch。
+      "SearchDocs",
+      "GetLibraryDocs",
+      "SearchStackOverflow",
+      "SearchGitHub",
+      "SearchHackerNews",
+      "SearchArxiv",
+      "SearchNpm",
+      "SearchPyPI",
+      "SearchMdn",
+      "SearchPapers",
+      "SearchPubmed",
       "TodoWrite",
     ]);
     // allowlist ["Read","Glob","Bash","Write"] 与 Explore 白名单求交后，

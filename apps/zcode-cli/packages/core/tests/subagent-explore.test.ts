@@ -573,7 +573,20 @@ describe("Explore subagent", () => {
     // provider-visible 顺序由最终输出边界统一排序，本地工具追加在后。
     expect(childRequests[0].tools.map((tool: any) => tool.name)).toEqual([
       "Bash",
+      // research 模式检索渠道（fork 定制）是共享契约，随排序组按名排序；
+      // RespondToCoordinator 是注册期才存在的本地工具，追加在尾部。
+      "GetLibraryDocs",
       "Read",
+      "SearchArxiv",
+      "SearchDocs",
+      "SearchGitHub",
+      "SearchHackerNews",
+      "SearchMdn",
+      "SearchNpm",
+      "SearchPapers",
+      "SearchPubmed",
+      "SearchPyPI",
+      "SearchStackOverflow",
       "TodoWrite",
       "WebFetch",
       "WebSearch",
@@ -605,6 +618,18 @@ describe("Explore subagent", () => {
       "WebFetch",
       "WebSearch",
       "TodoWrite",
+      // research 模式检索渠道（fork 定制）：Explore 白名单按 explore-tools.ts 的清单顺序。
+      "SearchDocs",
+      "GetLibraryDocs",
+      "SearchStackOverflow",
+      "SearchGitHub",
+      "SearchHackerNews",
+      "SearchArxiv",
+      "SearchNpm",
+      "SearchPyPI",
+      "SearchMdn",
+      "SearchPapers",
+      "SearchPubmed",
     ]);
     expect(stoppedPayload.status).toBe("completed");
     expect(toolResultPayload.toolCallId).toBe("call_explore");
@@ -3505,7 +3530,20 @@ describe("Explore subagent", () => {
     });
     expect(childToolNames).toEqual([
       "Bash",
+      // research 模式检索渠道（fork 定制）是共享契约，随排序组按名排序；
+      // RespondToCoordinator 是注册期才存在的本地工具，追加在尾部。
+      "GetLibraryDocs",
       "Read",
+      "SearchArxiv",
+      "SearchDocs",
+      "SearchGitHub",
+      "SearchHackerNews",
+      "SearchMdn",
+      "SearchNpm",
+      "SearchPapers",
+      "SearchPubmed",
+      "SearchPyPI",
+      "SearchStackOverflow",
       "TodoWrite",
       "WebFetch",
       "WebSearch",
@@ -4275,7 +4313,20 @@ describe("Explore subagent", () => {
     expect(childStreamRequests).toHaveLength(1);
     expect(childStreamRequests[0].tools.map((tool: any) => tool.name)).toEqual([
       "Bash",
+      // research 模式检索渠道（fork 定制）是共享契约，随排序组按名排序；
+      // RespondToCoordinator 是注册期才存在的本地工具，追加在尾部。
+      "GetLibraryDocs",
       "Read",
+      "SearchArxiv",
+      "SearchDocs",
+      "SearchGitHub",
+      "SearchHackerNews",
+      "SearchMdn",
+      "SearchNpm",
+      "SearchPapers",
+      "SearchPubmed",
+      "SearchPyPI",
+      "SearchStackOverflow",
       "TodoWrite",
       "WebFetch",
       "WebSearch",

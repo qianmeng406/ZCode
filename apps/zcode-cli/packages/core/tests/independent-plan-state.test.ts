@@ -37,7 +37,8 @@ describe("Todo151 独立 Plan", () => {
     expect(fixture.sessionStore.saveSessionEntry).toHaveBeenLastCalledWith(
       expect.objectContaining({
         type: "runtime/execution_state",
-        data: { mode: "yolo", planEnabled: false },
+        // 执行状态三字段成对落盘：fork 把上下文档位与 mode/plan 一起持久化。
+        data: { mode: "yolo", planEnabled: false, contextProfile: "standard" },
       }),
     );
   });

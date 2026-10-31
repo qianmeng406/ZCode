@@ -156,7 +156,9 @@ export async function resumeFromStore(
     // cold resume 会先把 checkpoint/rewind 等局部事件恢复到新的内存 eventStore。
     // 这些事件不携带 mode，若仅按“存在任意事件”reduce，会用默认 build 覆盖 headless yolo。
     // 只有权威 mode 事件能恢复历史值；本次 invocation 的显式/default mode 仍保持最高优先级。
-    installRuntimeExecutionState(this, resolveExecutionState({ mode: resolvedMode }));
+    installRuntimeExecutionState(this, resolveExecutionState({ mode: resolvedMode }), undefined, {
+      restored: true,
+    });
   }
   // 会话自己的新记录优先于项目偏好；旧记录仅兼容读取，不批量回填。
   const executionEntries = await this.sessionStore.sessionEntries?.({
@@ -165,7 +167,7 @@ export async function resumeFromStore(
   });
   const savedExecution = executionStateSchema.safeParse(executionEntries?.at(-1)?.data);
   if (savedExecution.success && options?.modeOverride === undefined) {
-    installRuntimeExecutionState(this, savedExecution.data);
+    installRuntimeExecutionState(this, savedExecution.data, undefined, { restored: true });
   }
   // cold resume 的历史 hydration 会先清空 runtime-local read-state；必须在
   // Context 初始化前完成，确保随后单次加载的 MEMORY.md 状态与 provider 所见内容一致。

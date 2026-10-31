@@ -96,7 +96,12 @@ export async function appendRuntimeContextAnnouncements(
     const snapshot = await resolveCurrentEnvironment(runtime, previous, traceContext, signal);
     const hasFullBlock = state.entries.some((entry) => environmentOf(entry)?.full);
     const announcement = snapshot
-      ? buildEnvironmentAnnouncement(snapshot, previous, hasFullBlock)
+      ? buildEnvironmentAnnouncement(
+          snapshot,
+          previous,
+          hasFullBlock,
+          runtime.config.getSessionExecutionEnvironment?.(),
+        )
       : null;
     if (announcement) attachments.push(environmentAttachment(announcement));
     const identity = buildModelSection(model)!;
@@ -319,13 +324,14 @@ export function restateContextAfterCompact(
 ): RuntimeAttachmentEntry[] {
   return [
     ...(runtime.latestContextBuildResult?.sections.some((section) => section.source === "env_info")
-      ? restateEnvironmentAndModel(preCompactEntries, keptEntries)
+      ? restateEnvironmentAndModel(runtime, preCompactEntries, keptEntries)
       : []),
     ...restateOutputStyle(preCompactEntries, keptEntries),
   ];
 }
 
 function restateEnvironmentAndModel(
+  runtime: AgentRuntimeInternal,
   preCompactEntries: readonly RuntimeMessageEntry[],
   keptEntries: readonly RuntimeMessageEntry[],
 ): RuntimeAttachmentEntry[] {
@@ -334,7 +340,14 @@ function restateEnvironmentAndModel(
     const snapshot = preCompactEntries
       .map(environmentOf)
       .findLast((value) => value !== undefined)?.snapshot;
-    const announcement = snapshot ? buildEnvironmentAnnouncement(snapshot, undefined, false) : null;
+    const announcement = snapshot
+      ? buildEnvironmentAnnouncement(
+          snapshot,
+          undefined,
+          false,
+          runtime.config.getSessionExecutionEnvironment?.(),
+        )
+      : null;
     if (announcement) attachments.push(environmentAttachment(announcement));
   }
   const latestModel = lastAnnouncedAttachments(preCompactEntries).get("model");

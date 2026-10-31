@@ -111,6 +111,7 @@ export function buildEnvironmentAnnouncement(
   next: EnvironmentSnapshot,
   previous: EnvironmentSnapshot | undefined,
   hasFullBlock: boolean,
+  sessionExecutionEnvironment?: SessionExecutionEnvironment,
 ): { content: string; environment: EnvironmentAnnouncement } | null {
   const full =
     !previous ||
@@ -118,7 +119,13 @@ export function buildEnvironmentAnnouncement(
     previous.platform !== next.platform ||
     previous.shell !== next.shell ||
     previous.osVersion !== next.osVersion;
-  if (full) return { content: buildEnvInfoContent(next), environment: { full, snapshot: next } };
+  if (full)
+    return {
+      // WSL 会话的真实 Shell 与命令执行面只在执行环境里，公告必须和 System prompt 同源渲染，
+      // 否则模型看到的 Environment 仍写着宿主 Windows shell。
+      content: buildEnvInfoContent(next, sessionExecutionEnvironment),
+      environment: { full, snapshot: next },
+    };
   const lines = [ENVIRONMENT_UPDATE_HEADING];
   if (previous.cwd !== next.cwd) {
     lines.push(` - ${WORKING_DIRECTORY_LABEL}: ${next.cwd} (was ${previous.cwd})`);

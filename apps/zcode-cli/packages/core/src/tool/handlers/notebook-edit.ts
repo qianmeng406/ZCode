@@ -178,6 +178,7 @@ function formatNotebookEditModelContent(output: unknown): string {
 export const notebookEditToolEntry: ToolEntry = {
   capability: "Edit a Jupyter notebook cell by cell through the file-system adapter",
   metadata: {
+    shouldDefer: true,
     name: NOTEBOOK_EDIT_TOOL_NAME,
     description: NOTEBOOK_EDIT_PROVIDER_DESCRIPTION,
     readOnly: false,

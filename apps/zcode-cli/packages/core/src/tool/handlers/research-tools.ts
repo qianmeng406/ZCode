@@ -630,6 +630,8 @@ function makeResearchToolEntry(spec: ResearchChannelSpec): ToolEntry {
   return {
     ...makeResearchToolContract({ name: spec.name, capability: spec.capability }),
     metadata: {
+      // 走 upstream 的 ToolSearch 延迟投递：research 渠道不是常驻工具，只在检索时展开。
+      shouldDefer: true,
       name: spec.name,
       description: spec.description,
       readOnly: true,
