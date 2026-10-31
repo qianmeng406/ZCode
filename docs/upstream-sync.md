@@ -10,11 +10,11 @@
 | 官方上游仓库        | `https://github.com/zai-org/ZCode`（git remote 名为 `origin`，**只读 fetch，绝不 push**）                                                                                                                                                      |
 | 本定制仓库          | `https://github.com/qianmeng406/ZCode`（git remote 名为 `zcodefork`，**唯一发布 push 目标**；定制主线分支 `main`）                                                                                                                             |
 | 已废弃的旧线        | `https://github.com/qianmeng406/Myzcode`（remote `myzcode`，v3.14.3 基线）：2026-10-13 迁移完成后由本定制仓库取代，**不再作为合并对象、不再作为发布目标**（本地跟踪引用停在 `e5a9eb37`，此后无更新且匿名不可读）。不要把它的提交当作待对齐基线 |
-| 当前上游基线 tag    | 无（3.16.2 未打 tag，以 `main` 提交发布）                                                                                                                                                                                                      |
-| 当前上游基线 commit | `3c5b227649371507ddc4eb46ac5133afe6db1cab`（Source-Commit `5a082039a1a3b1edfe8364a33c8978689c0d68bf`）                                                                                                                                         |
+| 当前上游基线 tag    | 无（3.17.1 未打 tag，以 `main` 提交发布）                                                                                                                                                                                                      |
+| 当前上游基线 commit | `a60ba6a7e5a06742270ca605f5d2cc2766afa7e1`（Source-Commit `73158b64ace2c753b67e77e1f83bbaca31b43944`）                                                                                                                                         |
 | 定制引入方式        | 定制功能以**提交序列**套用在官方基线之上（源自旧仓库 `qianmeng406/Myzcode` 在 v3.14.3 基线上的定制 `72ac0508` 迁移，其后叠加后续功能提交）                                                                                                     |
-| 桌面产品版本        | `3.16.2`（根 `package.json` 的 `version`）                                                                                                                                                                                                     |
-| 独立 CLI 版本       | `0.17.0`（随上游，`apps/zcode-cli/package.json`）                                                                                                                                                                                              |
+| 桌面产品版本        | `3.17.1`（根 `package.json` 的 `version`）                                                                                                                                                                                                     |
+| 独立 CLI 版本       | `0.17.1`（随上游，`apps/zcode-cli/package.json`）                                                                                                                                                                                              |
 
 ## 2. 后续跟进官方新版（保留定制）的流程
 

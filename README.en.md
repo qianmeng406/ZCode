@@ -15,8 +15,9 @@ This repository is a personal customization of ZCode, an AI coding workspace wit
 
 ## Upstream Version and Sync Status
 
-- **2026-10-21**: Added goal controls (pause/resume, deleting the current goal, and continuing from a specific iteration), per-subagent stop, and moved prompt-optimizer/review settings into the Settings page; the session execution environment can now use the WSL distribution's default user and shows the active environment in the composer.
+- **2026-10-31**: Merged the official v3.17.1 baseline ([`a60ba6a7`](https://github.com/zai-org/ZCode/commit/a60ba6a7e5a06742270ca605f5d2cc2766afa7e1)) while keeping the existing customizations; also fixed Windows path comparison and permission-rule matching so the `@zcode/core` suite is green on Windows.
 - **2026-10-22**: Merged the official v3.16.2 baseline while keeping the existing customizations.
+- **2026-10-21**: Added goal controls (pause/resume, deleting the current goal, and continuing from a specific iteration), per-subagent stop, and moved prompt-optimizer/review settings into the Settings page; the session execution environment can now use the WSL distribution's default user and shows the active environment in the composer.
 - **2026-10-19**: Updated to ZCode v3.16.2.
 - **2026-10-16**: Updated to ZCode v3.16.1.
 - 2026-10-16: Added three session-experience features: **upstream model fetching** (the add-model dialog pulls model IDs from the provider's `/models` endpoint into a searchable picker), a **compact-context button** in the context usage panel (one click triggers the existing `/compact` flow), and a **composer main-turn metrics capsule** (persistent TTFT, generation speed, and output tokens below the input box, counting main-turn requests only); produced a new `ZCode Preview` installer.
@@ -25,8 +26,8 @@ This repository is a personal customization of ZCode, an AI coding workspace wit
 - 2026-10-10: Updated to ZCode v3.15.1.
 - 2026-9-23: Updated to ZCode v3.14.3.
 
-- **Latest official source**: As of 2026-10-22, official `main` points to [the v3.16.2 commit `3c5b2276`](https://github.com/zai-org/ZCode/commit/3c5b227649371507ddc4eb46ac5133afe6db1cab) (Source-Commit `5a082039`). Upstream does not tag v3.16.2; it is published from `main`.
-- **This fork's upstream baseline**: This repository is based on the official v3.16.2 commit `3c5b2276`; the root `package.json` version is `3.16.2`. The customizations are applied as a series of commits on top of the official baseline (migration plus later feature commits); see [docs/upstream-sync.md](docs/upstream-sync.md) for the follow-up sync workflow.
+- **Latest official source**: As of 2026-10-30, official `main` points to [the v3.17.1 commit `a60ba6a7`](https://github.com/zai-org/ZCode/commit/a60ba6a7e5a06742270ca605f5d2cc2766afa7e1) (Source-Commit `73158b64`). Upstream does not tag v3.17.1; it is published from `main`.
+- **This fork's upstream baseline**: This repository is based on the official v3.17.1 commit `a60ba6a7`; the root `package.json` version is `3.17.1`. The customizations are applied as a series of commits on top of the official baseline (migration plus later feature commits); see [docs/upstream-sync.md](docs/upstream-sync.md) for the follow-up sync workflow.
 - **Official documentation**: [Chinese README](https://github.com/zai-org/ZCode/blob/main/README.md), [English README](https://github.com/zai-org/ZCode/blob/main/README.en.md), and [UI Plugin development guide](https://github.com/zai-org/ZCode/blob/aac4755666d09fdcd70272fcf063c077a639015f/UI_PLUGIN.en.md). Features, directories, and commands in newer official versions may not exist in this fork. Use the checked-out source and `package.json` as the source of truth.
 
 ## Fork Customizations
@@ -53,7 +54,7 @@ This fork adds dual-model review (Oracle), execution-model selection during plan
 
 **Streaming render performance settings** add a dedicated Settings → Performance page for streaming-render optimizations. **Every toggle is off by default**; when off, the render path is identical to the standard one, and each option can be enabled individually: streaming Markdown incremental parsing (only the tail block being generated is re-parsed; finished paragraphs are reused), render-unit reuse (unchanged turns are not rebuilt), scoped run-clock refresh (the per-second timer only refreshes the turn that is actually working; best enabled together with render-unit reuse), coalesced bottom-follow scrolling (multiple scroll writes within one frame merge into one), and coalesced delta frames (multiple streaming deltas arriving within one render frame commit once; text may lag by at most one frame). Parsing/render cost per frame drops noticeably for long replies and long sessions, with no change to the displayed result.
 
-These customizations are described relative to the official v3.16.2 baseline, not as a claim of exclusive features. Later official versions may offer similar capabilities.
+These customizations are described relative to the official v3.17.1 baseline, not as a claim of exclusive features. Later official versions may offer similar capabilities.
 
 The development and packaging instructions below describe this fork's current commands, including its runtime asset preparation changes; they are not a complete mirror of the latest official README.
 
@@ -256,7 +257,7 @@ Open `http://127.0.0.1:3030` to validate the complete flow, with one backend ser
 
 ## Repository Structure
 
-The following lists this fork's main directories, not the complete latest upstream source tree. Fork additions are identified relative to the v3.16.2 baseline.
+The following lists this fork's main directories, not the complete latest upstream source tree. Fork additions are identified relative to the v3.17.1 baseline.
 
 | Directory                                            | Responsibility                                                                          |
 | ---------------------------------------------------- | --------------------------------------------------------------------------------------- |

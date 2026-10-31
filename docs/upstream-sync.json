@@ -21,7 +21,7 @@
   "currentBase": {
     "tag": null,
     "commit": "a60ba6a7e5a06742270ca605f5d2cc2766afa7e1",
-    "sourceCommit": "a60ba6a7e5a06742270ca605f5d2cc2766afa7e1",
+    "sourceCommit": "73158b64ace2c753b67e77e1f83bbaca31b43944",
     "note": "3.17.1 未打 tag，以上游同步提交发布；后续同步的 --is-ancestor 校验改用该 commit SHA。"
   },
   "versions": {
