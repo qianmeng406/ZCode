@@ -735,6 +735,8 @@ function ConversationComposerImpl({
     scopeId: draftScopeId,
     locale,
   });
+  // fork 的提示词优化器需要逐字比较草稿，保留一份正文 state 作为渲染触发；
+  // 是否"有内容"统一看 textPresence（与上游 3.17.1 同源），两者在同一回调内更新。
   const [text, setText] = useState("");
   const [pending, setPending] = useState(false);
   const [presentedHighspeedCardId, setPresentedHighspeedCardId] = useState<string | null>(null);
@@ -842,6 +844,9 @@ function ConversationComposerImpl({
   const updateText = useCallback(
     (next: string) => {
       textRef.current = next;
+      // 合并 3.17.1 时这里丢了 setText：正文 state 停在 ""，提示词优化的草稿比较
+      // 与发送键判定同时失效（纯文本草稿无法发送）。保持逐字 state 是优化的前提。
+      setText(next);
       const reload = next.trim() === "/reload";
       if (reloadTextRef.current !== reload) {
         reloadTextRef.current = reload;
@@ -1435,7 +1440,10 @@ function ConversationComposerImpl({
   });
   const canStop = Boolean(snapshot?.control.canStop);
   const modifiedEnterReversesDelivery = modifiedEnterSubmits && canStop;
-  const hasText = text.trim().length > 0;
+  // 与上游 3.17.1 一致：正文是否存在只看编辑器发布的 presence，不再维护一份本地
+  // `text` state。合并时两者同时保留会导致 `text` 永远停在 ""，纯文本草稿的发送键
+  // 恒为 disabled（只有附件等其它草稿内容能绕过）。
+  const hasText = textPresence.trimmed;
   // 优化模型/方式/上下文统一来自设置页；输入栏只保留一次点击的 ✨ 动作。
   const handleOptimizePrompt = useCallback(() => {
     if (!promptOptimizerEnabled) return;
