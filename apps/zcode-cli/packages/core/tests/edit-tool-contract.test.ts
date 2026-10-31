@@ -29,6 +29,7 @@ import type {
   ReadFileStateMap,
   ToolExecutionContext,
 } from "../src/tool/types.js";
+import { toPosixPath } from "./path-assert.js";
 
 let tmpDir: string;
 
@@ -976,13 +977,15 @@ function createMemoryFileSystem(initial: Record<string, string>): MemoryFileSyst
       return { path: request.path, removed };
     },
     async listDirectory(request) {
-      const prefix = `${request.path.replace(/\/+$/u, "")}/`;
+      // 文件键与请求路径可能混用分隔符（Windows 反斜杠）：按 POSIX 形状切前缀。
+      const prefix = `${toPosixPath(request.path).replace(/\/+$/u, "")}/`;
       const entries = Array.from(files.keys())
-        .filter((path) => path.startsWith(prefix))
-        .map((path) => ({
+        .map((path) => ({ canonical: toPosixPath(path), path }))
+        .filter((entry) => entry.canonical.startsWith(prefix))
+        .map((entry) => ({
           kind: "file" as const,
-          name: path.slice(prefix.length),
-          path,
+          name: entry.canonical.slice(prefix.length),
+          path: entry.path,
         }));
       return { durationMs: 0, entries, numEntries: entries.length, path: request.path };
     },

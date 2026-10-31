@@ -17,6 +17,7 @@ import { writeToolEntry } from "../src/tool/handlers/write.js";
 import { createToolRegistry } from "../src/tool/registry.js";
 import type { ReadFileStateMap } from "../src/tool/types.js";
 import { MemoryFileSystem } from "./memory-test-utils.js";
+import { toPosixPath } from "./path-assert.js";
 
 const workspace = "/tmp/zcode-read-deny-probe";
 const denied = `${workspace}/secret.env`;
@@ -202,7 +203,8 @@ describe("compaction restore under a Read deny rule written as a relative path",
       expect(texts).toHaveLength(1);
       expect(texts[0]).toContain("export const plain = 1;");
       expect(texts.join("\n")).not.toContain("TOKEN=1");
-      expect(restore.readFileStateEntries.map((entry) => entry.path)).toEqual([
+      // 路径按宿主的 node:path 解析（Windows 上带盘符与反斜杠），断言前统一成 POSIX 形状。
+      expect(restore.readFileStateEntries.map((entry) => toPosixPath(entry.path))).toEqual([
         `${workspace}/plain.ts`,
       ]);
       // 写回的记录保留原始写法，下一次 compaction 仍按它判定。

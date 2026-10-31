@@ -15,8 +15,19 @@ import {
 import { readHandler, readToolEntry } from "../src/tool/handlers/read.js";
 import type { ToolExecutionContext } from "../src/tool/types.js";
 import { createTestRuntimeModel } from "./test-runtime-model.js";
+import { toPosixPath } from "./path-assert.js";
 
 const PDF_PATH = "/tmp/report.pdf";
+
+/** 产品用 node:path 解析 file_path（Windows 反斜杠）；断言只归一被测产物里的路径文本。 */
+function normalizeModelContent(content: unknown): unknown {
+  if (!Array.isArray(content)) return typeof content === "string" ? toPosixPath(content) : content;
+  return content.map((part) =>
+    part && typeof part === "object" && typeof (part as { text?: unknown }).text === "string"
+      ? { ...part, text: toPosixPath((part as { text: string }).text) }
+      : part,
+  );
+}
 
 describe("Read PDF handling", () => {
   it("returns the page summary followed by ordered prepared page images", async () => {
@@ -38,14 +49,17 @@ describe("Read PDF handling", () => {
       { renderPages },
     );
 
-    expect(result.output).toMatchObject({
+    expect({
+      ...(result.output as Record<string, unknown>),
+      filePath: toPosixPath((result.output as { filePath: string }).filePath),
+    }).toMatchObject({
       type: "parts",
       filePath: PDF_PATH,
       numParts: 2,
       originalSize: 1_536,
       pages: [{ pageNumber: 2 }, { pageNumber: 3 }],
     });
-    expect(result.modelContent).toEqual([
+    expect(normalizeModelContent(result.modelContent)).toEqual([
       { type: "text", text: `PDF pages extracted: 2 page(s) from ${PDF_PATH} (1.5KB)` },
       expect.objectContaining({
         type: "image",
@@ -138,7 +152,7 @@ describe("Read PDF handling", () => {
     );
 
     expect(result.success).toBe(true);
-    expect(result.modelContent).toEqual([
+    expect(normalizeModelContent(result.modelContent)).toEqual([
       { type: "text", text: `PDF file read: ${PDF_PATH} (1.5KB)` },
       expect.objectContaining({
         type: "file",
@@ -162,7 +176,7 @@ describe("Read PDF handling", () => {
       }),
     );
 
-    expect(result.modelContent).toBe(
+    expect(toPosixPath(String(result.modelContent))).toBe(
       `<tool_use_error>Path is not a regular file: ${PDF_PATH}</tool_use_error>`,
     );
   });
@@ -231,7 +245,7 @@ describe("Read PDF handling", () => {
       }),
     );
 
-    expect(result.modelContent).toBe(
+    expect(toPosixPath(String(result.modelContent))).toBe(
       `<tool_use_error>File is not a valid PDF (missing %PDF- header): ${PDF_PATH}</tool_use_error>`,
     );
   });
@@ -256,7 +270,10 @@ describe("Read PDF handling", () => {
     );
 
     expect(result.success).toBe(true);
-    expect(result.output).toMatchObject({ type: "pdf", filePath: PDF_PATH });
+    expect({
+      ...(result.output as Record<string, unknown>),
+      filePath: toPosixPath((result.output as { filePath: string }).filePath),
+    }).toMatchObject({ type: "pdf", filePath: PDF_PATH });
   });
 
   it("propagates native page-count cancellation while the outer signal is still live", async () => {
@@ -301,7 +318,10 @@ describe("Read PDF handling", () => {
     });
 
     const output = await readHandler({ file_path: PDF_PATH, pages: "1" }, context);
-    expect(output).toMatchObject({ type: "text", filePath: PDF_PATH });
+    expect({
+      ...(output as Record<string, unknown>),
+      filePath: toPosixPath((output as { filePath: string }).filePath),
+    }).toMatchObject({ type: "text", filePath: PDF_PATH });
   });
 });
 

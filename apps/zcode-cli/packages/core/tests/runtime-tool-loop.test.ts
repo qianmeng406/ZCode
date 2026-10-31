@@ -1,3 +1,4 @@
+import { toPosixPath } from "./path-assert.js";
 import { withoutAgentListingMessages } from "./test-agent-listing.js";
 import { describe, expect, it, vi } from "vitest";
 import { createTestModelSelection } from "./test-model-selection.js";
@@ -2707,11 +2708,12 @@ describe("AgentRuntime tool loop", () => {
     await runtime.executeTurn("change directory then show pwd");
 
     expect(requests).toHaveLength(2);
-    expect(requests[0]?.cwd).toBe(initialCwd);
+    // 产品用 node:path 解析 cwd（Windows 上反斜杠）；断言按 POSIX 形状比较。
+    expect(toPosixPath(requests[0]?.cwd ?? "")).toBe(toPosixPath(initialCwd));
     expect(requests[0]?.captureCwdAfterSuccess).toBe(true);
-    expect(requests[1]?.cwd).toBe(nextCwd);
+    expect(toPosixPath(requests[1]?.cwd ?? "")).toBe(toPosixPath(nextCwd));
     expect(requests[1]?.captureCwdAfterSuccess).toBe(true);
-    expect(rootObservations).toEqual([initialCwd]);
+    expect(rootObservations.map(toPosixPath)).toEqual([toPosixPath(initialCwd)]);
     expect(runtime.getProjectId()).toBe(projectIdFromDirectory(initialCwd));
   });
 
@@ -2803,8 +2805,8 @@ describe("AgentRuntime tool loop", () => {
     await runtime.executeTurn("leave workspace and then show pwd");
 
     expect(requests).toHaveLength(2);
-    expect(requests[0]?.cwd).toBe(workspaceRoot);
-    expect(requests[1]?.cwd).toBe(workspaceRoot);
+    expect(toPosixPath(requests[0]?.cwd ?? "")).toBe(toPosixPath(workspaceRoot));
+    expect(toPosixPath(requests[1]?.cwd ?? "")).toBe(toPosixPath(workspaceRoot));
     expect(providerMessagesToText(secondRequestMessages)).toContain(
       `Shell cwd was reset to ${workspaceRoot}`,
     );
@@ -2885,10 +2887,10 @@ describe("AgentRuntime tool loop", () => {
       .map((message) => message.info.path)
       .filter((path): path is NonNullable<MessageInfo["path"]> => path !== undefined);
     expect(messagePaths.length).toBeGreaterThan(0);
-    expect(messagePaths.map((path) => path.root)).toEqual(
-      Array.from({ length: messagePaths.length }, () => initialCwd),
+    expect(messagePaths.map((path) => toPosixPath(path.root))).toEqual(
+      Array.from({ length: messagePaths.length }, () => toPosixPath(initialCwd)),
     );
-    expect(messagePaths.some((path) => path.cwd === nextCwd)).toBe(true);
+    expect(messagePaths.some((path) => toPosixPath(path.cwd) === toPosixPath(nextCwd))).toBe(true);
   });
 
   it("fills default runtime metadata when synthetic notice metadata leaves runtimeMessage undefined", async () => {
@@ -12707,7 +12709,7 @@ describe("AgentRuntime tool loop", () => {
       targetMessageIds: assistants.slice(0, 2),
     });
 
-    expect(preview.safeFiles.map((file) => file.path).sort()).toEqual([
+    expect(preview.safeFiles.map((file) => toPosixPath(file.path)).sort()).toEqual([
       "/work/src/a.ts",
       "/work/src/b.ts",
     ]);
@@ -14930,11 +14932,22 @@ class RecordingArtifactStore implements ToolArtifactStorePort {
   }
 }
 
+/** 与产品一致：键按 POSIX 形状归一，Windows 上 resolve 出的 C:\... 也能命中。 */
+function canonicalTestPath(path: string): string {
+  return path.replace(/\\/g, "/").replace(/^[A-Za-z]:(?=[\\/])/, "");
+}
+
 class MemoryFileSystem implements FileSystemPort {
   readonly files: Map<string, string>;
 
   constructor(initial: Record<string, string>) {
-    this.files = new Map(Object.entries(initial));
+    this.files = new Map(
+      Object.entries(initial).map(([path, content]) => [canonicalTestPath(path), content]),
+    );
+  }
+
+  private contentOf(path: string): string | undefined {
+    return this.files.get(canonicalTestPath(path));
   }
 
   async createDirectory(request: { path: string }) {
@@ -14942,7 +14955,7 @@ class MemoryFileSystem implements FileSystemPort {
   }
 
   async stat(request: { path: string }) {
-    const content = this.files.get(request.path);
+    const content = this.contentOf(request.path);
     if (content === undefined) {
       throw createFileSystemError({
         code: "not_found",
@@ -14958,7 +14971,7 @@ class MemoryFileSystem implements FileSystemPort {
   }
 
   async readTextFile(request: { path: string; encoding?: BufferEncoding }) {
-    const content = this.files.get(request.path);
+    const content = this.contentOf(request.path);
     if (content === undefined) {
       throw createFileSystemError({
         code: "not_found",
@@ -14977,7 +14990,7 @@ class MemoryFileSystem implements FileSystemPort {
   }
 
   async readBinaryFile(request: { path: string; maxBytes?: number }) {
-    const content = this.files.get(request.path);
+    const content = this.contentOf(request.path);
     if (content === undefined) {
       throw createFileSystemError({
         code: "not_found",
@@ -15008,7 +15021,7 @@ class MemoryFileSystem implements FileSystemPort {
     limitLines?: number;
     maxBytes?: number;
   }) {
-    const content = this.files.get(request.path);
+    const content = this.contentOf(request.path);
     if (content === undefined) {
       throw createFileSystemError({
         code: "not_found",
@@ -15046,7 +15059,7 @@ class MemoryFileSystem implements FileSystemPort {
   }
 
   async writeTextFile(request: { path: string; content: string }) {
-    this.files.set(request.path, request.content);
+    this.files.set(canonicalTestPath(request.path), request.content);
     return {
       path: request.path,
       bytesWritten: Buffer.byteLength(request.content, "utf8"),
@@ -15054,7 +15067,7 @@ class MemoryFileSystem implements FileSystemPort {
   }
 
   async removeFile(request: { path: string; missingOk?: boolean }) {
-    const removed = this.files.delete(request.path);
+    const removed = this.files.delete(canonicalTestPath(request.path));
     if (!removed && request.missingOk !== true) {
       throw createFileSystemError({
         code: "not_found",
@@ -15069,7 +15082,7 @@ class MemoryFileSystem implements FileSystemPort {
   }
 
   async listDirectory(request: { path: string }) {
-    const prefix = `${request.path.replace(/\/+$/, "")}/`;
+    const prefix = `${canonicalTestPath(request.path).replace(/\/+$/, "")}/`;
     const seen = new Set<string>();
     const entries = Array.from(this.files.keys()).flatMap((path) => {
       if (!path.startsWith(prefix)) return [];

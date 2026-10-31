@@ -153,7 +153,10 @@ export class PermissionService {
 
     // Beta 权限明确复用完全访问（yolo）策略：非 Plan 时与 yolo 同支直通（含先于
     // disallowedTools 放行的既有优先级）；Plan 开启时与 yolo 一致回落下方只读路径。
-    if ((context.mode === "yolo" || context.mode === "guarded" || context.mode === "beta") && !planEnabled) {
+    if (
+      (context.mode === "yolo" || context.mode === "guarded" || context.mode === "beta") &&
+      !planEnabled
+    ) {
       return this.allow(context, capability, "mode.yolo", "Yolo mode bypasses permission prompts");
     }
 
@@ -396,18 +399,22 @@ export class PermissionService {
   }
 
   private matchesRuleContent(subject: string, ruleContent: string): boolean {
-    if (ruleContent.endsWith(":*")) {
-      const prefix = ruleContent.slice(0, -2);
+    // 规则与主体都按 POSIX 分隔符比较：Windows 上用户/AI 写的 `dir/blocked/*` 与工具解析出的
+    // `dir\blocked\x` 是同一路径，逐字节比较会让 deny 规则在 Windows 上静默失效。
+    const rule = ruleContent.replace(/\\/g, "/");
+    const target = subject.replace(/\\/g, "/");
+    if (rule.endsWith(":*")) {
+      const prefix = rule.slice(0, -2);
       return (
-        subject === prefix || subject.startsWith(`${prefix} `) || subject.startsWith(`${prefix}\t`)
+        target === prefix || target.startsWith(`${prefix} `) || target.startsWith(`${prefix}\t`)
       );
     }
 
-    if (ruleContent.includes("*")) {
-      return wildcardToRegExp(ruleContent).test(subject);
+    if (rule.includes("*")) {
+      return wildcardToRegExp(rule).test(target);
     }
 
-    return subject === ruleContent;
+    return target === rule;
   }
 
   /**

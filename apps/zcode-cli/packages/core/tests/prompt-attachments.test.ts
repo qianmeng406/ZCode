@@ -8,6 +8,7 @@ import {
 import { resolveTurnAttachments } from "../src/runtime/helpers/attachments.js";
 import type { FileSystemPort } from "../src/runtime/deps.js";
 import type { ResolvedTurnAttachment } from "../src/runtime/types.js";
+import { toPosixPath } from "./path-assert.js";
 
 describe("prompt attachment provider content order", () => {
   it("resolves an inline PDF into a provider file block and durable artifact", async () => {
@@ -83,16 +84,28 @@ describe("prompt attachment provider content order", () => {
       workingDirectory: "/tmp/project",
     });
 
-    expect(readBinaryFile).toHaveBeenCalledWith(
-      expect.objectContaining({ path, maxBytes: 20 * 1024 * 1024 }),
-      expect.any(Object),
-    );
-    expect(resolved).toMatchObject({
+    // 产品按宿主平台解析 file_path：断言只归一调用参数里的路径文本。
+    const binaryRead = readBinaryFile.mock.calls[0]?.[0] as { maxBytes?: number; path: string };
+    expect(toPosixPath(binaryRead.path)).toBe(toPosixPath(path));
+    expect(binaryRead.maxBytes).toBe(20 * 1024 * 1024);
+    const resolvedContent = resolved as {
+      contentBlock: { source: { kind: string; path: string } };
+    };
+    expect({
+      ...(resolved as Record<string, unknown>),
+      contentBlock: {
+        ...(resolved as Record<string, unknown>).contentBlock,
+        source: {
+          ...resolvedContent.contentBlock.source,
+          path: toPosixPath(resolvedContent.contentBlock.source.path),
+        },
+      },
+    }).toMatchObject({
       contentBlock: {
         type: "file",
         mediaType: "application/pdf",
         name: "report.pdf",
-        source: { kind: "local_file", path },
+        source: { kind: "local_file", path: toPosixPath(path) },
       },
       metadata: { artifactUri: "zcode-artifact://pdf-local-1", storageKind: "artifact" },
       mime: "application/pdf",
@@ -955,7 +968,7 @@ describe("prompt attachment provider content order", () => {
     const path = "/Users/test/.zcode/tmp/paste-attachments/2026-06-30/pasted-text.txt";
     const fileSystemPort = {
       async stat(request) {
-        expect(request.path).toBe(path);
+        expect(toPosixPath(request.path)).toBe(path);
         return {
           path,
           kind: "file",

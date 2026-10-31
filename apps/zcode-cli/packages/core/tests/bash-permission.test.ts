@@ -104,8 +104,11 @@ describe("bash runtime permission capability", () => {
     ];
 
     for (const command of commands) {
-      expect(isBashInputReadOnly({ command }), command).toBe(true);
-      expect(isBashInputConcurrencySafe({ command }), command).toBe(true);
+      // win32 上 xargs 不是只读：产品在 bash-readonly-policy-argv.ts 里对它显式返回 undefined
+      // （Windows 的 xargs 参数/子进程语义与 POSIX 不一致），这里跟随该修复。
+      const readOnly = !(process.platform === "win32" && command.startsWith("xargs "));
+      expect(isBashInputReadOnly({ command }), command).toBe(readOnly);
+      expect(isBashInputConcurrencySafe({ command }), command).toBe(readOnly);
 
       const decision = service.checkPermission(
         {
@@ -116,8 +119,13 @@ describe("bash runtime permission capability", () => {
         },
         withRuntimeCapability({ command }),
       );
-      expect(decision.decision, command).toBe("allow");
-      expect(decision.ruleId, command).toBe("mode.build.readOnly");
+      if (readOnly) {
+        expect(decision.decision, command).toBe("allow");
+        expect(decision.ruleId, command).toBe("mode.build.readOnly");
+      } else {
+        // 不是只读就只能走审批，不允许被 mode.build.readOnly 静默放行。
+        expect(decision.decision, command).toBe("ask");
+      }
     }
   });
 

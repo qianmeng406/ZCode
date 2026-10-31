@@ -32,6 +32,7 @@ import {
 import { createReadFileStatePathKey } from "../src/tool/read-file-state.js";
 import { createToolRegistry } from "../src/tool/registry.js";
 import type { ReadFileStateMap, ToolExecutionContext } from "../src/tool/types.js";
+import { toPosixPath } from "./path-assert.js";
 
 const RUN_READ_STRICT_CONTRACT = process.env.ZCODE_RUN_READ_STRICT_CONTRACT === "1";
 const describeReadStrictContract = RUN_READ_STRICT_CONTRACT ? describe : describe.skip;
@@ -1021,13 +1022,15 @@ function createMemoryFileSystem(
       };
     },
     async listDirectory(request) {
-      const prefix = `${request.path.replace(/\/+$/u, "")}/`;
+      // 文件键与请求路径可能混用分隔符（Windows 反斜杠）：按 POSIX 形状切前缀。
+      const prefix = `${toPosixPath(request.path).replace(/\/+$/u, "")}/`;
       const entries = Array.from(files.keys())
-        .filter((path) => path.startsWith(prefix))
-        .map((path) => ({
+        .map((path) => ({ canonical: toPosixPath(path), path }))
+        .filter((entry) => entry.canonical.startsWith(prefix))
+        .map((entry) => ({
           kind: "file" as const,
-          name: path.slice(prefix.length),
-          path,
+          name: entry.canonical.slice(prefix.length),
+          path: entry.path,
         }));
       return {
         path: request.path,
@@ -1037,8 +1040,10 @@ function createMemoryFileSystem(
       };
     },
     async searchFiles(request): Promise<FileSystemSearchFilesResult> {
-      const prefix = `${request.path.replace(/\/+$/u, "")}/`;
-      const filesMatched = Array.from(files.keys()).filter((path) => path.startsWith(prefix));
+      const prefix = `${toPosixPath(request.path).replace(/\/+$/u, "")}/`;
+      const filesMatched = Array.from(files.keys()).filter((path) =>
+        toPosixPath(path).startsWith(prefix),
+      );
       return {
         path: request.path,
         pattern: request.pattern,

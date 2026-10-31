@@ -1,3 +1,4 @@
+import { join, resolve } from "node:path";
 import { describe, expect, it, vi } from "vitest";
 import type { ReadTextOutput } from "@zcode/contracts";
 import type { RuntimeMessageEntry } from "../src/agent/message-history.js";
@@ -275,7 +276,10 @@ describe("post-compact file restore", () => {
 describe("post-compact file restore paths and read state", () => {
   // 修复原因：保留段里 Read 的 file_path 曾不解析就比较，模型用相对路径读过的文件匹配不上，会再补回一份。
   it("resolves preserved Read paths against the working directory before excluding them", async () => {
-    const preservedFile = `${root}/src/relative.ts`;
+    // workingDirectory 用宿主平台形状（Windows 上带盘符）：相对路径解析出的绝对路径才会和
+    // read-state 里记录的路径同形，否则这里比的就只是 `\tmp\...` 与 `C:\tmp\...` 的差异。
+    const workingDirectory = resolve(root);
+    const preservedFile = join(workingDirectory, "src", "relative.ts");
     const readFiles = vi.fn(perFile(async (filePath) => textRead(filePath, "current")));
 
     await buildPostCompactFileRestore({
@@ -292,7 +296,7 @@ describe("post-compact file restore paths and read state", () => {
       ],
       readFiles,
       readFileState: createState([entry(preservedFile, { sourceTool: "Read" })]),
-      workingDirectory: root,
+      workingDirectory,
     });
 
     expect(readFiles).not.toHaveBeenCalled();

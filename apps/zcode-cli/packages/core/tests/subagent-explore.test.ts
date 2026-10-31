@@ -201,9 +201,11 @@ describe("Explore subagent", () => {
         (error: unknown) => ({ error, kind: "failed" as const }),
       );
 
+    // 兜底等待放宽到 2s：inactivityTimeoutMs 只有 20ms，但整套并行跑时 worker 线程被抢占，
+    // 160ms 的兜底会在定时器还没回调时先赢，误报成 hung。断言不变，只是别让调度抖动决定结果。
     const result = await Promise.race([
       runPromise,
-      new Promise<{ kind: "hung" }>((resolve) => setTimeout(() => resolve({ kind: "hung" }), 160)),
+      new Promise<{ kind: "hung" }>((resolve) => setTimeout(() => resolve({ kind: "hung" }), 2000)),
     ]);
 
     expect(result.kind).toBe("failed");

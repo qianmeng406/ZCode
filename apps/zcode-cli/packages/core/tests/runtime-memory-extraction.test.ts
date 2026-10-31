@@ -31,6 +31,7 @@ import {
   type TestModelExecutionObservation,
 } from "./test-runtime-model.js";
 import type { RuntimeModelFactory } from "../src/runtime/types.js";
+import { toPosixPath } from "./path-assert.js";
 
 const CLI_STORAGE_ROOT = "/storage/cli";
 const WORKSPACE_PATH = "/workspace/project";
@@ -647,7 +648,7 @@ describe("AgentRuntime background Memory extraction", () => {
       expect(providerMessagesToText([messages[toolIndex]!])).not.toContain("PARTIAL view");
       const notice = messages[toolIndex + 1]!;
       expect(notice.role).toBe(noticeRole);
-      expect(providerMessagesToText([notice])).toContain(
+      expect(toPosixPath(providerMessagesToText([notice]))).toContain(
         `[Truncated: PARTIAL view \u2014 ${longPath}: showing lines 1-`,
       );
     },

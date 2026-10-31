@@ -6,6 +6,7 @@ import {
 } from "../src/memory/project-memory-retrieval-branch.js";
 import { loadProjectMemoryIndexContent } from "../src/runtime/methods/context.js";
 import { MemoryFileSystem } from "./memory-test-utils.js";
+import { toPosixPath } from "./path-assert.js";
 
 describe("project Memory retrieval branch", () => {
   it.each<{ enabled: boolean; expected: ProjectMemoryRetrievalBranch }>([
@@ -30,7 +31,12 @@ describe("project Memory retrieval branch", () => {
     await expect(
       loadProjectMemoryIndexContent(defaultRuntime, memoryRoot, "default-index"),
     ).resolves.toBe(content);
-    expect(defaultFileSystem.readRequests).toEqual([{ maxBytes: undefined, path: indexPath }]);
+    expect(
+      defaultFileSystem.readRequests.map((request) => ({
+        ...request,
+        path: toPosixPath(request.path),
+      })),
+    ).toEqual([{ maxBytes: undefined, path: indexPath }]);
     expect(defaultReadFileState.size).toBe(1);
 
     const semanticFileSystem = new MemoryFileSystem({ [indexPath]: content });
@@ -66,7 +72,9 @@ describe("project Memory retrieval branch", () => {
     await expect(
       loadProjectMemoryIndexContent(runtime, memoryRoot, "default-index"),
     ).resolves.toBeUndefined();
-    expect(fileSystem.readRequests).toEqual([{ maxBytes: undefined, path: indexPath }]);
+    expect(
+      fileSystem.readRequests.map((request) => ({ ...request, path: toPosixPath(request.path) })),
+    ).toEqual([{ maxBytes: undefined, path: indexPath }]);
     expect(readFileState.size).toBe(0);
   });
 });

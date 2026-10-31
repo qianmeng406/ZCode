@@ -6,6 +6,7 @@ import { createTestAgentRuntime } from "./test-agent-runtime.js";
 import { createTestSessionEventStore } from "./test-event-store.js";
 import { MemoryFileSystem } from "./memory-test-utils.js";
 import { createTestModelFactory } from "./test-runtime-model.js";
+import { toPosixPath } from "./path-assert.js";
 
 const CLI_STORAGE_ROOT = "/storage/cli";
 const WORKSPACE_PATH = "/workspace/project";
@@ -186,9 +187,11 @@ describe("AgentRuntime project Memory context", () => {
       workspacePath: WORKSPACE_PATH,
     });
 
-    expect(result.providerText).toContain(`\`${rootDir}/\``);
-    expect(rootDir).toContain("/project-");
-    expect(rootDir).not.toContain("/workspace-");
+    // rootDir 由 node:path 拼装（Windows 反斜杠），按 POSIX 形状断言。
+    const posixRootDir = toPosixPath(rootDir);
+    expect(toPosixPath(result.providerText)).toContain(`\`${posixRootDir}/\``);
+    expect(posixRootDir).toContain("/project-");
+    expect(posixRootDir).not.toContain("/workspace-");
   });
 
   it("leaves legacy summary/topics and explicit remember producers outside the active path", async () => {

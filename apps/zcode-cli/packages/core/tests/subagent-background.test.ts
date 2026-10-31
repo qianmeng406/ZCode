@@ -32,6 +32,7 @@ import { createInMemoryHookRunner } from "../src/hooks/index.js";
 import { createExploreSubagentPort } from "../src/subagent/runner.js";
 import { createTestSessionEventStore } from "./test-event-store.js";
 import { createTestModelFactory } from "./test-runtime-model.js";
+import { toPosixPath } from "./path-assert.js";
 
 // 后台 agent 通知的固定 <note>；测试里写死，锁定字节。
 const LOCAL_AGENT_NOTE =
@@ -1702,7 +1703,8 @@ describe("subagent background notifications", () => {
       ...actualFs,
       writeFile: vi.fn(async (...args: Parameters<typeof actualFs.writeFile>) => {
         const [path] = args;
-        if (String(path).endsWith("/output.txt") && !outputWriteStarted) {
+        // 产物路径随宿主平台（Windows 上是反斜杠），按 POSIX 形状判定是同一个 output.txt。
+        if (toPosixPath(String(path)).endsWith("/output.txt") && !outputWriteStarted) {
           outputWriteStarted = true;
           await blockedArtifactWrite.promise;
         }

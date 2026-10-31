@@ -43,6 +43,8 @@ describe("Bash cwd policy", () => {
         exitCode: 0,
         resolvedCwd: "/repo/subdir",
         workspaceRoot: "/repo",
+        // POSIX 语义与宿主平台无关：Windows 上必须显式声明，否则 path.win32 会把分隔符改写。
+        platform: "linux",
         runtimeScope: "main",
       }),
     ).toEqual({ nextWorkingDirectory: "/repo/subdir" });
@@ -82,6 +84,7 @@ describe("Bash cwd policy", () => {
         exitCode: 0,
         resolvedCwd: "/private/tmp/repo/subdir",
         workspaceRoot: "/tmp/repo",
+        platform: "linux",
         runtimeScope: "main",
       }),
     ).toEqual({ nextWorkingDirectory: "/tmp/repo/subdir" });
@@ -156,6 +159,7 @@ describe("Bash cwd policy", () => {
         exitCode: 0,
         resolvedCwd: "/tmp/repo",
         workspaceRoot: "/private/tmp/repo",
+        platform: "linux",
         runtimeScope: "main",
       }),
     ).toEqual({ nextWorkingDirectory: "/private/tmp/repo" });
@@ -165,6 +169,7 @@ describe("Bash cwd policy", () => {
         exitCode: 0,
         resolvedCwd: "/outside",
         workspaceRoot: "/private/tmp/repo",
+        platform: "linux",
         runtimeScope: "main",
       }),
     ).toEqual({
@@ -241,6 +246,7 @@ describe("Bash cwd policy", () => {
         exitCode: 0,
         resolvedCwd: "/repo/..cache",
         workspaceRoot: "/repo",
+        platform: "linux",
         runtimeScope: "main",
       }),
     ).toEqual({ nextWorkingDirectory: "/repo/..cache" });
@@ -2875,7 +2881,8 @@ function memoryFileSystemPort(
 describe("Bash provider description", () => {
   it("只在 Monitor 已注册时引导模型改用 Monitor", () => {
     const withMonitor = createBashToolEntry({ monitorEnabled: true }).metadata.description ?? "";
-    const withoutMonitor = createBashToolEntry({ monitorEnabled: false }).metadata.description ?? "";
+    const withoutMonitor =
+      createBashToolEntry({ monitorEnabled: false }).metadata.description ?? "";
 
     expect(withMonitor).toContain("Monitor");
     // 关闭时必须一字不提：指向一个本会话不存在的工具只会让模型白烧一个回合。

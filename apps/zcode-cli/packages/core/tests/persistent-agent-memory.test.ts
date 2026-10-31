@@ -12,6 +12,7 @@ import {
 } from "../src/subagent/persistent-memory.js";
 import { formatAgentProfilesForPrompt, type AgentProfile } from "../src/subagent/profile.js";
 import { MemoryFileSystem } from "./memory-test-utils.js";
+import { toPosixPath } from "./path-assert.js";
 
 const fixture = readFileSync(
   new URL("./fixtures/memory/custom-agent-memory.md", import.meta.url),
@@ -32,9 +33,11 @@ describe("persistent custom-agent memory", () => {
     expect(sanitizePersistentAgentMemoryKey("!!!")).toBe("---");
     expect(sanitizePersistentAgentMemoryKey("")).toBe("unknown");
 
-    expect(root("user")).toBe("/storage/agent-memory/reviewer-a-b");
-    expect(root("project")).toBe("/workspace/app/.zcode/agent-memory/reviewer-a-b");
-    expect(root("local")).toBe("/workspace/app/.zcode/agent-memory-local/reviewer-a-b");
+    expect(toPosixPath(root("user"))).toBe("/storage/agent-memory/reviewer-a-b");
+    expect(toPosixPath(root("project"))).toBe("/workspace/app/.zcode/agent-memory/reviewer-a-b");
+    expect(toPosixPath(root("local"))).toBe(
+      "/workspace/app/.zcode/agent-memory-local/reviewer-a-b",
+    );
   });
 
   it.each(["user", "project", "local"] as const)(
@@ -45,9 +48,12 @@ describe("persistent custom-agent memory", () => {
         .replace("<MEMORY_ROOT>", memoryRoot)
         .replace("<SCOPE_GUIDANCE>", scopeGuidance[scope]);
 
+      // 根目录由 node:path 拼装（Windows 反斜杠）：按 POSIX 形状比较两侧。
       expect(
-        buildPersistentAgentMemoryPrompt({ indexContent: "", rootDir: memoryRoot, scope }),
-      ).toBe(expected);
+        toPosixPath(
+          buildPersistentAgentMemoryPrompt({ indexContent: "", rootDir: memoryRoot, scope }),
+        ),
+      ).toBe(toPosixPath(expected));
     },
   );
 
@@ -141,7 +147,7 @@ describe("persistent custom-agent memory", () => {
 
     expect(first?.prompt).toContain("## MEMORY.md\n\nfirst index");
     expect(second?.prompt).toContain("## MEMORY.md\n\nsecond index");
-    expect(first?.rootDir).toBe(memoryRoot);
+    expect(toPosixPath(first?.rootDir ?? "")).toBe(toPosixPath(memoryRoot));
     expect(fileSystem.createdDirectories).toContain(memoryRoot);
 
     const disabledFileSystem = new MemoryFileSystem({});
@@ -169,7 +175,7 @@ describe("persistent custom-agent memory", () => {
       workspaceRoot: "/workspace/app",
     });
 
-    expect(loaded?.rootDir).toBe("/storage/agent-memory/reviewer-a-b");
+    expect(toPosixPath(loaded?.rootDir ?? "")).toBe("/storage/agent-memory/reviewer-a-b");
     expect(loaded?.prompt).toContain("# Persistent Agent Memory");
   });
 });

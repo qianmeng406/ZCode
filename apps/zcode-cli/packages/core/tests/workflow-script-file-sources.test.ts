@@ -1,11 +1,4 @@
-import {
-  mkdirSync,
-  mkdtempSync,
-  readFileSync,
-  readdirSync,
-  rmSync,
-  writeFileSync,
-} from "node:fs";
+import { mkdirSync, mkdtempSync, readFileSync, readdirSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterEach, describe, expect, it } from "vitest";
@@ -36,6 +29,7 @@ import {
   serializeSavedWorkflow,
 } from "../src/tool/handlers/saved-workflows/index.js";
 import { createToolRegistry } from "../src/tool/registry.js";
+import { toPosixPath } from "./path-assert.js";
 
 // docs/dynamic-workflow/launch.md「Script files」：每一段脚本都有个盘上的家，而那个文件就是
 // 模型两次提交之间的把手。这里端到端地钉四件事：草稿真的被写下来、诊断按文件行报、`path`
@@ -566,7 +560,8 @@ describe("AmendWorkflow — file sources", () => {
       ).toEqual(["kept.dwf.ts"]);
       const output = outcome.result.output as CreateWorkflowOutput;
       expect(output.response).toContain("started unchanged in the background");
-      expect(output.response).toContain(`${WORKFLOW_DRAFTS_DIR}/kept.dwf.ts`);
+      // 脚本路径随宿主平台的分隔符：按 POSIX 形状比较。
+      expect(toPosixPath(output.response)).toContain(`${WORKFLOW_DRAFTS_DIR}/kept.dwf.ts`);
     });
 
     it("writes a fresh draft when the predecessor's file has been edited since", async () => {

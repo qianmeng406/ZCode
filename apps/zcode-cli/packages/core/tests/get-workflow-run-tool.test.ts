@@ -14,6 +14,7 @@ import { registerBuiltInTools } from "../src/tool/handlers/index.js";
 import { createToolRegistry } from "../src/tool/registry.js";
 import { expectV2CommonContract } from "./tool-contract-assertions.js";
 import type { ToolExecutionContext, ToolHandlerFailure } from "../src/tool/types.js";
+import { toPosixPath } from "./path-assert.js";
 
 /** 快照时刻：run 的 updatedAt 之后 40 秒，createdAt 之后 5m 40s。所有年龄都对它算。 */
 const NOW = Date.UTC(2026, 7, 21, 9, 5, 40);
@@ -248,7 +249,8 @@ describe("GetWorkflowRun handler — running snapshot", () => {
     };
     const output = await call("dwfrun-running", stubDetailPort({ "dwfrun-running": detail }));
 
-    expect(output.scriptPath).toBe(".zcode/workflow-drafts/audit.dwf.ts");
+    // 快照里的脚本路径按工作区相对路径输出，分隔符随宿主平台（Windows 反斜杠）。
+    expect(toPosixPath(output.scriptPath ?? "")).toBe(".zcode/workflow-drafts/audit.dwf.ts");
   });
 
   it("keeps a script file outside the working directory absolute", async () => {

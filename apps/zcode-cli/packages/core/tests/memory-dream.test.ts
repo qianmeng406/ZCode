@@ -12,6 +12,7 @@ import {
   evaluateAutoDreamTiming,
   restoreDreamLockAfterFailure,
 } from "../src/memory/dream.js";
+import { toPosixPath } from "./path-assert.js";
 
 const temporaryDirectories: string[] = [];
 
@@ -138,7 +139,7 @@ describe("Dream touched paths", () => {
       workspaceRoot: "/workspace",
     });
 
-    expect([...paths]).toEqual([`${root}/fact.md`, `${root}/old.md`]);
+    expect([...paths].map(toPosixPath)).toEqual([`${root}/fact.md`, `${root}/old.md`]);
   });
 });
 

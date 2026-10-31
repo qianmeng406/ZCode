@@ -72,6 +72,7 @@ import {
   createTestRuntimeModel,
   type TestModelExecutionObservation,
 } from "./test-runtime-model.js";
+import { toPosixPath } from "./path-assert.js";
 
 function providerContentToText(content: unknown): string {
   if (typeof content === "string") return content;
@@ -1865,7 +1866,8 @@ describe("AgentRuntime manual compact", () => {
     // 按从旧到新写入，最新的文件在最后，和 Map 遍历顺序即写入顺序的约定一致。
     expect(
       [...readFileState.values()].map((entry) => [
-        entry.path,
+        // 产品按宿主平台解析路径；断言归一成 POSIX 形状（Windows 上为反斜杠）。
+        toPosixPath(entry.path),
         entry.isPartialView,
         entry.offset,
         entry.limit,
@@ -1916,10 +1918,12 @@ describe("AgentRuntime manual compact", () => {
         input,
         name,
       });
-    expect((await probe("Read", { file_path: files.current })).output).toEqual({
-      type: "file_unchanged",
-      filePath: files.current,
-    });
+    const unchanged = (await probe("Read", { file_path: files.current })).output as {
+      filePath?: string;
+      type: string;
+    };
+    expect(unchanged.type).toBe("file_unchanged");
+    expect(toPosixPath(unchanged.filePath ?? "")).toBe(toPosixPath(files.current));
     expect((await probe("Read", { file_path: files.large })).output).toMatchObject({
       type: "text",
     });
@@ -2003,7 +2007,9 @@ describe("AgentRuntime manual compact", () => {
 
     await runtime.executeTurn("/compact");
 
-    expect([...readFileState.values()].map((entry) => entry.path)).toEqual([asked]);
+    expect([...readFileState.values()].map((entry) => toPosixPath(entry.path))).toEqual([
+      toPosixPath(asked),
+    ]);
     const persistedText = (await store.messages({ sessionID: sessionId }))
       .flatMap((message) => message.parts)
       .filter((part) => part.type === "text")
@@ -2026,7 +2032,7 @@ describe("AgentRuntime manual compact", () => {
       override async readTextFileRange(
         request: Parameters<MemoryFileSystem["readTextFileRange"]>[0],
       ): ReturnType<MemoryFileSystem["readTextFileRange"]> {
-        if (request.path === file && request.limitLines === undefined) {
+        if (toPosixPath(request.path) === toPosixPath(file) && request.limitLines === undefined) {
           controller.abort();
           throw new Error("read aborted");
         }
