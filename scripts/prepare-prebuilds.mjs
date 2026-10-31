@@ -232,6 +232,21 @@ const remoteOfficialPluginPackages = [
     requiresRuntime: false,
     stagedPath: "packages/zcode-guide-plugin",
   },
+  {
+    // 上游 3.17.1 把 zcode-site-plugin 加进了远端必需资产清单
+    // （packages/server/src/remote/zcodeAgentOfficialPluginAssets.ts 的 PACKAGE_NAMES +
+    // `${name}/.zcode-plugin/plugin.json` 必需路径），但没同步这份远端暂存清单。
+    // 缺失时随包 remote-assets 永远没有该插件，SSH/WSL 远程工作区部署会在
+    // 「local remote asset not found ... component=glm」处直接失败。
+    // requiresRuntime 与桌面端 prepare-agent-node-bundle.mjs 同款：Sites 的 MCP server
+    // 与面板页面由插件自己的 scripts/build.mjs 产出到 dist/。
+    packageName: "@zcode/zcode-site-plugin",
+    relativePath: "apps/zcode-cli/packages/zcode-site-plugin",
+    requiresRuntime: true,
+    requiredRuntimePaths: ["dist/server.mjs", "dist/ui/panel.html"],
+    runtimeBuildScript: "scripts/build.mjs",
+    stagedPath: "packages/zcode-site-plugin",
+  },
 ];
 // 随 CLI 内置的技能包（不是插件）：远端 agent 的 bootstrap 沿官方插件同款候选目录在 zcode.cjs 旁
 // 找 packages/bundled-skills 并原地读取；与 packages/desktop/scripts/prepare-agent-node-bundle.mjs 同一份清单。
