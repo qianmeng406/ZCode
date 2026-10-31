@@ -3601,6 +3601,9 @@ const zhCN: Record<string, string> = {
   "settings.promptOptimizer.context": "上下文范围",
   "settings.promptOptimizer.contextDescription":
     "优化时是否参考当前对话；仅当前输入更快，结合对话更准确。",
+  "settings.inputPrediction.label": "输入预测",
+  "settings.inputPrediction.description":
+    "停止输入后把最近轮次与当前草稿发给模型，在输入框上方给出续写建议；Tab 接受，Esc 忽略。需要宿主支持且会话轮数足够。",
   "settings.aiFeature.followSession": "跟随会话模型",
   "settings.aiFeature.reasoningLevel": "推理档位",
   "settings.aiFeature.saveError": "保存 AI 功能设置失败",

@@ -64,6 +64,18 @@ describe("session handoff transcript", () => {
     expect(text).not.toContain("内部推理");
   });
 
+  it("keeps tool entries compact: locate target only, no raw parameter JSON", () => {
+    const text = buildSessionHandoffTranscript([
+      tool(
+        "Edit",
+        '{"file_path":"src/a.ts","old_string":"const a = 1;","new_string":"const a = 2;"}',
+      ),
+    ]);
+    expect(text).toContain("src/a.ts");
+    expect(text).not.toContain('"old_string"');
+    expect(text).not.toContain('"new_string"');
+  });
+
   it("drops earlier entries first when over budget", () => {
     const text = buildSessionHandoffTranscript(
       [user("很早的请求"), assistant("很早的回答"), user("最近的请求")],

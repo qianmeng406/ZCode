@@ -9,7 +9,9 @@ import type { ConversationRow } from "../zcode-protocol-v4/rows.js";
  */
 
 const DEFAULT_MAX_TRANSCRIPT_CHARS = 120_000;
-const TOOL_INPUT_MAX_CHARS = 400;
+// 工具条目只保留「定位信息」（文件/命令/URL），不再整段铺 JSON：
+// 完整输入动辄几百字符，会把交接文档和模型预算都吃在参数原文上。
+const TOOL_TARGET_MAX_CHARS = 200;
 const TOOL_OUTPUT_MAX_CHARS = 800;
 
 export interface SessionHandoffOptions {
@@ -42,6 +44,25 @@ function toolOutputText(row: Extract<ConversationRow, { kind: "toolCall" }>): st
   return "";
 }
 
+/** 从工具输入里提取最有定位价值的一个字段；解析不了就退回原文截断。 */
+function toolTarget(row: Extract<ConversationRow, { kind: "toolCall" }>): string {
+  const input = row.inputText.trim();
+  if (!input) return "";
+  try {
+    const parsed: unknown = JSON.parse(input);
+    if (parsed && typeof parsed === "object") {
+      const record = parsed as Record<string, unknown>;
+      for (const key of ["file_path", "path", "command", "url", "query", "pattern"]) {
+        const value = record[key];
+        if (typeof value === "string" && value.trim()) return clip(value, TOOL_TARGET_MAX_CHARS);
+      }
+    }
+  } catch {
+    // 非 JSON 输入：按原文保留一小段。
+  }
+  return clip(input, TOOL_TARGET_MAX_CHARS);
+}
+
 function rowEntries(rows: readonly ConversationRow[], includeTools: boolean): TranscriptEntry[] {
   const entries: TranscriptEntry[] = [];
   for (const row of rows) {
@@ -56,10 +77,10 @@ function rowEntries(rows: readonly ConversationRow[], includeTools: boolean): Tr
       continue;
     }
     if (row.kind === "toolCall" && includeTools) {
-      const input = row.inputText.trim();
+      const target = toolTarget(row);
       const output = toolOutputText(row);
-      const lines = [`工具：${row.toolName}（${row.status}）`];
-      if (input) lines.push(`输入：${clip(input, TOOL_INPUT_MAX_CHARS)}`);
+      const head = `工具：${row.toolName}（${row.status}）${target ? ` → ${target}` : ""}`;
+      const lines = [head];
       if (output) lines.push(`输出：${clip(output, TOOL_OUTPUT_MAX_CHARS)}`);
       entries.push({ heading: "工具", body: lines.join("\n") });
     }

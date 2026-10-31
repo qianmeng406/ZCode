@@ -3850,6 +3850,9 @@ const enUS: Record<string, string> = {
   "settings.promptOptimizer.context": "Context range",
   "settings.promptOptimizer.contextDescription":
     "Whether optimization also reads this conversation. Draft only is faster; with conversation is more accurate.",
+  "settings.inputPrediction.label": "Input prediction",
+  "settings.inputPrediction.description":
+    "After you pause typing, sends recent turns and the current draft to the model and suggests a continuation above the input box; Tab accepts, Esc dismisses. Requires host support and enough conversation turns.",
   "settings.aiFeature.followSession": "Follow session model",
   "settings.aiFeature.reasoningLevel": "Reasoning level",
   "settings.aiFeature.saveError": "Could not save AI feature settings",
