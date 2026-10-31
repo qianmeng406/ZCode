@@ -1,4 +1,5 @@
 import { PermissionService, ToolScheduler } from "./deps.js";
+import type { ModelRequestSessionFeature } from "@zcode/contracts";
 import type {
   Logger,
   ModelSelection,
@@ -94,6 +95,10 @@ export interface AgentRuntimeInternal
   /** 工作流工具面是否已注册（launch.md「On demand: activation」）；非 onDemand 会话出生即 true。 */
   dynamicWorkflowToolsActivated: boolean;
   dynamicWorkflowActivationSource?: DynamicWorkflowActivationSource;
+  /** 本会话用过的能力标签（session-features 模块是唯一写入方）；只增不减。 */
+  sessionFeatures: Set<ModelRequestSessionFeature>;
+  /** session-features entry 写入队列的尾部；串行写，避免旧集合覆盖新集合。 */
+  sessionFeaturesWrite: Promise<void>;
   /**
    * 派生投影版本：mode/plan/上下文档位变化或工具注册变化时 +1。
    * 请求准备边界用它判断是否需要重建 context prefix 与工具表投影，
@@ -105,6 +110,12 @@ export interface AgentRuntimeInternal
   contextBuilder: ContextBuilder | null;
   contextInitialized: boolean;
   contextSourceSnapshot?: ContextSourceSnapshot;
+  // 新会话初始化时刚读过的 Git 尚未用于宣告；第一次判断后清除，恢复的会话不设。
+  sessionStartGitPrefetch?: boolean;
+  // 本 runtime 已确认不是 Git 仓库的目录；同一目录不再检查（目录里 git init 后由新 runtime 发现）。
+  nonGitDirectories?: Set<string>;
+  // 从存储恢复的 runtime 还没有自己读过是否仓库；第一次环境公告读一次后清除。
+  repositoryRecheckPending?: boolean;
   latestContextBuildResult?: ContextBuildResult;
   memoryRoot?: string;
   memoryIndexContent?: string;
@@ -120,6 +131,7 @@ export interface AgentRuntimeInternal
   /** MCP 工具注册 single-flight：并发请求共用一次注册，不重复 register。 */
   mcpRegistrationPromise?: Promise<void>;
   residencyBlockingWorkCount: number;
+  residencyBlockingWork: Set<Promise<unknown>>;
   mcpInitialized: boolean;
   mcpToolsRegistered: boolean;
   /** 初始化 / 上次刷新时注册的 MCP 工具名与集合签名。 */
@@ -156,13 +168,13 @@ export interface AgentRuntimeInternal
   needsPlanModeExitReminder: boolean;
   /** 模式 activation 切换（含重新进入）后，下一个 runtime_mode 提醒必须全文；提交后消费。 */
   runtimeModeReminderPendingFull: boolean;
+  lastEmittedLocalDate?: string;
   latestConversationMessageId?: MessageId;
   latestAssistantMessageId?: MessageId;
   latestAssistantTurnId?: TurnId;
   mainTurnCacheHitAggregate: MainTurnCacheHitAggregate;
   currentTurnFileChanges: RuntimeTurnFileChangeMap;
   lastAssistantCompletedAtMs?: number;
-  lastEmittedLocalDate?: string;
   autoCompactConsecutiveFailures: number;
   runtimeCommandQueue: RuntimeCommandQueue;
   runtimeCommandDrainActive: boolean;
@@ -180,6 +192,8 @@ export interface AgentRuntimeInternal
   queueAutoDrain: boolean;
   queueExternalDrainActive: boolean;
   shuttingDown: boolean;
+  readonly shutdownSignal: AbortSignal;
+  workChanged: Set<() => void>;
   backgroundTaskNotificationsSealed: boolean;
   backgroundTaskNotificationSealReason?: BackgroundTaskNotificationSealReason;
   pendingModelChangeTimeline?: PendingModelChangeTimeline;

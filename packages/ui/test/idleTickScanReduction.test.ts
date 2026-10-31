@@ -8,7 +8,8 @@ import {
   collectHighspeedExpiryCandidates,
   resolveNextHighspeedExpiryFromCandidates,
 } from "../src/highspeed/highspeedExpiryCandidates.js";
-import { resolveNextHighspeedExpiryMs } from "../src/highspeed/highspeedConversationRows.js";
+import { resolveNextHighspeedExpiryMsInPartition } from "../src/highspeed/highspeedConversationRows.js";
+import { getConversationRowsPartition } from "../src/v4/conversationProjectionStore.js";
 import {
   buildConversationFindIndex,
   countConversationFindTargets,
@@ -54,7 +55,7 @@ describe("highspeed 到期候选（idleTickScanReduction）", () => {
     expect(candidates).toEqual([1_000, 5_000, 5_000, 9_000]);
     for (const nowMs of [0, 999, 1_000, 1_001, 5_000, 5_001, 8_999, 9_000, 9_001, 100_000]) {
       expect(resolveNextHighspeedExpiryFromCandidates(candidates, nowMs)).toBe(
-        resolveNextHighspeedExpiryMs(rows, nowMs),
+        resolveNextHighspeedExpiryMsInPartition(getConversationRowsPartition(rows), nowMs),
       );
     }
   });
@@ -64,7 +65,9 @@ describe("highspeed 到期候选（idleTickScanReduction）", () => {
     const candidates = collectHighspeedExpiryCandidates(rows);
     expect(candidates).toEqual([]);
     expect(resolveNextHighspeedExpiryFromCandidates(candidates, 0)).toBeUndefined();
-    expect(resolveNextHighspeedExpiryMs(rows, 0)).toBeUndefined();
+    expect(
+      resolveNextHighspeedExpiryMsInPartition(getConversationRowsPartition(rows), 0),
+    ).toBeUndefined();
   });
 });
 

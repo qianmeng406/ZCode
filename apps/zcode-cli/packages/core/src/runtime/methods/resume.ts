@@ -27,7 +27,7 @@ import type {
   TurnState,
   ToolSchedule,
 } from "../deps.js";
-import { getLatestActiveSessionMessageId } from "../helpers/index.js";
+import { getLatestActiveSessionMessageId, isHiddenReminderMessage } from "../helpers/index.js";
 import type { ResumeSessionOptions, ResumeSessionResult } from "../types.js";
 import type { AgentRuntimeInternal } from "../internal.js";
 import {
@@ -37,12 +37,14 @@ import {
 } from "./session-shell-environment.js";
 import { resetProjectMemoryRecall } from "../helpers/project-memory-recall.js";
 import { restoreDynamicWorkflowActivationOnResume } from "./dynamic-workflow-activation.js";
+import { restoreSessionFeaturesOnResume } from "../session-features/contract.js";
 import { repairPersistedRemoteSessionPaths } from "../helpers/persisted-remote-session-path-repair.js";
 import {
   restoreWorkspaceCheckpointEntries,
   restoreWorkspaceFileRewindEntries,
 } from "./workspace-checkpoint-persistence.js";
 import { mainTurnCacheHitAggregateFromMessages } from "./turn-model-step-usage.js";
+import { refreshRestoredAnnouncements } from "./context-refresh.js";
 
 export function toScheduleState(
   this: AgentRuntimeInternal,
@@ -169,6 +171,7 @@ export async function resumeFromStore(
   // Context 初始化前完成，确保随后单次加载的 MEMORY.md 状态与 provider 所见内容一致。
   const readFileStateHydration = await hydrateReadFileStateFromSession({
     branchCutAfterMessageId,
+    markRestoredFromSession: true,
     messages,
     readFileState: this.readFileState,
     rewindCreatedMessageId,
@@ -178,6 +181,10 @@ export async function resumeFromStore(
     workspaceRoot: this.workspaceRoot,
   });
   await this.ensureContextInitialized(traceContext);
+  // 恢复的 envInfo 来自存储，不是刚读的 Git，不能当预取；恢复的窗口还没决定过时，下一次请求重新读取。
+  this.sessionStartGitPrefetch = false;
+  // 存储里的"是否仓库"不是本 runtime 读的；第一次环境公告重读一次，变化时宣告。
+  this.repositoryRecheckPending = true;
   const recoveredCompactTimelineCount = await this.recoverInterruptedCompactTimelines(
     messages,
     traceContext,
@@ -192,6 +199,7 @@ export async function resumeFromStore(
     rewindKeptMessageIds,
     rewindTargetMessageId,
   });
+  refreshRestoredAnnouncements(this);
   announceSessionShellEnvironmentNoticeAfterResume(this, {
     persistedEnvInfo,
     restore: shellRestore,
@@ -227,6 +235,9 @@ export async function resumeFromStore(
   // onDemand 会话的工具面随记录恢复（launch.md「On demand: activation」）：entry 在场，或历史里
   // 有过 `/workflow` / 十个工具的调用。要在首轮之前完成，所以放在 resume 里而不是等下一次 turn。
   await restoreDynamicWorkflowActivationOnResume.call(this, messages);
+  // 会话能力标签只增不减：entry ∪ 持久化历史，要在首个模型请求之前完成
+  // （docs/design/v2/model/session-features-header.md「继承与恢复」）。
+  await restoreSessionFeaturesOnResume.call(this, messages, traceContext);
 
   await restorePermissionGrantMarker(this, traceContext);
 
@@ -234,8 +245,10 @@ export async function resumeFromStore(
     activeMessages,
     persistedMessages: messages,
   });
+  // 隐藏提醒不是对话消息，不算一轮（与 rewind-message.ts 同一判据）。
   this.turnNumber = activeMessages.filter(
-    (message) => message.info.role === "user" && !message.info.summary,
+    (message) =>
+      message.info.role === "user" && !message.info.summary && !isHiddenReminderMessage(message),
   ).length;
   this.sessionPersisted = true;
   await syncPersistedSessionTitleForResume.call(this, {
@@ -318,7 +331,6 @@ export async function resumeFromStore(
     module: "core.runtime",
     partCount: hydration.partCount,
     readFileStateRestoredCount: readFileStateHydration.restoredCount,
-    readFileStateSkippedRangeReadCount: readFileStateHydration.skippedRangeReadCount,
     readFileStateSkippedUnreadableEditCount: readFileStateHydration.skippedUnreadableEditCount,
     recoveredCompactTimelineCount,
     resumedTodoCount: resumedTodos.length,
@@ -334,7 +346,6 @@ export async function resumeFromStore(
     // messages 交给 V4，否则首帧会短暂复活 started/retrying 状态。
     persistedMessagesReloadRequired: recoveredCompactTimelineCount > 0,
     readFileStateRestoredCount: readFileStateHydration.restoredCount,
-    readFileStateSkippedRangeReadCount: readFileStateHydration.skippedRangeReadCount,
     readFileStateSkippedUnreadableEditCount: readFileStateHydration.skippedUnreadableEditCount,
     traceId: traceContext.traceId,
   };

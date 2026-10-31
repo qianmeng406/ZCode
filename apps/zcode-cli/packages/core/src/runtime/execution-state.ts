@@ -88,7 +88,8 @@ export function installRuntimeExecutionState(
   }
   if (previous.planEnabled !== resolved.planEnabled)
     runtime.needsPlanModeExitReminder = !resolved.planEnabled;
-  runtime.invalidateToolCache();
+  // 最小运行态替身（测试 stub）可能未安装方法；真实 runtime 由 methods/index 统一挂载。
+  runtime.invalidateToolCache?.();
   runtime.contextProjectionRevision += 1;
 }
 

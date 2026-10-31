@@ -4,7 +4,7 @@
 import { z } from "zod";
 import { v4ConversationFileRewindPreviewResultSchema } from "./transport.js";
 import { amendWorkflowRunSettingsResultSchema } from "./workflow-run-settings-command.js";
-import { localTtftClockSchema } from "../localTtft.js";
+import { localTtftClockSchema } from "../local-ttft/contract.js";
 
 // ── ACK ──
 export const commandResultSchema = z.discriminatedUnion("type", [

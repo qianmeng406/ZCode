@@ -41,6 +41,11 @@ function renderedText(result: ReturnType<typeof build>): string {
   return [
     ...result.systemMessages.map((message) => message.content),
     ...result.metaUserAttachments.map((attachment) => attachment.content),
+    // 环境与模型由 runtime 作为运行时公告单独宣告（RUNTIME_ANNOUNCED_SOURCES），
+    // 不在 builder 的 attachment 里；契约测试直接读 section 校验段是否存在。
+    ...result.sections
+      .filter((section) => section.source === "env_info" || section.source === "model")
+      .map((section) => section.content),
   ].join("\n");
 }
 
@@ -124,10 +129,11 @@ describe("fusion context profile", () => {
       envInfo: ENV_INFO,
       promptProfile: "minimal",
     }).build();
+    // env_info 是 meta_user 公告（upstream 结构），排序在 system 段之后。
     expect(minimal.sections.map((section) => section.source)).toEqual([
       "cli_prefix",
-      "env_info",
       "minimal_guardrails",
+      "env_info",
     ]);
   });
 

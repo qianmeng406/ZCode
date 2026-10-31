@@ -87,6 +87,9 @@ export interface LoginEntryAttempt {
   status: LoginEntryAttemptStatus;
 }
 
+const CODE_PREVIEW_SETTINGS_KEY = "zcode-code-preview-settings";
+const PERFORMANCE_MODE_STORAGE_KEY = "zcode-performance-mode";
+const HIDE_PROJECT_DEVICE_NAMES_STORAGE_KEY = "zcode-hide-project-device-names";
 export const FILE_MANAGER_NAVIGATION_PREFERENCES_STORAGE_KEY =
   "zcode-file-manager-navigation-preferences";
 
@@ -132,6 +135,10 @@ export interface ZCodeState {
   /** 各 workspace 的文件导航显隐偏好；缺席时默认展开。 */
   fileManagerNavigationOpenByWorkspace: Record<string, boolean>;
   setFileManagerNavigationOpen: (workspaceKey: string, open: boolean) => void;
+
+  /** 项目侧栏是否隐藏设备名（同一项目挂多设备时避免名称干扰）；纯展示偏好。 */
+  hideProjectDeviceNames: boolean;
+  setHideProjectDeviceNames: (hidden: boolean) => void;
 
   /** UI 根 rem 字号（px） */
   uiFontSizePx: number;
@@ -267,8 +274,9 @@ export interface ZCodeState {
   /** 手动请求打开 onboarding 弹窗 */
   newUserOnboardingOpen: boolean;
   setNewUserOnboardingOpen: (open: boolean) => void;
-  onboardingDialogRequested: boolean | "migration";
-  requestOnboardingDialog: (entry?: "migration") => void;
+  /** 请求打开迁移向导；所有入口都直接进入第一步「会话」。 */
+  onboardingDialogRequested: boolean;
+  requestOnboardingDialog: () => void;
   clearOnboardingDialogRequest: () => void;
 }
 
@@ -294,6 +302,7 @@ const BROADCAST_FIELDS = new Set([
   "dedupedIdlePollingEnabled",
   "assistantAutoFilePreviewEnabled",
   "notificationEnabled",
+  "hideProjectDeviceNames",
 ]);
 
 type BroadcastField =
@@ -301,6 +310,7 @@ type BroadcastField =
   | "locale"
   | "uiFontSizePx"
   | "interfaceMode"
+  | "hideProjectDeviceNames"
   | "conversationTurnNavigatorEnabled"
   | "conversationWindowCollapseEnabled"
   | "streamingMarkdownIncrementalEnabled"
@@ -359,6 +369,12 @@ export function createZCodeStore(
     },
     // 默认主题统一收敛到 Zai dark，避免首次启动时 store 与其他主题入口表现不一致。
     // 仍然优先尊重 localStorage 中已保存的用户选择，不覆盖已有偏好。
+    hideProjectDeviceNames: readSafeLocalStorage(HIDE_PROJECT_DEVICE_NAMES_STORAGE_KEY) === "true",
+    setHideProjectDeviceNames: (hidden: boolean) => {
+      writeSafeLocalStorage(HIDE_PROJECT_DEVICE_NAMES_STORAGE_KEY, String(hidden));
+      set({ hideProjectDeviceNames: hidden });
+    },
+
     theme: normalizeThemePreference((readSafeLocalStorage("zcode-theme") as Theme) || "zai-dark"),
     setTheme: (theme: Theme) => {
       const normalizedTheme = normalizeThemePreference(theme);
@@ -648,7 +664,7 @@ export function createZCodeStore(
     newUserOnboardingOpen: false,
     setNewUserOnboardingOpen: (open) => set({ newUserOnboardingOpen: open }),
     onboardingDialogRequested: false,
-    requestOnboardingDialog: (entry) => set({ onboardingDialogRequested: entry ?? true }),
+    requestOnboardingDialog: () => set({ onboardingDialogRequested: true }),
     clearOnboardingDialogRequest: () => set({ onboardingDialogRequested: false }),
   }));
 
@@ -737,6 +753,8 @@ export function createZCodeStore(
         state.setInterfaceMode(normalizeInterfaceMode(msg.payload));
       } else if (field === "uiFontSizePx" && typeof msg.payload === "number") {
         state.setUiFontSizePx(msg.payload);
+      } else if (field === "hideProjectDeviceNames" && typeof msg.payload === "boolean") {
+        state.setHideProjectDeviceNames(msg.payload);
       } else if (field === "conversationTurnNavigatorEnabled" && typeof msg.payload === "boolean") {
         state.setConversationTurnNavigatorEnabled(msg.payload);
       } else if (
@@ -769,6 +787,8 @@ export function createZCodeStore(
         state.setAssistantAutoFilePreviewEnabled(msg.payload);
       } else if (field === "notificationEnabled" && typeof msg.payload === "boolean") {
         state.setNotificationEnabled(msg.payload);
+      } else if (field === "hideProjectDeviceNames" && typeof msg.payload === "boolean") {
+        state.setHideProjectDeviceNames(msg.payload);
       }
     } finally {
       applyingBroadcast = false;

@@ -23,7 +23,7 @@ import {
   type NotebookCellOperation,
 } from "../notebook/notebookDocument.js";
 import { resolveWorkspacePath } from "../path-policy.js";
-import { createReadFileStateKey, normalizeReadFileStateMtimeMs } from "../read-file-state.js";
+import { createReadFileStatePathKey, normalizeReadFileStateMtimeMs } from "../read-file-state.js";
 import { createReadFileStateMetadataFromEntry } from "../read-file-state-metadata.js";
 import type {
   ReadFileStateEntry,
@@ -273,7 +273,7 @@ function updateReadFileStateAfterNotebookEdit(
     mtimeMs: normalizeReadFileStateMtimeMs(revision?.mtimeMs),
     sizeBytes: revision?.sizeBytes ?? Buffer.byteLength(content, "utf8"),
   };
-  readFileState.set(createReadFileStateKey(filePath, 1, undefined), entry);
+  readFileState.set(createReadFileStatePathKey(filePath), entry);
   return entry;
 }
 

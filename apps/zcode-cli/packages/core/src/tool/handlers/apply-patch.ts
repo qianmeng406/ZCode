@@ -18,7 +18,7 @@ import { createStructuredPatch } from "../diff.js";
 import { derivePatchedContent } from "../patch-apply.js";
 import { parseStructuredPatch, type ParsedPatch } from "../patch-parser.js";
 import { resolveWorkspacePath } from "../path-policy.js";
-import { createReadFileStateKey, normalizeReadFileStateMtimeMs } from "../read-file-state.js";
+import { createReadFileStatePathKey, normalizeReadFileStateMtimeMs } from "../read-file-state.js";
 
 const APPLY_PATCH_MODEL_INSTRUCTIONS = [
   "Use ApplyPatch for structured, reviewable edits that are easier to express as local diff hunks than exact old_string replacements.",
@@ -123,7 +123,7 @@ async function applyChange(
       { path: change.filePath, trace },
       { signal: context.abortSignal },
     );
-    context.readFileState?.delete(createReadFileStateKey(change.filePath, 1, undefined));
+    context.readFileState?.delete(createReadFileStatePathKey(change.filePath));
     return;
   }
 
@@ -146,7 +146,7 @@ async function applyChange(
   // 多文件变更只有一份 metadata 槽位，因此这里不写 readFileStateMetadata——
   // 单文件工具（Edit/Write/NotebookEdit）才承担 resume 后的 freshness 恢复。
   if (context.readFileState) {
-    context.readFileState.set(createReadFileStateKey(targetPath, 1, undefined), {
+    context.readFileState.set(createReadFileStatePathKey(targetPath), {
       path: targetPath,
       content: change.newContent,
       offset: undefined,
@@ -165,7 +165,7 @@ async function applyChange(
       { path: change.filePath, trace },
       { signal: context.abortSignal },
     );
-    context.readFileState?.delete(createReadFileStateKey(change.filePath, 1, undefined));
+    context.readFileState?.delete(createReadFileStatePathKey(change.filePath));
   }
 }
 
@@ -218,9 +218,9 @@ async function rollbackChanges(
         );
       }
       // 回滚后磁盘内容与 readFileState 是否一致不再有保证：统一丢弃缓存，要求重新读。
-      context.readFileState?.delete(createReadFileStateKey(change.filePath, 1, undefined));
+      context.readFileState?.delete(createReadFileStatePathKey(change.filePath));
       if (change.movePath) {
-        context.readFileState?.delete(createReadFileStateKey(change.movePath, 1, undefined));
+        context.readFileState?.delete(createReadFileStatePathKey(change.movePath));
       }
     } catch {
       unrestored.push(change.movePath ?? change.filePath);

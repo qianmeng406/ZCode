@@ -12,6 +12,22 @@ import type { McpToolDescriptor, PluginReferenceCatalog } from "@zcode/contracts
 
 const MCP_SESSION_OAUTH_AUTHORIZATION_TIMEOUT_MS = 15_000;
 
+export async function refreshWorkspaceTrustAdmission(
+  runtime: AgentRuntimeInternal,
+  traceContext: TraceContext,
+): Promise<void> {
+  try {
+    await runtime.mcpPort?.refreshWorkspaceTrustAdmission?.();
+  } catch (error) {
+    // 提示发布失败不能阻断普通聊天；执行权限仍由 MCP gate 独立检查。
+    runtime.logger?.warn("MCP trust admission publication failed", {
+      ...traceContextToLogContext(traceContext),
+      event: "mcp.trust.admission.failed",
+      error: error instanceof Error ? error.message : String(error),
+    });
+  }
+}
+
 /**
  * 只有同时携带 resolver 注入的官方 plugin id 和本进程私有 authority 的 server 才能共享
  * Computer Use 项目授权。server 名、tool 名和 manifest env 都可被第三方仿造，不能单独作为信任依据。
@@ -79,6 +95,7 @@ export function startMcpStartup(
     .connectConfiguredServers(servers, {
       // authorization_code MCP 无人完成浏览器授权时，session 启动过去会等默认 5 分钟，
       // 导致模型请求迟迟不发出；session 只等 15s，授权入口由设置页 mcp/list 展示。
+      signal: this.shutdownSignal,
       oauthAuthorizationTimeoutMs: MCP_SESSION_OAUTH_AUTHORIZATION_TIMEOUT_MS,
       trace: traceContext,
       workingDirectory: this.workingDirectory,
@@ -150,6 +167,8 @@ export async function initializeMcp(
 
   const registration = (async () => {
     try {
+      // 用户边界的 admission 刷新：工作区信任/权限变更后，MCP 工具准入必须按最新事实。
+      await refreshWorkspaceTrustAdmission(this, traceContext);
       const snapshot = await startup;
       // 等待启动期间可能已切到极简档位：注册推迟到退出后，连接快照保留在
       // mcpStartupPromise 复用，不再发起第二次连接。

@@ -48,6 +48,7 @@ export class ChannelServer<TContext = string> implements IChannelServer<TContext
       case ResponseType.PromiseSuccess:
       case ResponseType.PromiseError:
       case ResponseType.EventFire:
+      case ResponseType.EventError:
       case ResponseType.PromiseErrorObj:
         this.send([response.type, response.id], response.data);
         return;
@@ -157,6 +158,7 @@ export class ChannelServer<TContext = string> implements IChannelServer<TContext
               taskId?: unknown;
               traceId?: unknown;
               retryable?: unknown;
+              profileId?: unknown;
             } = {
               message: error.message,
               name: error.name,
@@ -174,6 +176,9 @@ export class ChannelServer<TContext = string> implements IChannelServer<TContext
               "taskId",
               "traceId",
               "retryable",
+              // Bug 原因：Host 的远程等待点（需要安装/升级、补凭据）用 profileId 指明实际操作线路；
+              // 旧白名单丢掉它，侧栏项目只能把不含凭据的目标交给向导，确认安装后报“SSH 认证失败”。
+              "profileId",
             ] as const;
             for (const key of passthroughKeys) {
               const value = errorRecord[key];

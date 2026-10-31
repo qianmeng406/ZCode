@@ -28,7 +28,7 @@ import type { IPlatformService } from "@zcode/shared";
 import {
   initializeDesktopLocalTtft,
   type LocalTtftTimerHost,
-} from "../src/renderer/src/localTtftBootstrap.js";
+} from "../src/renderer/src/local-ttft/initialize.js";
 
 interface FakeTimerHost extends LocalTtftTimerHost {
   activeCount(): number;

@@ -75,13 +75,13 @@ describe("session execution environment section", () => {
     expect(buildSessionExecutionSection(WSL_DEFAULT_USER, { compact: true })?.content).toContain(
       "the distribution's default user",
     );
-    expect(buildEnvInfoSection(ENV_INFO, undefined, [], WSL_DEFAULT_USER).content).toContain(
+    expect(buildEnvInfoSection(ENV_INFO, [], WSL_DEFAULT_USER).content).toContain(
       "- Command execution: WSL Ubuntu-24.04 (default user)",
     );
   });
 
   it("declares POSIX shell and WSL command execution in env info", () => {
-    const content = buildEnvInfoSection(ENV_INFO, undefined, [], WSL).content;
+    const content = buildEnvInfoSection(ENV_INFO, [], WSL).content;
     expect(content).toContain("- Platform: win32");
     expect(content).toContain("- Shell: bash (POSIX, WSL)");
     expect(content).toContain("- Command execution: WSL Ubuntu-24.04 (user zcodewslp2)");
@@ -164,10 +164,9 @@ describe("ContextBuilder execution environment switching", () => {
     const section = result.sections.find((entry) => entry.source === "session_execution");
     expect(section?.content).toContain("WSL Linux (Ubuntu-24.04, user zcodewslp2)");
     expect(section?.content).toContain("~10x slower");
-    expect(
-      result.systemMessages.some((message) =>
-        String(message.content).includes("bash (POSIX, WSL)"),
-      ),
-    ).toBe(true);
+    // 环境段是 meta_user 公告（upstream 结构），由 runtime 单独宣告；builder 里读 section。
+    expect(result.sections.find((entry) => entry.source === "env_info")?.content).toContain(
+      "bash (POSIX, WSL)",
+    );
   });
 });

@@ -1,3 +1,4 @@
+import { genUiModelContextSchema } from "../gen-ui/contract.js";
 import { conversationQuotesSchema } from "../conversationSelection.js";
 import { botGroupInputSourceSchema } from "../bots.js";
 // CLI admission 后的自包含输入事实。
@@ -88,6 +89,7 @@ export const conversationInputIntentSchema = z
     modelSelection: modelSelectionSchema.optional(),
     mode: submissionModeSchema.optional(),
     planEnabled: z.boolean().optional(),
+    genUiContext: genUiModelContextSchema.optional(),
     // 与 mode 一起冻结的上下文档位；旧 intent 缺省按旧 mode=minimal 兼容解析。
     contextProfile: contextProfileSchema.optional(),
     sharedContextRefs: z.array(sharedContextRefSchema).max(1).optional(),

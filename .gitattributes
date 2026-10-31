@@ -32,3 +32,7 @@ third-party/inventory.json linguist-generated=true
 # Gen UI vendor 快照带 sha256 清单，构建期按字节校验；autocrlf 的 CRLF 转换会让哈希全部失配。
 # 规则覆盖整个 assets/**（是上游 assets/vendor/** 规则的超集）。
 apps/zcode-cli/packages/visualize-plugin/skills/visualize/assets/** -text -whitespace
+
+# Gen UI 内联运行时的构建期完整性校验同样按字节算 sha256（与 runtime-manifest.json 对齐），
+# Windows autocrlf 的 CRLF 检出会让该测试误报失配。
+packages/desktop/src/renderer/src/plugin-sandbox/genUiTweakRuntime.js text eol=lf

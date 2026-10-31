@@ -5,11 +5,13 @@ import {
   applySearchResultHighlight,
   clearConversationFindHighlights,
   clearSearchResultHighlight,
+  getMountedConversationFindRow,
   scrollConversationFindRangeIntoView,
 } from "@/v4/conversationFindHighlightDom.js";
 import {
   buildConversationFindIndex,
   countConversationFindTargets,
+  createConversationFindIndexBuilder,
   findConversationMatchIndexByKey,
   getConversationFindMatchKey,
   resolveConversationFindActiveIndex,
@@ -17,7 +19,10 @@ import {
   type ConversationFindMatch,
   type ConversationFindMatchKey,
 } from "@/v4/conversationFindIndex.js";
-import type { ConversationTurnRenderUnit } from "@/v4/conversationTurnRenderUnits.js";
+import type {
+  ConversationTurnRenderUnit,
+  ConversationTurnRenderUnitsPartition,
+} from "@/v4/conversationTurnRenderUnits.js";
 import type {
   ChatSearchResultHighlightRequest,
   ConversationFindMatchState,
@@ -29,7 +34,8 @@ const SEARCH_RESULT_HIGHLIGHT_DURATION_MS = 3000;
 
 export interface UseConversationTimelineFindOptions {
   rootRef: React.RefObject<HTMLElement | null>;
-  renderUnits: readonly ConversationTurnRenderUnit[];
+  /** 按「历史 + 尾轮」分区的 render unit；历史段引用在流式帧之间不变。 */
+  renderUnits: ConversationTurnRenderUnitsPartition;
   rows: readonly ConversationRow[];
   mountedRowsKey: string;
   canLoadOlder: boolean;
@@ -43,6 +49,7 @@ export interface UseConversationTimelineFindOptions {
   searchResultHighlightRequest?: ChatSearchResultHighlightRequest | null;
   onSearchResultHighlightDone?: (requestId: number) => void;
   scrollToUnit: (unitIndex: number) => void;
+  isMountedLayoutMeasured: () => boolean;
   /** 性能开关 idleTickScanReductionEnabled：空查询走计数快路径（默认关闭走原路径）。 */
   idleTickScanReductionEnabled?: boolean;
 }
@@ -63,6 +70,76 @@ function sourceTextContainsSnippet(sourceText: string, snippet: string): boolean
   return normalizeSearchResultSnippet(sourceText).toLocaleLowerCase().includes(normalizedSnippet);
 }
 
+type UnitFindCache = Map<
+  string,
+  { unit: ConversationTurnRenderUnit; source: ConversationFindMatch[]; loadedRowCount: number }
+>;
+
+/**
+ * 把一段 unit 的命中按全局顺序追加到 matches，返回这些 unit 的 loadedRowCount 之和。
+ * 修复原因：streaming delta 只会改变当前 running turn；稳定 turn 的全文索引可复用，
+ * 避免每个 token 都扫描整段历史，导致长会话 renderer 主线程被持续占满。
+ * 不在运行的 unit 依次在 lookups 里找上一份命中并写入 nextCache；运行中的 unit 每次重建。
+ */
+function appendUnitFindMatches({
+  units,
+  indexOffset,
+  matches,
+  cacheKeyPrefix,
+  lookups,
+  nextCache,
+  build,
+}: {
+  units: readonly ConversationTurnRenderUnit[];
+  indexOffset: number;
+  matches: ConversationFindMatch[];
+  cacheKeyPrefix: string;
+  lookups: readonly UnitFindCache[];
+  nextCache: UnitFindCache;
+  build: (unit: ConversationTurnRenderUnit) => {
+    matches: ConversationFindMatch[];
+    loadedRowCount: number;
+  };
+}): number {
+  let loadedRowCount = 0;
+  units.forEach((unit, offset) => {
+    const unitIndex = indexOffset + offset;
+    const cacheKey = `${cacheKeyPrefix}:${unit.key}`;
+    // 历史修订保留 turn key，但正文已改变；缓存必须跟随不可变投影身份失效。
+    const cached = unit.isRunning
+      ? undefined
+      : lookups.map((cache) => cache.get(cacheKey)).find((entry) => entry?.unit === unit);
+    const unitIndexResult = cached
+      ? { matches: cached.source, loadedRowCount: cached.loadedRowCount }
+      : build(unit);
+    if (!unit.isRunning) {
+      nextCache.set(
+        cacheKey,
+        cached ?? {
+          unit,
+          source: unitIndexResult.matches,
+          loadedRowCount: unitIndexResult.loadedRowCount,
+        },
+      );
+    }
+    loadedRowCount += unitIndexResult.loadedRowCount;
+    for (const match of unitIndexResult.matches) {
+      // 新构建的命中尚未发布，直接补全位置；缓存命中只在窗口位置变化时复制。
+      // 高频短查询可产生大量结果，不能在同一轮构建后再无条件复制全部对象。
+      if (!cached) {
+        match.globalIndex = matches.length;
+        match.unitIndex = unitIndex;
+      }
+      matches.push(
+        match.globalIndex === matches.length && match.unitIndex === unitIndex
+          ? match
+          : { ...match, globalIndex: matches.length, unitIndex },
+      );
+    }
+  });
+  return loadedRowCount;
+}
+
 export function useConversationTimelineFind({
   rootRef,
   renderUnits,
@@ -79,14 +156,23 @@ export function useConversationTimelineFind({
   searchResultHighlightRequest,
   onSearchResultHighlightDone,
   scrollToUnit,
+  isMountedLayoutMeasured,
   idleTickScanReductionEnabled = false,
 }: UseConversationTimelineFindOptions) {
+  const buildFindIndex = useMemo(() => createConversationFindIndexBuilder(), []);
+  // 未查找时的固定空索引：依赖它的 effect 不会随每个流式帧重跑。
+  const emptyFindIndex = useMemo(() => buildFindIndex([], ""), [buildFindIndex]);
   const codeCommentCardsEnabled = useAssistantCodeCommentFeatureEnabled();
   const findStable = sessionPhase !== "running" && sessionPhase !== "prewarming";
   const unitFindCacheRef = useRef(
     new Map<string, { source: ConversationFindMatch[]; loadedRowCount: number }>(),
   );
   const unitFindCacheQueryRef = useRef("");
+  // 分区视图（history/tail）拼接后按整窗语义使用；两段都在同一帧内构建。
+  const allRenderUnits = useMemo(
+    () => [...renderUnits.history, ...renderUnits.tail],
+    [renderUnits],
+  );
   const conversationFindIndex = useMemo(() => {
     const query = conversationFindQuery;
     const normalizedQuery = query.trim().toLocaleLowerCase();
@@ -102,14 +188,14 @@ export function useConversationTimelineFind({
         query: normalizedQuery,
         matches: [],
         matchCount: 0,
-        loadedRowCount: countConversationFindTargets(renderUnits),
+        loadedRowCount: countConversationFindTargets(allRenderUnits),
       };
     }
     const matches: ConversationFindMatch[] = [];
     let loadedRowCount = 0;
     // 修复原因：streaming delta 只会改变当前 running turn；稳定 turn 的全文索引可复用，
     // 避免每个 token 都扫描整段历史，导致长会话 renderer 主线程被持续占满。
-    renderUnits.forEach((unit, unitIndex) => {
+    allRenderUnits.forEach((unit, unitIndex) => {
       const cacheKey = `${normalizedQuery}:${codeCommentCardsEnabled}:${unit.key}`;
       const cached = !unit.isRunning ? unitFindCacheRef.current.get(cacheKey) : undefined;
       const unitIndexResult = cached
@@ -133,11 +219,20 @@ export function useConversationTimelineFind({
   const searchResultFindIndex = useMemo(
     () =>
       findStable && searchResultHighlightRequest
-        ? buildConversationFindIndex(renderUnits, searchResultHighlightRequest.query, {
-            projectAssistantCodeComments: codeCommentCardsEnabled,
-          })
-        : buildConversationFindIndex([], ""),
-    [codeCommentCardsEnabled, findStable, renderUnits, searchResultHighlightRequest],
+        ? buildFindIndex(
+            [...renderUnits.history, ...renderUnits.tail],
+            searchResultHighlightRequest.query,
+            { projectAssistantCodeComments: codeCommentCardsEnabled },
+          )
+        : emptyFindIndex,
+    [
+      buildFindIndex,
+      codeCommentCardsEnabled,
+      emptyFindIndex,
+      findStable,
+      renderUnits,
+      searchResultHighlightRequest,
+    ],
   );
   const [resolvedFindActiveIndex, setResolvedFindActiveIndex] = useState(-1);
   const findActiveKeyRef = useRef<ConversationFindMatchKey | null>(null);
@@ -219,13 +314,20 @@ export function useConversationTimelineFind({
     if (!conversationFindIndex.query || !activeFindMatch) {
       return;
     }
-    const scrollKey = `${conversationFindIndex.query}:${activeFindMatch.rowId}:${activeFindMatch.rowMatchIndex}:${activeFindMatch.unitIndex}`;
+    // Bug 根因：单命中回环只更新 DOM 高亮请求，离开虚拟窗口后已没有 Range 可滚动。
+    // 显式导航同样驱动虚拟窗口定位；被动命中回报仍按相同请求去重。
+    const scrollKey = `${conversationFindNavigationRequestId}:${conversationFindIndex.query}:${activeFindMatch.rowId}:${activeFindMatch.rowMatchIndex}:${activeFindMatch.unitIndex}`;
     if (lastFindScrollKeyRef.current === scrollKey) {
       return;
     }
     lastFindScrollKeyRef.current = scrollKey;
     scrollToUnit(activeFindMatch.unitIndex);
-  }, [activeFindMatch, conversationFindIndex.query, scrollToUnit]);
+  }, [
+    activeFindMatch,
+    conversationFindIndex.query,
+    conversationFindNavigationRequestId,
+    scrollToUnit,
+  ]);
 
   useEffect(() => {
     const root = rootRef.current;
@@ -242,9 +344,26 @@ export function useConversationTimelineFind({
         activeMatch: activeFindMatch,
       });
       const highlightScrollKey = `${conversationFindNavigationRequestId}:${conversationFindIndex.query}:${activeFindMatch?.rowId ?? "none"}:${activeFindMatch?.rowMatchIndex ?? -1}:${activeFindMatch?.unitIndex ?? -1}`;
-      if (activeRange && lastFindHighlightScrollKeyRef.current !== highlightScrollKey) {
+      // 挂载不等于布局已入账；尺寸仍是估计值时居中会使用即将失效的坐标。
+      // 用本批实际布局确认交接，尺寸提交由 mountedRowsKey 唤醒，不依赖固定延时。
+      if (
+        lastFindHighlightScrollKeyRef.current !== highlightScrollKey &&
+        isMountedLayoutMeasured()
+      ) {
+        // 宽度改变时暂停测高补偿，目标可能被前方行增高挤出虚拟窗口。
+        // 仅未完成的请求随测量提交重新定位；到位后用户滚走不能再次拉回。
+        // 源 Markdown 标记、链接地址可能没有 DOM Range；已挂载的目标必须结束请求，
+        // 否则用户滚走触发窗口更新后会被反复拉回。只有目标行未挂载才继续粗定位。
+        if (
+          !activeRange &&
+          activeFindMatch &&
+          !getMountedConversationFindRow(root, activeFindMatch.rowId)
+        ) {
+          scrollToUnit(activeFindMatch.unitIndex);
+          return;
+        }
         lastFindHighlightScrollKeyRef.current = highlightScrollKey;
-        scrollConversationFindRangeIntoView(activeRange);
+        if (activeRange) scrollConversationFindRangeIntoView(activeRange);
       }
     });
 
@@ -255,6 +374,8 @@ export function useConversationTimelineFind({
     conversationFindQuery,
     conversationFindNavigationRequestId,
     mountedRowsKey,
+    isMountedLayoutMeasured,
+    scrollToUnit,
     rootRef,
   ]);
 
@@ -343,14 +464,25 @@ export function useConversationTimelineFind({
         query: request.query,
         match,
       });
-      if (!range) {
+      if (!isMountedLayoutMeasured()) {
+        return;
+      }
+      // 历史搜索结果同样区分未挂载和不可高亮，避免无 Range 请求永久抢占滚动。
+      if (!range && !getMountedConversationFindRow(root, match.rowId)) {
+        scrollToUnit(match.unitIndex);
         return;
       }
       searchResultAppliedRequestRef.current = request.requestId;
-      scrollConversationFindRangeIntoView(range);
       if (searchResultCleanupTimerRef.current !== undefined) {
         window.clearTimeout(searchResultCleanupTimerRef.current);
+        searchResultCleanupTimerRef.current = undefined;
       }
+      if (!range) {
+        clearSearchResultHighlight();
+        onSearchResultHighlightDone?.(request.requestId);
+        return;
+      }
+      scrollConversationFindRangeIntoView(range);
       searchResultCleanupTimerRef.current = window.setTimeout(() => {
         clearSearchResultHighlight();
         onSearchResultHighlightDone?.(request.requestId);
@@ -364,6 +496,7 @@ export function useConversationTimelineFind({
     findStable,
     loadingOlder,
     mountedRowsKey,
+    isMountedLayoutMeasured,
     onSearchResultHighlightDone,
     rootRef,
     rows,

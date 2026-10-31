@@ -3,7 +3,7 @@ import { realpath, stat } from "node:fs/promises";
 import { normalize } from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
 import type { BrowserWindow } from "electron";
-import { clipboard, shell } from "electron";
+import { ClipboardItem, clipboard, shell } from "electron";
 
 type DesktopIpcLogger = {
   info?: (...args: unknown[]) => void;
@@ -98,7 +98,25 @@ export async function openPathInFileManager(
  * - macOS：public.file-url（file:// URL）；
  * - Linux：text/uri-list（文件管理器普遍接受的 URI 列表）。
  * 单文件场景各平台均可工作；多文件（CF_HDROP）不在本入口的语义内。
+ *
+ * Electron 44 移除了同步的 clipboard.writeBuffer，私有格式必须包成 ClipboardItem 的
+ * osclipboard 原始格式（`electron application/osclipboard;format="<name>"`）写入。
  */
+function buildFileClipboardItem(target: string): ClipboardItem {
+  const rawFormat = (format: string, bytes: Buffer) =>
+    new ClipboardItem({
+      [`electron application/osclipboard;format="${format}"`]: new Blob([Uint8Array.from(bytes)]),
+    });
+  if (process.platform === "win32") {
+    // UTF-16 且以 NUL 终止：资源管理器按这个私有格式识别文件引用。
+    return rawFormat("FileNameW", Buffer.from(`${target}${String.fromCharCode(0)}`, "ucs2"));
+  }
+  const fileUrl = pathToFileURL(target).href;
+  return process.platform === "darwin"
+    ? rawFormat("public.file-url", Buffer.from(fileUrl, "utf8"))
+    : rawFormat("text/uri-list", Buffer.from(fileUrl, "utf8"));
+}
+
 export async function copyFileToOsClipboard(
   rawPath: string,
   logger: DesktopIpcLogger,
@@ -118,17 +136,7 @@ export async function copyFileToOsClipboard(
   }
 
   try {
-    if (process.platform === "win32") {
-      const pathWithTerminator = `${target}${String.fromCharCode(0)}`;
-      clipboard.writeBuffer("FileNameW", Buffer.from(pathWithTerminator, "ucs2"));
-    } else {
-      const fileUrl = pathToFileURL(target).href;
-      if (process.platform === "darwin") {
-        clipboard.writeBuffer("public.file-url", Buffer.from(fileUrl, "utf8"));
-      } else {
-        clipboard.writeBuffer("text/uri-list", Buffer.from(fileUrl, "utf8"));
-      }
-    }
+    await clipboard.write([buildFileClipboardItem(target)]);
     logger.info?.("[copy-file] 文件已复制到剪贴板", { path: target });
     return { success: true };
   } catch (error) {
