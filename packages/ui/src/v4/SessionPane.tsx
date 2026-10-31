@@ -2017,6 +2017,8 @@ export function SessionPane({
     sharedSettings?.memoryEnabled === true;
   const [memoryCaptureDraft, setMemoryCaptureDraft] = useState<MemoryCaptureDraft | null>(null);
   const [sessionHandoffOpen, setSessionHandoffOpen] = useState(false);
+  // 交接摘要要覆盖完整历史：全量补拉结束前先让对话框等一等，避免只摘要最近一窗。
+  const [sessionHandoffHistoryLoaded, setSessionHandoffHistoryLoaded] = useState(false);
   const [memoryCaptureWorkspaceId, setMemoryCaptureWorkspaceId] = useState<string | null>(null);
   // 防重复派发用 ref：行按钮不展示 pending 态（结果只经 toast 与预览对话框反馈）。
   const memoryCaptureInFlightRef = useRef(false);
@@ -5348,9 +5350,12 @@ export function SessionPane({
   );
 
   const handleRequestSessionHandoff = useCallback(() => {
+    setSessionHandoffHistoryLoaded(false);
     setSessionHandoffOpen(true);
     // 交接需要完整历史；与分享同属「完整提交」需求方，不会被导航的短路优化吞掉。
-    void lease?.store.loadAllOlder({ consumer: "handoff" });
+    void (lease?.store.loadAllOlder({ consumer: "handoff" }) ?? Promise.resolve())
+      .catch(() => undefined)
+      .finally(() => setSessionHandoffHistoryLoaded(true));
   }, [lease]);
 
   useEffect(() => {
@@ -6867,6 +6872,7 @@ export function SessionPane({
         {...(workspaceIdentity ? { workspaceIdentity } : {})}
         {...(remoteSessionId ? { remoteSessionId } : {})}
         selection={draftConfig.modelSelection ?? null}
+        historyLoaded={sessionHandoffHistoryLoaded}
       />
       {memoryCaptureService ? (
         <MemoryCaptureDialog

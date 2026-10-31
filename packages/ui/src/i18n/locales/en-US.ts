@@ -792,6 +792,8 @@ const enUS: Record<string, string> = {
   "sessionHandoff.copy": "Copy",
   "sessionHandoff.copied": "Copied",
   "sessionHandoff.save": "Save Markdown",
+  "sessionHandoff.copyFailed": "Copy failed; select the text and copy it manually.",
+  "sessionHandoff.saveFailed": "Could not save the file; the content was copied instead.",
   "chat.composer.inputPrediction.hint": "Tab to complete",
   "chat.composer.inputPrediction.dismiss": "Dismiss suggestion",
   "chat.composer.contextShortcut": "Add context",

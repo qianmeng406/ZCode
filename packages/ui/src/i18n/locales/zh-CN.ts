@@ -725,6 +725,8 @@ const zhCN: Record<string, string> = {
   "sessionHandoff.copy": "复制",
   "sessionHandoff.copied": "已复制",
   "sessionHandoff.save": "保存 Markdown",
+  "sessionHandoff.copyFailed": "复制失败，请手动全选复制。",
+  "sessionHandoff.saveFailed": "无法保存文件，已改为复制内容，请手动粘贴保存。",
   "chat.composer.inputPrediction.hint": "Tab 补全",
   "chat.composer.inputPrediction.dismiss": "忽略预测",
   "chat.composer.contextShortcut": "添加上下文",

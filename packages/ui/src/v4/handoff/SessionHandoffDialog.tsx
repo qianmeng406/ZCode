@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import type { ModelSelection } from "@zcode/shared";
 import type { ConversationRow } from "@zcode/shared/zcode-protocol-v4";
 import {
@@ -23,6 +23,58 @@ import { logger } from "@/logger.js";
 
 export type SessionHandoffMode = "summary" | "full";
 
+function handoffFileName(title: string): string {
+  const safeTitle = title.replace(/[\\/:*?"<>|]+/gu, "-").slice(0, 80) || "session";
+  return `${safeTitle}-handoff.md`;
+}
+
+/**
+ * 复制正文：优先 Clipboard API；非安全上下文/无权限时用 execCommand 兜底，
+ * 两者都失败才返回 false（调用方据此提示用户手动全选）。
+ */
+async function copyPlainText(value: string): Promise<boolean> {
+  try {
+    if (navigator.clipboard?.writeText) {
+      await navigator.clipboard.writeText(value);
+      return true;
+    }
+  } catch {
+    // 继续走兜底。
+  }
+  try {
+    const textarea = document.createElement("textarea");
+    textarea.value = value;
+    textarea.setAttribute("readonly", "");
+    textarea.style.position = "fixed";
+    textarea.style.opacity = "0";
+    document.body.appendChild(textarea);
+    textarea.select();
+    const copied = document.execCommand?.("copy") ?? false;
+    document.body.removeChild(textarea);
+    return copied;
+  } catch {
+    return false;
+  }
+}
+
+/** Web 端没有原生另存为对话框时的下载兜底；jsdom/受限环境返回 false。 */
+function downloadTextFile(value: string, fileName: string): boolean {
+  if (typeof URL.createObjectURL !== "function") return false;
+  try {
+    const url = URL.createObjectURL(new Blob([value], { type: "text/markdown;charset=utf-8" }));
+    const anchor = document.createElement("a");
+    anchor.href = url;
+    anchor.download = fileName;
+    document.body.appendChild(anchor);
+    anchor.click();
+    document.body.removeChild(anchor);
+    setTimeout(() => URL.revokeObjectURL(url), 0);
+    return true;
+  } catch {
+    return false;
+  }
+}
+
 /**
  * 会话交接：把当前会话整理成一份可直接粘给另一个 agent / 人的 Markdown。
  *
@@ -39,6 +91,7 @@ export function SessionHandoffDialog({
   workspaceIdentity,
   remoteSessionId,
   selection,
+  historyLoaded = true,
 }: {
   open: boolean;
   onClose: () => void;
@@ -48,6 +101,8 @@ export function SessionHandoffDialog({
   workspaceIdentity?: string;
   remoteSessionId?: string;
   selection?: ModelSelection | null;
+  /** 完整历史是否已补齐；false 时摘要先等待，避免只摘要到最近一窗。 */
+  historyLoaded?: boolean;
 }) {
   const { intl } = useZCodeIntl();
   const services = useOptionalServices();
@@ -56,6 +111,8 @@ export function SessionHandoffDialog({
   const [content, setContent] = useState("");
   const [status, setStatus] = useState<"idle" | "loading" | "ready" | "fallback">("idle");
   const [copied, setCopied] = useState(false);
+  const [notice, setNotice] = useState<"copyFailed" | "saveFailed" | null>(null);
+  const [edited, setEdited] = useState(false);
   const text = (id: string) => intl.formatMessage({ id });
 
   const deterministic = useMemo(
@@ -111,36 +168,77 @@ export function SessionHandoffDialog({
     workspacePath,
   ]);
 
+  // 自动生成每次打开/切换模式只跑一次：流式期间 `rows` 每帧都是新数组，若把生成
+  // 挂在 rows 上，对话框打开后会反复调用模型（每次新 operationId，无法取消）。
+  const autoRunKeyRef = useRef<string | null>(null);
+  const generateSummaryRef = useRef(generateSummary);
+  const deterministicRef = useRef(deterministic);
+  generateSummaryRef.current = generateSummary;
+  deterministicRef.current = deterministic;
+
   useEffect(() => {
-    if (!open) return;
-    setCopied(false);
+    if (!open) {
+      autoRunKeyRef.current = null;
+      setEdited(false);
+      setNotice(null);
+      setCopied(false);
+      return;
+    }
+    if (!historyLoaded) {
+      setStatus("loading");
+      return;
+    }
+    if (autoRunKeyRef.current === mode) return;
+    autoRunKeyRef.current = mode;
+    setEdited(false);
     if (mode === "full") {
-      setContent(deterministic);
+      setContent(deterministicRef.current);
       setStatus("ready");
       return;
     }
-    void generateSummary();
-  }, [open, mode, deterministic, generateSummary]);
+    void generateSummaryRef.current();
+  }, [open, mode, historyLoaded]);
+
+  // 完整导出是确定性模板：历史继续补拉/流式增长时刷新内容，但不覆盖用户编辑。
+  useEffect(() => {
+    if (!open || mode !== "full" || edited) return;
+    setContent(deterministic);
+  }, [open, mode, deterministic, edited]);
 
   const copy = useCallback(async () => {
     if (!content) return;
-    try {
-      await navigator.clipboard.writeText(content);
-      setCopied(true);
-    } catch (error) {
-      logger.warn("[SessionHandoff] 复制失败", {
-        error: error instanceof Error ? error.message : String(error),
-      });
-    }
+    const ok = await copyPlainText(content);
+    setCopied(ok);
+    setNotice(ok ? null : "copyFailed");
   }, [content]);
 
   const save = useCallback(async () => {
-    if (!content || !platform?.saveFile) return;
-    const safeTitle = title.replace(/[\\/:*?"<>|]+/gu, "-").slice(0, 80) || "session";
-    await platform.saveFile({
-      data: new TextEncoder().encode(content).buffer,
-      suggestedName: `${safeTitle}-handoff.md`,
-    });
+    if (!content) return;
+    const fileName = handoffFileName(title);
+    if (platform?.saveFile) {
+      try {
+        const result = await platform.saveFile({
+          data: new TextEncoder().encode(content).buffer,
+          suggestedName: fileName,
+        });
+        if (result.success || result.canceled) {
+          setNotice(null);
+          return;
+        }
+      } catch (error) {
+        logger.warn("[SessionHandoff] 另存为失败，改用下载", {
+          error: error instanceof Error ? error.message : String(error),
+        });
+      }
+    }
+    // Web / 无原生另存为：交给浏览器下载；下载也不可用时退回复制并提示。
+    if (downloadTextFile(content, fileName)) {
+      setNotice(null);
+      return;
+    }
+    const ok = await copyPlainText(content);
+    setCopied(ok);
+    setNotice("saveFailed");
   }, [content, platform, title]);
 
   return (
@@ -190,11 +288,22 @@ export function SessionHandoffDialog({
           <p className="text-ui-sm text-muted-foreground">{text("sessionHandoff.loading")}</p>
         ) : null}
 
+        {notice ? (
+          <p className="text-ui-sm text-warning" data-testid={`v4-session-handoff-${notice}`}>
+            {text(
+              notice === "copyFailed" ? "sessionHandoff.copyFailed" : "sessionHandoff.saveFailed",
+            )}
+          </p>
+        ) : null}
+
         <Textarea
           value={content}
           onChange={(event) => {
             setContent(event.target.value);
             setStatus("ready");
+            setEdited(true);
+            setCopied(false);
+            setNotice(null);
           }}
           className="min-h-[320px] font-mono text-ui-sm"
           placeholder={text("sessionHandoff.placeholder")}
@@ -208,11 +317,7 @@ export function SessionHandoffDialog({
           <Button type="button" variant="secondary" onClick={() => void copy()} disabled={!content}>
             {copied ? text("sessionHandoff.copied") : text("sessionHandoff.copy")}
           </Button>
-          <Button
-            type="button"
-            onClick={() => void save()}
-            disabled={!content || !platform?.saveFile}
-          >
+          <Button type="button" onClick={() => void save()} disabled={!content}>
             {text("sessionHandoff.save")}
           </Button>
         </DialogFooter>

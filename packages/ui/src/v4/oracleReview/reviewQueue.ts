@@ -17,7 +17,14 @@ import {
 export type ReviewQueueSeverity = StructuredFinding["severity"];
 
 export interface ReviewQueueItem {
-  /** fingerprint；同一发现跨重新审查只要位置/措辞不变就仍是同一条。 */
+  /**
+   * 去重键 = fingerprint（见 `findingFingerprint`）。
+   *
+   * 取舍：同一 `file:line` 上的新问题会与旧问题合并为一条（跨重新审查按位置去重，
+   * 不会因为模型换措辞而刷屏）；代价是同一行上的不同问题只保留最新一条。要按
+   * "位置 + 措辞"区分，就得接受每次重审都新增一批近似条目——队列本身是待办清单，
+   * 这里选择少噪音，逐条原文仍可在审查历史里查看。
+   */
   key: string;
   reviewId: string;
   sessionId: string;
