@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
-import { createElement } from "react";
 import { act, cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { createElement } from "react";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import type { ModelSelection } from "@zcode/shared";
 import type { ConversationRow } from "@zcode/shared/zcode-protocol-v4";
@@ -64,14 +64,33 @@ function renderDialog(overrides: Partial<Parameters<typeof SessionHandoffDialog>
   return { onClose };
 }
 
+/** 打开后手动点「生成摘要」；historyLoaded 默认 true 时按钮才可用。 */
+function clickGenerate() {
+  fireEvent.click(screen.getByTestId("v4-session-handoff-generate"));
+}
+
 afterEach(() => {
   cleanup();
   vi.restoreAllMocks();
 });
 
 describe("SessionHandoffDialog", () => {
+  it("does not call the model until the user clicks 生成摘要", () => {
+    const generateWorkspaceText = vi.fn(async () => ({ text: "# 摘要" }));
+    render(
+      dialogElement({ selection: SELECTION }, { zcodeAgentService: { generateWorkspaceText } }),
+    );
+    // 打开即停在占位状态，不自动调用模型。
+    expect((screen.getByTestId("v4-session-handoff-content") as HTMLTextAreaElement).value).toBe(
+      "",
+    );
+    expect(generateWorkspaceText).not.toHaveBeenCalled();
+    expect(screen.getByTestId("v4-session-handoff-generate").textContent).toContain("生成摘要");
+  });
+
   it("falls back to the deterministic export without a model", async () => {
     renderDialog();
+    clickGenerate();
     expect(await screen.findByTestId("v4-session-handoff-fallback")).toBeTruthy();
     const content = screen.getByTestId("v4-session-handoff-content") as HTMLTextAreaElement;
     expect(content.value).toContain("# 会话交接：登录修复");
@@ -80,7 +99,6 @@ describe("SessionHandoffDialog", () => {
 
   it("switches to the full export without calling a model", async () => {
     renderDialog();
-    await screen.findByTestId("v4-session-handoff-fallback");
     fireEvent.click(screen.getByText("完整导出"));
     await waitFor(() => {
       const content = screen.getByTestId("v4-session-handoff-content") as HTMLTextAreaElement;
@@ -96,39 +114,32 @@ describe("SessionHandoffDialog", () => {
     expect(content.value).toBe("自定义交接");
   });
 
-  it("generates the summary once even while rows keep changing", async () => {
+  it("generates once even while rows keep changing", async () => {
     const generateWorkspaceText = vi.fn(async () => ({ text: "# 摘要" }));
     const services = { zcodeAgentService: { generateWorkspaceText } };
-    const { rerender } = render(
-      dialogElement({ selection: SELECTION, historyLoaded: true }, services),
-    );
+    render(dialogElement({ selection: SELECTION, historyLoaded: true }, services));
+    clickGenerate();
     await waitFor(() => expect(generateWorkspaceText).toHaveBeenCalledTimes(1));
 
     // 流式期间每个 delta 都会给出一份新 rows 数组：不得重复调用模型。
-    rerender(
-      dialogElement(
-        { selection: SELECTION, historyLoaded: true, rows: [...rows(), row("流式新增")] },
-        services,
-      ),
-    );
-    rerender(
-      dialogElement(
-        { selection: SELECTION, historyLoaded: true, rows: [...rows(), row("流式新增2")] },
-        services,
-      ),
-    );
+    fireEvent.click(screen.getByText("完整导出"));
+    fireEvent.click(screen.getByText("智能摘要"));
     expect(generateWorkspaceText).toHaveBeenCalledTimes(1);
   });
 
-  it("waits for the full history before summarizing", async () => {
+  it("waits for the full history before enabling generation", async () => {
     const generateWorkspaceText = vi.fn(async () => ({ text: "# 摘要" }));
     const services = { zcodeAgentService: { generateWorkspaceText } };
     const { rerender } = render(
       dialogElement({ selection: SELECTION, historyLoaded: false }, services),
     );
+    expect(screen.getByTestId("v4-session-handoff-generate")).toHaveProperty("disabled", true);
+    expect(screen.getByTestId("v4-session-handoff-waiting")).toBeTruthy();
+    clickGenerate();
     expect(generateWorkspaceText).not.toHaveBeenCalled();
 
     rerender(dialogElement({ selection: SELECTION, historyLoaded: true }, services));
+    clickGenerate();
     await waitFor(() => expect(generateWorkspaceText).toHaveBeenCalledTimes(1));
   });
 
@@ -143,12 +154,13 @@ describe("SessionHandoffDialog", () => {
     const cancelWorkspaceGenerateText = vi.fn(async () => true);
     const services = { zcodeAgentService: { generateWorkspaceText, cancelWorkspaceGenerateText } };
     render(dialogElement({ selection: SELECTION, historyLoaded: true }, services));
+    clickGenerate();
 
     const cancelButton = await screen.findByTestId("v4-session-handoff-cancel");
     fireEvent.click(cancelButton);
 
     const content = screen.getByTestId("v4-session-handoff-content") as HTMLTextAreaElement;
-    expect(content.value).toContain("# 会话交接：登录修复");
+    expect(content.value).toBe("");
     expect(screen.queryByTestId("v4-session-handoff-cancel")).toBeNull();
     expect(cancelWorkspaceGenerateText).toHaveBeenCalledWith(
       expect.objectContaining({
@@ -157,11 +169,10 @@ describe("SessionHandoffDialog", () => {
       }),
     );
 
-    // 迟到的生成结果不得覆盖取消后的内容。
+    // 迟到的生成结果不得回写。
     await act(async () => {
       resolveGeneration({ text: "# 迟到摘要" });
     });
-    expect(content.value).toContain("# 会话交接：登录修复");
     expect(content.value).not.toContain("迟到摘要");
   });
 
@@ -174,7 +185,12 @@ describe("SessionHandoffDialog", () => {
       .mockImplementation(() => undefined);
     try {
       renderDialog();
-      await screen.findByTestId("v4-session-handoff-fallback");
+      fireEvent.click(screen.getByText("完整导出"));
+      await waitFor(() => {
+        expect(
+          (screen.getByTestId("v4-session-handoff-content") as HTMLTextAreaElement).value,
+        ).toContain("## 会话内容");
+      });
       fireEvent.click(screen.getByText("保存 Markdown"));
       await waitFor(() => expect(click).toHaveBeenCalledTimes(1));
       expect(createObjectURL).toHaveBeenCalledTimes(1);
@@ -192,14 +208,24 @@ describe("SessionHandoffDialog", () => {
       throw new Error("no blob support");
     });
     renderDialog();
-    await screen.findByTestId("v4-session-handoff-fallback");
+    fireEvent.click(screen.getByText("完整导出"));
+    await waitFor(() => {
+      expect(
+        (screen.getByTestId("v4-session-handoff-content") as HTMLTextAreaElement).value,
+      ).toContain("## 会话内容");
+    });
     fireEvent.click(screen.getByText("保存 Markdown"));
     expect(await screen.findByTestId("v4-session-handoff-saveFailed")).toBeTruthy();
   });
 
   it("reports copy failure instead of silently doing nothing", async () => {
     renderDialog();
-    await screen.findByTestId("v4-session-handoff-fallback");
+    fireEvent.click(screen.getByText("完整导出"));
+    await waitFor(() => {
+      expect(
+        (screen.getByTestId("v4-session-handoff-content") as HTMLTextAreaElement).value,
+      ).toContain("## 会话内容");
+    });
     fireEvent.click(screen.getByText("复制"));
     expect(await screen.findByTestId("v4-session-handoff-copyFailed")).toBeTruthy();
   });

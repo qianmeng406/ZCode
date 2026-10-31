@@ -8,7 +8,8 @@ import type { ConversationRow } from "../zcode-protocol-v4/rows.js";
  * - 确定性兜底：`buildDeterministicHandoffMarkdown` 直接排版，模型不可用时仍可交付。
  */
 
-const DEFAULT_MAX_TRANSCRIPT_CHARS = 120_000;
+const DEFAULT_MAX_TRANSCRIPT_CHARS = 24_000;
+const DETERMINISTIC_TOOL_LINES_MAX = 30;
 // 工具条目只保留「定位信息」（文件/命令/URL），不再整段铺 JSON：
 // 完整输入动辄几百字符，会把交接文档和模型预算都吃在参数原文上。
 const TOOL_TARGET_MAX_CHARS = 200;
@@ -162,7 +163,10 @@ function toolLines(rows: readonly ConversationRow[]): string[] {
     const command = row.toolName === "Bash" ? clip(extractCommand(row.inputText), 200) : "";
     lines.push(command ? `- \`${command}\`` : `- ${row.toolName}`);
   }
-  return lines;
+  if (lines.length <= DETERMINISTIC_TOOL_LINES_MAX) return lines;
+  // 长会话会积累几百条命令；只保留最近的，省略条数写明，避免交接文档被命令列表淹没。
+  const omitted = lines.length - DETERMINISTIC_TOOL_LINES_MAX;
+  return [`- …更早的 ${omitted} 条工具调用已省略`, ...lines.slice(-DETERMINISTIC_TOOL_LINES_MAX)];
 }
 
 function extractCommand(inputText: string): string {

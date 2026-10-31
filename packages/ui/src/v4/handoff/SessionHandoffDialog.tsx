@@ -177,23 +177,16 @@ export function SessionHandoffDialog({
     workspacePath,
   ]);
 
-  // 自动生成每次打开/切换模式只跑一次：流式期间 `rows` 每帧都是新数组，若把生成
-  // 挂在 rows 上，对话框打开后会反复调用模型（每次新 operationId，无法取消）。
-  const autoRunKeyRef = useRef<string | null>(null);
+  // 交接是显式动作：智能摘要不自动调用模型，等用户点「生成摘要」。
+  // 打开时只取消可能还在飞的上一轮请求，避免模型调用在后台空跑。
   const generationSeqRef = useRef(0);
   const operationIdRef = useRef<string | null>(null);
-  const generateSummaryRef = useRef(generateSummary);
-  const deterministicRef = useRef(deterministic);
-  generateSummaryRef.current = generateSummary;
-  deterministicRef.current = deterministic;
 
   /** 取消在飞生成：先失效序号（迟到结果丢弃），再通知后端精确取消。 */
   const cancelGeneration = useCallback(() => {
     generationSeqRef.current += 1;
     const operationId = operationIdRef.current;
     operationIdRef.current = null;
-    setContent(deterministicRef.current);
-    setStatus("ready");
     if (!operationId) return;
     void services?.zcodeAgentService
       .cancelWorkspaceGenerateText?.({
@@ -208,28 +201,13 @@ export function SessionHandoffDialog({
 
   useEffect(() => {
     if (!open) {
-      autoRunKeyRef.current = null;
       setEdited(false);
       setNotice(null);
       setCopied(false);
-      // 关闭即取消在飞生成，避免模型调用在后台空跑。
+      // 关闭即取消在飞生成；已生成/已编辑的内容保留，误关后不用重做。
       cancelGeneration();
-      return;
     }
-    if (!historyLoaded) {
-      setStatus("loading");
-      return;
-    }
-    if (autoRunKeyRef.current === mode) return;
-    autoRunKeyRef.current = mode;
-    setEdited(false);
-    if (mode === "full") {
-      setContent(deterministicRef.current);
-      setStatus("ready");
-      return;
-    }
-    void generateSummaryRef.current();
-  }, [open, mode, historyLoaded, cancelGeneration]);
+  }, [open, cancelGeneration]);
 
   // 完整导出是确定性模板：历史继续补拉/流式增长时刷新内容，但不覆盖用户编辑。
   useEffect(() => {
@@ -304,7 +282,11 @@ export function SessionHandoffDialog({
               type="button"
               size="sm"
               variant="ghost"
-              onClick={cancelGeneration}
+              onClick={() => {
+                cancelGeneration();
+                setStatus("idle");
+                setContent("");
+              }}
               data-testid="v4-session-handoff-cancel"
             >
               {text("sessionHandoff.cancel")}
@@ -315,12 +297,21 @@ export function SessionHandoffDialog({
               size="sm"
               variant="ghost"
               onClick={() => void generateSummary()}
-              disabled={mode === "full"}
+              disabled={mode === "full" || !historyLoaded}
+              data-testid="v4-session-handoff-generate"
             >
-              {text("sessionHandoff.regenerate")}
+              {status === "idle" && !content
+                ? text("sessionHandoff.generate")
+                : text("sessionHandoff.regenerate")}
             </Button>
           )}
         </div>
+
+        {!historyLoaded ? (
+          <p className="text-ui-sm text-muted-foreground" data-testid="v4-session-handoff-waiting">
+            {text("sessionHandoff.loadingHistory")}
+          </p>
+        ) : null}
 
         {status === "fallback" ? (
           <p className="text-ui-sm text-warning" data-testid="v4-session-handoff-fallback">
