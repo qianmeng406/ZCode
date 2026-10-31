@@ -723,6 +723,7 @@ const zhCN: Record<string, string> = {
   "sessionHandoff.loadingHistory": "正在读取完整会话历史...",
   "sessionHandoff.cancel": "取消生成",
   "sessionHandoff.fallback": "模型摘要不可用，已回落到完整导出。",
+  "sessionHandoff.fallbackNoModel": "当前会话没有可用模型，已展示确定性完整导出。",
   "sessionHandoff.loading": "正在生成交接摘要...",
   "sessionHandoff.placeholder": "交接内容会出现在这里，可直接编辑后再复制。",
   "sessionHandoff.copy": "复制",

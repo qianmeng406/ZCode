@@ -112,6 +112,7 @@ export function SessionHandoffDialog({
   const [status, setStatus] = useState<"idle" | "loading" | "ready" | "fallback">("idle");
   const [copied, setCopied] = useState(false);
   const [notice, setNotice] = useState<"copyFailed" | "saveFailed" | null>(null);
+  const [fallbackReason, setFallbackReason] = useState<"no-model" | "error" | null>(null);
   const [edited, setEdited] = useState(false);
   const text = (id: string) => intl.formatMessage({ id });
 
@@ -124,6 +125,7 @@ export function SessionHandoffDialog({
     const agentService = services?.zcodeAgentService;
     if (!selection || !agentService) {
       setContent(deterministic);
+      setFallbackReason("no-model");
       setStatus("fallback");
       return;
     }
@@ -164,6 +166,7 @@ export function SessionHandoffDialog({
         error: error instanceof Error ? error.message : String(error),
       });
       setContent(deterministic);
+      setFallbackReason("error");
       setStatus("fallback");
     }
   }, [
@@ -202,6 +205,7 @@ export function SessionHandoffDialog({
   useEffect(() => {
     if (!open) {
       setEdited(false);
+      setFallbackReason(null);
       setNotice(null);
       setCopied(false);
       // 关闭即取消在飞生成；已生成/已编辑的内容保留，误关后不用重做。
@@ -315,7 +319,11 @@ export function SessionHandoffDialog({
 
         {status === "fallback" ? (
           <p className="text-ui-sm text-warning" data-testid="v4-session-handoff-fallback">
-            {text("sessionHandoff.fallback")}
+            {text(
+              fallbackReason === "no-model"
+                ? "sessionHandoff.fallbackNoModel"
+                : "sessionHandoff.fallback",
+            )}
           </p>
         ) : null}
 

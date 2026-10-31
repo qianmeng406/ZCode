@@ -6863,6 +6863,8 @@ export function SessionPane({
           )}
         </div>
       </div>
+      {/* 草稿显式选过模型用草稿的；否则用选择视图解析出的会话实际生效模型
+          （默认模型的会话 draftConfig.modelSelection 是 null，不能因此降级为无模型）。 */}
       <SessionHandoffDialog
         open={sessionHandoffOpen}
         onClose={() => setSessionHandoffOpen(false)}
@@ -6871,7 +6873,12 @@ export function SessionPane({
         workspacePath={workspacePath}
         {...(workspaceIdentity ? { workspaceIdentity } : {})}
         {...(remoteSessionId ? { remoteSessionId } : {})}
-        selection={draftConfig.modelSelection ?? null}
+        selection={
+          draftConfig.modelSelection ??
+          modelSelectionView?.effectiveSelection ??
+          modelSelectionView?.preferredSelection ??
+          null
+        }
         historyLoaded={sessionHandoffHistoryLoaded}
       />
       {memoryCaptureService ? (
