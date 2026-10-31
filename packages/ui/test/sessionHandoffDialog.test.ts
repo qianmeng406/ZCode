@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
 import { createElement } from "react";
-import { cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { act, cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import type { ModelSelection } from "@zcode/shared";
 import type { ConversationRow } from "@zcode/shared/zcode-protocol-v4";
@@ -130,6 +130,39 @@ describe("SessionHandoffDialog", () => {
 
     rerender(dialogElement({ selection: SELECTION, historyLoaded: true }, services));
     await waitFor(() => expect(generateWorkspaceText).toHaveBeenCalledTimes(1));
+  });
+
+  it("cancels the in-flight generation and drops the late result", async () => {
+    let resolveGeneration: (value: { text: string }) => void = () => {};
+    const generateWorkspaceText = vi.fn(
+      () =>
+        new Promise<{ text: string }>((resolve) => {
+          resolveGeneration = resolve;
+        }),
+    );
+    const cancelWorkspaceGenerateText = vi.fn(async () => true);
+    const services = { zcodeAgentService: { generateWorkspaceText, cancelWorkspaceGenerateText } };
+    render(dialogElement({ selection: SELECTION, historyLoaded: true }, services));
+
+    const cancelButton = await screen.findByTestId("v4-session-handoff-cancel");
+    fireEvent.click(cancelButton);
+
+    const content = screen.getByTestId("v4-session-handoff-content") as HTMLTextAreaElement;
+    expect(content.value).toContain("# 会话交接：登录修复");
+    expect(screen.queryByTestId("v4-session-handoff-cancel")).toBeNull();
+    expect(cancelWorkspaceGenerateText).toHaveBeenCalledWith(
+      expect.objectContaining({
+        querySource: "session_handoff",
+        operationId: expect.stringMatching(/^session-handoff:/u),
+      }),
+    );
+
+    // 迟到的生成结果不得覆盖取消后的内容。
+    await act(async () => {
+      resolveGeneration({ text: "# 迟到摘要" });
+    });
+    expect(content.value).toContain("# 会话交接：登录修复");
+    expect(content.value).not.toContain("迟到摘要");
   });
 
   it("downloads the markdown when there is no native save dialog", async () => {

@@ -127,11 +127,18 @@ export function SessionHandoffDialog({
       setStatus("fallback");
       return;
     }
+    // 每次生成一个序号 + 固定 operationId：取消/重开后迟到的结果按序号丢弃，
+    // 后端在飞请求经 cancelWorkspaceGenerateText 精确命中（审查卡片 ✕ 同款）。
+    const seq = ++generationSeqRef.current;
+    const operationId = `session-handoff:${seq}-${Date.now().toString(36)}`;
+    operationIdRef.current = operationId;
     setStatus("loading");
     const transcript = buildSessionHandoffTranscript(rows);
     if (!transcript.trim()) {
-      setContent(deterministic);
-      setStatus("ready");
+      if (generationSeqRef.current === seq) {
+        setContent(deterministic);
+        setStatus("ready");
+      }
       return;
     }
     try {
@@ -142,15 +149,17 @@ export function SessionHandoffDialog({
         selection,
         prompt: buildSessionHandoffPrompt(transcript, title),
         querySource: "session_handoff",
-        operationId: `session-handoff:${Date.now().toString(36)}`,
+        operationId,
         maxOutputTokens: 4_000,
         requestTimeoutMs: 60_000,
       });
+      if (generationSeqRef.current !== seq) return;
       const generated = result.text.trim();
       if (!generated) throw new Error("empty handoff summary");
       setContent(generated);
       setStatus("ready");
     } catch (error) {
+      if (generationSeqRef.current !== seq) return;
       logger.warn("[SessionHandoff] 摘要生成失败，回落完整导出", {
         error: error instanceof Error ? error.message : String(error),
       });
@@ -171,10 +180,31 @@ export function SessionHandoffDialog({
   // 自动生成每次打开/切换模式只跑一次：流式期间 `rows` 每帧都是新数组，若把生成
   // 挂在 rows 上，对话框打开后会反复调用模型（每次新 operationId，无法取消）。
   const autoRunKeyRef = useRef<string | null>(null);
+  const generationSeqRef = useRef(0);
+  const operationIdRef = useRef<string | null>(null);
   const generateSummaryRef = useRef(generateSummary);
   const deterministicRef = useRef(deterministic);
   generateSummaryRef.current = generateSummary;
   deterministicRef.current = deterministic;
+
+  /** 取消在飞生成：先失效序号（迟到结果丢弃），再通知后端精确取消。 */
+  const cancelGeneration = useCallback(() => {
+    generationSeqRef.current += 1;
+    const operationId = operationIdRef.current;
+    operationIdRef.current = null;
+    setContent(deterministicRef.current);
+    setStatus("ready");
+    if (!operationId) return;
+    void services?.zcodeAgentService
+      .cancelWorkspaceGenerateText?.({
+        workspacePath,
+        ...(workspaceIdentity ? { workspaceIdentity } : {}),
+        ...(remoteSessionId ? { remoteSessionId } : {}),
+        querySource: "session_handoff",
+        operationId,
+      })
+      .catch(() => undefined);
+  }, [remoteSessionId, services, workspaceIdentity, workspacePath]);
 
   useEffect(() => {
     if (!open) {
@@ -182,6 +212,8 @@ export function SessionHandoffDialog({
       setEdited(false);
       setNotice(null);
       setCopied(false);
+      // 关闭即取消在飞生成，避免模型调用在后台空跑。
+      cancelGeneration();
       return;
     }
     if (!historyLoaded) {
@@ -197,7 +229,7 @@ export function SessionHandoffDialog({
       return;
     }
     void generateSummaryRef.current();
-  }, [open, mode, historyLoaded]);
+  }, [open, mode, historyLoaded, cancelGeneration]);
 
   // 完整导出是确定性模板：历史继续补拉/流式增长时刷新内容，但不覆盖用户编辑。
   useEffect(() => {
@@ -267,15 +299,27 @@ export function SessionHandoffDialog({
             {text("sessionHandoff.mode.full")}
           </Button>
           <span className="min-w-0 flex-1" />
-          <Button
-            type="button"
-            size="sm"
-            variant="ghost"
-            onClick={() => void generateSummary()}
-            disabled={status === "loading" || mode === "full"}
-          >
-            {text("sessionHandoff.regenerate")}
-          </Button>
+          {status === "loading" ? (
+            <Button
+              type="button"
+              size="sm"
+              variant="ghost"
+              onClick={cancelGeneration}
+              data-testid="v4-session-handoff-cancel"
+            >
+              {text("sessionHandoff.cancel")}
+            </Button>
+          ) : (
+            <Button
+              type="button"
+              size="sm"
+              variant="ghost"
+              onClick={() => void generateSummary()}
+              disabled={mode === "full"}
+            >
+              {text("sessionHandoff.regenerate")}
+            </Button>
+          )}
         </div>
 
         {status === "fallback" ? (

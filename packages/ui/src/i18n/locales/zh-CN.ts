@@ -719,6 +719,7 @@ const zhCN: Record<string, string> = {
   "sessionHandoff.mode.summary": "智能摘要",
   "sessionHandoff.mode.full": "完整导出",
   "sessionHandoff.regenerate": "重新生成",
+  "sessionHandoff.cancel": "取消生成",
   "sessionHandoff.fallback": "模型摘要不可用，已回落到完整导出。",
   "sessionHandoff.loading": "正在生成交接摘要...",
   "sessionHandoff.placeholder": "交接内容会出现在这里，可直接编辑后再复制。",
