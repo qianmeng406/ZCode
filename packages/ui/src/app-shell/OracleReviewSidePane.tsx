@@ -13,6 +13,8 @@ import {
 import { GenUiMessageResponse } from "@/gen-ui/index.js";
 import { useZCodeIntl } from "@/i18n/IntlProvider.js";
 import { useModelSelectionView } from "@/hooks/useModelSelectionView.js";
+import type { CodeViewerSource } from "@/lib/codeViewer.js";
+import { useZCodeSessionStore } from "@/store/zcodeSessionStore.js";
 import type { OracleReviewSidePaneTab } from "@/lib/workspaceSidePane.js";
 import { formatOracleModelLabel } from "@/v4/oracleReview/oracleReviewModelLabel.js";
 import {
@@ -34,6 +36,13 @@ import {
   ResultSection,
 } from "@/v4/oracleReview/OracleReviewBannerParts.js";
 import { OracleReviewTraceToolRow } from "@/v4/oracleReview/OracleReviewTraceToolRow.js";
+import { OracleReviewQueuePanel } from "@/v4/oracleReview/OracleReviewQueuePanel.js";
+import {
+  buildQueueAskPrompt,
+  buildQueueFixPrompt,
+  type ReviewQueueItem,
+} from "@/v4/oracleReview/reviewQueue.js";
+import { useOracleReviewQueue } from "@/v4/oracleReview/useOracleReviewQueue.js";
 
 /**
  * Oracle 审查面板：把输入框上方卡片里的「完整结论 + 审查过程」搬到右侧栏。
@@ -49,10 +58,12 @@ const EMPTY_TRACE: readonly OracleReviewTraceEntry[] = [];
 export function OracleReviewSidePane({
   tab,
   onClose,
+  onOpenCodeViewer,
 }: {
   tab: OracleReviewSidePaneTab;
   /** 关闭面板 tab（审查卡片被 dismiss / 会话已无审查时自动调用）。 */
   onClose: () => void;
+  onOpenCodeViewer?: (source: CodeViewerSource) => void;
 }) {
   const { intl } = useZCodeIntl();
   const sessionId = tab.sessionId;
@@ -69,6 +80,44 @@ export function OracleReviewSidePane({
   );
   const getHistorySnapshot = useCallback(() => getOracleReviewHistory(sessionId), [sessionId]);
   const history = useSyncExternalStore(subscribeHistory, getHistorySnapshot, getHistorySnapshot);
+  const queue = useOracleReviewQueue({
+    workspaceKey: tab.workspaceKey,
+    workspacePath: tab.workspacePath,
+    ...(tab.workspaceIdentity ? { workspaceIdentity: tab.workspaceIdentity } : {}),
+    ...(tab.remoteSessionId ? { remoteSessionId: tab.remoteSessionId } : {}),
+    sessionId,
+    refreshToken: history,
+  });
+  const requestQueueAction = useZCodeSessionStore((store) => store.requestOracleReviewQueueAction);
+  const dispatchQueueAction = (item: ReviewQueueItem, kind: "ask" | "fix") => {
+    requestQueueAction(
+      tab.workspacePath,
+      {
+        sessionId,
+        kind,
+        reviewId: item.reviewId,
+        text: kind === "fix" ? buildQueueFixPrompt(item) : buildQueueAskPrompt(item),
+      },
+      tab.workspaceIdentity,
+    );
+  };
+  const openQueueItem = (item: ReviewQueueItem) => {
+    if (!onOpenCodeViewer || !item.file) return;
+    onOpenCodeViewer({
+      type: "code-review",
+      title: item.file,
+      path: item.file,
+      review: {
+        requestId: item.key,
+        title: item.message,
+        body: item.message,
+        ...(item.line !== undefined ? { startLine: item.line, endLine: item.line } : {}),
+      },
+      workspacePath: tab.workspacePath,
+      ...(tab.workspaceIdentity ? { workspaceIdentity: tab.workspaceIdentity } : {}),
+      ...(tab.remoteSessionId ? { workspaceRemoteSessionId: tab.remoteSessionId } : {}),
+    });
+  };
   const modelSelectionView = useModelSelectionView(
     tab.workspacePath,
     tab.remoteSessionId,
@@ -210,6 +259,17 @@ export function OracleReviewSidePane({
       </div>
       <ScrollFadeViewport ref={viewportRef} className="px-3 py-3">
         <div className="flex flex-col gap-3">
+          <OracleReviewQueuePanel
+            items={queue.openItems}
+            reviewedCount={queue.items.length - queue.openItems.length}
+            loading={queue.loading}
+            onJump={openQueueItem}
+            onAsk={(item) => dispatchQueueAction(item, "ask")}
+            onFix={(item) => dispatchQueueAction(item, "fix")}
+            onMarkReviewed={(item) => queue.markReviewed([item.key])}
+            onMarkAllReviewed={queue.markAllReviewed}
+            onClearReviewed={queue.clearReviewed}
+          />
           {result?.summary ? (
             <section className="flex flex-col gap-1">
               <h3 className="text-ui-sm font-medium text-foreground-subtle">

@@ -9,7 +9,11 @@ import { useZCodeIntl } from "@/i18n/IntlProvider.js";
 import { setPendingSettingsSection } from "@/lib/settingsNavigation.js";
 import { SettingsGroupCard, SettingsRow } from "@/settings/SettingsPageParts.js";
 import { DynamicWorkflowModeSetting } from "@/settings/DynamicWorkflowModeSetting.js";
-import { OracleReviewModelSetting, PromptOptimizerSetting } from "@/settings/ai-features/index.js";
+import {
+  InputPredictionSetting,
+  OracleReviewModelSetting,
+  PromptOptimizerSetting,
+} from "@/settings/ai-features/index.js";
 
 /**
  * 推荐组合：把「不知道从哪开」变成一次点击。
@@ -188,6 +192,7 @@ export function ForkFeaturesSectionContent({
           experimental: false,
         })}
         <OracleReviewModelSetting />
+        <InputPredictionSetting />
         {switchRow(
           "settings.forkFeatures.promptOptimizer",
           promptOptimizerEnabled,

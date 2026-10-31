@@ -73,6 +73,7 @@ import type {
 import {
   ArrowUpIcon,
   ClipboardPenLineIcon,
+  FileDownIcon,
   InfoIcon,
   RotateCcwIcon,
   ScanSearchIcon,
@@ -120,7 +121,10 @@ import { useOptionalServices } from "@/hooks/useServices.js";
 import { logger } from "@/logger.js";
 import { runUserAction, startUserAction } from "@/lib/userActionTelemetry.js";
 import { useZCodeSessionStore } from "@/store/zcodeSessionStore.js";
-import type { ComposerMentionPrefill } from "@/store/zcodeSessionStoreTypes.js";
+import type {
+  ComposerMentionPrefill,
+  OracleReviewQueueActionRequest,
+} from "@/store/zcodeSessionStoreTypes.js";
 import { FileDisplayIcon, resolveFileDisplayDescriptor } from "@/lib/fileDisplay.js";
 import {
   isImageChatComposerAttachment,
@@ -172,6 +176,7 @@ import {
 import { isAppleKeyboardPlatform } from "@/lib/keyboardShortcuts.js";
 import { usePrimaryFollowupModifier } from "@/v4/composer/usePrimaryFollowupModifier.js";
 import { usePromptOptimizer } from "@/v4/composer/usePromptOptimizer.js";
+import { useInputPrediction } from "@/v4/composer/useInputPrediction.js";
 import type {
   PromptOptimizerContextRange,
   PromptOptimizerMode,
@@ -496,6 +501,8 @@ export interface ConversationComposerProps {
   promptOptimizerModel?: ModelSelection | null;
   /** 「定制功能」页的提示词优化总开关；缺省 true，保持既有行为。 */
   promptOptimizerEnabled?: boolean;
+  /** 输入框 ghost 预测：默认关；开启后停止输入一段时间会请求一次续写建议。 */
+  inputPredictionEnabled?: boolean;
   promptOptimizerMode?: PromptOptimizerMode;
   promptOptimizerContextRange?: PromptOptimizerContextRange;
   /** 当前 composer 是否运行在手机 Web 远控壳中。 */
@@ -577,6 +584,11 @@ export interface ConversationComposerProps {
    */
   externalTextInsertRequest?: ExternalTextInsertRequest | null;
   onExternalTextInsertApplied?: (requestId: number) => void;
+  /** 打开会话交接（导出 Markdown）；由 SessionPane 提供，缺少时不渲染入口。 */
+  onRequestSessionHandoff?: () => void;
+  /** 审查队列行触发的会话级动作（追问/修复）；只消费 sessionId 匹配的请求。 */
+  oracleReviewQueueAction?: OracleReviewQueueActionRequest | null;
+  onOracleReviewQueueActionApplied?: (requestId: number) => void;
   /**
    * 队列“编辑”在 delete ACK 后把完整未来意图取回输入框。
    * requestId + session/workspace binding 保证幂等且不会串写其他 task。
@@ -637,6 +649,7 @@ function ConversationComposerImpl({
   oracleReview,
   promptOptimizerModel = null,
   promptOptimizerEnabled = true,
+  inputPredictionEnabled = false,
   promptOptimizerMode = "polish",
   promptOptimizerContextRange = "conversation",
   workspacePath,
@@ -677,6 +690,9 @@ function ConversationComposerImpl({
   listenAddToChatEvents = true,
   externalTextInsertRequest = null,
   onExternalTextInsertApplied,
+  onRequestSessionHandoff,
+  oracleReviewQueueAction = null,
+  onOracleReviewQueueActionApplied,
   composerRestoreRequest = null,
   onComposerRestoreApplied,
   suppressGoalCommands = false,
@@ -1575,6 +1591,36 @@ function ConversationComposerImpl({
         ? optimizerDraftEdit.text
         : (optimizerState.optimized ?? "")
       : "";
+  const inputPrediction = useInputPrediction({
+    enabled: inputPredictionEnabled,
+    workspacePath,
+    ...(workspaceIdentity ? { workspaceIdentity } : {}),
+    ...(remoteSessionId ? { remoteSessionId } : {}),
+    sessionId,
+    revision: snapshot?.revision ?? 0,
+    draft: text,
+    blocked:
+      disabled ||
+      pending ||
+      runtimeBlocked ||
+      hasAttachments ||
+      hasCodeCommentContexts ||
+      hasWebElementContexts ||
+      hasPptxElementReferences ||
+      hasConversationSelectionReferences ||
+      hasPluginUiContexts ||
+      Boolean(pendingShareContext),
+  });
+  const acceptInputPrediction = useCallback(() => {
+    const suggestion = inputPrediction.candidate;
+    if (!suggestion) return;
+    inputApiRef.current?.appendText(suggestion);
+    const next = inputApiRef.current?.getMarkdown() ?? `${textRef.current}${suggestion}`;
+    updateText(next);
+    inputPrediction.dismiss();
+    inputApiRef.current?.focus();
+  }, [inputPrediction, updateText]);
+
   const hasDraftToSubmit =
     hasText ||
     hasAttachments ||
@@ -2314,6 +2360,30 @@ function ConversationComposerImpl({
     [oracleReview, submit],
   );
 
+  // 审查队列 → composer：fix 走既有的 review handoff（保留来源标记与落盘确认），
+  // ask 只把问题填进输入框，不冒充已确认审查。
+  const appliedOracleQueueActionRef = useRef<number | null>(null);
+  useEffect(() => {
+    const request = oracleReviewQueueAction;
+    if (!request || request.sessionId !== sessionId) return;
+    if (appliedOracleQueueActionRef.current === request.requestId) return;
+    appliedOracleQueueActionRef.current = request.requestId;
+    if (request.kind === "fix") {
+      handleOracleFixRequest(request.text, request.reviewId);
+    } else {
+      inputApiRef.current?.setText(request.text);
+      updateText(request.text);
+      inputApiRef.current?.focus();
+    }
+    onOracleReviewQueueActionApplied?.(request.requestId);
+  }, [
+    oracleReviewQueueAction,
+    sessionId,
+    handleOracleFixRequest,
+    updateText,
+    onOracleReviewQueueActionApplied,
+  ]);
+
   useEffect(() => {
     if (!visibleError || !conversationTelemetry || !telemetryVisible) return;
     const telemetryKey = [
@@ -2848,6 +2918,20 @@ function ConversationComposerImpl({
                 </Button>
               </ControlHintTooltip>
             ) : null}
+            {onRequestSessionHandoff ? (
+              <ControlHintTooltip title={intl.formatMessage({ id: "sessionHandoff.entry" })}>
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="icon-md"
+                  onClick={onRequestSessionHandoff}
+                  data-testid="v4-composer-session-handoff"
+                  aria-label={intl.formatMessage({ id: "sessionHandoff.entry" })}
+                >
+                  <FileDownIcon className="size-4" />
+                </Button>
+              </ControlHintTooltip>
+            ) : null}
             {/* 手动审查入口不随 oracleReviewEnabled 隐藏：总开关只控「回合成功后的
                 自动把关」；用它连带隐藏按钮，用户关掉自动后就连手动入口一起找不到了。 */}
             {oracleReview ? (
@@ -3155,8 +3239,53 @@ function ConversationComposerImpl({
           ) : null}
         </div>
       ) : null}
+      {inputPrediction.candidate ? (
+        <div
+          className="mb-1 flex w-full min-w-0 items-center gap-2 px-1 text-ui-sm"
+          data-testid="v4-composer-input-prediction"
+        >
+          <button
+            type="button"
+            className="min-w-0 flex-1 truncate text-left text-foreground-subtle hover:text-foreground"
+            onClick={acceptInputPrediction}
+            title={intl.formatMessage({ id: "chat.composer.inputPrediction.hint" })}
+          >
+            <span className="mr-1 rounded-sm bg-input px-1 py-0.5 text-ui-xs">
+              {intl.formatMessage({ id: "chat.composer.inputPrediction.hint" })}
+            </span>
+            {inputPrediction.candidate}
+          </button>
+          <button
+            type="button"
+            className="shrink-0 text-foreground-subtle hover:text-foreground"
+            aria-label={intl.formatMessage({ id: "chat.composer.inputPrediction.dismiss" })}
+            onClick={inputPrediction.dismiss}
+          >
+            <XIcon className="size-3.5" />
+          </button>
+        </div>
+      ) : null}
       <div
         data-highspeed-composer={highspeedCard ? "true" : undefined}
+        onKeyDownCapture={(event) => {
+          if (!inputPrediction.candidate) return;
+          if (
+            event.key === "Tab" &&
+            !event.shiftKey &&
+            !event.altKey &&
+            !event.ctrlKey &&
+            !event.metaKey
+          ) {
+            event.preventDefault();
+            event.stopPropagation();
+            acceptInputPrediction();
+            return;
+          }
+          if (event.key === "Escape") {
+            event.preventDefault();
+            inputPrediction.dismiss();
+          }
+        }}
         data-highspeed-entrance={highspeedCard ? highspeedEntrance : undefined}
         className={cn(
           "chat-composer-input-surface relative w-full",

@@ -24,6 +24,7 @@ import type {
   ConfigOptionsStatus,
   ComposerMentionPrefill,
   ModelSwitchStage,
+  OracleReviewQueueActionRequest,
   WorkspaceZCodeUIState,
 } from "@/store/zcodeSessionStoreTypes.js";
 import {
@@ -350,6 +351,49 @@ export function createWorkspaceSlice(set: SetFn) {
           (current) =>
             current.composerTextInsertRequest?.requestId === requestId
               ? { ...current, composerTextInsertRequest: null }
+              : current,
+          workspaceIdentity,
+        ),
+      );
+    },
+
+    requestOracleReviewQueueAction: (
+      workspacePath: string,
+      request: Omit<OracleReviewQueueActionRequest, "requestId">,
+      workspaceIdentity?: string,
+    ) => {
+      let nextRequestId = 0;
+      set((state) =>
+        updateWorkspaceState(
+          state,
+          workspacePath,
+          (current) => {
+            const requestId = current.oracleReviewQueueActionVersion + 1;
+            nextRequestId = requestId;
+            return {
+              ...current,
+              oracleReviewQueueActionVersion: requestId,
+              oracleReviewQueueAction: { ...request, requestId },
+            };
+          },
+          workspaceIdentity,
+        ),
+      );
+      return nextRequestId;
+    },
+
+    clearOracleReviewQueueAction: (
+      workspacePath: string,
+      requestId: number,
+      workspaceIdentity?: string,
+    ) => {
+      set((state) =>
+        updateWorkspaceState(
+          state,
+          workspacePath,
+          (current) =>
+            current.oracleReviewQueueAction?.requestId === requestId
+              ? { ...current, oracleReviewQueueAction: null }
               : current,
           workspaceIdentity,
         ),

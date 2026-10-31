@@ -15,6 +15,7 @@ import { useZCodeIntl } from "@/i18n/IntlProvider.js";
 import { logger } from "@/logger.js";
 import { AiFeatureModelSetting } from "./AiFeatureModelSetting.js";
 import { SettingsRow } from "@/settings/SettingsPageParts.js";
+import { Switch } from "@/components/ui/switch.js";
 
 const PROMPT_OPTIMIZER_MODE_LABEL_KEYS: Record<PromptOptimizerMode, string> = {
   polish: "chat.composer.optimizeModePolish",
@@ -154,6 +155,33 @@ export function OracleReviewModelSetting() {
       levelLabel={intl.formatMessage({ id: "settings.aiFeature.reasoningLevel" })}
       disabled={!settings || saving}
       testIdPrefix="settings-oracle-review"
+    />
+  );
+}
+
+/**
+ * 输入框 ghost 预测（实验）：默认关闭。
+ *
+ * 这不是纯本地推理——开启后会把最近几轮对话与当前草稿发给会话模型，因此文案必须
+ * 把隐私与成本讲清楚，且不进入推荐组合。
+ */
+export function InputPredictionSetting() {
+  const { settings, intl, saving, save } = useAiFeatureSettings();
+  const enabled = settings?.inputPredictionEnabled ?? false;
+  return (
+    <SettingsRow
+      label={intl.formatMessage({ id: "settings.inputPrediction.label" })}
+      description={intl.formatMessage({ id: "settings.inputPrediction.description" })}
+      controlPlacement="title"
+      control={
+        <Switch
+          checked={enabled}
+          disabled={!settings || saving}
+          onCheckedChange={(checked) => void save({ inputPredictionEnabled: checked })}
+          aria-label={intl.formatMessage({ id: "settings.inputPrediction.label" })}
+          data-testid="settings-input-prediction-toggle"
+        />
+      }
     />
   );
 }

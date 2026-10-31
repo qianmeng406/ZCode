@@ -131,6 +131,15 @@ export interface ComposerTextInsertRequest {
   mode?: "replace" | "prepend-if-missing";
 }
 
+/** 审查队列行触发的会话级动作：由侧栏写入，SessionPane 转交 composer 消费。 */
+export interface OracleReviewQueueActionRequest {
+  requestId: number;
+  sessionId: string;
+  kind: "fix" | "ask";
+  reviewId: string;
+  text: string;
+}
+
 export interface TimelineBottomRequest {
   requestId: number;
   taskId: string;
@@ -171,6 +180,8 @@ export interface WorkspaceZCodeUIState {
   draftRuntimeInvalidationVersion: number;
   composerTextInsertVersion: number;
   composerTextInsertRequest: ComposerTextInsertRequest | null;
+  oracleReviewQueueActionVersion: number;
+  oracleReviewQueueAction: OracleReviewQueueActionRequest | null;
   timelineBottomRequestVersion: number;
   timelineBottomRequest: TimelineBottomRequest | null;
   /** 草稿态错误需要跨页面保留，避免切走再回来后提示被本地 state 一起卸载 */
@@ -239,6 +250,16 @@ export interface ZCodeSessionStoreState {
     mode?: "replace" | "prepend-if-missing",
   ) => number;
   clearComposerTextInsertRequest: (
+    workspacePath: string,
+    requestId: number,
+    workspaceIdentity?: string,
+  ) => void;
+  requestOracleReviewQueueAction: (
+    workspacePath: string,
+    request: Omit<OracleReviewQueueActionRequest, "requestId">,
+    workspaceIdentity?: string,
+  ) => number;
+  clearOracleReviewQueueAction: (
     workspacePath: string,
     requestId: number,
     workspaceIdentity?: string,
@@ -514,6 +535,8 @@ export function createDefaultWorkspaceState(
     draftRuntimeInvalidationVersion: 0,
     composerTextInsertVersion: 0,
     composerTextInsertRequest: null,
+    oracleReviewQueueActionVersion: 0,
+    oracleReviewQueueAction: null,
     timelineBottomRequestVersion: 0,
     timelineBottomRequest: null,
     draftError: null,

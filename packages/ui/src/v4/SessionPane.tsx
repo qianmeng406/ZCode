@@ -75,6 +75,7 @@ import type {
 } from "@zcode/services";
 import { useCodingPlanBillingDiscountFromService } from "@/CodingPlanBillingDiscount.js";
 import { toast } from "@/components/ui/toast.js";
+import { SessionHandoffDialog } from "@/v4/handoff/SessionHandoffDialog.js";
 import { MemoryCaptureDialog, type MemoryCaptureService } from "@/v4/memory/MemoryCaptureDialog.js";
 import {
   MEMORY_CAPTURE_QUERY_SOURCE,
@@ -1736,6 +1737,12 @@ export function SessionPane({
   const composerTextInsertRequest = useZCodeSessionStore(
     (store) => store.getWorkspaceState(workspacePath, workspaceIdentity).composerTextInsertRequest,
   );
+  const oracleReviewQueueAction = useZCodeSessionStore(
+    (store) => store.getWorkspaceState(workspacePath, workspaceIdentity).oracleReviewQueueAction,
+  );
+  const clearOracleReviewQueueAction = useZCodeSessionStore(
+    (store) => store.clearOracleReviewQueueAction,
+  );
   const timelineBottomRequest = useZCodeSessionStore(
     (store) => store.getWorkspaceState(workspacePath, workspaceIdentity).timelineBottomRequest,
   );
@@ -2009,6 +2016,7 @@ export function SessionPane({
     sharedSettings?.forkFeatures?.memoryCapture === true &&
     sharedSettings?.memoryEnabled === true;
   const [memoryCaptureDraft, setMemoryCaptureDraft] = useState<MemoryCaptureDraft | null>(null);
+  const [sessionHandoffOpen, setSessionHandoffOpen] = useState(false);
   const [memoryCaptureWorkspaceId, setMemoryCaptureWorkspaceId] = useState<string | null>(null);
   // 防重复派发用 ref：行按钮不展示 pending 态（结果只经 toast 与预览对话框反馈）。
   const memoryCaptureInFlightRef = useRef(false);
@@ -5339,6 +5347,12 @@ export function SessionPane({
     [lease, snapshot?.logEpoch],
   );
 
+  const handleRequestSessionHandoff = useCallback(() => {
+    setSessionHandoffOpen(true);
+    // 交接需要完整历史；与分享同属「完整提交」需求方，不会被导航的短路优化吞掉。
+    void lease?.store.loadAllOlder({ consumer: "handoff" });
+  }, [lease]);
+
   useEffect(() => {
     if (!shareActive || !sessionId || !hasOlderRows(snapshot)) return;
     const key = `${sessionId}:${snapshot?.logEpoch ?? "unknown"}`;
@@ -6240,6 +6254,12 @@ export function SessionPane({
       listenAddToChatEvents={focused}
       externalTextInsertRequest={focused && sessionId === null ? composerTextInsertRequest : null}
       onExternalTextInsertApplied={handleExternalTextInsertApplied}
+      oracleReviewQueueAction={focused ? oracleReviewQueueAction : null}
+      onOracleReviewQueueActionApplied={(requestId) =>
+        clearOracleReviewQueueAction(workspacePath, requestId, workspaceIdentity)
+      }
+      onRequestSessionHandoff={focused ? handleRequestSessionHandoff : undefined}
+      inputPredictionEnabled={sharedSettings?.inputPredictionEnabled ?? false}
       autoFocusEnabled={focused}
       disabled={
         connecting ||
@@ -6838,6 +6858,16 @@ export function SessionPane({
           )}
         </div>
       </div>
+      <SessionHandoffDialog
+        open={sessionHandoffOpen}
+        onClose={() => setSessionHandoffOpen(false)}
+        rows={snapshot?.rows.window ?? []}
+        title={snapshot?.meta.title ?? sessionId ?? "session"}
+        workspacePath={workspacePath}
+        {...(workspaceIdentity ? { workspaceIdentity } : {})}
+        {...(remoteSessionId ? { remoteSessionId } : {})}
+        selection={draftConfig.modelSelection ?? null}
+      />
       {memoryCaptureService ? (
         <MemoryCaptureDialog
           open={memoryCaptureDraft !== null}

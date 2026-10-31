@@ -7,7 +7,7 @@
 // 同一会话同一时刻至多一个分页 job，后到 owner 加入在途 job；全部 owner 退出后
 // 协作式停止——已发出的一页允许返回，不再请求下一页。
 
-export type ConversationFullHistoryConsumer = "navigator" | "share";
+export type ConversationFullHistoryConsumer = "navigator" | "share" | "handoff";
 
 export interface ConversationFullHistoryOwner {
   consumer: ConversationFullHistoryConsumer;
@@ -50,6 +50,14 @@ export function hasShareFullHistoryOwner(owners: Iterable<ConversationFullHistor
   return false;
 }
 
+/** 需要完整历史（而不是导航的“够渲染 rail 即可”）的 owner：分享与交接。 */
+export function hasCompleteHistoryOwner(owners: Iterable<ConversationFullHistoryOwner>): boolean {
+  for (const owner of owners) {
+    if (owner.consumer === "share" || owner.consumer === "handoff") return true;
+  }
+  return false;
+}
+
 export type ConversationFullHistoryCommitDecision =
   /** 全部页合并提交，导航与分享都拿到完整历史。 */
   | { commit: true; outcome: "hydrated" }
@@ -70,8 +78,10 @@ export function decideFullHistoryCommit(params: {
   realUserQueryCount: number;
   preserveIncompleteLeadingTurn: boolean;
   hasShareOwner: boolean;
+  /** 交接与分享同义：都需要完整历史，不能被导航的短路优化吞掉。 */
+  hasHandoffOwner?: boolean;
 }): ConversationFullHistoryCommitDecision {
-  if (params.hasShareOwner || params.realUserQueryCount >= 2) {
+  if (params.hasShareOwner || params.hasHandoffOwner || params.realUserQueryCount >= 2) {
     return { commit: true, outcome: "hydrated" };
   }
   if (params.preserveIncompleteLeadingTurn) {

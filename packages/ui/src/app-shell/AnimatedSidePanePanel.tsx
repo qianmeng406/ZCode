@@ -1300,7 +1300,11 @@ export function AnimatedSidePanePanel({
                             onOpenSubagentSession={onOpenSubagentSession}
                           />
                         ) : tab.type === "oracle-review" ? (
-                          <OracleReviewSidePane tab={tab} onClose={() => onCloseTab(tab.id)} />
+                          <OracleReviewSidePane
+                            tab={tab}
+                            onClose={() => onCloseTab(tab.id)}
+                            onOpenCodeViewer={onOpenCodeViewer}
+                          />
                         ) : tab.type === "selection-side-chat" ? (
                           <SelectionSideChatPane
                             tab={tab}

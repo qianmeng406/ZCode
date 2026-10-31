@@ -21,6 +21,7 @@ vi.mock("@/lib/settingsNavigation.js", () => ({
 // 被搬进本页的三个子组件各自依赖服务与模块级 store，这里只验证它们被渲染，不验证内部行为。
 vi.mock("@/settings/ai-features/index.js", () => ({
   OracleReviewModelSetting: () => createElement("div", { "data-testid": "oracle-model" }),
+  InputPredictionSetting: () => createElement("div", { "data-testid": "input-prediction" }),
   PromptOptimizerSetting: () => createElement("div", { "data-testid": "prompt-optimizer" }),
 }));
 

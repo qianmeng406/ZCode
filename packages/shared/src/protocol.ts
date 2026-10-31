@@ -2,7 +2,6 @@ import type { RemoteAssetInstallMode } from "./remoteAssetInstallMode.js";
 import type { RemoteResourcePackageSelection } from "./remoteResourcePackages.js";
 import type { ProviderFamilyDomain } from "./model-provider-family.js";
 import type { ProviderFamilyConnectionSelectionSettings } from "./provider-family-connection-selection.js";
-import type { ZCodeProvider } from "./zcode-task-types-core.js";
 import type { WorkspacePurpose } from "./workspacePurpose.js";
 import type { DynamicWorkflowMode } from "./dynamic-workflow-feature.js";
 import type { PromptOptimizerContextRange, PromptOptimizerMode } from "./ai-features/index.js";
@@ -312,6 +311,8 @@ export interface AppSettings {
    * 把关模型在设置页指定，默认跟随会话模型。
    */
   oracleReviewEnabled?: boolean;
+  /** 输入框 ghost 预测（实验）：默认关闭；开启后会把最近轮次与草稿发给会话模型。 */
+  inputPredictionEnabled?: boolean;
   /** Oracle 审查模型；缺省/null = 跟随会话模型。 */
   oracleReviewModel?: ModelSelection | null;
   /** 提示词优化模型；缺省/null = 跟随会话模型。 */

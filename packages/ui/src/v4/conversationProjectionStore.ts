@@ -28,6 +28,7 @@ import {
   decideFullHistoryCommit,
   hasActiveFullHistoryOwner,
   hasShareFullHistoryOwner,
+  hasCompleteHistoryOwner,
   type ConversationFullHistoryConsumer,
   type ConversationFullHistoryJob,
   type ConversationFullHistoryJobOutcome,
@@ -1689,6 +1690,7 @@ export class ConversationProjectionStore {
         realUserQueryCount,
         preserveIncompleteLeadingTurn: job.preserveIncompleteLeadingTurn,
         hasShareOwner: hasShareFullHistoryOwner(job.owners.values()),
+        hasHandoffOwner: hasCompleteHistoryOwner(job.owners.values()),
       });
       if (decision.commit) {
         const window = mergeOlderRows(current.rows.window, this.shareRows(olderRows));

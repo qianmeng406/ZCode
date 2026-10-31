@@ -1,7 +1,6 @@
 /* oxlint-disable eslint(max-lines) -- AppSettings schema 聚合历史迁移、默认值和 patch 校验，拆分会削弱设置迁移的单一入口。 */
 import { z } from "zod";
 import { appToolSearchModeSchema } from "./app-runtime-preferences.js";
-import type { AppSettings } from "./protocol.js";
 import { REMOTE_ASSET_INSTALL_MODES } from "./remoteAssetInstallMode.js";
 import { isKnownRemoteResourcePackageId } from "./remoteResourcePackages.js";
 import { wslUserSchema } from "./wslUserValidation.js";
@@ -518,6 +517,8 @@ const appSettingsObjectSchema = z.object({
   closeToTrayLinuxMigrationInitialized: z.boolean().default(false),
   keepAwakeWhileRunning: z.boolean().default(false),
   oracleReviewEnabled: z.boolean().default(false),
+  // 输入预测默认关：会把最近轮次与草稿发给模型，必须由用户显式开启。
+  inputPredictionEnabled: z.boolean().default(false),
   oracleReviewModel: aiFeatureModelSettingSchema,
   promptOptimizerModel: aiFeatureModelSettingSchema,
   promptOptimizerMode: promptOptimizerModeSettingSchema,
@@ -614,6 +615,7 @@ export const appSettingsPatchSchema = z.object({
   closeToTrayOnWindows: z.boolean().optional(),
   keepAwakeWhileRunning: z.boolean().optional(),
   oracleReviewEnabled: z.boolean().optional(),
+  inputPredictionEnabled: z.boolean().optional(),
   oracleReviewModel: modelSelectionSchema.nullable().optional(),
   promptOptimizerModel: modelSelectionSchema.nullable().optional(),
   promptOptimizerMode: z.enum(PROMPT_OPTIMIZER_MODES).optional(),

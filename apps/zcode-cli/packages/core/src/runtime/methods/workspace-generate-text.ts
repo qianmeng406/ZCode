@@ -37,9 +37,13 @@ const GIT_COMMIT_MESSAGE_QUERY_SOURCE = "git_commit_message";
 // 提示词优化与 Git 提交消息同为「快进快出」的辅助调用：最低推理档 + 辅助预算，
 // 不吃调用方自带的 maxOutputTokens，避免思考模型把小预算烧在推理上输出为空。
 const PROMPT_OPTIMIZER_QUERY_SOURCE = "prompt_optimizer";
+const INPUT_PREDICTION_QUERY_SOURCE = "input_prediction";
 const AUXILIARY_QUERY_SOURCES = new Set([
   GIT_COMMIT_MESSAGE_QUERY_SOURCE,
   PROMPT_OPTIMIZER_QUERY_SOURCE,
+  // 输入预测是逐次触发的短请求：与文档声明的「辅助档」保持一致，避免按会话
+  // 正常推理档计费/等待。
+  INPUT_PREDICTION_QUERY_SOURCE,
 ]);
 
 export interface WorkspaceGenerateTextInput {
