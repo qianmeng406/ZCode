@@ -35,6 +35,16 @@ function reasoning(text: string): ConversationRow {
   return { ...base("reasoning"), kind: "reasoning", text, state: "complete" } as ConversationRow;
 }
 
+function turnUser(text: string, turnId: string): ConversationRow {
+  return {
+    ...base("userInput"),
+    kind: "userInput",
+    turnId,
+    text,
+    origin: "realUser",
+  } as ConversationRow;
+}
+
 function tool(name: string, inputText: string, outputPreview?: string): ConversationRow {
   return {
     ...base("toolCall"),
@@ -72,6 +82,26 @@ describe("session handoff transcript", () => {
     expect(text).toContain("最近的请求");
   });
 
+  it("always keeps the most recent 3 turns even when over budget", () => {
+    const text = buildSessionHandoffTranscript(
+      [
+        turnUser("第 1 轮请求", "t1"),
+        turnUser("第 2 轮请求", "t2"),
+        turnUser("第 3 轮请求", "t3"),
+        turnUser("第 4 轮请求", "t4"),
+        turnUser("第 5 轮请求", "t5"),
+      ],
+      { maxChars: 10 },
+    );
+    expect(text).toContain("[... 更早的会话内容已省略 ...]");
+    expect(text).not.toContain("第 1 轮请求");
+    expect(text).not.toContain("第 2 轮请求");
+    // 预算只够 ~1 条：最近 3 轮仍受保护。
+    expect(text).toContain("第 3 轮请求");
+    expect(text).toContain("第 4 轮请求");
+    expect(text).toContain("第 5 轮请求");
+  });
+
   it("keeps tool entries compact: locate target only, no raw parameter JSON", () => {
     const text = buildSessionHandoffTranscript([
       tool(
@@ -84,14 +114,21 @@ describe("session handoff transcript", () => {
     expect(text).not.toContain('"new_string"');
   });
 
-  it("drops earlier entries first when over budget", () => {
+  it("drops earlier entries first when over budget, but protects recent 3 turns", () => {
     const text = buildSessionHandoffTranscript(
-      [user("很早的请求"), assistant("很早的回答"), user("最近的请求")],
+      [
+        turnUser("很早的请求", "t1"),
+        turnUser("很早的回答", "t2"),
+        turnUser("中间的请求", "t3"),
+        turnUser("最近的请求", "t4"),
+      ],
       { maxChars: 25 },
     );
-    expect(text).toContain("最近的请求");
     expect(text).toContain("更早的会话内容已省略");
     expect(text).not.toContain("很早的请求");
+    // 最近 3 轮（t2-t4）受保护，即使总预算已超。
+    expect(text).toContain("很早的回答");
+    expect(text).toContain("最近的请求");
   });
 });
 

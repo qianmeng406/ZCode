@@ -10,6 +10,8 @@ import type { ConversationRow } from "../zcode-protocol-v4/rows.js";
 
 const DEFAULT_MAX_TRANSCRIPT_CHARS = 24_000;
 const DETERMINISTIC_TOOL_LINES_MAX = 30;
+/** 预算裁剪的硬保底：最近 3 轮对话即使超预算也不丢弃。 */
+const MIN_KEEP_TURNS = 3;
 // 工具条目只保留「定位信息」（文件/命令/URL），不再整段铺 JSON：
 // 完整输入动辄几百字符，会把交接文档和模型预算都吃在参数原文上。
 const TOOL_TARGET_MAX_CHARS = 200;
@@ -28,6 +30,8 @@ export interface SessionHandoffOptions {
 interface TranscriptEntry {
   heading: string;
   body: string;
+  /** 所属轮次（从 0 递增）；按 turnHeader 行与 turnId 变化推进。 */
+  turnIndex: number;
 }
 
 function clip(text: string, max: number): string {
@@ -69,15 +73,22 @@ function toolTarget(row: Extract<ConversationRow, { kind: "toolCall" }>): string
 
 function rowEntries(rows: readonly ConversationRow[], includeTools: boolean): TranscriptEntry[] {
   const entries: TranscriptEntry[] = [];
+  let turnIndex = -1;
+  let previousTurnId: string | undefined;
   for (const row of rows) {
+    // 轮次边界 = turnId 变化（turnHeader 行与同轮行共享 turnId）。
+    if (row.turnId !== previousTurnId) {
+      turnIndex += 1;
+      previousTurnId = row.turnId;
+    }
     if (row.kind === "userInput") {
       if (!row.text.trim()) continue;
-      entries.push({ heading: "用户", body: clip(row.text, USER_ASSISTANT_MAX_CHARS) });
+      entries.push({ heading: "用户", body: clip(row.text, USER_ASSISTANT_MAX_CHARS), turnIndex });
       continue;
     }
     if (row.kind === "assistantText") {
       if (!row.text.trim()) continue;
-      entries.push({ heading: "助手", body: clip(row.text, USER_ASSISTANT_MAX_CHARS) });
+      entries.push({ heading: "助手", body: clip(row.text, USER_ASSISTANT_MAX_CHARS), turnIndex });
       continue;
     }
     if (row.kind === "toolCall" && includeTools) {
@@ -86,7 +97,7 @@ function rowEntries(rows: readonly ConversationRow[], includeTools: boolean): Tr
       const head = `工具：${row.toolName}（${row.status}）${target ? ` → ${target}` : ""}`;
       const lines = [head];
       if (output) lines.push(`输出：${clip(output, TOOL_OUTPUT_MAX_CHARS)}`);
-      entries.push({ heading: "工具", body: lines.join("\n") });
+      entries.push({ heading: "工具", body: lines.join("\n"), turnIndex });
     }
   }
   return entries;
@@ -94,6 +105,8 @@ function rowEntries(rows: readonly ConversationRow[], includeTools: boolean): Tr
 
 /**
  * 逐条投影成「标题 + 正文」；超预算时从最早处丢弃，保证最近的决定与阻塞留在文档里。
+ * 最近 {@link MIN_KEEP_TURNS} 轮对话受保护：即使超预算也不丢弃——交接最少要能
+ * 看到「正在做什么、上一条请求是什么」。
  */
 export function buildSessionHandoffTranscript(
   rows: readonly ConversationRow[],
@@ -102,9 +115,17 @@ export function buildSessionHandoffTranscript(
   const maxChars = options.maxChars ?? DEFAULT_MAX_TRANSCRIPT_CHARS;
   const entries = rowEntries(rows, options.includeTools ?? true);
   const rendered = entries.map((entry) => `### ${entry.heading}\n${entry.body}`);
+  const totalTurns = (entries[entries.length - 1]?.turnIndex ?? -1) + 1;
+  // 第三轮（从后往前数）第一条的入口：预算丢弃不允许越过它。
+  let minStart = 0;
+  if (totalTurns > MIN_KEEP_TURNS) {
+    const threshold = totalTurns - MIN_KEEP_TURNS;
+    minStart = entries.findIndex((entry) => entry.turnIndex >= threshold);
+    if (minStart < 0) minStart = 0;
+  }
   let total = rendered.reduce((sum, text) => sum + text.length + 2, 0);
   let start = 0;
-  while (total > maxChars && start < rendered.length - 1) {
+  while (total > maxChars && start < rendered.length - 1 && start < minStart) {
     total -= (rendered[start]?.length ?? 0) + 2;
     start += 1;
   }
