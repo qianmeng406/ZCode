@@ -790,6 +790,7 @@ const enUS: Record<string, string> = {
   "sessionHandoff.loadingHistory": "Loading the full session history...",
   "sessionHandoff.cancel": "Cancel generation",
   "sessionHandoff.fallback": "Model summary unavailable; fell back to the full export.",
+  "sessionHandoff.generateFailed": "Handoff summary generation failed",
   "sessionHandoff.fallbackNoModel":
     "No model available for this session; showing the deterministic full export.",
   "sessionHandoff.loading": "Generating handoff summary...",

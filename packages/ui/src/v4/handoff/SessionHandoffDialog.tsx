@@ -16,12 +16,17 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog.js";
 import { Textarea } from "@/components/ui/textarea.js";
+import { toast } from "@/components/ui/toast.js";
 import { useOptionalPlatform } from "@/hooks/usePlatform.js";
 import { useZCodeIntl } from "@/i18n/IntlProvider.js";
 import { useOptionalServices } from "@/hooks/useServices.js";
 import { logger } from "@/logger.js";
 
 export type SessionHandoffMode = "summary" | "full";
+
+// 思考模型整理长会话材料：请求预算对齐 Oracle 标准审查（10 分钟），
+// 60s 会直接被宿主 AbortSignal.timeout 掐断成"摘要生成失败"。
+const HANDOFF_REQUEST_TIMEOUT_MS = 600_000;
 
 function handoffFileName(title: string): string {
   const safeTitle = title.replace(/[\\/:*?"<>|]+/gu, "-").slice(0, 80) || "session";
@@ -155,8 +160,10 @@ export function SessionHandoffDialog({
         prompt: buildSessionHandoffPrompt(transcript, title),
         querySource: "session_handoff",
         operationId,
-        maxOutputTokens: 4_000,
-        requestTimeoutMs: 60_000,
+        // 思考模型整理 2.4 万字材料：60s/4k 会在推理上烧完预算或被 abort，
+        // 对齐 Oracle 标准审查的 600s 预算，输出留足正文空间。
+        maxOutputTokens: 16_000,
+        requestTimeoutMs: HANDOFF_REQUEST_TIMEOUT_MS,
       });
       if (generationSeqRef.current !== seq) return;
       const generated = result.text.trim();
@@ -165,9 +172,12 @@ export function SessionHandoffDialog({
       setStatus("ready");
     } catch (error) {
       if (generationSeqRef.current !== seq) return;
-      logger.warn("[SessionHandoff] 摘要生成失败，回落完整导出", {
-        error: error instanceof Error ? error.message : String(error),
-      });
+      const detail = error instanceof Error ? error.message : String(error);
+      logger.warn("[SessionHandoff] 摘要生成失败，回落完整导出", { error: detail });
+      // 失败原因必须让用户看见（不用开 devtools），否则无法区分超时/模型/网络。
+      toast(
+        `${intl.formatMessage({ id: "sessionHandoff.generateFailed" })} · ${detail.slice(0, 160)}`,
+      );
       setContent(deterministic);
       setFallbackReason("error");
       setStatus("fallback");
