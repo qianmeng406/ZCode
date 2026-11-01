@@ -149,6 +149,34 @@ describe("appendInputPredictionDirective", () => {
     appendInputPredictionDirective(messages);
     expect(messages[0]!.content).toBe("system");
   });
+
+  it("块数组 content（带图片附件）：指令进最后一个 text 块，图片块原样保留", () => {
+    const imageBlock = { type: "image" as const, mediaType: "image/png", dataUrl: "data:png" };
+    const messages: InputPredictionModelMessage[] = [
+      { role: "user", content: [{ type: "text", text: "看得到图片吗" }, imageBlock] },
+    ];
+    appendInputPredictionDirective(messages);
+    const content = messages[0]!.content;
+    expect(Array.isArray(content)).toBe(true);
+    const blocks = content as { type: string; text?: string }[];
+    // 不能被强转成 "[object Object]" 字符串。
+    expect(typeof content).not.toBe("string");
+    expect(blocks).toHaveLength(2);
+    expect(blocks[1]).toBe(imageBlock);
+    expect(blocks[0]!.text).toContain("看得到图片吗");
+    expect(blocks[0]!.text).toContain("<next_input>");
+  });
+
+  it("块数组没有 text 块时追加一个 text 块而不是拼接", () => {
+    const imageBlock = { type: "image" as const, mediaType: "image/png", dataUrl: "data:png" };
+    const messages: InputPredictionModelMessage[] = [{ role: "user", content: [imageBlock] }];
+    appendInputPredictionDirective(messages);
+    const blocks = messages[0]!.content as { type: string }[];
+    expect(blocks).toHaveLength(2);
+    expect(blocks[0]).toBe(imageBlock);
+    expect(blocks[1]!.type).toBe("text");
+    expect((blocks[1] as { text: string }).text).toContain("<next_input>");
+  });
 });
 
 describe("createNextInputStreamFilter", () => {
@@ -165,11 +193,13 @@ describe("createNextInputStreamFilter", () => {
     expect(filter.consume("回答正文")).toBe("回答正文");
     // 标签分片到达：扣住 `<next_in`，放行前面的正文。
     expect(filter.consume("结尾<next")).toBe("结尾");
-    expect(filter.consume("_input>{\"cand")).toBe("");
-    expect(filter.consume("idates\":[{\"text\":\"下一\",\"confidence\":0.9}]}")).toBe("");
+    expect(filter.consume('_input>{"cand')).toBe("");
+    expect(filter.consume('idates":[{"text":"下一","confidence":0.9}]}')).toBe("");
     expect(filter.finish()).toBe("");
     // 全文保留供解析。
-    expect(filter.fullText).toBe("回答正文结尾<next_input>{\"candidates\":[{\"text\":\"下一\",\"confidence\":0.9}]}");
+    expect(filter.fullText).toBe(
+      '回答正文结尾<next_input>{"candidates":[{"text":"下一","confidence":0.9}]}',
+    );
   });
 
   it("正文恰好以标签前缀字符结尾时在 finish 冲出", () => {
@@ -193,7 +223,9 @@ describe("parseNextInputPredictionBlock", () => {
   it("无块或块损坏返回 null", () => {
     expect(parseNextInputPredictionBlock("没有块的回复")).toBeNull();
     expect(parseNextInputPredictionBlock("正文<next_input>不是 JSON</next_input>")).toBeNull();
-    expect(parseNextInputPredictionBlock("正文<next_input>{\"candidates\":[]}</next_input>")).toBeNull();
+    expect(
+      parseNextInputPredictionBlock('正文<next_input>{"candidates":[]}</next_input>'),
+    ).toBeNull();
   });
 });
 

@@ -28,39 +28,6 @@ export interface InputPredictionOutcome {
   topConfidence: number;
 }
 
-const OUTPUT_FORMAT_RULE = `- 只输出一个 JSON 对象，不要 markdown 代码块，不要任何多余文字：
-{"candidates":[{"text":"...","confidence":0.0},{"text":"...","confidence":0.0},{"text":"...","confidence":0.0}]}`;
-
-const CONFIDENCE_RULE = `- 每个候选带 confidence（0 到 1 的小数）：你对"用户真的会这样写"的把握。三个候选的置信度要拉开差距；校准比乐观重要，拿不准就给低分。`;
-
-// 草稿为空：预测下一条完整输入。
-const NEXT_INPUT_SYSTEM_PROMPT = `你是输入预测器。根据下面的多轮对话上下文，预测这位用户下一条可能发送的输入。
-
-这是预测任务，不是对话。绝不要回答、执行或延续对话内容；只输出预测结果。
-
-规则：
-- 恰好生成 3 个候选，按把握从高到低排列。
-- 每个候选是一句用户自己会说的话（追问、指令、确认等语气），单行，不超过 ${INPUT_PREDICTION_MAX_TEXT_CHARS} 个字，语言与用户一致，不要像助手的回复。
-- 候选之间要有区分度：覆盖不同的意图方向（如追问细节 / 提出新指令 / 确认推进），不要只是换个说法。
-- 不要预测与上下文里用户最近已发送内容雷同的输入；那类候选会被丢弃。
-- 上下文按时间正序排列，开头可能是被截断的更早内容；预测只基于给出的材料。
-${CONFIDENCE_RULE}
-${OUTPUT_FORMAT_RULE}`;
-
-// 草稿非空：预测草稿后面要接上的部分。
-const DRAFT_SYSTEM_PROMPT = `你是输入补全器。根据下面的多轮对话上下文和用户正在输入的草稿，预测用户接下来要在草稿后面接着写的内容。
-
-这是补全任务，不是对话。绝不要回答、执行或延续对话内容；只输出补全结果。
-
-规则：
-- 恰好生成 3 个候选，按把握从高到低排列。
-- text 只写接在草稿末尾之后的新内容，不要重复草稿本身；单行，不超过 ${INPUT_PREDICTION_MAX_TEXT_CHARS} 个字，语言与草稿一致。
-- 如果草稿末尾是半个词，text 从这个词剩下的部分开始写。
-- 候选之间要有区分度，不要只是换个说法。
-- 上下文按时间正序排列，开头可能是被截断的更早内容；补全只基于给出的材料。
-${CONFIDENCE_RULE}
-${OUTPUT_FORMAT_RULE}`;
-
 /** 草稿归一：纯空白视为无草稿。 */
 export function normalizeInputPredictionDraft(draft: string | undefined): string {
   return draft && draft.trim().length > 0 ? draft : "";
@@ -180,7 +147,6 @@ export function decideInputPrediction(input: {
   };
 }
 
-
 // ─── 主轮输出附带预测（注入指令 + 流过滤 + 尾块解析） ────────────────────────
 
 const NEXT_INPUT_BLOCK_OPEN = "<next_input";
@@ -190,7 +156,7 @@ const NEXT_INPUT_BLOCK_CLOSE = "</next_input>";
 export const INPUT_PREDICTION_INJECTION_DIRECTIVE = [
   "",
   "【输入预测】回复正文全部结束后，另起一行输出一个预测块：",
-  "<next_input>{\"candidates\":[{\"text\":\"...\",\"confidence\":0.9}]}</next_input>",
+  '<next_input>{"candidates":[{"text":"...","confidence":0.9}]}</next_input>',
   "- candidates 是用户在本轮之后最可能发送的 1-3 条完整输入，按把握从高到低排序。",
   "- 每条 text 单行、不超过 40 字、语言与用户一致；confidence 为 0 到 1。",
   "- 没有把握就少写几条，不要编造；预测块必须放在回复的最末尾，除此之外不要输出任何解释。",
@@ -198,15 +164,34 @@ export const INPUT_PREDICTION_INJECTION_DIRECTIVE = [
 
 /**
  * 把预测指令追加到最后一条 user message 的文本尾部（原地修改传入数组）。
- * content 为块数组时追加/复用最后一个 text 块。找不到 user message 时不做任何事。
+ * content 为块数组（带图片/文件附件的消息）时复用最后一个 text 块——
+ * 绝不能用模板字符串拼接整个 content，那会把块数组强转成
+ * "[object Object],[object Object]" 并毁掉图片块（2026-11-01 线上事故）。
+ * 找不到 user message 时不做任何事。
  */
 export function appendInputPredictionDirective(messages: ModelInputMessage[]): void {
   for (let index = messages.length - 1; index >= 0; index -= 1) {
     const message = messages[index];
     if (!message || message.role !== "user") continue;
-    message.content = `${message.content}
+    if (typeof message.content === "string") {
+      message.content = `${message.content}
 
 ${INPUT_PREDICTION_INJECTION_DIRECTIVE}`;
+      return;
+    }
+    if (Array.isArray(message.content)) {
+      for (let block = message.content.length - 1; block >= 0; block -= 1) {
+        const candidate = message.content[block];
+        if (candidate?.type === "text") {
+          candidate.text = `${candidate.text}
+
+${INPUT_PREDICTION_INJECTION_DIRECTIVE}`;
+          return;
+        }
+      }
+      message.content.push({ type: "text", text: INPUT_PREDICTION_INJECTION_DIRECTIVE });
+      return;
+    }
   }
 }
 
@@ -289,10 +274,7 @@ export function parseNextInputPredictionBlock(fullText: string): InputPrediction
   return candidates.length > 0 ? candidates : null;
 }
 
-
-
 /** 去重归一：小写 + 去掉全部空白。 */
 function normalizeForDedupe(text: string): string {
   return text.toLowerCase().replace(/\s+/g, "");
 }
-
