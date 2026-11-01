@@ -74,7 +74,7 @@ describe("session handoff transcript", () => {
     expect(text).not.toContain("内部推理");
   });
 
-  it("clips oversized user/assistant entries so one paste cannot own the budget", () => {
+  it("clips oversized user entries so one paste cannot dominate the material", () => {
     const huge = "很长的日志".repeat(2000); // 10000 chars
     const text = buildSessionHandoffTranscript([user(huge), user("最近的请求")]);
     expect(text).toContain("很长的日志");
@@ -82,24 +82,14 @@ describe("session handoff transcript", () => {
     expect(text).toContain("最近的请求");
   });
 
-  it("always keeps the most recent 3 turns even when over budget", () => {
-    const text = buildSessionHandoffTranscript(
-      [
-        turnUser("第 1 轮请求", "t1"),
-        turnUser("第 2 轮请求", "t2"),
-        turnUser("第 3 轮请求", "t3"),
-        turnUser("第 4 轮请求", "t4"),
-        turnUser("第 5 轮请求", "t5"),
-      ],
-      { maxChars: 10 },
+  it("caps tool entries per turn when a turn is tool-heavy", () => {
+    const tools = Array.from({ length: 80 }, (_, index) =>
+      tool("Bash", JSON.stringify({ command: `命令 ${index}` })),
     );
-    expect(text).toContain("[... 更早的会话内容已省略 ...]");
-    expect(text).not.toContain("第 1 轮请求");
-    expect(text).not.toContain("第 2 轮请求");
-    // 预算只够 ~1 条：最近 3 轮仍受保护。
-    expect(text).toContain("第 3 轮请求");
-    expect(text).toContain("第 4 轮请求");
-    expect(text).toContain("第 5 轮请求");
+    const text = buildSessionHandoffTranscript([turnUser("跑一堆命令", "t1"), ...tools]);
+    expect(text).toContain("工具调用已省略");
+    expect(text).toContain("命令 79");
+    expect(text).not.toContain('命令 19}"');
   });
 
   it("keeps tool entries compact: locate target only, no raw parameter JSON", () => {
@@ -114,19 +104,16 @@ describe("session handoff transcript", () => {
     expect(text).not.toContain('"new_string"');
   });
 
-  it("drops earlier entries first when over budget, but protects recent 3 turns", () => {
-    const text = buildSessionHandoffTranscript(
-      [
-        turnUser("很早的请求", "t1"),
-        turnUser("很早的回答", "t2"),
-        turnUser("中间的请求", "t3"),
-        turnUser("最近的请求", "t4"),
-      ],
-      { maxChars: 25 },
-    );
+  it("keeps the material window to the most recent 3 turns", () => {
+    const text = buildSessionHandoffTranscript([
+      turnUser("很早的请求", "t1"),
+      turnUser("很早的回答", "t2"),
+      turnUser("中间的请求", "t3"),
+      turnUser("最近的请求", "t4"),
+    ]);
     expect(text).toContain("更早的会话内容已省略");
     expect(text).not.toContain("很早的请求");
-    // 最近 3 轮（t2-t4）受保护，即使总预算已超。
+    // 窗口 = 最近 3 轮（t2-t4），内容不裁剪。
     expect(text).toContain("很早的回答");
     expect(text).toContain("最近的请求");
   });

@@ -160,9 +160,9 @@ export function SessionHandoffDialog({
         prompt: buildSessionHandoffPrompt(transcript, title),
         querySource: "session_handoff",
         operationId,
-        // 思考模型整理 2.4 万字材料：60s/4k 会在推理上烧完预算或被 abort，
-        // 对齐 Oracle 标准审查的 600s 预算，输出留足正文空间。
-        maxOutputTokens: 16_000,
+        // 思考模型整理最近 3 轮完整材料：60s/4k 会在推理上烧完预算或被 abort，
+        // 对齐 Oracle 标准审查的 600s 预算；输出上限放宽到 32k。
+        maxOutputTokens: 32_000,
         requestTimeoutMs: HANDOFF_REQUEST_TIMEOUT_MS,
       });
       if (generationSeqRef.current !== seq) return;

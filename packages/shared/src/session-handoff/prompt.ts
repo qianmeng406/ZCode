@@ -8,10 +8,11 @@ import type { ConversationRow } from "../zcode-protocol-v4/rows.js";
  * - 确定性兜底：`buildDeterministicHandoffMarkdown` 直接排版，模型不可用时仍可交付。
  */
 
-const DEFAULT_MAX_TRANSCRIPT_CHARS = 24_000;
 const DETERMINISTIC_TOOL_LINES_MAX = 30;
-/** 预算裁剪的硬保底：最近 3 轮对话即使超预算也不丢弃。 */
-const MIN_KEEP_TURNS = 3;
+/** 材料窗口：只给最近 3 轮对话（交接最少要能看到「正在做什么、上一条请求是什么」）。 */
+const MATERIAL_WINDOW_TURNS = 3;
+/** 单轮内工具条目上限：工具密集的轮次按此截断，防止材料被命令列表淹没。 */
+const TURN_TOOL_ENTRIES_MAX = 60;
 // 工具条目只保留「定位信息」（文件/命令/URL），不再整段铺 JSON：
 // 完整输入动辄几百字符，会把交接文档和模型预算都吃在参数原文上。
 const TOOL_TARGET_MAX_CHARS = 200;
@@ -21,8 +22,8 @@ const TOOL_OUTPUT_MAX_CHARS = 800;
 const USER_ASSISTANT_MAX_CHARS = 6_000;
 
 export interface SessionHandoffOptions {
-  /** 正文字符预算；超出时丢弃更早的条目并保留最近内容。 */
-  maxChars?: number;
+  /** 材料窗口：只给最近 N 轮对话；缺省 3。 */
+  maxTurns?: number;
   /** 是否把工具调用写进交接材料（默认 true）。 */
   includeTools?: boolean;
 }
@@ -104,33 +105,39 @@ function rowEntries(rows: readonly ConversationRow[], includeTools: boolean): Tr
 }
 
 /**
- * 逐条投影成「标题 + 正文」；超预算时从最早处丢弃，保证最近的决定与阻塞留在文档里。
- * 最近 {@link MIN_KEEP_TURNS} 轮对话受保护：即使超预算也不丢弃——交接最少要能
- * 看到「正在做什么、上一条请求是什么」。
+ * 逐条投影成「标题 + 正文」，只保留最近 {@link MATERIAL_WINDOW_TURNS} 轮完整对话：
+ * 交接最少要能看到「正在做什么、上一条请求是什么」，更早的内容不属于交接范畴。
+ * 窗口内不做总量裁剪；单条消息/工具字段各有封顶，单轮工具条目超限会写明省略数。
  */
 export function buildSessionHandoffTranscript(
   rows: readonly ConversationRow[],
   options: SessionHandoffOptions = {},
 ): string {
-  const maxChars = options.maxChars ?? DEFAULT_MAX_TRANSCRIPT_CHARS;
-  const entries = rowEntries(rows, options.includeTools ?? true);
-  const rendered = entries.map((entry) => `### ${entry.heading}\n${entry.body}`);
-  const totalTurns = (entries[entries.length - 1]?.turnIndex ?? -1) + 1;
-  // 第三轮（从后往前数）第一条的入口：预算丢弃不允许越过它。
-  let minStart = 0;
-  if (totalTurns > MIN_KEEP_TURNS) {
-    const threshold = totalTurns - MIN_KEEP_TURNS;
-    minStart = entries.findIndex((entry) => entry.turnIndex >= threshold);
-    if (minStart < 0) minStart = 0;
-  }
-  let total = rendered.reduce((sum, text) => sum + text.length + 2, 0);
-  let start = 0;
-  while (total > maxChars && start < rendered.length - 1 && start < minStart) {
-    total -= (rendered[start]?.length ?? 0) + 2;
-    start += 1;
-  }
-  if (start === 0) return rendered.join("\n\n");
-  return ["[... 更早的会话内容已省略 ...]", ...rendered.slice(start)].join("\n\n");
+  const maxTurns = options.maxTurns ?? MATERIAL_WINDOW_TURNS;
+  const allEntries = rowEntries(rows, options.includeTools ?? true);
+  const totalTurns = (allEntries[allEntries.length - 1]?.turnIndex ?? -1) + 1;
+  const threshold = totalTurns - maxTurns;
+  const entries =
+    threshold <= 0 ? allEntries : allEntries.filter((entry) => entry.turnIndex >= threshold);
+  // 工具密集的轮次：只保留最近 N 条工具条目，省略数写明。
+  const toolIndexes = entries
+    .map((entry, index) => (entry.heading === "工具" ? index : -1))
+    .filter((index) => index >= 0);
+  const omittedToolEntries = Math.max(0, toolIndexes.length - TURN_TOOL_ENTRIES_MAX);
+  const droppedToolIndexes = new Set(toolIndexes.slice(0, omittedToolEntries));
+  const kept = entries.filter((_, index) => !droppedToolIndexes.has(index));
+  const rendered = kept.map((entry) => `### ${entry.heading}\n${entry.body}`);
+  const lines =
+    omittedToolEntries > 0
+      ? [
+          "[... 更早的会话内容已省略 ...]",
+          `[... 最近 ${MATERIAL_WINDOW_TURNS} 轮内还有 ${omittedToolEntries} 条工具调用已省略 ...]`,
+          ...rendered,
+        ]
+      : threshold <= 0
+        ? rendered
+        : ["[... 更早的会话内容已省略 ...]", ...rendered];
+  return lines.join("\n\n");
 }
 
 /**
@@ -220,9 +227,7 @@ export function buildDeterministicHandoffMarkdown(
 ): string {
   const objective = firstUserText(rows);
   const latestAsk = lastUserText(rows);
-  const transcript = buildSessionHandoffTranscript(rows, {
-    maxChars: DEFAULT_MAX_TRANSCRIPT_CHARS,
-  });
+  const transcript = buildSessionHandoffTranscript(rows);
   const tools = toolLines(rows);
   return [
     `# 会话交接：${title}`,
