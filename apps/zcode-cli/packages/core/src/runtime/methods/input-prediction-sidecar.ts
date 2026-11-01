@@ -12,8 +12,12 @@ import {
   INPUT_PREDICTION_MAX_TEXT_CHARS,
 } from "@zcode/shared/zcode-protocol-v4";
 
-/** 决策门槛：top 候选 confidence ≥ 0.80 才展示（宁缺毋滥）。 */
-export const INPUT_PREDICTION_CONFIDENCE_THRESHOLD = 0.8;
+/**
+ * 决策门槛：top 候选 confidence ≥ 0.6 才展示。
+ * 0.8 实测过严：GLM 按提示词的校准指令诚实打分，日常候选普遍 0.5-0.7，
+ * 门槛 0.8 时几乎永远 suppress（2026-11-01 线上实测：0.7/0.6/0.5 全压掉）。
+ */
+export const INPUT_PREDICTION_CONFIDENCE_THRESHOLD = 0.6;
 /** 去重时只看最近 2 条真实用户输入：用户刚发过的不再预测。 */
 const RECENT_USER_INPUT_DEDUPE_COUNT = 2;
 

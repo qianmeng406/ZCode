@@ -100,12 +100,21 @@ describe("decideInputPrediction", () => {
   it("top 置信度不到门槛时 suppress_below_threshold；置信度被夹到 0..1", () => {
     expect(
       decideInputPrediction({
-        rawCandidates: [{ text: "提交", confidence: 0.79 }],
+        rawCandidates: [{ text: "提交", confidence: 0.59 }],
         draft: "",
         recentUserInputs: [],
         turnCount: 3,
       }).decision,
     ).toBe("suppress_below_threshold");
+    // 0.7 这种诚实校准分（GLM 日常水平）应能展示，不再被 0.8 旧门槛全压掉。
+    expect(
+      decideInputPrediction({
+        rawCandidates: [{ text: "提交", confidence: 0.7 }],
+        draft: "",
+        recentUserInputs: [],
+        turnCount: 3,
+      }).decision,
+    ).toBe("show");
     expect(
       decideInputPrediction({
         rawCandidates: [{ text: "提交", confidence: 3 }],
