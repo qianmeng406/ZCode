@@ -30,6 +30,7 @@ export function TaskActionMenuContent({
   onStartRenameTask,
   onArchiveTask,
   onMarkTaskAsUnread,
+  onExportSessionHandoff,
   onRestartTask,
   restartPending = false,
   onOpenTaskFeedback,
@@ -74,6 +75,7 @@ export function TaskActionMenuContent({
   onStartRenameTask: () => void;
   onArchiveTask: () => void;
   onMarkTaskAsUnread: () => void;
+  onExportSessionHandoff?: () => void;
   onRestartTask?: () => void;
   restartPending?: boolean;
   onOpenTaskFeedback?: () => void;
@@ -133,6 +135,16 @@ export function TaskActionMenuContent({
       >
         {intl.formatMessage({ id: "taskList.markAsUnread" })}
       </Item>
+      {onExportSessionHandoff ? (
+        <Item
+          data-testid="task-export-handoff"
+          disabled={taskTargetActionsDisabled}
+          title={taskTargetActionsDisabled ? disabledReason : undefined}
+          onSelect={onExportSessionHandoff}
+        >
+          {intl.formatMessage({ id: "taskList.exportHandoff" })}
+        </Item>
+      ) : null}
       {onRestartTask ? (
         <Item
           data-testid="task-restart"

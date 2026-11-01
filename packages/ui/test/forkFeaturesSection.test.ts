@@ -22,6 +22,7 @@ vi.mock("@/lib/settingsNavigation.js", () => ({
 vi.mock("@/settings/ai-features/index.js", () => ({
   OracleReviewModelSetting: () => createElement("div", { "data-testid": "oracle-model" }),
   InputPredictionSetting: () => createElement("div", { "data-testid": "input-prediction" }),
+  SessionHandoffModelSetting: () => createElement("div", { "data-testid": "handoff-model" }),
   PromptOptimizerSetting: () => createElement("div", { "data-testid": "prompt-optimizer" }),
 }));
 

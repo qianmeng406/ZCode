@@ -3,6 +3,7 @@ export {
   InputPredictionSetting,
   OracleReviewModelSetting,
   PromptOptimizerSetting,
+  SessionHandoffModelSetting,
 } from "./AiFeatureSettings.js";
 export {
   AI_FEATURE_FOLLOW_MODEL_VALUE,

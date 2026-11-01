@@ -19,6 +19,7 @@ export function TaskListItemContextMenu({
   onStartRenameTask,
   onArchiveTask,
   onMarkTaskAsUnread,
+  onExportSessionHandoff,
   onOpenTaskFeedback,
   onOpenTaskPathInFileManager,
   onCopyWorkspacePath,
@@ -57,6 +58,7 @@ export function TaskListItemContextMenu({
   onStartRenameTask: () => void;
   onArchiveTask: () => void;
   onMarkTaskAsUnread: () => void;
+  onExportSessionHandoff?: () => void;
   onOpenTaskFeedback: () => void;
   onOpenTaskPathInFileManager: () => void;
   onCopyWorkspacePath: () => void;
@@ -72,6 +74,7 @@ export function TaskListItemContextMenu({
     <ContextMenuContent className="w-52">
       {organizationActions}
       <TaskActionMenuContent
+        onExportSessionHandoff={onExportSessionHandoff}
         intl={intl}
         isPinned={isPinned}
         isArchived={isArchived}

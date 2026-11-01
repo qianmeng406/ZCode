@@ -781,7 +781,6 @@ const enUS: Record<string, string> = {
   "sessionHandoff.title": "Export handoff",
   "sessionHandoff.description":
     "Turn this session into a Markdown handoff for the next person or agent; falls back to a full export when summarization fails.",
-  "sessionHandoff.entry": "Handoff",
   "sessionHandoff.mode.summary": "Smart summary",
   "sessionHandoff.mode.full": "Full export",
   "sessionHandoff.regenerate": "Regenerate",
@@ -3378,6 +3377,7 @@ const enUS: Record<string, string> = {
   "chat.slash.app.reload.description":
     "Reload the task runtime, preserving history and stopping current execution.",
   "taskList.markAsUnread": "Mark as unread",
+  "taskList.exportHandoff": "Export handoff",
   "chat.toolCall.agent.openInSidePane": "Open in side pane",
   "v4Pane.renamePlaceholder": "Rename session…",
   "v4Pane.renameSession": "Rename session",
@@ -3858,6 +3858,12 @@ const enUS: Record<string, string> = {
   "settings.promptOptimizer.contextDescription":
     "Whether optimization also reads this conversation. Draft only is faster; with conversation is more accurate.",
   "settings.inputPrediction.label": "Input prediction",
+  "settings.inputPredictionModel.label": "Input prediction model",
+  "settings.inputPredictionModel.description":
+    "Model used to generate continuation suggestions. Leave empty to follow the session model.",
+  "settings.sessionHandoffModel.label": "Session handoff model",
+  "settings.sessionHandoffModel.description":
+    "Model used for the smart handoff summary. Leave empty to follow the session model.",
   "settings.inputPrediction.description":
     "After you pause typing, sends recent turns and the current draft to the model and suggests a continuation above the input box; Tab accepts, Esc dismisses. Requires host support and enough conversation turns.",
   "settings.aiFeature.followSession": "Follow session model",

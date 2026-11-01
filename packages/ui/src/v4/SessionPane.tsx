@@ -5358,6 +5358,30 @@ export function SessionPane({
       .finally(() => setSessionHandoffHistoryLoaded(true));
   }, [lease]);
 
+  // 会话列表右键「导出交接」：菜单项先选中会话，这里响应指向本会话的打开请求。
+  const sessionHandoffOpenRequest = useZCodeSessionStore((store) =>
+    sessionId
+      ? (store.getWorkspaceState(workspacePath, workspaceIdentity).sessionHandoffOpenRequest ??
+        null)
+      : null,
+  );
+  const clearSessionHandoffOpenRequest = useZCodeSessionStore(
+    (store) => store.clearSessionHandoffOpenRequest,
+  );
+  useEffect(() => {
+    const request = sessionHandoffOpenRequest;
+    if (!request || request.sessionId !== sessionId) return;
+    clearSessionHandoffOpenRequest(workspacePath, request.requestId, workspaceIdentity);
+    handleRequestSessionHandoff();
+  }, [
+    sessionHandoffOpenRequest,
+    sessionId,
+    workspacePath,
+    workspaceIdentity,
+    clearSessionHandoffOpenRequest,
+    handleRequestSessionHandoff,
+  ]);
+
   useEffect(() => {
     if (!shareActive || !sessionId || !hasOlderRows(snapshot)) return;
     const key = `${sessionId}:${snapshot?.logEpoch ?? "unknown"}`;
@@ -6263,8 +6287,8 @@ export function SessionPane({
       onOracleReviewQueueActionApplied={(requestId) =>
         clearOracleReviewQueueAction(workspacePath, requestId, workspaceIdentity)
       }
-      onRequestSessionHandoff={focused ? handleRequestSessionHandoff : undefined}
       inputPredictionEnabled={sharedSettings?.inputPredictionEnabled ?? false}
+      inputPredictionSelection={sharedSettings?.inputPredictionModel ?? null}
       autoFocusEnabled={focused}
       disabled={
         connecting ||
@@ -6874,6 +6898,7 @@ export function SessionPane({
         {...(workspaceIdentity ? { workspaceIdentity } : {})}
         {...(remoteSessionId ? { remoteSessionId } : {})}
         selection={
+          sharedSettings?.sessionHandoffModel ??
           draftConfig.modelSelection ??
           modelSelectionView?.effectiveSelection ??
           modelSelectionView?.preferredSelection ??

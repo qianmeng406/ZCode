@@ -15,7 +15,7 @@ import {
   type InputPredictionModelCall,
   type InputPredictionTurnContext,
 } from "@zcode/core";
-import { isConversationRealUserTurnStarter } from "@zcode/shared";
+import { isConversationRealUserTurnStarter, type ModelSelection } from "@zcode/shared";
 import {
   emptyInputPredictionResult,
   v4ConversationInputPredictionParamsSchema,
@@ -29,8 +29,11 @@ const INPUT_PREDICTION_CACHE_MAX_ENTRIES = 16;
 /** 预测需要的会话素材；会话不在内存时为 null。 */
 export interface InputPredictionSessionMaterial {
   turns: InputPredictionTurnContext[];
-  /** 会话没有可用模型选择时为 null。 */
-  callModel: InputPredictionModelCall | null;
+  /**
+   * 按选择构建模型调用：selection 为空 = 会话当前模型；调用方（设置页）可为
+   * 输入预测指定模型，传入该选择即覆盖。解析不出模型时返回 null。
+   */
+  callModelFor: (selection?: ModelSelection) => InputPredictionModelCall | null;
 }
 
 export interface ConversationInputPredictionHandlerDeps {
@@ -49,9 +52,9 @@ export class ConversationInputPredictionHandler {
 
   async handle(rawParams: unknown): Promise<V4ConversationInputPredictionResult> {
     const params = v4ConversationInputPredictionParamsSchema.parse(rawParams);
-    const { sessionId, requestId } = params;
+    const { sessionId, requestId, selection } = params;
     const draft = normalizeInputPredictionDraft(params.draft);
-    const cacheKey = JSON.stringify([sessionId, params.revision, draft]);
+    const cacheKey = JSON.stringify([sessionId, params.revision, draft, selection ?? null]);
     const withRequestId = (result: CachedResult): V4ConversationInputPredictionResult =>
       requestId === undefined ? result : { ...result, requestId };
 
@@ -68,7 +71,7 @@ export class ConversationInputPredictionHandler {
     const controller = new AbortController();
     this.inFlight.set(sessionId, controller);
     try {
-      const result = await this.predict(sessionId, draft, controller.signal);
+      const result = await this.predict(sessionId, draft, controller.signal, selection);
       if (controller.signal.aborted) return emptyInputPredictionResult("cancelled", requestId);
       if (result.decision !== "unavailable") this.remember(cacheKey, result);
       return withRequestId(result);
@@ -88,6 +91,7 @@ export class ConversationInputPredictionHandler {
     sessionId: string,
     draft: string,
     abortSignal: AbortSignal,
+    selection?: ModelSelection,
   ): Promise<CachedResult> {
     let material: InputPredictionSessionMaterial | null;
     try {
@@ -99,14 +103,15 @@ export class ConversationInputPredictionHandler {
     if (!material || material.turns.length < inputPredictionMinTurns(draft)) {
       return emptyInputPredictionResult("suppress_no_context");
     }
-    if (!material.callModel) return emptyInputPredictionResult("unavailable");
+    const callModel = material.callModelFor(selection);
+    if (!callModel) return emptyInputPredictionResult("unavailable");
 
     let rawCandidates;
     try {
       rawCandidates = await generateInputPredictionCandidates({
         turns: material.turns,
         draft,
-        callModel: material.callModel,
+        callModel,
         abortSignal,
         ...(this.deps.timeoutMs !== undefined ? { timeoutMs: this.deps.timeoutMs } : {}),
       });
@@ -189,17 +194,22 @@ export function createInputPredictionSessionLoader(input: {
     const record = input.sessions.get(sessionId);
     if (!record || !input.sessionStore) return null;
     const messages = await input.sessionStore.messages({ sessionID: sessionId as SessionId });
-    const selection =
-      record.app.runtime.getSessionModelSelection() ?? record.restoredModelSelection;
-    const callModel: InputPredictionModelCall | null = selection
-      ? async (modelMessages, options) => {
+    return {
+      turns: collectInputPredictionTurns(messages),
+      callModelFor: (selection) => {
+        const resolved =
+          selection ??
+          record.app.runtime.getSessionModelSelection() ??
+          record.restoredModelSelection;
+        if (!resolved) return null;
+        return async (modelMessages, options) => {
           const result = await record.app.generateWorkspaceText(
-            { selection, messages: modelMessages, querySource: options.querySource },
+            { selection: resolved, messages: modelMessages, querySource: options.querySource },
             { abortSignal: options.abortSignal },
           );
           return { text: result.text };
-        }
-      : null;
-    return { turns: collectInputPredictionTurns(messages), callModel };
+        };
+      },
+    };
   };
 }

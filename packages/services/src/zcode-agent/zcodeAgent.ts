@@ -478,6 +478,8 @@ export interface ZCodeAgentConversationInputPredictionParams extends ZCodeAgentS
   draft?: string;
   /** 手机侧请求 id，原样回声，用于丢弃过期回包。 */
   requestId?: string;
+  /** 调用方指定的预测模型；缺席 = 会话当前模型（设置页可为输入预测指定模型）。 */
+  selection?: ModelSelection;
 }
 
 /** workflow run 的事件日志分页（详情页审计面）；cursor = journal sequence。 */

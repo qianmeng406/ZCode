@@ -12,6 +12,7 @@ import { DynamicWorkflowModeSetting } from "@/settings/DynamicWorkflowModeSettin
 import {
   InputPredictionSetting,
   OracleReviewModelSetting,
+  SessionHandoffModelSetting,
   PromptOptimizerSetting,
 } from "@/settings/ai-features/index.js";
 
@@ -193,6 +194,7 @@ export function ForkFeaturesSectionContent({
         })}
         <OracleReviewModelSetting />
         <InputPredictionSetting />
+        <SessionHandoffModelSetting />
         {switchRow(
           "settings.forkFeatures.promptOptimizer",
           promptOptimizerEnabled,

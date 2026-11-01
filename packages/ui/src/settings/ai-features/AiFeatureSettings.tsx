@@ -169,19 +169,48 @@ export function InputPredictionSetting() {
   const { settings, intl, saving, save } = useAiFeatureSettings();
   const enabled = settings?.inputPredictionEnabled ?? false;
   return (
-    <SettingsRow
-      label={intl.formatMessage({ id: "settings.inputPrediction.label" })}
-      description={intl.formatMessage({ id: "settings.inputPrediction.description" })}
-      controlPlacement="title"
-      control={
-        <Switch
-          checked={enabled}
-          disabled={!settings || saving}
-          onCheckedChange={(checked) => void save({ inputPredictionEnabled: checked })}
-          aria-label={intl.formatMessage({ id: "settings.inputPrediction.label" })}
-          data-testid="settings-input-prediction-toggle"
-        />
-      }
+    <>
+      <SettingsRow
+        label={intl.formatMessage({ id: "settings.inputPrediction.label" })}
+        description={intl.formatMessage({ id: "settings.inputPrediction.description" })}
+        controlPlacement="title"
+        control={
+          <Switch
+            checked={enabled}
+            disabled={!settings || saving}
+            onCheckedChange={(checked) => void save({ inputPredictionEnabled: checked })}
+            aria-label={intl.formatMessage({ id: "settings.inputPrediction.label" })}
+            data-testid="settings-input-prediction-toggle"
+          />
+        }
+      />
+      <AiFeatureModelSetting
+        label={intl.formatMessage({ id: "settings.inputPredictionModel.label" })}
+        description={intl.formatMessage({ id: "settings.inputPredictionModel.description" })}
+        value={settings?.inputPredictionModel}
+        onChange={(selection) => save({ inputPredictionModel: selection })}
+        followLabel={intl.formatMessage({ id: "settings.aiFeature.followSession" })}
+        levelLabel={intl.formatMessage({ id: "settings.aiFeature.reasoningLevel" })}
+        disabled={!settings || saving}
+        testIdPrefix="settings-input-prediction-model"
+      />
+    </>
+  );
+}
+
+/** 会话交接摘要模型；智能摘要与失败兜底共用，缺省跟随会话模型。 */
+export function SessionHandoffModelSetting() {
+  const { settings, intl, saving, save } = useAiFeatureSettings();
+  return (
+    <AiFeatureModelSetting
+      label={intl.formatMessage({ id: "settings.sessionHandoffModel.label" })}
+      description={intl.formatMessage({ id: "settings.sessionHandoffModel.description" })}
+      value={settings?.sessionHandoffModel}
+      onChange={(selection) => save({ sessionHandoffModel: selection })}
+      followLabel={intl.formatMessage({ id: "settings.aiFeature.followSession" })}
+      levelLabel={intl.formatMessage({ id: "settings.aiFeature.reasoningLevel" })}
+      disabled={!settings || saving}
+      testIdPrefix="settings-session-handoff-model"
     />
   );
 }

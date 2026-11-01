@@ -715,7 +715,6 @@ const zhCN: Record<string, string> = {
   "sessionHandoff.title": "导出交接",
   "sessionHandoff.description":
     "把当前会话整理成一份可直接交给下一个人或 agent 的 Markdown；摘要失败时自动回落到完整导出。",
-  "sessionHandoff.entry": "交接",
   "sessionHandoff.mode.summary": "智能摘要",
   "sessionHandoff.mode.full": "完整导出",
   "sessionHandoff.regenerate": "重新生成",
@@ -3147,6 +3146,7 @@ const zhCN: Record<string, string> = {
   "chat.slash.app.reload.description":
     "Reload the task runtime, preserving history and stopping current execution.",
   "taskList.markAsUnread": "标记为未读",
+  "taskList.exportHandoff": "导出交接",
   "chat.toolCall.agent.openInSidePane": "在右侧打开",
   "v4Pane.renamePlaceholder": "重命名会话…",
   "v4Pane.renameSession": "重命名会话",
@@ -3608,6 +3608,10 @@ const zhCN: Record<string, string> = {
   "settings.promptOptimizer.contextDescription":
     "优化时是否参考当前对话；仅当前输入更快，结合对话更准确。",
   "settings.inputPrediction.label": "输入预测",
+  "settings.inputPredictionModel.label": "输入预测模型",
+  "settings.inputPredictionModel.description": "生成续写建议使用的模型；留空跟随会话模型。",
+  "settings.sessionHandoffModel.label": "交接模型",
+  "settings.sessionHandoffModel.description": "会话交接智能摘要使用的模型；留空跟随会话模型。",
   "settings.inputPrediction.description":
     "停止输入后把最近轮次与当前草稿发给模型，在输入框上方给出续写建议；Tab 接受，Esc 忽略。需要宿主支持且会话轮数足够。",
   "settings.aiFeature.followSession": "跟随会话模型",

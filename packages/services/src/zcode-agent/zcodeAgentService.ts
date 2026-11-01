@@ -39,6 +39,9 @@ import {
   sessionExecutionStateSchema,
   zcodeSessionExecutionParamsSchema,
   zcodeSessionExecutionResultSchema,
+  localTtftFactsSchema,
+  sessionDebugSnapshotSchema,
+  type LocalTtftFacts,
   type ZCodeSessionExecutionResult,
 } from "@zcode/shared";
 import { zcodeMcpUiSamplingResultSchema } from "@zcode/shared";
@@ -49,13 +52,8 @@ import {
   type ChannelReplyResult,
 } from "@zcode/shared";
 import { requestPluginReferenceCatalog } from "#src/zcode-agent/pluginReferenceCatalogRequest.js";
-import {
-  localTtftFactsSchema,
-  sessionDebugSnapshotSchema,
-  type LocalTtftFacts,
-} from "@zcode/shared";
 /* oxlint-disable eslint(max-lines) -- ZCode Protocol transport、通知 wiring 和 app-facing session 方法必须共享同一个 client/emitter 上下文。 */
-import { createHash, randomUUID } from "node:crypto";
+import { randomUUID } from "node:crypto";
 import { createTopicResourceBridge } from "./topicResourceBridge.js";
 import { uploadTopicResourceToClient } from "./topicResourceUpload.js";
 import {
@@ -7551,6 +7549,7 @@ export function createZCodeAgentService(
             revision: params.revision,
             ...(params.draft !== undefined ? { draft: params.draft } : {}),
             ...(params.requestId !== undefined ? { requestId: params.requestId } : {}),
+            ...(params.selection !== undefined ? { selection: params.selection } : {}),
           },
           v4ConversationInputPredictionResultSchema,
         );

@@ -400,6 +400,46 @@ export function createWorkspaceSlice(set: SetFn) {
       );
     },
 
+    requestSessionHandoffOpen: (
+      workspacePath: string,
+      sessionId: string,
+      workspaceIdentity?: string,
+    ) => {
+      set((state) =>
+        updateWorkspaceState(
+          state,
+          workspacePath,
+          (current) => {
+            const requestId = current.sessionHandoffOpenRequestVersion + 1;
+            return {
+              ...current,
+              sessionHandoffOpenRequestVersion: requestId,
+              sessionHandoffOpenRequest: { requestId, sessionId },
+            };
+          },
+          workspaceIdentity,
+        ),
+      );
+    },
+
+    clearSessionHandoffOpenRequest: (
+      workspacePath: string,
+      requestId: number,
+      workspaceIdentity?: string,
+    ) => {
+      set((state) =>
+        updateWorkspaceState(
+          state,
+          workspacePath,
+          (current) =>
+            current.sessionHandoffOpenRequest?.requestId === requestId
+              ? { ...current, sessionHandoffOpenRequest: null }
+              : current,
+          workspaceIdentity,
+        ),
+      );
+    },
+
     requestTimelineBottom: (workspacePath: string, taskId: string, workspaceIdentity?: string) => {
       let nextRequestId = 0;
       set((state) =>

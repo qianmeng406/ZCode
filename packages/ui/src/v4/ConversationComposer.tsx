@@ -73,7 +73,6 @@ import type {
 import {
   ArrowUpIcon,
   ClipboardPenLineIcon,
-  FileDownIcon,
   InfoIcon,
   RotateCcwIcon,
   ScanSearchIcon,
@@ -503,6 +502,8 @@ export interface ConversationComposerProps {
   promptOptimizerEnabled?: boolean;
   /** 输入框 ghost 预测：默认关；开启后停止输入一段时间会请求一次续写建议。 */
   inputPredictionEnabled?: boolean;
+  /** 设置页为输入预测指定的模型；null = 跟随会话模型。 */
+  inputPredictionSelection?: ModelSelection | null;
   promptOptimizerMode?: PromptOptimizerMode;
   promptOptimizerContextRange?: PromptOptimizerContextRange;
   /** 当前 composer 是否运行在手机 Web 远控壳中。 */
@@ -585,7 +586,6 @@ export interface ConversationComposerProps {
   externalTextInsertRequest?: ExternalTextInsertRequest | null;
   onExternalTextInsertApplied?: (requestId: number) => void;
   /** 打开会话交接（导出 Markdown）；由 SessionPane 提供，缺少时不渲染入口。 */
-  onRequestSessionHandoff?: () => void;
   /** 审查队列行触发的会话级动作（追问/修复）；只消费 sessionId 匹配的请求。 */
   oracleReviewQueueAction?: OracleReviewQueueActionRequest | null;
   onOracleReviewQueueActionApplied?: (requestId: number) => void;
@@ -650,6 +650,7 @@ function ConversationComposerImpl({
   promptOptimizerModel = null,
   promptOptimizerEnabled = true,
   inputPredictionEnabled = false,
+  inputPredictionSelection = null,
   promptOptimizerMode = "polish",
   promptOptimizerContextRange = "conversation",
   workspacePath,
@@ -690,7 +691,6 @@ function ConversationComposerImpl({
   listenAddToChatEvents = true,
   externalTextInsertRequest = null,
   onExternalTextInsertApplied,
-  onRequestSessionHandoff,
   oracleReviewQueueAction = null,
   onOracleReviewQueueActionApplied,
   composerRestoreRequest = null,
@@ -1593,6 +1593,7 @@ function ConversationComposerImpl({
       : "";
   const inputPrediction = useInputPrediction({
     enabled: inputPredictionEnabled,
+    ...(inputPredictionSelection ? { selection: inputPredictionSelection } : {}),
     workspacePath,
     ...(workspaceIdentity ? { workspaceIdentity } : {}),
     ...(remoteSessionId ? { remoteSessionId } : {}),
@@ -2915,20 +2916,6 @@ function ConversationComposerImpl({
                     <SparklesIcon className="size-4" />
                   )}
                   <span className="sr-only">{optimizePromptTooltip}</span>
-                </Button>
-              </ControlHintTooltip>
-            ) : null}
-            {onRequestSessionHandoff ? (
-              <ControlHintTooltip title={intl.formatMessage({ id: "sessionHandoff.entry" })}>
-                <Button
-                  type="button"
-                  variant="ghost"
-                  size="icon-md"
-                  onClick={onRequestSessionHandoff}
-                  data-testid="v4-composer-session-handoff"
-                  aria-label={intl.formatMessage({ id: "sessionHandoff.entry" })}
-                >
-                  <FileDownIcon className="size-4" />
                 </Button>
               </ControlHintTooltip>
             ) : null}

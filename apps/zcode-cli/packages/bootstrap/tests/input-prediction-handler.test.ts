@@ -18,7 +18,9 @@ function material(callModel: InputPredictionModelCall | null): InputPredictionSe
       { userText: "修 lint", assistantText: "好了" },
       { userText: "跑单测", assistantText: "通过" },
     ],
-    callModel,
+    // 测试里的 callModel 扮演「会话默认模型」；显式 selection 视为无模型，
+    // 覆盖语义由下方专门的 override 用例验证。
+    callModelFor: (selection) => (selection ? null : callModel),
   };
 }
 
@@ -52,6 +54,39 @@ describe("ConversationInputPredictionHandler", () => {
     expect(callModel).toHaveBeenCalledTimes(1);
     await handler.handle({ sessionId: "s", revision: 2 });
     expect(callModel).toHaveBeenCalledTimes(2);
+  });
+
+  it("显式 selection 覆盖会话默认模型并进入缓存键", async () => {
+    const defaultCalls = vi.fn<InputPredictionModelCall>(async () => ({ text: SHOW_RESPONSE }));
+    const overrideCalls = vi.fn<InputPredictionModelCall>(async () => ({ text: SHOW_RESPONSE }));
+    let captured: unknown;
+    const handler = new ConversationInputPredictionHandler({
+      loadSession: async () => ({
+        turns: material(defaultCalls).turns,
+        callModelFor: (selection) => {
+          captured = selection;
+          return selection
+            ? overrideCalls
+            : defaultCalls;
+        },
+      }),
+    });
+    await expect(
+      handler.handle({
+        sessionId: "s",
+        revision: 1,
+        requestId: "a",
+        selection: { providerId: "p", modelId: "fast" },
+      }),
+    ).resolves.toMatchObject({ decision: "show", requestId: "a" });
+    expect(captured).toEqual({ providerId: "p", modelId: "fast" });
+    expect(overrideCalls).toHaveBeenCalledTimes(1);
+    expect(defaultCalls).not.toHaveBeenCalled();
+    // selection 参与缓存键：同草稿不同模型不串缓存。
+    await expect(handler.handle({ sessionId: "s", revision: 1 })).resolves.toMatchObject({
+      decision: "show",
+    });
+    expect(defaultCalls).toHaveBeenCalledTimes(1);
   });
 
   it("同会话新请求中止旧请求，旧请求回 cancelled", async () => {
@@ -101,7 +136,10 @@ describe("ConversationInputPredictionHandler", () => {
       decision: "suppress_no_context",
     });
     const short = new ConversationInputPredictionHandler({
-      loadSession: async () => ({ turns: [{ userText: "hi", assistantText: null }], callModel }),
+      loadSession: async () => ({
+        turns: [{ userText: "hi", assistantText: null }],
+        callModelFor: (selection) => (selection ? null : callModel),
+      }),
     });
     await expect(short.handle({ sessionId: "s", revision: 0 })).resolves.toMatchObject({
       decision: "suppress_no_context",

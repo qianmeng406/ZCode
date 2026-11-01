@@ -7,6 +7,7 @@
 // 候选 text 统一是「接在草稿后面的文本」：草稿为空时它就是整条输入。
 // 本包纪律：只放 schema 与纯函数，不做 IO。
 import { z } from "zod";
+import { modelSelectionSchema } from "../../model-selection.js";
 
 export const INPUT_PREDICTION_MAX_CANDIDATES = 3;
 /** 单个候选（续写部分）的最大字符数。 */
@@ -52,6 +53,8 @@ export const v4ConversationInputPredictionParamsSchema = z
     draft: z.string().max(INPUT_PREDICTION_MAX_DRAFT_CHARS).optional(),
     // 手机生成的请求号，原样回显，供手机丢弃过期响应。
     requestId: z.string().min(1).max(INPUT_PREDICTION_MAX_REQUEST_ID_CHARS).optional(),
+    // 调用方指定的预测模型；缺席 = 会话当前模型。设置页可为输入预测指定模型。
+    selection: modelSelectionSchema.optional(),
   })
   .strict();
 export type V4ConversationInputPredictionParams = z.infer<

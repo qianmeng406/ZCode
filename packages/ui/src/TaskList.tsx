@@ -307,6 +307,21 @@ export const TaskList = memo(function TaskList({
     [readOnlyReason],
   );
 
+  // 右键「导出交接」：先选中该会话（菜单所在列表就是会话入口），再请求对应
+  // SessionPane 打开交接对话框（store action，跨组件无需提升状态）。
+  const handleExportSessionHandoff = useCallback(
+    (taskId: string) => {
+      if (readOnlyReason) {
+        return;
+      }
+      onSelectTaskRef.current(taskId);
+      useZCodeSessionStore
+        .getState()
+        .requestSessionHandoffOpen(workspacePath, taskId, workspaceIdentity);
+    },
+    [readOnlyReason, workspacePath, workspaceIdentity],
+  );
+
   useEffect(() => {
     if (!renamingTaskId) {
       return;
@@ -389,6 +404,7 @@ export const TaskList = memo(function TaskList({
         onStartRenameTask={handleStartRenameTask}
         onArchiveTask={handleArchiveTask}
         onMarkTaskAsUnread={handleMarkTaskAsUnread}
+        onExportSessionHandoff={handleExportSessionHandoff}
         onOpenTaskContextMenu={handleOpenTaskContextMenu}
         onOpenFileTree={onOpenFileTree}
         actionsDisabled={Boolean(readOnlyReason)}
@@ -481,6 +497,7 @@ export const TaskList = memo(function TaskList({
                   onStartRenameTask={handleStartRenameTask}
                   onArchiveTask={handleArchiveTask}
                   onMarkTaskAsUnread={handleMarkTaskAsUnread}
+                  onExportSessionHandoff={handleExportSessionHandoff}
                   disableTaskActions={Boolean(readOnlyReason)}
                   disabledReason={readOnlyReason}
                 />

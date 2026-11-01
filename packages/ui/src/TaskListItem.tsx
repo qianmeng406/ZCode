@@ -73,6 +73,7 @@ interface TaskListItemProps {
   onStartRenameTask: (taskId: string, currentTitle: string) => void;
   onArchiveTask: (taskId: string) => void;
   onMarkTaskAsUnread: (taskId: string) => void;
+  onExportSessionHandoff?: (taskId: string) => void;
   onOpenTaskContextMenu?: (taskId: string) => void;
   onOpenFileTree?: () => void | Promise<void>;
   variant?: "default" | "timeline";
@@ -145,6 +146,7 @@ function areTaskListItemPropsEqual(left: TaskListItemProps, right: TaskListItemP
     left.onStartRenameTask === right.onStartRenameTask &&
     left.onArchiveTask === right.onArchiveTask &&
     left.onMarkTaskAsUnread === right.onMarkTaskAsUnread &&
+    left.onExportSessionHandoff === right.onExportSessionHandoff &&
     left.onOpenTaskContextMenu === right.onOpenTaskContextMenu &&
     left.onOpenFileTree === right.onOpenFileTree
   );
@@ -835,6 +837,7 @@ export function TaskListItemContextMenuContent({
   onStartRenameTask,
   onArchiveTask,
   onMarkTaskAsUnread,
+  onExportSessionHandoff,
   disableTaskActions = false,
   disabledReason,
 }: {
@@ -849,6 +852,7 @@ export function TaskListItemContextMenuContent({
   onStartRenameTask: (taskId: string, currentTitle: string) => void;
   onArchiveTask: (taskId: string) => void;
   onMarkTaskAsUnread: (taskId: string) => void;
+  onExportSessionHandoff?: (taskId: string) => void;
   disableTaskActions?: boolean;
   disabledReason?: string;
 }) {
@@ -947,6 +951,9 @@ export function TaskListItemContextMenuContent({
       onMarkTaskAsUnread={() => {
         onMarkTaskAsUnread(task.taskId);
       }}
+      onExportSessionHandoff={
+        onExportSessionHandoff ? () => onExportSessionHandoff(task.taskId) : undefined
+      }
       onOpenTaskFeedback={() => {
         void handleOpenTaskFeedback();
       }}

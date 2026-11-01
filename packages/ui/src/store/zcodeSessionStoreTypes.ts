@@ -140,6 +140,12 @@ export interface OracleReviewQueueActionRequest {
   text: string;
 }
 
+/** 会话列表右键「导出交接」：请求对应 SessionPane 打开交接对话框。 */
+export interface SessionHandoffOpenRequest {
+  requestId: number;
+  sessionId: string;
+}
+
 export interface TimelineBottomRequest {
   requestId: number;
   taskId: string;
@@ -182,6 +188,8 @@ export interface WorkspaceZCodeUIState {
   composerTextInsertRequest: ComposerTextInsertRequest | null;
   oracleReviewQueueActionVersion: number;
   oracleReviewQueueAction: OracleReviewQueueActionRequest | null;
+  sessionHandoffOpenRequestVersion: number;
+  sessionHandoffOpenRequest: SessionHandoffOpenRequest | null;
   timelineBottomRequestVersion: number;
   timelineBottomRequest: TimelineBottomRequest | null;
   /** 草稿态错误需要跨页面保留，避免切走再回来后提示被本地 state 一起卸载 */
@@ -260,6 +268,16 @@ export interface ZCodeSessionStoreState {
     workspaceIdentity?: string,
   ) => number;
   clearOracleReviewQueueAction: (
+    workspacePath: string,
+    requestId: number,
+    workspaceIdentity?: string,
+  ) => void;
+  requestSessionHandoffOpen: (
+    workspacePath: string,
+    sessionId: string,
+    workspaceIdentity?: string,
+  ) => void;
+  clearSessionHandoffOpenRequest: (
     workspacePath: string,
     requestId: number,
     workspaceIdentity?: string,
@@ -537,6 +555,8 @@ export function createDefaultWorkspaceState(
     composerTextInsertRequest: null,
     oracleReviewQueueActionVersion: 0,
     oracleReviewQueueAction: null,
+    sessionHandoffOpenRequestVersion: 0,
+    sessionHandoffOpenRequest: null,
     timelineBottomRequestVersion: 0,
     timelineBottomRequest: null,
     draftError: null,
