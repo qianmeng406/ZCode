@@ -97,13 +97,17 @@ function formatTokenCount(value: number, locale: string): string {
 }
 
 /**
- * 流式窗口下限：首 token 之后的输出窗口短于该值时差值不可信
+ * 流式窗口下限：首 token → 最后一帧 的窗口短于该值时计时事实不可信
  * （非流式回落 / 首 token 迟到后输出瞬间涌出），除出来会是几万 tok/s 的荒谬值
- * （2026-11-01 线上：TTFT 13s、窗口 0.3s → 26,809.5 tok/s），此时回退墙钟口径。
+ * （2026-11-01 线上：TTFT 13s、窗口 0.3s → 26,809.5 tok/s）。此时不出导数——
+ * 不回退墙钟：把首 token 等待算进分母的"速度"本来就是另一个数，不是速率。
  */
 const STREAMING_WINDOW_MIN_MS = 500;
 
-/** speed = outputTokens / 纯生成时长（generationDurationMs 扣掉首 token 等待）；不可用时回退墙钟或不出导数。 */
+/**
+ * speed = outputTokens /（首 token → 最后一帧）= outputTokens / (generationDurationMs − TTFT)。
+ * TTFT 缺席（无法界定窗口起点）或窗口过短（计时退化）都不出导数，显示 `--`。
+ */
 function formatTokensPerSecond(
   outputTokens: number | undefined,
   generationDurationMs: number | undefined,
@@ -111,23 +115,18 @@ function formatTokensPerSecond(
   locale: string,
 ): string | null {
   if (outputTokens === undefined || outputTokens <= 0) return null;
-  // 分母口径：generationDurationMs 是请求起点→完成的墙钟（含 TTFT），对推理模型
-  // 会把速度压低一个量级；扣掉 TTFT 才是流式输出阶段的真实速率。
-  const streamingMs =
-    timeToFirstTokenMs !== undefined &&
-    timeToFirstTokenMs > 0 &&
-    timeToFirstTokenMs < generationDurationMs!
-      ? generationDurationMs! - timeToFirstTokenMs
-      : generationDurationMs;
-  // 流式窗口过短不可信 → 回退墙钟；墙钟也不可用时不出导数。
-  const denominatorMs =
-    streamingMs !== undefined && streamingMs >= STREAMING_WINDOW_MIN_MS
-      ? streamingMs
-      : generationDurationMs;
-  if (denominatorMs === undefined || denominatorMs <= 0) return null;
+  if (
+    timeToFirstTokenMs === undefined ||
+    timeToFirstTokenMs <= 0 ||
+    generationDurationMs === undefined
+  ) {
+    return null;
+  }
+  const streamingMs = generationDurationMs - timeToFirstTokenMs;
+  if (streamingMs < STREAMING_WINDOW_MIN_MS) return null;
   return new Intl.NumberFormat(locale, {
     maximumFractionDigits: TOKENS_PER_SECOND_FRACTION_DIGITS,
-  }).format((outputTokens * 1000) / denominatorMs);
+  }).format((outputTokens * 1000) / streamingMs);
 }
 
 /**

@@ -78,29 +78,27 @@ describe("ComposerTurnMetricsCapsule", () => {
     expect(item(container, "last-request-cache-hit-rate")?.textContent).toContain("50%");
   });
 
-  it("falls back to the wall-clock denominator when TTFT is missing or not shorter", () => {
-    const { container } = renderCapsule({
+  it("omits the speed item when TTFT is missing or not shorter (no wall-clock fallback)", () => {
+    // 速度定义 = 输出 /（首 token → 最后一帧）；TTFT 缺席或退化时无法界定窗口，
+    // 不出导数（不回退墙钟——把首 token 等待算进分母的不是速率）。
+    const noTtft = renderCapsule({
       session: sessionUsage,
       lastRequest: { ...lastRequest, timeToFirstTokenMs: undefined },
       lastRequestTurn,
     });
-    // 无 TTFT 事实：退回墙钟分母 100 tok / 1000ms = 100 tok/s。
-    expect(item(container, "last-request-tokens-per-second")?.textContent).toContain("100");
+    expect(item(noTtft.container, "last-request-tokens-per-second")).toBeNull();
 
     const degenerate = renderCapsule({
       session: sessionUsage,
       lastRequest: { ...lastRequest, timeToFirstTokenMs: 1_500 },
       lastRequestTurn,
     });
-    // TTFT >= 墙钟（脏数据）：回退墙钟分母，不展示负速率。
-    expect(item(degenerate.container, "last-request-tokens-per-second")?.textContent).toContain(
-      "100",
-    );
+    expect(item(degenerate.container, "last-request-tokens-per-second")).toBeNull();
   });
 
-  it("falls back to the wall-clock denominator when the streaming window is implausibly short", () => {
+  it("omits the speed item when the streaming window is implausibly short", () => {
     // 线上案例：TTFT 13s、窗口仅 0.3s，差值除出 26,809.5 tok/s 的荒谬值。
-    // 流式窗口 < 500ms 不可信 → 回退墙钟：8212 tok / 13300ms ≈ 617.4 tok/s。
+    // 流式窗口 < 500ms 视为计时退化（非流式回落/输出瞬间涌出）→ 不出导数。
     const burst = renderCapsule({
       session: sessionUsage,
       lastRequest: {
@@ -110,8 +108,8 @@ describe("ComposerTurnMetricsCapsule", () => {
       },
       lastRequestTurn,
     });
-    expect(item(burst.container, "last-request-tokens-per-second")?.textContent).toContain("617.4");
-    // 窗口恰达下限（500ms）时仍用纯生成口径：100 tok / 500ms = 200 tok/s。
+    expect(item(burst.container, "last-request-tokens-per-second")).toBeNull();
+    // 窗口恰达下限（500ms）时按窗口口径展示：100 tok / 500ms = 200 tok/s。
     const boundary = renderCapsule({
       session: sessionUsage,
       lastRequest: {
