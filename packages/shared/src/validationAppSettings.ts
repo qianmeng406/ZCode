@@ -521,8 +521,7 @@ const appSettingsObjectSchema = z.object({
   inputPredictionEnabled: z.boolean().default(false),
   oracleReviewModel: aiFeatureModelSettingSchema,
   promptOptimizerModel: aiFeatureModelSettingSchema,
-  // 输入预测/会话交接模型：缺省/null = 跟随会话模型。
-  inputPredictionModel: aiFeatureModelSettingSchema,
+  // 会话交接模型：缺省/null = 跟随会话模型。
   sessionHandoffModel: aiFeatureModelSettingSchema,
   promptOptimizerMode: promptOptimizerModeSettingSchema,
   promptOptimizerContextRange: promptOptimizerContextRangeSettingSchema,
@@ -621,7 +620,6 @@ export const appSettingsPatchSchema = z.object({
   inputPredictionEnabled: z.boolean().optional(),
   oracleReviewModel: modelSelectionSchema.nullable().optional(),
   promptOptimizerModel: modelSelectionSchema.nullable().optional(),
-  inputPredictionModel: modelSelectionSchema.nullable().optional(),
   sessionHandoffModel: modelSelectionSchema.nullable().optional(),
   promptOptimizerMode: z.enum(PROMPT_OPTIMIZER_MODES).optional(),
   promptOptimizerContextRange: z.enum(PROMPT_OPTIMIZER_CONTEXT_RANGES).optional(),

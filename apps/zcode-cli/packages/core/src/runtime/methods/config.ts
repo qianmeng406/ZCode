@@ -119,6 +119,13 @@ export function getSessionModelSelection(this: AgentRuntimeInternal): ModelSelec
   return this.sessionModelSelection && cloneModelSelection(this.sessionModelSelection);
 }
 
+export function getLastInputPrediction(
+  this: AgentRuntimeInternal,
+): { candidates: { text: string; confidence: number }[]; completedAt: number } | null {
+  const prediction = this.lastInputPrediction;
+  if (!prediction || prediction.sessionId !== this.sessionId) return null;
+  return { candidates: prediction.candidates, completedAt: prediction.completedAt };
+}
 export function setSessionModelSelection(
   this: AgentRuntimeInternal,
   selection: ModelSelection | undefined,

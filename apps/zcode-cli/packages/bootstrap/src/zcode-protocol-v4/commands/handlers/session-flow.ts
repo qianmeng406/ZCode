@@ -89,6 +89,7 @@ async function sendText(
       ...options,
       ...submittedExecutionState,
       genUiContext: payload.genUiContext,
+      inputPredictionEnabled: payload.inputPredictionEnabled,
     });
   const routingMode = host.getInputRoutingMode?.(envelope.sessionId ?? "") ?? null;
   const forceStartNow = payload.requestedDelivery === "startNow";

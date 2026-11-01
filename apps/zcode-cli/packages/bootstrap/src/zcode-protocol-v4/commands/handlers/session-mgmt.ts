@@ -104,6 +104,7 @@ async function createSession(
         text: payload.firstInput.text,
         requestedDelivery: "startNow",
         attachmentRefs: payload.firstInput.attachments,
+        inputPredictionEnabled: payload.firstInput.inputPredictionEnabled,
         ...resolveSubmittedExecutionState(record, payload.firstInput),
       });
       const started = await startPromptTurn(host, record, {

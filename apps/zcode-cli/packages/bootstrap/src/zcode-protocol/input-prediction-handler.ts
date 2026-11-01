@@ -1,60 +1,47 @@
-// v4/conversation/inputPrediction 的 CLI 侧处理器（手机远控 ghost hint）。
+// v4/conversation/inputPrediction 的 CLI 侧处理器（手机远控 ghost hint + 桌面候选胶囊）。
 // 规格：docs/web-remote-control/mobile-input-prediction.md。
 //
-// 职责：
-// - 同一会话只保留一个进行中的预测：新请求到达即中止旧请求，旧请求回 cancelled；
-// - 按 (sessionId, revision, draft) 小 LRU 缓存终态结果，重连/重发不重复打模型；
-// - 会话不在内存 / 轮数不够 → suppress_no_context；无模型、超时、模型失败 → unavailable。
+// 2026-11-01 重构：预测不再由本处理器独立调模型——主轮请求（开启输入预测时注入
+// 指令）的输出尾部携带 <next_input> 候选块，turn-model-step 解析后存入
+// runtime.lastInputPrediction；这里只读存量并按草稿过滤。因此：
+// - 没有进行中的模型调用，inFlight/abort 只保留壳（语义上等价于即时返回）；
+// - 会话没有存量预测 → suppress_below_threshold；runtime 缺席 → unavailable。
 // 只读、不做 CAS：预测是建议，不是状态。
-import type { Logger, MessageWithParts, SessionId, SessionStorePort } from "@zcode/contracts";
-import {
-  decideInputPrediction,
-  generateInputPredictionCandidates,
-  inputPredictionMinTurns,
-  normalizeInputPredictionDraft,
-  type InputPredictionModelCall,
-  type InputPredictionTurnContext,
-} from "@zcode/core";
-import { isConversationRealUserTurnStarter, type ModelSelection } from "@zcode/shared";
+import type { Logger, SessionId } from "@zcode/contracts";
+import { decideInputPrediction, normalizeInputPredictionDraft } from "@zcode/core";
 import {
   emptyInputPredictionResult,
   v4ConversationInputPredictionParamsSchema,
   type V4ConversationInputPredictionResult,
 } from "@zcode/shared/zcode-protocol-v4";
-import type { ZCodeProtocolSessionRecord } from "./server-types.js";
 
 /** 终态结果缓存条数（跨会话共享）。 */
 const INPUT_PREDICTION_CACHE_MAX_ENTRIES = 16;
 
-/** 预测需要的会话素材；会话不在内存时为 null。 */
-export interface InputPredictionSessionMaterial {
-  turns: InputPredictionTurnContext[];
-  /**
-   * 按选择构建模型调用：selection 为空 = 会话当前模型；调用方（设置页）可为
-   * 输入预测指定模型，传入该选择即覆盖。解析不出模型时返回 null。
-   */
-  callModelFor: (selection?: ModelSelection) => InputPredictionModelCall | null;
+/** runtime 上最近一轮主链路输出的预测候选（见 AgentRuntime.getLastInputPrediction）。 */
+export interface StoredInputPrediction {
+  candidates: { text: string; confidence: number }[];
+  completedAt: number;
 }
 
 export interface ConversationInputPredictionHandlerDeps {
-  loadSession(sessionId: string): Promise<InputPredictionSessionMaterial | null>;
+  /** 读取该会话最近一次主轮输出的预测候选；runtime 缺席返回 null。 */
+  getLastPrediction(sessionId: string): StoredInputPrediction | null;
   logger?: Logger;
-  timeoutMs?: number;
 }
 
 type CachedResult = Omit<V4ConversationInputPredictionResult, "requestId">;
 
 export class ConversationInputPredictionHandler {
-  private readonly inFlight = new Map<string, AbortController>();
   private readonly cache = new Map<string, CachedResult>();
 
   constructor(private readonly deps: ConversationInputPredictionHandlerDeps) {}
 
   async handle(rawParams: unknown): Promise<V4ConversationInputPredictionResult> {
     const params = v4ConversationInputPredictionParamsSchema.parse(rawParams);
-    const { sessionId, requestId, selection } = params;
+    const { sessionId, requestId } = params;
     const draft = normalizeInputPredictionDraft(params.draft);
-    const cacheKey = JSON.stringify([sessionId, params.revision, draft, selection ?? null]);
+    const cacheKey = JSON.stringify([sessionId, params.revision, draft]);
     const withRequestId = (result: CachedResult): V4ConversationInputPredictionResult =>
       requestId === undefined ? result : { ...result, requestId };
 
@@ -66,66 +53,36 @@ export class ConversationInputPredictionHandler {
       return withRequestId(cached);
     }
 
-    // 新请求替代同会话的旧请求：手机只关心最新草稿。
-    this.inFlight.get(sessionId)?.abort();
-    const controller = new AbortController();
-    this.inFlight.set(sessionId, controller);
-    try {
-      const result = await this.predict(sessionId, draft, controller.signal, selection);
-      if (controller.signal.aborted) return emptyInputPredictionResult("cancelled", requestId);
-      if (result.decision !== "unavailable") this.remember(cacheKey, result);
-      return withRequestId(result);
-    } finally {
-      if (this.inFlight.get(sessionId) === controller) this.inFlight.delete(sessionId);
-    }
+    const result = this.predict(sessionId, draft);
+    if (result.decision !== "unavailable") this.remember(cacheKey, result);
+    return withRequestId(result);
   }
 
-  /** 连接断开 / 进程关闭：中止全部进行中的预测。 */
-  dispose(reason?: unknown): void {
-    for (const controller of this.inFlight.values()) controller.abort(reason);
-    this.inFlight.clear();
+  /** 连接断开 / 进程关闭：无在途预测，缓存随进程生命周期。 */
+  dispose(_reason?: unknown): void {
     this.cache.clear();
   }
 
-  private async predict(
-    sessionId: string,
-    draft: string,
-    abortSignal: AbortSignal,
-    selection?: ModelSelection,
-  ): Promise<CachedResult> {
-    let material: InputPredictionSessionMaterial | null;
+  private predict(sessionId: string, draft: string): CachedResult {
+    let prediction: StoredInputPrediction | null;
     try {
-      material = await this.deps.loadSession(sessionId);
+      prediction = this.deps.getLastPrediction(sessionId);
     } catch (error) {
-      this.warn("transcript_failed", sessionId, error);
+      this.warn("lookup_failed", sessionId, error);
       return emptyInputPredictionResult("unavailable");
     }
-    if (!material || material.turns.length < inputPredictionMinTurns(draft)) {
-      return emptyInputPredictionResult("suppress_no_context");
-    }
-    const callModel = material.callModelFor(selection);
-    if (!callModel) return emptyInputPredictionResult("unavailable");
-
-    let rawCandidates;
-    try {
-      rawCandidates = await generateInputPredictionCandidates({
-        turns: material.turns,
-        draft,
-        callModel,
-        abortSignal,
-        ...(this.deps.timeoutMs !== undefined ? { timeoutMs: this.deps.timeoutMs } : {}),
-      });
-    } catch (error) {
-      // 超时 / 网络 / 模型不可用：静默降级，不影响手机主链路。被替代的请求不记日志。
-      if (!abortSignal.aborted) this.warn("model_failed", sessionId, error);
-      return emptyInputPredictionResult("unavailable");
-    }
-    if (!rawCandidates) return emptyInputPredictionResult("suppress_below_threshold");
+    if (!prediction) return emptyInputPredictionResult("unavailable");
+    // draft 非空 = 续写模式：只有以草稿开头的候选才能接在草稿后面，其余丢弃。
+    // decide 复用收敛规则：钳制置信度、剥草稿前缀、同文本去重、门槛决策。
+    // turnCount 传足够大：存量预测本身就是「上下文足够」的产物，不再做轮数门槛。
+    const usable = draft
+      ? prediction.candidates.filter((candidate) => candidate.text.startsWith(draft))
+      : prediction.candidates;
     return decideInputPrediction({
-      rawCandidates,
+      rawCandidates: usable,
       draft,
-      recentUserInputs: material.turns.map((turn) => turn.userText),
-      turnCount: material.turns.length,
+      recentUserInputs: [],
+      turnCount: Number.MAX_SAFE_INTEGER,
     });
   }
 
@@ -147,69 +104,4 @@ export class ConversationInputPredictionHandler {
       error: error instanceof Error ? error.message : String(error),
     });
   }
-}
-
-/**
- * 轮次配对：真实用户输入 → 到下一条用户消息之前的最后一条非空助手文本。
- * 合成消息、provider-only 上下文不算轮次。
- */
-export function collectInputPredictionTurns(
-  messages: readonly MessageWithParts[],
-): InputPredictionTurnContext[] {
-  const turns: InputPredictionTurnContext[] = [];
-  for (let index = 0; index < messages.length; index += 1) {
-    const message = messages[index]!;
-    if (!isConversationRealUserTurnStarter(message)) continue;
-    const userText = visibleText(message);
-    if (userText.trim().length === 0) continue;
-    let assistantText: string | null = null;
-    for (let next = index + 1; next < messages.length; next += 1) {
-      const candidate = messages[next]!;
-      if (candidate.info.role === "user") break;
-      if (candidate.info.role !== "assistant") continue;
-      const text = visibleText(candidate);
-      if (text.trim().length > 0) assistantText = text;
-    }
-    turns.push({ userText, assistantText });
-  }
-  return turns;
-}
-
-function visibleText(message: MessageWithParts): string {
-  return message.parts
-    .filter(
-      (part): part is Extract<MessageWithParts["parts"][number], { type: "text" }> =>
-        part.type === "text" && part.ignored !== true,
-    )
-    .map((part) => part.text)
-    .join("");
-}
-
-/** 生产 loader：会话必须驻留在本进程（手机正在看的会话一定驻留）。 */
-export function createInputPredictionSessionLoader(input: {
-  sessions: ReadonlyMap<string, ZCodeProtocolSessionRecord>;
-  sessionStore?: SessionStorePort;
-}): ConversationInputPredictionHandlerDeps["loadSession"] {
-  return async (sessionId) => {
-    const record = input.sessions.get(sessionId);
-    if (!record || !input.sessionStore) return null;
-    const messages = await input.sessionStore.messages({ sessionID: sessionId as SessionId });
-    return {
-      turns: collectInputPredictionTurns(messages),
-      callModelFor: (selection) => {
-        const resolved =
-          selection ??
-          record.app.runtime.getSessionModelSelection() ??
-          record.restoredModelSelection;
-        if (!resolved) return null;
-        return async (modelMessages, options) => {
-          const result = await record.app.generateWorkspaceText(
-            { selection: resolved, messages: modelMessages, querySource: options.querySource },
-            { abortSignal: options.abortSignal },
-          );
-          return { text: result.text };
-        };
-      },
-    };
-  };
 }

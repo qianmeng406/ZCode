@@ -13,6 +13,8 @@ export interface ComposerSubmissionConfig {
   planEnabled: boolean;
   /** 上下文档位：与权限一起冻结，但独立选择、独立生效。 */
   contextProfile: ContextProfile;
+  /** 输入预测开关随提交冻结：本轮请求是否注入「下一步输入预测」指令。 */
+  inputPredictionEnabled: boolean;
 }
 
 /** 在点击提交的瞬间，把 Composer 意图冻结成本次 Submission 的执行配置。 */
@@ -27,6 +29,7 @@ export function createComposerSubmissionConfig(
     | null
     | undefined,
   view: ModelSelectionView | null,
+  options?: { inputPredictionEnabled?: boolean },
 ): ComposerSubmissionConfig | null {
   // 只读子会话和未挂载 Composer 的 SessionPane 不提供草稿；这类场景没有可提交配置，
   // 不能因为渲染提交门禁而读取 undefined 并让整个会话区域崩溃。
@@ -59,6 +62,7 @@ export function createComposerSubmissionConfig(
     mode: mode.data === "plan" ? "build" : mode.data,
     planEnabled: state.planEnabled,
     contextProfile: state.contextProfile,
+    inputPredictionEnabled: options?.inputPredictionEnabled ?? false,
     modelSelection: Object.freeze({
       providerId: selection.providerId,
       modelId: selection.modelId,

@@ -89,6 +89,7 @@ export const conversationInputIntentSchema = z
     modelSelection: modelSelectionSchema.optional(),
     mode: submissionModeSchema.optional(),
     planEnabled: z.boolean().optional(),
+    inputPredictionEnabled: z.boolean().optional(),
     genUiContext: genUiModelContextSchema.optional(),
     // 与 mode 一起冻结的上下文档位；旧 intent 缺省按旧 mode=minimal 兼容解析。
     contextProfile: contextProfileSchema.optional(),

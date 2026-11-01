@@ -40,6 +40,7 @@ import { prepareTurnRequestProjection } from "./context-refresh.js";
 import { persistRuntimeReminderMessage } from "./runtime-reminder-persistence.js";
 import { buildProjectionAnchor } from "./projection-anchor.js";
 import { runModelBackedTurnStep } from "./turn-model-step.js";
+import { appendInputPredictionDirective } from "./input-prediction-sidecar.js";
 import { querySourceForTask } from "./turn-model-step-usage.js";
 import { inputRoleOf } from "../helpers/provider-entry-origins.js";
 import {
@@ -238,6 +239,11 @@ export async function runRegularTurnLoop(
     // cache-control 必须在 projection 后统一设置，避免 raw synthetic entry 抢占缓存锚点。
     const providerProjection = prepared.projection;
     const { messages } = prepared.request;
+    // 输入预测：指令只进入本次请求的 provider 消息（request-only），
+    // 不写入 recordedMessages / 持久化 ModelRequest 轨迹。
+    if (state.inputPredictionEnabled) {
+      appendInputPredictionDirective(messages);
+    }
     const recordableEntries = filterOutputTokenContinuationEntries(prepared.entries);
     const recordableProjection =
       recordableEntries === prepared.entries

@@ -184,16 +184,6 @@ export function InputPredictionSetting() {
           />
         }
       />
-      <AiFeatureModelSetting
-        label={intl.formatMessage({ id: "settings.inputPredictionModel.label" })}
-        description={intl.formatMessage({ id: "settings.inputPredictionModel.description" })}
-        value={settings?.inputPredictionModel}
-        onChange={(selection) => save({ inputPredictionModel: selection })}
-        followLabel={intl.formatMessage({ id: "settings.aiFeature.followSession" })}
-        levelLabel={intl.formatMessage({ id: "settings.aiFeature.reasoningLevel" })}
-        disabled={!settings || saving}
-        testIdPrefix="settings-input-prediction-model"
-      />
     </>
   );
 }

@@ -3608,12 +3608,10 @@ const zhCN: Record<string, string> = {
   "settings.promptOptimizer.contextDescription":
     "优化时是否参考当前对话；仅当前输入更快，结合对话更准确。",
   "settings.inputPrediction.label": "输入预测",
-  "settings.inputPredictionModel.label": "输入预测模型",
-  "settings.inputPredictionModel.description": "生成续写建议使用的模型；留空跟随会话模型。",
   "settings.sessionHandoffModel.label": "交接模型",
   "settings.sessionHandoffModel.description": "会话交接智能摘要使用的模型；留空跟随会话模型。",
   "settings.inputPrediction.description":
-    "停止输入后把最近轮次与当前草稿发给模型，在输入框上方给出续写建议；Tab 接受，Esc 忽略。需要宿主支持且会话轮数足够。",
+    "开启后，模型会在每轮回复末尾附带下一步输入预测；输入框空闲时展示，Tab 接受，Esc 忽略。",
   "settings.aiFeature.followSession": "跟随会话模型",
   "settings.aiFeature.reasoningLevel": "推理档位",
   "settings.aiFeature.saveError": "保存 AI 功能设置失败",

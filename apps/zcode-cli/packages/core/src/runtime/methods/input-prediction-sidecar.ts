@@ -1,38 +1,21 @@
-// 输入预测 sidecar（手机远控 ghost hint）：按会话近期上下文 + 可选草稿生成候选，
-// 供 v4 只读查询 v4/conversation/inputPrediction 使用。规格见
+// 输入预测纯函数（手机远控 ghost hint + 桌面候选胶囊共用）。规格见
 // docs/web-remote-control/mobile-input-prediction.md。
 //
-// 本文件只放提示词、纯函数和一个编排壳；模型执行面由调用方注入
-// （bootstrap 经 app.generateWorkspaceText，querySource=input_prediction），单测不依赖 runtime。
+// 2026-11-01 重构：候选不再由独立模型请求生成——开启输入预测时，主轮请求的
+// 提示词附带指令（appendInputPredictionDirective），模型在回复尾部输出
+// <next_input> 候选块；流式过滤器（createNextInputStreamFilter）吞掉该块的
+// 可见流，完成边界（parseNextInputPredictionBlock）解析候选并存入 runtime。
+// 本文件只放纯函数，无 IO、无 runtime 依赖。
+import type { ModelInputMessage } from "@zcode/contracts";
 import {
   INPUT_PREDICTION_MAX_CANDIDATES,
   INPUT_PREDICTION_MAX_TEXT_CHARS,
 } from "@zcode/shared/zcode-protocol-v4";
 
-export const INPUT_PREDICTION_QUERY_SOURCE = "input_prediction";
-
-/** CLI 侧单次模型调用上限。ghost hint 迟到就没有价值，所以比通用辅助生成的 60s 短。 */
-export const INPUT_PREDICTION_MODEL_TIMEOUT_MS = 20_000;
-/** 上下文组装：最近 6 轮（用户输入全文 + 助手最终回复截断 800 字）。 */
-export const INPUT_PREDICTION_CONTEXT_TURNS = 6;
-export const INPUT_PREDICTION_ASSISTANT_MAX_CHARS = 800;
-/** 上下文总预算（字符），超出时从最旧处截断。 */
-export const INPUT_PREDICTION_CONTEXT_MAX_CHARS = 6_000;
 /** 决策门槛：top 候选 confidence ≥ 0.80 才展示（宁缺毋滥）。 */
 export const INPUT_PREDICTION_CONFIDENCE_THRESHOLD = 0.8;
-/** 草稿为空时预测「下一条输入」，至少要有 2 轮真实用户输入。 */
-export const INPUT_PREDICTION_NEXT_INPUT_MIN_TURNS = 2;
-/** 草稿非空时预测续写，至少要有 1 轮真实用户输入。 */
-export const INPUT_PREDICTION_DRAFT_MIN_TURNS = 1;
 /** 去重时只看最近 2 条真实用户输入：用户刚发过的不再预测。 */
 const RECENT_USER_INPUT_DEDUPE_COUNT = 2;
-
-export interface InputPredictionTurnContext {
-  /** 真实用户输入全文。 */
-  userText: string;
-  /** 本轮助手最终回复；没有回复为 null。 */
-  assistantText: string | null;
-}
 
 export interface InputPredictionCandidate {
   text: string;
@@ -44,13 +27,6 @@ export interface InputPredictionOutcome {
   candidates: InputPredictionCandidate[];
   topConfidence: number;
 }
-
-export type InputPredictionModelMessage = { role: "system" | "user"; content: string };
-
-export type InputPredictionModelCall = (
-  messages: InputPredictionModelMessage[],
-  options: { abortSignal: AbortSignal; querySource: string },
-) => Promise<{ text: string }>;
 
 const OUTPUT_FORMAT_RULE = `- 只输出一个 JSON 对象，不要 markdown 代码块，不要任何多余文字：
 {"candidates":[{"text":"...","confidence":0.0},{"text":"...","confidence":0.0},{"text":"...","confidence":0.0}]}`;
@@ -88,66 +64,6 @@ ${OUTPUT_FORMAT_RULE}`;
 /** 草稿归一：纯空白视为无草稿。 */
 export function normalizeInputPredictionDraft(draft: string | undefined): string {
   return draft && draft.trim().length > 0 ? draft : "";
-}
-
-/** 当前模式需要的最少真实用户输入轮数。 */
-export function inputPredictionMinTurns(draft: string): number {
-  return draft.length > 0
-    ? INPUT_PREDICTION_DRAFT_MIN_TURNS
-    : INPUT_PREDICTION_NEXT_INPUT_MIN_TURNS;
-}
-
-/** 组装上下文：最近 N 轮，用户全文 + 助手截断，总预算从最旧处截断。 */
-export function buildInputPredictionContext(
-  turns: readonly InputPredictionTurnContext[],
-  options?: { maxTurns?: number; assistantMaxChars?: number; totalMaxChars?: number },
-): string {
-  const maxTurns = options?.maxTurns ?? INPUT_PREDICTION_CONTEXT_TURNS;
-  const assistantMaxChars = options?.assistantMaxChars ?? INPUT_PREDICTION_ASSISTANT_MAX_CHARS;
-  const totalMaxChars = options?.totalMaxChars ?? INPUT_PREDICTION_CONTEXT_MAX_CHARS;
-  const blocks = turns.slice(-maxTurns).map((turn) => {
-    const assistant = turn.assistantText ?? "";
-    const bounded =
-      assistant.length > assistantMaxChars
-        ? `${assistant.slice(0, assistantMaxChars)}…`
-        : assistant;
-    return `用户：${turn.userText}\n助手：${bounded || "（无回复）"}`;
-  });
-  const text = blocks.join("\n\n");
-  // 保留最新上下文：超预算时丢最旧的部分，切点对齐到轮次边界，
-  // 避免模型看到以半句话开头的材料。
-  if (text.length <= totalMaxChars) return text;
-  const rawCut = text.length - totalMaxChars;
-  // 切点必须落在轮次边界：优先向后找下一个边界；没有（切点在最后一个块内）
-  // 就向前回退到上一个边界，丢弃残块——保证材料开头永远是干净的轮次开头。
-  const nextBoundary = text.indexOf("\n\n", rawCut);
-  let cut =
-    nextBoundary >= 0
-      ? nextBoundary + 2
-      : (() => {
-          const previous = text.lastIndexOf("\n\n", rawCut);
-          return previous >= 0 ? previous + 2 : 0;
-        })();
-  while (text[cut] === "\n") cut += 1;
-  return `（更早的上下文已省略）\n${text.slice(cut)}`;
-}
-
-/** 模型输入：system 提示词 + user 上下文（草稿模式附上草稿）。 */
-export function buildInputPredictionMessages(
-  turns: readonly InputPredictionTurnContext[],
-  draft: string,
-): InputPredictionModelMessage[] {
-  const context = buildInputPredictionContext(turns);
-  if (draft.length === 0) {
-    return [
-      { role: "system", content: NEXT_INPUT_SYSTEM_PROMPT },
-      { role: "user", content: context },
-    ];
-  }
-  return [
-    { role: "system", content: DRAFT_SYSTEM_PROMPT },
-    { role: "user", content: `${context}\n\n【用户正在输入的草稿】\n${draft}` },
-  ];
 }
 
 /** JSON 清洗容错：剥 think 段、code fence、尾逗号、前后说明文字。 */
@@ -238,9 +154,6 @@ export function decideInputPrediction(input: {
   threshold?: number;
 }): InputPredictionOutcome {
   const { draft } = input;
-  if (input.turnCount < inputPredictionMinTurns(draft)) {
-    return { decision: "suppress_no_context", candidates: [], topConfidence: 0 };
-  }
   const threshold = input.threshold ?? INPUT_PREDICTION_CONFIDENCE_THRESHOLD;
   const recent = new Set(
     input.recentUserInputs.slice(-RECENT_USER_INPUT_DEDUPE_COUNT).map(normalizeForDedupe),
@@ -267,54 +180,119 @@ export function decideInputPrediction(input: {
   };
 }
 
+
+// ─── 主轮输出附带预测（注入指令 + 流过滤 + 尾块解析） ────────────────────────
+
+const NEXT_INPUT_BLOCK_OPEN = "<next_input";
+const NEXT_INPUT_BLOCK_CLOSE = "</next_input>";
+
+/** 注入到本轮最后一条 user message 尾部的指令（request-only，不写入持久化轨迹）。 */
+export const INPUT_PREDICTION_INJECTION_DIRECTIVE = [
+  "",
+  "【输入预测】回复正文全部结束后，另起一行输出一个预测块：",
+  "<next_input>{\"candidates\":[{\"text\":\"...\",\"confidence\":0.9}]}</next_input>",
+  "- candidates 是用户在本轮之后最可能发送的 1-3 条完整输入，按把握从高到低排序。",
+  "- 每条 text 单行、不超过 40 字、语言与用户一致；confidence 为 0 到 1。",
+  "- 没有把握就少写几条，不要编造；预测块必须放在回复的最末尾，除此之外不要输出任何解释。",
+].join("\n");
+
+/**
+ * 把预测指令追加到最后一条 user message 的文本尾部（原地修改传入数组）。
+ * content 为块数组时追加/复用最后一个 text 块。找不到 user message 时不做任何事。
+ */
+export function appendInputPredictionDirective(messages: ModelInputMessage[]): void {
+  for (let index = messages.length - 1; index >= 0; index -= 1) {
+    const message = messages[index];
+    if (!message || message.role !== "user") continue;
+    message.content = `${message.content}
+
+${INPUT_PREDICTION_INJECTION_DIRECTIVE}`;
+  }
+}
+
+export interface NextInputStreamFilter {
+  /** 返回本次可见的增量；预测块开标签之后的增量一律吞掉。 */
+  consume(delta: string): string;
+  /** 流结束时冲出扣住的尾部（可能是标签前缀的可见部分）。 */
+  finish(): string;
+  /** 未过滤全文：完成边界用它解析候选块。 */
+  readonly fullText: string;
+}
+
+/**
+ * 流式过滤器：预测块一旦开始就不再进入可见流；标签前缀扣住等下一个增量判定，
+ * 避免把 `<next_in` 这样的半个标签闪给用户。全文另行保留供完成边界解析。
+ */
+export function createNextInputStreamFilter(): NextInputStreamFilter {
+  let full = "";
+  let visibleHeld = "";
+  let suppressed = false;
+  return {
+    consume(delta: string): string {
+      full += delta;
+      if (suppressed) return "";
+      visibleHeld += delta;
+      const open = visibleHeld.indexOf(NEXT_INPUT_BLOCK_OPEN);
+      if (open >= 0) {
+        const visible = visibleHeld.slice(0, open);
+        visibleHeld = "";
+        suppressed = true;
+        return visible;
+      }
+      // 尾部可能是标签前缀：扣住等下一个增量再判定。
+      let hold = Math.min(visibleHeld.length, NEXT_INPUT_BLOCK_OPEN.length - 1);
+      while (hold > 0 && !NEXT_INPUT_BLOCK_OPEN.startsWith(visibleHeld.slice(-hold))) hold -= 1;
+      if (hold === 0) {
+        const visible = visibleHeld;
+        visibleHeld = "";
+        return visible;
+      }
+      const visible = visibleHeld.slice(0, visibleHeld.length - hold);
+      visibleHeld = visibleHeld.slice(visibleHeld.length - hold);
+      return visible;
+    },
+    finish(): string {
+      const tail = visibleHeld;
+      visibleHeld = "";
+      return tail;
+    },
+    get fullText(): string {
+      return full;
+    },
+  };
+}
+
+/** 完成边界：从全文解析 `<next_input>` 候选块；无块或解析失败返回 null。 */
+export function parseNextInputPredictionBlock(fullText: string): InputPredictionCandidate[] | null {
+  const open = fullText.lastIndexOf(NEXT_INPUT_BLOCK_OPEN);
+  if (open < 0) return null;
+  const close = fullText.indexOf(NEXT_INPUT_BLOCK_CLOSE, open);
+  const inner = fullText
+    .slice(open + NEXT_INPUT_BLOCK_OPEN.length, close >= 0 ? close : undefined)
+    .replace(/^>/, "")
+    .trim();
+  const raw = tryParseCandidates(inner);
+  if (!raw || raw.length === 0) return null;
+  // 钳制置信度 + 按文本去重 + 截到上限（与独立调模型路径同规则）。
+  const byKey = new Map<string, InputPredictionCandidate>();
+  for (const candidate of raw) {
+    const text = toInputPredictionSuffix(candidate.text, "");
+    if (text.trim().length === 0) continue;
+    const confidence = Math.min(1, Math.max(0, candidate.confidence));
+    const key = normalizeForDedupe(text);
+    const existing = byKey.get(key);
+    if (!existing || existing.confidence < confidence) byKey.set(key, { text, confidence });
+  }
+  const candidates = Array.from(byKey.values())
+    .sort((a, b) => b.confidence - a.confidence)
+    .slice(0, INPUT_PREDICTION_MAX_CANDIDATES);
+  return candidates.length > 0 ? candidates : null;
+}
+
+
+
 /** 去重归一：小写 + 去掉全部空白。 */
 function normalizeForDedupe(text: string): string {
   return text.toLowerCase().replace(/\s+/g, "");
 }
 
-/**
- * 编排壳：一次辅助模型调用。超时与外部取消合并成一个 signal；
- * 即使模型执行面没有及时响应 signal，也在 signal 触发时立即放弃等待。
- * 失败向上抛，由调用方决定降级（这里不吞错）。
- */
-export async function generateInputPredictionCandidates(input: {
-  turns: readonly InputPredictionTurnContext[];
-  draft: string;
-  callModel: InputPredictionModelCall;
-  abortSignal?: AbortSignal;
-  timeoutMs?: number;
-}): Promise<InputPredictionCandidate[] | null> {
-  const timeoutSignal = AbortSignal.timeout(input.timeoutMs ?? INPUT_PREDICTION_MODEL_TIMEOUT_MS);
-  const abortSignal = input.abortSignal
-    ? AbortSignal.any([input.abortSignal, timeoutSignal])
-    : timeoutSignal;
-  const result = await raceAbort(
-    input.callModel(buildInputPredictionMessages(input.turns, input.draft), {
-      abortSignal,
-      querySource: INPUT_PREDICTION_QUERY_SOURCE,
-    }),
-    abortSignal,
-  );
-  return parseInputPredictionResponse(result.text);
-}
-
-function raceAbort<T>(promise: Promise<T>, signal: AbortSignal): Promise<T> {
-  if (signal.aborted) {
-    promise.catch(() => undefined);
-    return Promise.reject(signal.reason);
-  }
-  return new Promise<T>((resolve, reject) => {
-    const onAbort = () => reject(signal.reason);
-    signal.addEventListener("abort", onAbort, { once: true });
-    promise.then(
-      (value) => {
-        signal.removeEventListener("abort", onAbort);
-        resolve(value);
-      },
-      (error: unknown) => {
-        signal.removeEventListener("abort", onAbort);
-        reject(error);
-      },
-    );
-  });
-}

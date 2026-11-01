@@ -537,6 +537,10 @@ export interface AgentRuntime {
     traceContext?: TraceContext,
   ): Promise<void>;
   getSessionModelSelection(): ModelSelection | undefined;
+  getLastInputPrediction(): {
+    candidates: { text: string; confidence: number }[];
+    completedAt: number;
+  } | null;
   setSessionModelSelection(selection: ModelSelection | undefined): void;
   getProjectId(): ProjectId;
   ensureSessionPersistedForExternalActivity(

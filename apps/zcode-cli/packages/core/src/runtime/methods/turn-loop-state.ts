@@ -89,6 +89,8 @@ export interface RegularTurnLoopState {
   offPeakTaskId?: string;
   /** CronCreate 命中全局上限后，本用户 turn 永久切为纯文本回复，禁止模型自行恢复。 */
   automationCreateLimitReached?: boolean;
+  /** 本轮是否注入「下一步输入预测」指令（intent 冻结）；注入后由模型输出尾部携带候选。 */
+  inputPredictionEnabled?: boolean;
   anomalyWarningsInjected: number;
   /** 本轮是否已消费来源为 subagent 的后台结果通知。 */
   backgroundSubagentResultConsumed: boolean;

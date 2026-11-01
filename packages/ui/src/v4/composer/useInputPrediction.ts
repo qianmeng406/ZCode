@@ -1,5 +1,4 @@
 import { useCallback, useEffect, useRef, useState } from "react";
-import type { ModelSelection } from "@zcode/shared";
 import { useOptionalServices } from "@/hooks/useServices.js";
 import { logger } from "@/logger.js";
 
@@ -30,8 +29,6 @@ export function useInputPrediction(params: {
   sessionId: string | null;
   revision: number;
   draft: string;
-  /** 设置页为输入预测指定的模型；null/缺省 = 会话当前模型。 */
-  selection?: ModelSelection | null;
   /** 附件/引用等富草稿：无法安全续写，直接不请求。 */
   blocked: boolean;
   idleMs?: number;
@@ -79,7 +76,6 @@ export function useInputPrediction(params: {
             workspacePath: params.workspacePath,
             ...(params.workspaceIdentity ? { workspaceIdentity: params.workspaceIdentity } : {}),
             ...(params.remoteSessionId ? { remoteSessionId: params.remoteSessionId } : {}),
-            ...(params.selection ? { selection: params.selection } : {}),
             sessionId,
             revision: params.revision,
             ...(draft.trim() ? { draft } : {}),
@@ -108,7 +104,6 @@ export function useInputPrediction(params: {
     params.draft,
     params.enabled,
     params.revision,
-    params.selection,
     params.sessionId,
     params.workspacePath,
     params.workspaceIdentity,

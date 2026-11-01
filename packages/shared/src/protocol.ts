@@ -317,8 +317,6 @@ export interface AppSettings {
   oracleReviewModel?: ModelSelection | null;
   /** 提示词优化模型；缺省/null = 跟随会话模型。 */
   promptOptimizerModel?: ModelSelection | null;
-  /** 输入预测模型；缺省/null = 跟随会话模型。 */
-  inputPredictionModel?: ModelSelection | null;
   /** 会话交接摘要模型；缺省/null = 跟随会话模型。 */
   sessionHandoffModel?: ModelSelection | null;
   /** 提示词优化方式；缺省 polish。 */

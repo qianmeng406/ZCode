@@ -90,6 +90,11 @@ export interface AgentRuntimeCoreMethods {
     traceContext?: TraceContext,
   ): Promise<void>;
   getSessionModelSelection(): ModelSelection | undefined;
+  /** 最近一轮主链路输出的「下一步输入预测」候选（内存态；重启即失）。 */
+  getLastInputPrediction(): {
+    candidates: { text: string; confidence: number }[];
+    completedAt: number;
+  } | null;
   setSessionModelSelection(selection: ModelSelection | undefined): void;
   getProjectId(): ProjectId;
   setWorkingDirectory(cwd: string): void;

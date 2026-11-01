@@ -154,18 +154,11 @@ export { repairPersistedRemoteSessionPaths } from "./runtime/helpers/persisted-r
 // （悬空 parentID、指向父会话的锚点）离成因都很远。
 export { cloneMessageForFork, clonePartForFork } from "./runtime/helpers/steering.js";
 // 手机远控输入预测：bootstrap 的 v4 inputPrediction 处理器直接消费这些纯函数。
-export {
-  decideInputPrediction,
-  generateInputPredictionCandidates,
-  normalizeInputPredictionDraft,
-  inputPredictionMinTurns,
-  INPUT_PREDICTION_QUERY_SOURCE,
-} from "./runtime/methods/input-prediction-sidecar.js";
+// （2026-11-01 重构：预测由主轮输出附带，sidecar 只保留解析/收敛纯函数。）
+export { decideInputPrediction, normalizeInputPredictionDraft } from "./runtime/methods/input-prediction-sidecar.js";
 export type {
   InputPredictionCandidate,
-  InputPredictionModelCall,
   InputPredictionOutcome,
-  InputPredictionTurnContext,
 } from "./runtime/methods/input-prediction-sidecar.js";
 export type {
   ChildClientPortsContext,

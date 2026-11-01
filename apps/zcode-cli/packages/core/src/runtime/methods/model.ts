@@ -277,12 +277,17 @@ export async function runModelTextRequest(
         }
 
         case "text_delta": {
-          text += event.text;
-          options.onStreamTextDelta?.(event.text);
+          // 输入预测流过滤：预测块开标签之后的增量不进入可见文本/事件。
+          const visibleDelta = options.streamTextFilter
+            ? options.streamTextFilter.consume(event.text)
+            : event.text;
+          if (visibleDelta.length === 0) break;
+          text += visibleDelta;
+          options.onStreamTextDelta?.(visibleDelta);
           publishStreamSnapshot();
           await enqueueStreamingEvent({
             assistantMessageId: options.assistantMessageId,
-            delta: event.text,
+            delta: visibleDelta,
             done: false,
             kind: "text_delta",
           });
@@ -492,6 +497,20 @@ export async function runModelTextRequest(
           finishReason = event.finishReason;
           usage = event.usage;
           providerMetadata = event.providerMetadata;
+          // 冲出被扣住的标签前缀尾部，保证 result.text 与可见流一致。
+          if (options.streamTextFilter) {
+            const tail = options.streamTextFilter.finish();
+            if (tail.length > 0) {
+              text += tail;
+              options.onStreamTextDelta?.(tail);
+              await enqueueStreamingEvent({
+                assistantMessageId: options.assistantMessageId,
+                delta: tail,
+                done: false,
+                kind: "text_delta",
+              });
+            }
+          }
           await flushAllToolInputDeltas();
           await enqueueStreamingEventAndDrain({
             assistantMessageId: options.assistantMessageId,

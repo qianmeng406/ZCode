@@ -72,9 +72,30 @@ describe("ComposerTurnMetricsCapsule", () => {
     // 会话缓存命中率 = 4000 / 5000。
     expect(item(container, "cache-hit-rate")?.textContent).toContain("80%");
     expect(item(container, "last-request-ttft")?.textContent).toContain("0.2s");
-    expect(item(container, "last-request-tokens-per-second")?.textContent).toContain("100");
+    // 速度分母 = 墙钟扣掉 TTFT：100 tok / (1000-200)ms = 125 tok/s。
+    expect(item(container, "last-request-tokens-per-second")?.textContent).toContain("125");
     // 单请求缓存命中率 = 400 / 800。
     expect(item(container, "last-request-cache-hit-rate")?.textContent).toContain("50%");
+  });
+
+  it("falls back to the wall-clock denominator when TTFT is missing or not shorter", () => {
+    const { container } = renderCapsule({
+      session: sessionUsage,
+      lastRequest: { ...lastRequest, timeToFirstTokenMs: undefined },
+      lastRequestTurn,
+    });
+    // 无 TTFT 事实：退回墙钟分母 100 tok / 1000ms = 100 tok/s。
+    expect(item(container, "last-request-tokens-per-second")?.textContent).toContain("100");
+
+    const degenerate = renderCapsule({
+      session: sessionUsage,
+      lastRequest: { ...lastRequest, timeToFirstTokenMs: 1_500 },
+      lastRequestTurn,
+    });
+    // TTFT >= 墙钟（脏数据）：回退墙钟分母，不展示负速率。
+    expect(item(degenerate.container, "last-request-tokens-per-second")?.textContent).toContain(
+      "100",
+    );
   });
 
   it("shows -- placeholders for every session segment instead of estimates", () => {

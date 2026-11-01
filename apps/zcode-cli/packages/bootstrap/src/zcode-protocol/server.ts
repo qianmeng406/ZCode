@@ -70,7 +70,6 @@ import { listChildProcesses } from "./process-child-processes.js";
 import { ProtocolRuntimeResources } from "./runtime-resources.js";
 import {
   ConversationInputPredictionHandler,
-  createInputPredictionSessionLoader,
 } from "./input-prediction-handler.js";
 import {
   readWorkspacePresentation,
@@ -346,10 +345,8 @@ export class ZCodeProtocolAgentServer {
     // v4 通道：gateway 闭包持有 context 做帧出口与命令副作用，构造完立即挂回。
     this.context.v4Gateway = createConversationV4Gateway(this.context);
     this.inputPrediction = new ConversationInputPredictionHandler({
-      loadSession: createInputPredictionSessionLoader({
-        sessions: this.context.sessions,
-        sessionStore: resolvedDeps.sessionStore,
-      }),
+      getLastPrediction: (sessionId) =>
+        this.context.sessions.get(sessionId)?.app.runtime.getLastInputPrediction() ?? null,
       logger: this.logger,
     });
     this.browserControlPort = createProtocolBrowserControlBroker(this.context);

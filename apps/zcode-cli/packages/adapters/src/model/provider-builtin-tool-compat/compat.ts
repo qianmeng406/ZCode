@@ -24,7 +24,7 @@ const SDK_KNOWN_SERVER_TOOL_NAMES = new Set([
 
 // 服务端渲染副本的前缀：调用头以「**🌐」开头，结果以加粗标签开头。不写厂商名。
 const CALL_RENDERING_PREFIX = "**🌐";
-const RESULT_RENDERING_PREFIX = "**";
+const RESULT_RENDERING_PREFIX = "**Output:";
 
 export function isProviderBuiltinServerToolUse(
   block: Record<string, unknown> | undefined,

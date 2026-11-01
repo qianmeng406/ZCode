@@ -502,8 +502,6 @@ export interface ConversationComposerProps {
   promptOptimizerEnabled?: boolean;
   /** 输入框 ghost 预测：默认关；开启后停止输入一段时间会请求一次续写建议。 */
   inputPredictionEnabled?: boolean;
-  /** 设置页为输入预测指定的模型；null = 跟随会话模型。 */
-  inputPredictionSelection?: ModelSelection | null;
   promptOptimizerMode?: PromptOptimizerMode;
   promptOptimizerContextRange?: PromptOptimizerContextRange;
   /** 当前 composer 是否运行在手机 Web 远控壳中。 */
@@ -650,7 +648,6 @@ function ConversationComposerImpl({
   promptOptimizerModel = null,
   promptOptimizerEnabled = true,
   inputPredictionEnabled = false,
-  inputPredictionSelection = null,
   promptOptimizerMode = "polish",
   promptOptimizerContextRange = "conversation",
   workspacePath,
@@ -1593,7 +1590,6 @@ function ConversationComposerImpl({
       : "";
   const inputPrediction = useInputPrediction({
     enabled: inputPredictionEnabled,
-    ...(inputPredictionSelection ? { selection: inputPredictionSelection } : {}),
     workspacePath,
     ...(workspaceIdentity ? { workspaceIdentity } : {}),
     ...(remoteSessionId ? { remoteSessionId } : {}),

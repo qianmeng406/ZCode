@@ -1,21 +1,19 @@
-// 输入预测 sidecar 纯函数与编排壳（docs/web-remote-control/mobile-input-prediction.md）。
-import { describe, expect, it, vi } from "vitest";
+// 输入预测纯函数（注入指令 / 流过滤器 / 尾块解析 / 收敛决策）。
+// 2026-11-01 重构：候选由主轮输出附带，sidecar 不再编排独立模型请求。
+import { describe, expect, it } from "vitest";
 import { v4ConversationInputPredictionResultSchema } from "@zcode/shared/zcode-protocol-v4";
 import {
-  INPUT_PREDICTION_QUERY_SOURCE,
-  buildInputPredictionContext,
-  buildInputPredictionMessages,
+  appendInputPredictionDirective,
+  createNextInputStreamFilter,
   decideInputPrediction,
-  generateInputPredictionCandidates,
-  inputPredictionMinTurns,
   normalizeInputPredictionDraft,
   parseInputPredictionResponse,
+  parseNextInputPredictionBlock,
   toInputPredictionSuffix,
-  type InputPredictionModelCall,
-  type InputPredictionTurnContext,
+  type InputPredictionModelMessage,
 } from "../src/runtime/methods/input-prediction-sidecar.js";
 
-const turns: InputPredictionTurnContext[] = [
+const turns: { userText: string; assistantText: string | null }[] = [
   { userText: "帮我看下 lint 报错", assistantText: "已修复 3 处" },
   { userText: "再跑一遍单测", assistantText: "全部通过" },
 ];
@@ -70,20 +68,6 @@ describe("toInputPredictionSuffix", () => {
 });
 
 describe("decideInputPrediction", () => {
-  it("轮数不够时 suppress_no_context", () => {
-    expect(
-      decideInputPrediction({
-        rawCandidates: [{ text: "好", confidence: 1 }],
-        draft: "",
-        recentUserInputs: ["a"],
-        turnCount: 1,
-      }),
-    ).toEqual({ decision: "suppress_no_context", candidates: [], topConfidence: 0 });
-    // 草稿模式只要 1 轮。
-    expect(inputPredictionMinTurns("草稿")).toBe(1);
-    expect(inputPredictionMinTurns("")).toBe(2);
-  });
-
   it("去掉与最近用户输入重复的、候选间重复的，按置信度降序取前 3", () => {
     const outcome = decideInputPrediction({
       rawCandidates: [
@@ -144,68 +128,79 @@ describe("decideInputPrediction", () => {
   });
 });
 
-describe("上下文与提示词", () => {
-  it("只取最近 6 轮，助手回复截断，总预算从最旧处截断", () => {
-    const many = Array.from({ length: 8 }, (_, index) => ({
-      userText: `问题${index}`,
-      assistantText: index === 7 ? "长".repeat(900) : null,
-    }));
-    const context = buildInputPredictionContext(many);
-    expect(context).not.toContain("问题1");
-    expect(context).toContain("问题2");
-    expect(context).toContain("（无回复）");
-    expect(context).toContain(`${"长".repeat(800)}…`);
-    const trimmed = buildInputPredictionContext(many, { totalMaxChars: 20 });
-    // 切点对齐轮次边界并带省略标记：不会以半句开头。
-    expect(trimmed).toContain("（更早的上下文已省略）");
-    expect(trimmed).toMatch(/^(（更早的上下文已省略）\n)?(用户：|助手：)/u);
+describe("appendInputPredictionDirective", () => {
+  it("追加到最后一条 user message 的文本尾部", () => {
+    const messages: InputPredictionModelMessage[] = [
+      { role: "system", content: "system" },
+      { role: "user", content: "第一问" },
+      { role: "assistant", content: "回答" },
+      { role: "user", content: "第二问" },
+    ];
+    appendInputPredictionDirective(messages);
+    expect(messages[3]!.content).toContain("第二问");
+    expect(messages[3]!.content).toContain("<next_input>");
+    // system 与 assistant 不受影响。
+    expect(messages[0]!.content).toBe("system");
+    expect(messages[2]!.content).toBe("回答");
   });
 
-  it("草稿模式换提示词并附草稿；纯空白草稿视为无草稿", () => {
-    expect(normalizeInputPredictionDraft("   ")).toBe("");
-    expect(normalizeInputPredictionDraft(undefined)).toBe("");
-    const [system, user] = buildInputPredictionMessages(turns, "帮我");
-    expect(system!.content).toContain("输入补全器");
-    expect(user!.content).toContain("【用户正在输入的草稿】\n帮我");
-    expect(buildInputPredictionMessages(turns, "")[0]!.content).toContain("输入预测器");
+  it("没有 user message 时不做任何事", () => {
+    const messages: InputPredictionModelMessage[] = [{ role: "system", content: "system" }];
+    appendInputPredictionDirective(messages);
+    expect(messages[0]!.content).toBe("system");
   });
 });
 
-describe("generateInputPredictionCandidates", () => {
-  it("用 input_prediction querySource 调模型并解析", async () => {
-    const callModel = vi.fn<InputPredictionModelCall>(async () => ({
-      text: '{"candidates":[{"text":"提交","confidence":0.9}]}',
-    }));
-    await expect(
-      generateInputPredictionCandidates({ turns, draft: "", callModel }),
-    ).resolves.toEqual([{ text: "提交", confidence: 0.9 }]);
-    expect(callModel.mock.calls[0]![1].querySource).toBe(INPUT_PREDICTION_QUERY_SOURCE);
+describe("createNextInputStreamFilter", () => {
+  it("正常正文原样放行", () => {
+    const filter = createNextInputStreamFilter();
+    expect(filter.consume("今天")).toBe("今天");
+    expect(filter.consume("天气不错")).toBe("天气不错");
+    expect(filter.finish()).toBe("");
+    expect(filter.fullText).toBe("今天天气不错");
   });
 
-  it("外部取消时立即放弃等待，即使模型执行面不响应 signal", async () => {
-    const controller = new AbortController();
-    const pending = generateInputPredictionCandidates({
-      turns,
-      draft: "",
-      callModel: () => new Promise(() => undefined),
-      abortSignal: controller.signal,
-    });
-    controller.abort(new Error("superseded"));
-    await expect(pending).rejects.toThrow("superseded");
+  it("预测块开标签之后的增量全部吞掉；扣住的前缀不闪现", () => {
+    const filter = createNextInputStreamFilter();
+    expect(filter.consume("回答正文")).toBe("回答正文");
+    // 标签分片到达：扣住 `<next_in`，放行前面的正文。
+    expect(filter.consume("结尾<next")).toBe("结尾");
+    expect(filter.consume("_input>{\"cand")).toBe("");
+    expect(filter.consume("idates\":[{\"text\":\"下一\",\"confidence\":0.9}]}")).toBe("");
+    expect(filter.finish()).toBe("");
+    // 全文保留供解析。
+    expect(filter.fullText).toBe("回答正文结尾<next_input>{\"candidates\":[{\"text\":\"下一\",\"confidence\":0.9}]}");
   });
 
-  it("超时后拒绝，并把合并后的 signal 交给模型执行面", async () => {
-    let seen: AbortSignal | undefined;
-    const pending = generateInputPredictionCandidates({
-      turns,
-      draft: "",
-      timeoutMs: 10,
-      callModel: (_messages, options) => {
-        seen = options.abortSignal;
-        return new Promise(() => undefined);
-      },
-    });
-    await expect(pending).rejects.toBeDefined();
-    expect(seen?.aborted).toBe(true);
+  it("正文恰好以标签前缀字符结尾时在 finish 冲出", () => {
+    const filter = createNextInputStreamFilter();
+    expect(filter.consume("结果 <n")).toBe("结果 ");
+    expect(filter.finish()).toBe("<n");
+    expect(filter.fullText).toBe("结果 <n");
+  });
+});
+
+describe("parseNextInputPredictionBlock", () => {
+  it("解析尾块并钳制置信度、去重、截到 3 条", () => {
+    const full =
+      '回复正文<next_input>{"candidates":[{"text":"提交","confidence":1.5},{"text":"提交","confidence":0.4},{"text":"看下日志","confidence":0.6}]}</next_input>';
+    expect(parseNextInputPredictionBlock(full)).toEqual([
+      { text: "提交", confidence: 1 },
+      { text: "看下日志", confidence: 0.6 },
+    ]);
+  });
+
+  it("无块或块损坏返回 null", () => {
+    expect(parseNextInputPredictionBlock("没有块的回复")).toBeNull();
+    expect(parseNextInputPredictionBlock("正文<next_input>不是 JSON</next_input>")).toBeNull();
+    expect(parseNextInputPredictionBlock("正文<next_input>{\"candidates\":[]}</next_input>")).toBeNull();
+  });
+});
+
+describe("normalizeInputPredictionDraft", () => {
+  it("纯空白草稿视为无草稿", () => {
+    expect(normalizeInputPredictionDraft("   ")).toBe("");
+    expect(normalizeInputPredictionDraft(undefined)).toBe("");
+    expect(normalizeInputPredictionDraft("帮我")).toBe("帮我");
   });
 });

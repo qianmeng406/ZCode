@@ -96,23 +96,26 @@ function formatTokenCount(value: number, locale: string): string {
   }).format(value);
 }
 
-/** speed = outputTokens / generationDurationMs；分母缺失或为 0 时不展示导数。 */
+/** speed = outputTokens / 纯生成时长（generationDurationMs 扣掉首 token 等待）；不可用时回退墙钟或不出导数。 */
 function formatTokensPerSecond(
   outputTokens: number | undefined,
   generationDurationMs: number | undefined,
+  timeToFirstTokenMs: number | undefined,
   locale: string,
 ): string | null {
-  if (
-    outputTokens === undefined ||
-    outputTokens <= 0 ||
-    generationDurationMs === undefined ||
-    generationDurationMs <= 0
-  ) {
-    return null;
-  }
+  if (outputTokens === undefined || outputTokens <= 0) return null;
+  // 分母口径：generationDurationMs 是请求起点→完成的墙钟（含 TTFT），对推理模型
+  // 会把速度压低一个量级；扣掉 TTFT 才是流式输出阶段的真实速率。
+  const streamingMs =
+    timeToFirstTokenMs !== undefined &&
+    timeToFirstTokenMs > 0 &&
+    timeToFirstTokenMs < generationDurationMs!
+      ? generationDurationMs! - timeToFirstTokenMs
+      : generationDurationMs;
+  if (streamingMs === undefined || streamingMs <= 0) return null;
   return new Intl.NumberFormat(locale, {
     maximumFractionDigits: TOKENS_PER_SECOND_FRACTION_DIGITS,
-  }).format((outputTokens * 1000) / generationDurationMs);
+  }).format((outputTokens * 1000) / streamingMs);
 }
 
 /**
@@ -281,7 +284,12 @@ export const ComposerTurnMetricsCapsule = memo(function ComposerTurnMetricsCapsu
     push(
       "last-request-tokens-per-second",
       label("tokensPerSecond"),
-      formatTokensPerSecond(last.outputTokens, last.generationDurationMs, locale),
+      formatTokensPerSecond(
+        last.outputTokens,
+        last.generationDurationMs,
+        last.timeToFirstTokenMs,
+        locale,
+      ),
       " tok/s",
     );
     push(

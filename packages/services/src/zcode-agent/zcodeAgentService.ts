@@ -7549,7 +7549,6 @@ export function createZCodeAgentService(
             revision: params.revision,
             ...(params.draft !== undefined ? { draft: params.draft } : {}),
             ...(params.requestId !== undefined ? { requestId: params.requestId } : {}),
-            ...(params.selection !== undefined ? { selection: params.selection } : {}),
           },
           v4ConversationInputPredictionResultSchema,
         );

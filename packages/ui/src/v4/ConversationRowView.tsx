@@ -1738,13 +1738,14 @@ const AssistantTextRowView = memo(function AssistantTextRowView({
   const isOfficeMode = useIsOfficeMode();
   const codeCommentCardsEnabled = useAssistantCodeCommentFeatureEnabled();
   const projectsCodeComments = codeCommentCardsEnabled && codeCommentProjectionEnabled === true;
-  const visibleText = useMemo(
-    () =>
-      projectsCodeComments
-        ? projectAssistantCodeComments(row.text, { streaming }).visibleText
-        : row.text,
-    [projectsCodeComments, row.text, streaming],
-  );
+  const visibleText = useMemo(() => {
+    const projected = projectsCodeComments
+      ? projectAssistantCodeComments(row.text, { streaming }).visibleText
+      : row.text;
+    // 输入预测：模型在回复尾部输出的 <next_input> 候选块不进正文。
+    // 流式期间隐藏未闭合块（避免标签原文闪现）；完成态由 CLI 剥离，这里兜底。
+    return hideNextInputBlockTail(projected, streaming);
+  }, [projectsCodeComments, row.text, streaming]);
   const visiblePreviewCards = previewCards && previewCards.length > 0 ? previewCards : null;
   const textElement = useRef<HTMLDivElement>(null);
   const paintFrames = useRef<number[]>([]);
@@ -2596,3 +2597,20 @@ function ConversationRowViewImpl({
 }
 
 export const ConversationRowView = memo(ConversationRowViewImpl);
+
+const NEXT_INPUT_BLOCK_OPEN = "<next_input";
+const NEXT_INPUT_BLOCK_CLOSE = "</next_input>";
+
+/** 隐藏回复尾部的输入预测块：流式未闭合时从开标签截断，完成态兜底剥离整块。 */
+function hideNextInputBlockTail(text: string, streaming: boolean): string {
+  const open = text.lastIndexOf(NEXT_INPUT_BLOCK_OPEN);
+  if (open < 0) return text;
+  const tail = text.slice(open);
+  const close = tail.indexOf(NEXT_INPUT_BLOCK_CLOSE);
+  if (close >= 0) {
+    // 完成态兜底：剥离整块（正常已由 CLI 在完成边界剥离）。
+    return (text.slice(0, open) + tail.slice(close + NEXT_INPUT_BLOCK_CLOSE.length)).trimEnd();
+  }
+  if (!streaming) return text;
+  return text.slice(0, open);
+}
