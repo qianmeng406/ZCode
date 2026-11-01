@@ -68,9 +68,7 @@ import {
 } from "./session-execution.js";
 import { listChildProcesses } from "./process-child-processes.js";
 import { ProtocolRuntimeResources } from "./runtime-resources.js";
-import {
-  ConversationInputPredictionHandler,
-} from "./input-prediction-handler.js";
+import { ConversationInputPredictionHandler } from "./input-prediction-handler.js";
 import {
   readWorkspacePresentation,
   testProviderModelConnectivity,
@@ -913,17 +911,29 @@ export class ZCodeProtocolAgentServer {
         return await getPluginsOverview(this.context, request.params);
       case zcodeProtocolMethods.processChildProcesses:
         return listChildProcesses(this.context.deps.mcpTelemetry?.listProcesses() ?? []);
-      case zcodeProtocolMethods.runtimeCapabilities:
+      case zcodeProtocolMethods.runtimeCapabilities: {
         // fusionContextProfile 只证明执行端支持 contextProfile=fusion；
         // contextProfileState 只证明 standard/minimal，两能力独立判定。
         // betaMode 只证明执行端支持独立工作模式 mode=beta，与上述两位独立判定。
+        // 旧 Host 的严格 schema 不接收新增字段；先协商，再发布目录来源与共享路由（上游 3.17.1，
+        // 合并时被吃掉过一次：缺 sessionWorkspaceRouting 会让共享运行时任务直接报错）。
+        const params = zcodeRuntimeCapabilitiesParamsSchema.parse(request.params ?? {});
+        this.context.sessionDirectorySourceEnabled ||=
+          params.hostCapabilities?.sessionDirectorySource === true;
+        this.context.sessionWorkspaceRoutingEnabled ||=
+          params.hostCapabilities?.sessionWorkspaceRouting === true;
         return {
+          sessionWorkspaceRouting: true,
+          sessionDirectorySource: true,
+          residentRowsRange: true,
+          genUiContext: true,
           independentPlanState: true,
           historyFirst: true,
           contextProfileState: true,
           fusionContextProfile: true,
           betaMode: true,
         };
+      }
       case zcodeProtocolMethods.pluginsMarketplaceAdd:
         return await this.withPluginOperationSignal(request, (signal) =>
           addPluginMarketplace(this.context, request.params, signal),
