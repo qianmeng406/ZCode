@@ -29,6 +29,20 @@ export interface ComposerLastRequestMetrics {
   cacheReadTokens?: number;
 }
 
+/**
+ * 本轮（product turn）的聚合 decode 事实，速度优先用它：
+ * 多步轮次里单步窗口可能只有几十毫秒（工具输入末尾一次性吐出），
+ * 逐请求口径必然时有时无；聚合口径把各步窗口与 token 分别累加再相除（对齐 dsh）。
+ */
+export interface ComposerTurnDecodeTotals {
+  /** 参与聚合的 step 的 outputTokens 之和。 */
+  outputTokens?: number;
+  /** 参与聚合的 step 的墙钟之和。 */
+  generationDurationMs?: number;
+  /** 参与聚合的 step 的 TTFT 之和。 */
+  ttftSumMs?: number;
+}
+
 /** snapshot.usage.cumulative 中本卡片用到的字段（全部是会话级累计）。 */
 export interface ComposerSessionUsage {
   inputTokens?: number;
@@ -44,6 +58,8 @@ export interface ComposerTurnMetricsFact {
   lastRequest?: ComposerLastRequestMetrics;
   /** 上次请求所在的产品轮位置；与 lastRequest 同源，缺一侧事实时不渲染。 */
   lastRequestTurn?: { ordinal: number; step: number };
+  /** 本轮聚合 decode 事实：速度优先按它算（多步轮次稳定）。 */
+  turnDecode?: ComposerTurnDecodeTotals;
 }
 
 export interface TurnMetricsDisplay {
@@ -106,6 +122,7 @@ const STREAMING_WINDOW_MIN_MS = 500;
 
 /**
  * speed = outputTokens /（首 token → 最后一帧）= outputTokens / (generationDurationMs − TTFT)。
+ * 单步口径；多步轮次由调用方传入聚合后的窗口（见 {@link formatAggregatedTokensPerSecond}）。
  * TTFT 缺席（无法界定窗口起点）或窗口过短（计时退化）都不出导数，显示 `--`。
  */
 function formatTokensPerSecond(
@@ -127,6 +144,27 @@ function formatTokensPerSecond(
   return new Intl.NumberFormat(locale, {
     maximumFractionDigits: TOKENS_PER_SECOND_FRACTION_DIGITS,
   }).format((outputTokens * 1000) / streamingMs);
+}
+
+/**
+ * 多步聚合口径（对齐 dsh）：Σdecode 窗口 = Σ墙钟 − ΣTTFT，
+ * 速度 = Σ(带 TTFT 的 step 的 outputTokens) / 该窗口。
+ * 短窗口的单步会被同轮的其它步摊平，因此这里不设下限门槛——
+ * 聚合窗口本身就是可信的（唯一的防线是窗口必须为正）。
+ */
+function formatAggregatedTokensPerSecond(
+  staffOutputTokens: number | undefined,
+  generationDurationMs: number | undefined,
+  ttftSumMs: number | undefined,
+  locale: string,
+): string | null {
+  if (staffOutputTokens === undefined || staffOutputTokens <= 0) return null;
+  if (generationDurationMs === undefined || ttftSumMs === undefined) return null;
+  const streamingMs = generationDurationMs - ttftSumMs;
+  if (streamingMs <= 0) return null;
+  return new Intl.NumberFormat(locale, {
+    maximumFractionDigits: TOKENS_PER_SECOND_FRACTION_DIGITS,
+  }).format((staffOutputTokens * 1000) / streamingMs);
 }
 
 /**
@@ -292,15 +330,26 @@ export const ComposerTurnMetricsCapsule = memo(function ComposerTurnMetricsCapsu
         ? formatDurationMs(last.timeToFirstTokenMs, locale)
         : null,
     );
+    // 速度优先用本轮聚合口径（多步轮次稳定）；聚合事实缺席时退回单请求口径。
+    const turnDecode = fact?.turnDecode;
+    const aggregatedSpeed = turnDecode
+      ? formatAggregatedTokensPerSecond(
+          turnDecode.outputTokens,
+          turnDecode.generationDurationMs,
+          turnDecode.ttftSumMs,
+          locale,
+        )
+      : null;
     push(
       "last-request-tokens-per-second",
       label("tokensPerSecond"),
-      formatTokensPerSecond(
-        last.outputTokens,
-        last.generationDurationMs,
-        last.timeToFirstTokenMs,
-        locale,
-      ),
+      aggregatedSpeed ??
+        formatTokensPerSecond(
+          last.outputTokens,
+          last.generationDurationMs,
+          last.timeToFirstTokenMs,
+          locale,
+        ),
       " tok/s",
     );
     push(
@@ -309,7 +358,7 @@ export const ComposerTurnMetricsCapsule = memo(function ComposerTurnMetricsCapsu
       formatCacheHitRate(last.cacheReadTokens, last.inputTokens, locale),
     );
     return items;
-  }, [fact?.lastRequest, locale, label]);
+  }, [fact?.lastRequest, fact?.turnDecode, locale, label]);
 
   // 会话只有一次请求时，单请求事实与会话累计完全重复，直接隐藏。
   const showLastRequest = lastRequestItems.length > 0 && (fact?.session?.requestCount ?? 2) > 1;

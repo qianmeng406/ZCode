@@ -99,6 +99,14 @@ export const turnHeaderRowSchema = z.object({
   // 主轮 model request 墙钟总和（sum(ModelComplete.timings.generationDurationMs)）。
   // speed 由 UI 按 outputTokens / generationDurationMs 推导；CLI 不落导数避免双写口径漂移。
   generationDurationMs: z.number().nonnegative().optional(),
+  // 速度口径的聚合事实（对齐 dsh 的逐 step decode 窗口）：只统计同时带 TTFT 与
+  // outputTokens 的 main 请求，四字段同口径累计。多步轮次的纯生成时长 =
+  // ttftGenerationDurationMs − requestTtftSumMs，速度 = ttftOutputTokens / 该窗口。
+  // 单步轮次同样适用（窗口与单请求口径一致，但短窗口不会被误判为无事实）。
+  requestTtftSumMs: z.number().nonnegative().optional(),
+  ttftRequestCount: z.number().int().nonnegative().optional(),
+  ttftOutputTokens: z.number().int().nonnegative().optional(),
+  ttftGenerationDurationMs: z.number().nonnegative().optional(),
   // 以下为同轮 usage 明细的累计值：与 outputTokens 同源、同过滤（仅 main_turn），
   // 任一字段全轮缺席时不写 0，UI 按字段缺席渲染不可用。
   inputTokens: z.number().int().nonnegative().optional(),

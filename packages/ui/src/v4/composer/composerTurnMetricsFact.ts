@@ -26,6 +26,10 @@ interface TurnHeaderLike {
     inputTokens?: number;
     cacheReadTokens?: number;
   };
+  /** 本轮聚合 decode 事实（CLI 只统计同时带 TTFT 与 outputTokens 的 step）。 */
+  ttftOutputTokens?: number;
+  ttftGenerationDurationMs?: number;
+  requestTtftSumMs?: number;
 }
 
 interface SessionUsageLike {
@@ -53,6 +57,7 @@ export function deriveComposerTurnMetricsFact(
   const session = pickSessionUsage(usage);
   let lastRequest: ComposerTurnMetricsFact["lastRequest"];
   let lastRequestTurn: ComposerTurnMetricsFact["lastRequestTurn"];
+  let turnDecode: ComposerTurnMetricsFact["turnDecode"];
   if (rows) {
     for (let index = rows.length - 1; index >= 0; index -= 1) {
       const row = rows[index];
@@ -65,6 +70,14 @@ export function deriveComposerTurnMetricsFact(
       if (row.turnOrdinal !== undefined && step !== undefined && step > 0) {
         lastRequestTurn = { ordinal: row.turnOrdinal, step };
       }
+      // 聚合 decode 事实同源同一个 turnHeader：多步轮次的速度靠它才稳定。
+      if (row.ttftOutputTokens !== undefined && row.ttftGenerationDurationMs !== undefined) {
+        turnDecode = {
+          outputTokens: row.ttftOutputTokens,
+          generationDurationMs: row.ttftGenerationDurationMs,
+          ...(row.requestTtftSumMs !== undefined ? { ttftSumMs: row.requestTtftSumMs } : {}),
+        };
+      }
       break;
     }
   }
@@ -73,5 +86,6 @@ export function deriveComposerTurnMetricsFact(
     ...(session ? { session } : {}),
     ...(lastRequest ? { lastRequest } : {}),
     ...(lastRequestTurn ? { lastRequestTurn } : {}),
+    ...(turnDecode ? { turnDecode } : {}),
   };
 }

@@ -96,6 +96,27 @@ describe("ComposerTurnMetricsCapsule", () => {
     expect(item(degenerate.container, "last-request-tokens-per-second")).toBeNull();
   });
 
+  it("uses the turn-aggregated decode window when the single step is too short", () => {
+    // 线上案例（第 43 轮第 7 步）：单步窗口 18ms（工具输入末尾一次性吐出），
+    // 但本轮聚合 3 步：Σ墙钟 40_000ms、ΣTTFT 10_000ms、Σtoken 900
+    // → 聚合窗口 30_000ms → 30 tok/s。速度必须来自聚合口径而不是单步。
+    const { container } = renderCapsule({
+      session: sessionUsage,
+      lastRequest: {
+        outputTokens: 333,
+        generationDurationMs: 6_541,
+        timeToFirstTokenMs: 6_523,
+      },
+      lastRequestTurn,
+      turnDecode: {
+        outputTokens: 900,
+        generationDurationMs: 40_000,
+        ttftSumMs: 10_000,
+      },
+    });
+    expect(item(container, "last-request-tokens-per-second")?.textContent).toContain("30");
+  });
+
   it("omits the speed item when the streaming window is implausibly short", () => {
     // 线上案例：TTFT 13s、窗口仅 0.3s，差值除出 26,809.5 tok/s 的荒谬值。
     // 流式窗口 < 500ms 视为计时退化（非流式回落/输出瞬间涌出）→ 不出导数。
@@ -244,6 +265,25 @@ describe("deriveComposerTurnMetricsFact", () => {
       session: sessionUsage,
       lastRequest,
       lastRequestTurn,
+    });
+  });
+
+  it("carries the turn-aggregated decode facts alongside the single request", () => {
+    const headerWithDecode = {
+      ...completedHeader,
+      ttftOutputTokens: 900,
+      ttftGenerationDurationMs: 40_000,
+      requestTtftSumMs: 10_000,
+    };
+    expect(deriveComposerTurnMetricsFact([headerWithDecode], usage)).toEqual({
+      session: sessionUsage,
+      lastRequest,
+      lastRequestTurn,
+      turnDecode: {
+        outputTokens: 900,
+        generationDurationMs: 40_000,
+        ttftSumMs: 10_000,
+      },
     });
   });
 

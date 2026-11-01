@@ -2225,9 +2225,7 @@ export class ProductProjection {
       origin: fact.turnHeaderOrigin,
       executionKind: fact.executionKind,
       // 只看可见轮：模型内部轮不占号，避免用户看到的时间线轮次被系统轮插空。
-      ...(fact.visibility === "visible"
-        ? { turnOrdinal: this.nextVisibleTurnOrdinal() }
-        : {}),
+      ...(fact.visibility === "visible" ? { turnOrdinal: this.nextVisibleTurnOrdinal() } : {}),
       ...(fact.sourceCommandId ? { sourceCommandId: fact.sourceCommandId } : {}),
       ...(fact.originMeta ? { originMeta: fact.originMeta } : {}),
       ...(fact.workflowLaunch ? { workflowLaunch: fact.workflowLaunch } : {}),
@@ -5714,6 +5712,10 @@ export class ProductProjection {
       | "cacheWriteTokens"
       | "requestCount"
       | "lastRequest"
+      | "requestTtftSumMs"
+      | "ttftRequestCount"
+      | "ttftOutputTokens"
+      | "ttftGenerationDurationMs"
     >
   > {
     const usage = payload.usage as ModelUsage;
@@ -5730,6 +5732,10 @@ export class ProductProjection {
         | "cacheWriteTokens"
         | "requestCount"
         | "lastRequest"
+        | "requestTtftSumMs"
+        | "ttftRequestCount"
+        | "ttftOutputTokens"
+        | "ttftGenerationDurationMs"
       >
     > = { requestCount: (headerRow.requestCount ?? 0) + 1 };
     // 缺席字段保持缺席：全轮都没有 usage 时不能把 0 写成"真实用量"。
@@ -5775,6 +5781,22 @@ export class ProductProjection {
     if (timings?.generationDurationMs !== undefined && timings.generationDurationMs >= 0) {
       patch.generationDurationMs =
         (headerRow.generationDurationMs ?? 0) + timings.generationDurationMs;
+    }
+    // 速度口径（对齐 dsh assistantStepReading）：逐 step 求 decode 窗口
+    // = 墙钟 − 该步 TTFT，再分别累加窗口与 token 后相除。多步轮次因此不会被
+    // 单步的短窗口（工具输入末尾一次性吐出，窗口几十毫秒）带偏。
+    // 分子分母必须同口径：只统计「同时带 TTFT 与 outputTokens」的请求。
+    if (
+      requestTtftMs !== undefined &&
+      usage.outputTokens !== undefined &&
+      timings?.generationDurationMs !== undefined &&
+      timings.generationDurationMs >= requestTtftMs
+    ) {
+      patch.requestTtftSumMs = (headerRow.requestTtftSumMs ?? 0) + requestTtftMs;
+      patch.ttftRequestCount = (headerRow.ttftRequestCount ?? 0) + 1;
+      patch.ttftOutputTokens = (headerRow.ttftOutputTokens ?? 0) + usage.outputTokens;
+      patch.ttftGenerationDurationMs =
+        (headerRow.ttftGenerationDurationMs ?? 0) + timings.generationDurationMs;
     }
     return patch;
   }
