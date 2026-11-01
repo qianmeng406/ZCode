@@ -778,7 +778,8 @@ async function runModelBackedTurnStepImpl(
         ? { contextUsageBreakdown: result.contextUsageBreakdown }
         : {}),
       toolCallCount: toolCalls.length,
-      // 真实请求耗时事实与 usage-observability 同口径（首 delta 事件时间戳）。
+      // 真实请求耗时事实与 usage-observability 同口径（首 delta 事件时间戳，
+      // 含 tool_input 流——纯工具调用步也有首 token）。
       // UI 不得用浏览器时钟或字符数近似；缺首 token 时 firstTokenAt 缺省 → UI 显示不可用。
       ...(querySource === "main_turn"
         ? { timings: modelStepTimings(state.events, networkEventStartIndex, modelStartedAt) }
@@ -980,8 +981,9 @@ async function recoverModelStepAfterContextExceeded(
  * 单个 model step 的真实耗时事实（ModelComplete.timings）。
  *
  * 口径与 usage-observability 完全一致：firstTokenAt 读取持久化 ModelStreaming 的首个
- * 非 空 text/reasoning delta 事件时间戳，不用浏览器时钟近似。startedAt/generationMs
- * 来自本 step 的不可变快照（切模后读 Session Selection 会把旧请求归到新模型）。
+ * 非空 text/reasoning/tool_input delta（或 tool_input_start）事件时间戳，不用浏览器
+ * 时钟近似。startedAt/generationMs 来自本 step 的不可变快照（切模后读 Session
+ * Selection 会把旧请求归到新模型）。
  */
 function modelStepTimings(
   events: readonly SessionEvent[],

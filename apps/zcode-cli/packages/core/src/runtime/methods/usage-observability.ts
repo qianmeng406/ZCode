@@ -379,8 +379,13 @@ export function firstModelTokenAt(
   for (const event of events.slice(startIndex)) {
     if (event.type !== SessionEventType.ModelStreaming) continue;
     const payload = event.payload as { delta?: string; kind?: string };
+    // 工具调用步只流 tool_input_*：首 token 事实不能只看文本/推理，
+    // 否则纯工具步在指标胶囊里会整体缺失「首 token」项（用户看到的"首 token 丢失"）。
+    if (payload.kind === "tool_input_start") return event.timestamp.getTime();
     if (
-      (payload.kind === "text_delta" || payload.kind === "reasoning_delta") &&
+      (payload.kind === "text_delta" ||
+        payload.kind === "reasoning_delta" ||
+        payload.kind === "tool_input_delta") &&
       payload.delta &&
       payload.delta.length > 0
     ) {
