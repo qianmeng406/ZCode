@@ -96,6 +96,13 @@ function formatTokenCount(value: number, locale: string): string {
   }).format(value);
 }
 
+/**
+ * 流式窗口下限：首 token 之后的输出窗口短于该值时差值不可信
+ * （非流式回落 / 首 token 迟到后输出瞬间涌出），除出来会是几万 tok/s 的荒谬值
+ * （2026-11-01 线上：TTFT 13s、窗口 0.3s → 26,809.5 tok/s），此时回退墙钟口径。
+ */
+const STREAMING_WINDOW_MIN_MS = 500;
+
 /** speed = outputTokens / 纯生成时长（generationDurationMs 扣掉首 token 等待）；不可用时回退墙钟或不出导数。 */
 function formatTokensPerSecond(
   outputTokens: number | undefined,
@@ -112,10 +119,15 @@ function formatTokensPerSecond(
     timeToFirstTokenMs < generationDurationMs!
       ? generationDurationMs! - timeToFirstTokenMs
       : generationDurationMs;
-  if (streamingMs === undefined || streamingMs <= 0) return null;
+  // 流式窗口过短不可信 → 回退墙钟；墙钟也不可用时不出导数。
+  const denominatorMs =
+    streamingMs !== undefined && streamingMs >= STREAMING_WINDOW_MIN_MS
+      ? streamingMs
+      : generationDurationMs;
+  if (denominatorMs === undefined || denominatorMs <= 0) return null;
   return new Intl.NumberFormat(locale, {
     maximumFractionDigits: TOKENS_PER_SECOND_FRACTION_DIGITS,
-  }).format((outputTokens * 1000) / streamingMs);
+  }).format((outputTokens * 1000) / denominatorMs);
 }
 
 /**

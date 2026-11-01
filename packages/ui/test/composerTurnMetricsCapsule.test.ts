@@ -98,6 +98,34 @@ describe("ComposerTurnMetricsCapsule", () => {
     );
   });
 
+  it("falls back to the wall-clock denominator when the streaming window is implausibly short", () => {
+    // 线上案例：TTFT 13s、窗口仅 0.3s，差值除出 26,809.5 tok/s 的荒谬值。
+    // 流式窗口 < 500ms 不可信 → 回退墙钟：8212 tok / 13300ms ≈ 617.4 tok/s。
+    const burst = renderCapsule({
+      session: sessionUsage,
+      lastRequest: {
+        outputTokens: 8_212,
+        generationDurationMs: 13_300,
+        timeToFirstTokenMs: 13_000,
+      },
+      lastRequestTurn,
+    });
+    expect(item(burst.container, "last-request-tokens-per-second")?.textContent).toContain("617.4");
+    // 窗口恰达下限（500ms）时仍用纯生成口径：100 tok / 500ms = 200 tok/s。
+    const boundary = renderCapsule({
+      session: sessionUsage,
+      lastRequest: {
+        outputTokens: 100,
+        generationDurationMs: 1_500,
+        timeToFirstTokenMs: 1_000,
+      },
+      lastRequestTurn,
+    });
+    expect(item(boundary.container, "last-request-tokens-per-second")?.textContent).toContain(
+      "200",
+    );
+  });
+
   it("shows -- placeholders for every session segment instead of estimates", () => {
     const { container } = renderCapsule({});
     for (const key of ["input-tokens", "output-tokens", "cache-hit-rate"]) {
