@@ -53,6 +53,7 @@ import type {
   CommandAck,
   CommandEnvelope,
   CommandType,
+  ConversationRow,
   ConversationSnapshot,
   ConversationRowTarget,
   SessionErrorInfo,
@@ -2019,6 +2020,10 @@ export function SessionPane({
   const [sessionHandoffOpen, setSessionHandoffOpen] = useState(false);
   // 交接摘要要覆盖完整历史：全量补拉结束前先让对话框等一等，避免只摘要最近一窗。
   const [sessionHandoffHistoryLoaded, setSessionHandoffHistoryLoaded] = useState(false);
+  // 历史就绪那一刻冻结行快照：收纳（窗口软上限 400 行）在 fullHistoryJob 结束后
+  // 会在下一帧重新生效，活引用会让稍晚点「生成摘要」时材料缩水到最近一窗。
+  const [sessionHandoffRows, setSessionHandoffRows] = useState<ConversationRow[] | null>(null);
+  const sessionHandoffRowsCapturedRef = useRef(false);
   const [memoryCaptureWorkspaceId, setMemoryCaptureWorkspaceId] = useState<string | null>(null);
   // 防重复派发用 ref：行按钮不展示 pending 态（结果只经 toast 与预览对话框反馈）。
   const memoryCaptureInFlightRef = useRef(false);
@@ -5351,6 +5356,8 @@ export function SessionPane({
 
   const handleRequestSessionHandoff = useCallback(() => {
     setSessionHandoffHistoryLoaded(false);
+    setSessionHandoffRows(null);
+    sessionHandoffRowsCapturedRef.current = false;
     setSessionHandoffOpen(true);
     // 交接需要完整历史；与分享同属「完整提交」需求方，不会被导航的短路优化吞掉。
     void (lease?.store.loadAllOlder({ consumer: "handoff" }) ?? Promise.resolve())
@@ -5368,6 +5375,14 @@ export function SessionPane({
   const clearSessionHandoffOpenRequest = useZCodeSessionStore(
     (store) => store.clearSessionHandoffOpenRequest,
   );
+  useEffect(() => {
+    if (!sessionHandoffOpen || !sessionHandoffHistoryLoaded) return;
+    if (sessionHandoffRowsCapturedRef.current) return;
+    // 冻结一次：后续流式/收纳都不再改写交接材料。
+    sessionHandoffRowsCapturedRef.current = true;
+    setSessionHandoffRows(snapshot?.rows.window ?? []);
+  }, [sessionHandoffOpen, sessionHandoffHistoryLoaded, snapshot]);
+
   useEffect(() => {
     const request = sessionHandoffOpenRequest;
     if (!request || request.sessionId !== sessionId) return;
@@ -6892,7 +6907,7 @@ export function SessionPane({
       <SessionHandoffDialog
         open={sessionHandoffOpen}
         onClose={() => setSessionHandoffOpen(false)}
-        rows={snapshot?.rows.window ?? []}
+        rows={sessionHandoffRows ?? []}
         title={snapshot?.meta.title ?? sessionId ?? "session"}
         workspacePath={workspacePath}
         {...(workspaceIdentity ? { workspaceIdentity } : {})}

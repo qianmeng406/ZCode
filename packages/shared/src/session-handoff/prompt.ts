@@ -14,6 +14,9 @@ const DETERMINISTIC_TOOL_LINES_MAX = 30;
 // 完整输入动辄几百字符，会把交接文档和模型预算都吃在参数原文上。
 const TOOL_TARGET_MAX_CHARS = 200;
 const TOOL_OUTPUT_MAX_CHARS = 800;
+// 单条用户/助手消息同样封顶：一条粘贴的大日志能独占整个预算，且预算裁剪
+// 循环「至少保留最后一条」——单条超预算时整个文档必然超预算。
+const USER_ASSISTANT_MAX_CHARS = 6_000;
 
 export interface SessionHandoffOptions {
   /** 正文字符预算；超出时丢弃更早的条目并保留最近内容。 */
@@ -69,12 +72,12 @@ function rowEntries(rows: readonly ConversationRow[], includeTools: boolean): Tr
   for (const row of rows) {
     if (row.kind === "userInput") {
       if (!row.text.trim()) continue;
-      entries.push({ heading: "用户", body: row.text.trim() });
+      entries.push({ heading: "用户", body: clip(row.text, USER_ASSISTANT_MAX_CHARS) });
       continue;
     }
     if (row.kind === "assistantText") {
       if (!row.text.trim()) continue;
-      entries.push({ heading: "助手", body: row.text.trim() });
+      entries.push({ heading: "助手", body: clip(row.text, USER_ASSISTANT_MAX_CHARS) });
       continue;
     }
     if (row.kind === "toolCall" && includeTools) {
@@ -131,6 +134,10 @@ export function buildSessionHandoffPrompt(transcript: string, title: string): st
     "- 只写材料里有依据的内容；不确定的写「待确认」，不要编造。",
     "- 文件、命令、测试名尽量原样保留。",
     "- 「下一步」给出可执行的 1-3 条。",
+    "- 全文控制在 1000 字以内；逐条列工具调用属于复盘，不要写。",
+    "- 材料开头的「[... 更早的会话内容已省略 ...]」表示更早内容未提供：",
+    "  摘要只基于给出的材料；若明显缺少关键上下文，在「阻塞与风险」里写",
+    "  「更早上下文未包含在材料中」，不要推测被省略的内容。",
     "",
     "会话材料：",
     transcript,

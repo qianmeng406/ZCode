@@ -64,6 +64,14 @@ describe("session handoff transcript", () => {
     expect(text).not.toContain("内部推理");
   });
 
+  it("clips oversized user/assistant entries so one paste cannot own the budget", () => {
+    const huge = "很长的日志".repeat(2000); // 10000 chars
+    const text = buildSessionHandoffTranscript([user(huge), user("最近的请求")]);
+    expect(text).toContain("很长的日志");
+    expect(text.length).toBeLessThan(9000);
+    expect(text).toContain("最近的请求");
+  });
+
   it("keeps tool entries compact: locate target only, no raw parameter JSON", () => {
     const text = buildSessionHandoffTranscript([
       tool(
