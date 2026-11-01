@@ -220,7 +220,9 @@ export function SessionHandoffDialog({
       cancelGeneration();
       return;
     }
-    // 重新打开回到占位状态：不自动填充模板、不自动调模型，一切等按钮显式触发。
+    // 重新打开回到默认状态：模式归位「智能摘要」、内容清空，不自动填充模板、
+    // 不自动调模型，一切等按钮显式触发。
+    setMode("summary");
     setStatus("idle");
     setContent("");
   }, [open, cancelGeneration]);
