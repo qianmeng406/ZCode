@@ -113,13 +113,16 @@ export function SessionHandoffDialog({
   const [copied, setCopied] = useState(false);
   const [notice, setNotice] = useState<"copyFailed" | "saveFailed" | null>(null);
   const [fallbackReason, setFallbackReason] = useState<"no-model" | "error" | null>(null);
-  const [edited, setEdited] = useState(false);
   const text = (id: string) => intl.formatMessage({ id });
 
   const deterministic = useMemo(
     () => buildDeterministicHandoffMarkdown(rows, title),
     [rows, title],
   );
+
+  // 交接是显式动作：智能摘要不自动调用模型，等用户点「生成摘要」。
+  const generationSeqRef = useRef(0);
+  const operationIdRef = useRef<string | null>(null);
 
   const generateSummary = useCallback(async () => {
     const agentService = services?.zcodeAgentService;
@@ -180,10 +183,16 @@ export function SessionHandoffDialog({
     workspacePath,
   ]);
 
-  // 交接是显式动作：智能摘要不自动调用模型，等用户点「生成摘要」。
-  // 打开时只取消可能还在飞的上一轮请求，避免模型调用在后台空跑。
-  const generationSeqRef = useRef(0);
-  const operationIdRef = useRef<string | null>(null);
+  const generate = useCallback(() => {
+    if (mode === "full") {
+      generationSeqRef.current += 1;
+      setContent(deterministic);
+      setFallbackReason(null);
+      setStatus("ready");
+      return;
+    }
+    void generateSummary();
+  }, [deterministic, generateSummary, mode]);
 
   /** 取消在飞生成：先失效序号（迟到结果丢弃），再通知后端精确取消。 */
   const cancelGeneration = useCallback(() => {
@@ -204,20 +213,17 @@ export function SessionHandoffDialog({
 
   useEffect(() => {
     if (!open) {
-      setEdited(false);
       setFallbackReason(null);
       setNotice(null);
       setCopied(false);
       // 关闭即取消在飞生成；已生成/已编辑的内容保留，误关后不用重做。
       cancelGeneration();
+      return;
     }
+    // 重新打开回到占位状态：不自动填充模板、不自动调模型，一切等按钮显式触发。
+    setStatus("idle");
+    setContent("");
   }, [open, cancelGeneration]);
-
-  // 完整导出是确定性模板：历史继续补拉/流式增长时刷新内容，但不覆盖用户编辑。
-  useEffect(() => {
-    if (!open || mode !== "full" || edited) return;
-    setContent(deterministic);
-  }, [open, mode, deterministic, edited]);
 
   const copy = useCallback(async () => {
     if (!content) return;
@@ -300,13 +306,15 @@ export function SessionHandoffDialog({
               type="button"
               size="sm"
               variant="ghost"
-              onClick={() => void generateSummary()}
-              disabled={mode === "full" || !historyLoaded}
+              onClick={generate}
+              disabled={!historyLoaded}
               data-testid="v4-session-handoff-generate"
             >
-              {status === "idle" && !content
-                ? text("sessionHandoff.generate")
-                : text("sessionHandoff.regenerate")}
+              {mode === "full"
+                ? text("sessionHandoff.generateFull")
+                : status === "idle" && !content
+                  ? text("sessionHandoff.generate")
+                  : text("sessionHandoff.regenerate")}
             </Button>
           )}
         </div>
@@ -344,7 +352,6 @@ export function SessionHandoffDialog({
           onChange={(event) => {
             setContent(event.target.value);
             setStatus("ready");
-            setEdited(true);
             setCopied(false);
             setNotice(null);
           }}

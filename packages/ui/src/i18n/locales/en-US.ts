@@ -786,6 +786,7 @@ const enUS: Record<string, string> = {
   "sessionHandoff.mode.full": "Full export",
   "sessionHandoff.regenerate": "Regenerate",
   "sessionHandoff.generate": "Generate summary",
+  "sessionHandoff.generateFull": "Generate full export",
   "sessionHandoff.loadingHistory": "Loading the full session history...",
   "sessionHandoff.cancel": "Cancel generation",
   "sessionHandoff.fallback": "Model summary unavailable; fell back to the full export.",

@@ -64,9 +64,13 @@ function renderDialog(overrides: Partial<Parameters<typeof SessionHandoffDialog>
   return { onClose };
 }
 
-/** 打开后手动点「生成摘要」；historyLoaded 默认 true 时按钮才可用。 */
+/** 一切手动：点「完整导出」切模式，再点生成按钮。 */
 function clickGenerate() {
   fireEvent.click(screen.getByTestId("v4-session-handoff-generate"));
+}
+
+function contentValue(): string {
+  return (screen.getByTestId("v4-session-handoff-content") as HTMLTextAreaElement).value;
 }
 
 afterEach(() => {
@@ -75,39 +79,39 @@ afterEach(() => {
 });
 
 describe("SessionHandoffDialog", () => {
-  it("does not call the model until the user clicks 生成摘要", () => {
+  it("does not fill anything until the user clicks generate", () => {
     const generateWorkspaceText = vi.fn(async () => ({ text: "# 摘要" }));
     render(
       dialogElement({ selection: SELECTION }, { zcodeAgentService: { generateWorkspaceText } }),
     );
-    // 打开即停在占位状态，不自动调用模型。
-    expect((screen.getByTestId("v4-session-handoff-content") as HTMLTextAreaElement).value).toBe(
-      "",
-    );
+    expect(contentValue()).toBe("");
     expect(generateWorkspaceText).not.toHaveBeenCalled();
     expect(screen.getByTestId("v4-session-handoff-generate").textContent).toContain("生成摘要");
   });
 
-  it("falls back to the deterministic export without a model", async () => {
-    renderDialog();
-    clickGenerate();
-    expect(await screen.findByTestId("v4-session-handoff-fallback")).toBeTruthy();
-    const content = screen.getByTestId("v4-session-handoff-content") as HTMLTextAreaElement;
-    expect(content.value).toContain("# 会话交接：登录修复");
-    expect(content.value).toContain("修复登录");
-  });
-
-  it("switches to the full export without calling a model", async () => {
+  it("switching to full export does not auto-fill either", () => {
     renderDialog();
     fireEvent.click(screen.getByText("完整导出"));
-    await waitFor(() => {
-      const content = screen.getByTestId("v4-session-handoff-content") as HTMLTextAreaElement;
-      expect(content.value).toContain("## 会话内容");
-    });
-    expect(screen.queryByTestId("v4-session-handoff-fallback")).toBeNull();
+    expect(contentValue()).toBe("");
+    expect(screen.getByTestId("v4-session-handoff-generate").textContent).toContain("生成完整导出");
   });
 
-  it("lets the user edit the exported markdown", async () => {
+  it("generates the full export on demand without a model", () => {
+    renderDialog();
+    fireEvent.click(screen.getByText("完整导出"));
+    clickGenerate();
+    expect(contentValue()).toContain("# 会话交接：登录修复");
+    expect(contentValue()).toContain("## 会话内容");
+  });
+
+  it("falls back to the deterministic export when no model is available", () => {
+    renderDialog();
+    clickGenerate();
+    expect(screen.getByTestId("v4-session-handoff-fallback").textContent).toContain("没有可用模型");
+    expect(contentValue()).toContain("修复登录");
+  });
+
+  it("lets the user edit the exported markdown", () => {
     renderDialog();
     const content = screen.getByTestId("v4-session-handoff-content") as HTMLTextAreaElement;
     fireEvent.change(content, { target: { value: "自定义交接" } });
@@ -159,8 +163,7 @@ describe("SessionHandoffDialog", () => {
     const cancelButton = await screen.findByTestId("v4-session-handoff-cancel");
     fireEvent.click(cancelButton);
 
-    const content = screen.getByTestId("v4-session-handoff-content") as HTMLTextAreaElement;
-    expect(content.value).toBe("");
+    expect(contentValue()).toBe("");
     expect(screen.queryByTestId("v4-session-handoff-cancel")).toBeNull();
     expect(cancelWorkspaceGenerateText).toHaveBeenCalledWith(
       expect.objectContaining({
@@ -173,7 +176,7 @@ describe("SessionHandoffDialog", () => {
     await act(async () => {
       resolveGeneration({ text: "# 迟到摘要" });
     });
-    expect(content.value).not.toContain("迟到摘要");
+    expect(contentValue()).not.toContain("迟到摘要");
   });
 
   it("downloads the markdown when there is no native save dialog", async () => {
@@ -186,11 +189,8 @@ describe("SessionHandoffDialog", () => {
     try {
       renderDialog();
       fireEvent.click(screen.getByText("完整导出"));
-      await waitFor(() => {
-        expect(
-          (screen.getByTestId("v4-session-handoff-content") as HTMLTextAreaElement).value,
-        ).toContain("## 会话内容");
-      });
+      clickGenerate();
+      await waitFor(() => expect(contentValue()).toContain("## 会话内容"));
       fireEvent.click(screen.getByText("保存 Markdown"));
       await waitFor(() => expect(click).toHaveBeenCalledTimes(1));
       expect(createObjectURL).toHaveBeenCalledTimes(1);
@@ -209,11 +209,8 @@ describe("SessionHandoffDialog", () => {
     });
     renderDialog();
     fireEvent.click(screen.getByText("完整导出"));
-    await waitFor(() => {
-      expect(
-        (screen.getByTestId("v4-session-handoff-content") as HTMLTextAreaElement).value,
-      ).toContain("## 会话内容");
-    });
+    clickGenerate();
+    await waitFor(() => expect(contentValue()).toContain("## 会话内容"));
     fireEvent.click(screen.getByText("保存 Markdown"));
     expect(await screen.findByTestId("v4-session-handoff-saveFailed")).toBeTruthy();
   });
@@ -221,11 +218,8 @@ describe("SessionHandoffDialog", () => {
   it("reports copy failure instead of silently doing nothing", async () => {
     renderDialog();
     fireEvent.click(screen.getByText("完整导出"));
-    await waitFor(() => {
-      expect(
-        (screen.getByTestId("v4-session-handoff-content") as HTMLTextAreaElement).value,
-      ).toContain("## 会话内容");
-    });
+    clickGenerate();
+    await waitFor(() => expect(contentValue()).toContain("## 会话内容"));
     fireEvent.click(screen.getByText("复制"));
     expect(await screen.findByTestId("v4-session-handoff-copyFailed")).toBeTruthy();
   });

@@ -720,6 +720,7 @@ const zhCN: Record<string, string> = {
   "sessionHandoff.mode.full": "完整导出",
   "sessionHandoff.regenerate": "重新生成",
   "sessionHandoff.generate": "生成摘要",
+  "sessionHandoff.generateFull": "生成完整导出",
   "sessionHandoff.loadingHistory": "正在读取完整会话历史...",
   "sessionHandoff.cancel": "取消生成",
   "sessionHandoff.fallback": "模型摘要不可用，已回落到完整导出。",
