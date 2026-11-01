@@ -367,7 +367,7 @@ export function SessionHandoffDialog({
             setCopied(false);
             setNotice(null);
           }}
-          className="min-h-[320px] font-mono text-ui-sm"
+          className="min-h-[320px] max-h-[min(60vh,36rem)] overflow-y-auto font-mono text-ui-sm"
           placeholder={text("sessionHandoff.placeholder")}
           data-testid="v4-session-handoff-content"
         />
