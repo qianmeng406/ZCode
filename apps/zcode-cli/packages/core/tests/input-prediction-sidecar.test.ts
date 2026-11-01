@@ -155,7 +155,10 @@ describe("上下文与提示词", () => {
     expect(context).toContain("问题2");
     expect(context).toContain("（无回复）");
     expect(context).toContain(`${"长".repeat(800)}…`);
-    expect(buildInputPredictionContext(many, { totalMaxChars: 20 })).toHaveLength(20);
+    const trimmed = buildInputPredictionContext(many, { totalMaxChars: 20 });
+    // 切点对齐轮次边界并带省略标记：不会以半句开头。
+    expect(trimmed).toContain("（更早的上下文已省略）");
+    expect(trimmed).toMatch(/^(（更早的上下文已省略）\n)?(用户：|助手：)/u);
   });
 
   it("草稿模式换提示词并附草稿；纯空白草稿视为无草稿", () => {
@@ -173,9 +176,9 @@ describe("generateInputPredictionCandidates", () => {
     const callModel = vi.fn<InputPredictionModelCall>(async () => ({
       text: '{"candidates":[{"text":"提交","confidence":0.9}]}',
     }));
-    await expect(generateInputPredictionCandidates({ turns, draft: "", callModel })).resolves.toEqual(
-      [{ text: "提交", confidence: 0.9 }],
-    );
+    await expect(
+      generateInputPredictionCandidates({ turns, draft: "", callModel }),
+    ).resolves.toEqual([{ text: "提交", confidence: 0.9 }]);
     expect(callModel.mock.calls[0]![1].querySource).toBe(INPUT_PREDICTION_QUERY_SOURCE);
   });
 

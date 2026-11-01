@@ -65,6 +65,9 @@ const NEXT_INPUT_SYSTEM_PROMPT = `你是输入预测器。根据下面的多轮�
 规则：
 - 恰好生成 3 个候选，按把握从高到低排列。
 - 每个候选是一句用户自己会说的话（追问、指令、确认等语气），单行，不超过 ${INPUT_PREDICTION_MAX_TEXT_CHARS} 个字，语言与用户一致，不要像助手的回复。
+- 候选之间要有区分度：覆盖不同的意图方向（如追问细节 / 提出新指令 / 确认推进），不要只是换个说法。
+- 不要预测与上下文里用户最近已发送内容雷同的输入；那类候选会被丢弃。
+- 上下文按时间正序排列，开头可能是被截断的更早内容；预测只基于给出的材料。
 ${CONFIDENCE_RULE}
 ${OUTPUT_FORMAT_RULE}`;
 
@@ -77,6 +80,8 @@ const DRAFT_SYSTEM_PROMPT = `你是输入补全器。根据下面的多轮对话
 - 恰好生成 3 个候选，按把握从高到低排列。
 - text 只写接在草稿末尾之后的新内容，不要重复草稿本身；单行，不超过 ${INPUT_PREDICTION_MAX_TEXT_CHARS} 个字，语言与草稿一致。
 - 如果草稿末尾是半个词，text 从这个词剩下的部分开始写。
+- 候选之间要有区分度，不要只是换个说法。
+- 上下文按时间正序排列，开头可能是被截断的更早内容；补全只基于给出的材料。
 ${CONFIDENCE_RULE}
 ${OUTPUT_FORMAT_RULE}`;
 
@@ -87,7 +92,9 @@ export function normalizeInputPredictionDraft(draft: string | undefined): string
 
 /** 当前模式需要的最少真实用户输入轮数。 */
 export function inputPredictionMinTurns(draft: string): number {
-  return draft.length > 0 ? INPUT_PREDICTION_DRAFT_MIN_TURNS : INPUT_PREDICTION_NEXT_INPUT_MIN_TURNS;
+  return draft.length > 0
+    ? INPUT_PREDICTION_DRAFT_MIN_TURNS
+    : INPUT_PREDICTION_NEXT_INPUT_MIN_TURNS;
 }
 
 /** 组装上下文：最近 N 轮，用户全文 + 助手截断，总预算从最旧处截断。 */
@@ -101,12 +108,28 @@ export function buildInputPredictionContext(
   const blocks = turns.slice(-maxTurns).map((turn) => {
     const assistant = turn.assistantText ?? "";
     const bounded =
-      assistant.length > assistantMaxChars ? `${assistant.slice(0, assistantMaxChars)}…` : assistant;
+      assistant.length > assistantMaxChars
+        ? `${assistant.slice(0, assistantMaxChars)}…`
+        : assistant;
     return `用户：${turn.userText}\n助手：${bounded || "（无回复）"}`;
   });
   const text = blocks.join("\n\n");
-  // 保留最新上下文：超预算时丢最旧的部分。
-  return text.length > totalMaxChars ? text.slice(text.length - totalMaxChars) : text;
+  // 保留最新上下文：超预算时丢最旧的部分，切点对齐到轮次边界，
+  // 避免模型看到以半句话开头的材料。
+  if (text.length <= totalMaxChars) return text;
+  const rawCut = text.length - totalMaxChars;
+  // 切点必须落在轮次边界：优先向后找下一个边界；没有（切点在最后一个块内）
+  // 就向前回退到上一个边界，丢弃残块——保证材料开头永远是干净的轮次开头。
+  const nextBoundary = text.indexOf("\n\n", rawCut);
+  let cut =
+    nextBoundary >= 0
+      ? nextBoundary + 2
+      : (() => {
+          const previous = text.lastIndexOf("\n\n", rawCut);
+          return previous >= 0 ? previous + 2 : 0;
+        })();
+  while (text[cut] === "\n") cut += 1;
+  return `（更早的上下文已省略）\n${text.slice(cut)}`;
 }
 
 /** 模型输入：system 提示词 + user 上下文（草稿模式附上草稿）。 */
@@ -130,7 +153,8 @@ export function buildInputPredictionMessages(
 /** JSON 清洗容错：剥 think 段、code fence、尾逗号、前后说明文字。 */
 export function parseInputPredictionResponse(raw: string): InputPredictionCandidate[] | null {
   const withoutThinking = raw.replace(/<think>[\s\S]*?<\/think>/gi, "").trim();
-  const parsed = tryParseCandidates(withoutThinking) ?? tryParseCandidates(stripJsonArtifacts(withoutThinking));
+  const parsed =
+    tryParseCandidates(withoutThinking) ?? tryParseCandidates(stripJsonArtifacts(withoutThinking));
   if (!parsed) return null;
   const cleaned = parsed.filter(
     (candidate) => candidate.text.length > 0 && Number.isFinite(candidate.confidence),
