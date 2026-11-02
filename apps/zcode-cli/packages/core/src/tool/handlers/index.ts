@@ -57,6 +57,7 @@ import {
 import { askUserQuestionToolEntry } from "./ask-user-question.js";
 import { sendMessageToolEntry } from "./send-message.js";
 import { respondToCoordinatorToolEntry } from "./respond-to-coordinator.js";
+import { delegateToExternalAgentToolEntry } from "./delegate-to-external-agent.js";
 import { createSubmitResultToolEntry, submitResultToolEntry } from "./submit-result.js";
 import { escalateToolEntry } from "./escalate.js";
 import { resolveWorkflowQuestionToolEntry } from "./resolve-workflow-question.js";
@@ -112,6 +113,7 @@ export const builtInTools: ToolEntry[] = [
   askUserQuestionToolEntry,
   sendMessageToolEntry,
   respondToCoordinatorToolEntry,
+  delegateToExternalAgentToolEntry,
   submitResultToolEntry,
   // actor 的升级通道。与 submit_result 完全同构：
   // 端口在场即注册（includeEscalate），`tools:"none"` 下由 workflow_child 的 allowlist

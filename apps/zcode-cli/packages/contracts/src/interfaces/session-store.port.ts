@@ -840,6 +840,11 @@ export const SESSION_ENTRY_DYNAMIC_WORKFLOW_ACTIVATION =
 export const SESSION_ENTRY_EXECUTION_ENVIRONMENT = "runtime/execution_environment" as const;
 /** 本会话用过的能力标签（docs/design/v2/model/session-features-header.md）。 */
 export const SESSION_ENTRY_SESSION_FEATURES = "runtime/session_features" as const;
+/**
+ * 会话绑定的外部 coding agent（只读主控 + 委派执行）。
+ * 只保存驱动所需的静态配置；进程句柄/输出缓冲是运行态，绝不入持久化。
+ */
+export const SESSION_ENTRY_EXTERNAL_AGENT = "runtime/external_agent" as const;
 
 export const SESSION_ENTRY_TYPES = [
   SESSION_ENTRY_TARGET_COMPLETION_VERIFICATION,
@@ -852,6 +857,7 @@ export const SESSION_ENTRY_TYPES = [
   SESSION_ENTRY_DYNAMIC_WORKFLOW_ACTIVATION,
   SESSION_ENTRY_EXECUTION_ENVIRONMENT,
   SESSION_ENTRY_SESSION_FEATURES,
+  SESSION_ENTRY_EXTERNAL_AGENT,
 ] as const;
 
 export type SessionEntryType = (typeof SESSION_ENTRY_TYPES)[number];

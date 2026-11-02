@@ -36,6 +36,7 @@ import type {
   SessionEvent,
   SessionId,
   SessionModePort,
+  ExternalAgentPort,
   SessionStorePort,
   SkillPort,
   SkillTelemetryMetadata,
@@ -183,6 +184,8 @@ export interface ToolExecutionContext {
   topicResourcePort?: TopicResourcePort;
   sessionStore?: SessionStorePort;
   sessionModePort?: SessionModePort;
+  /** 外部 coding agent 委派端口；缺席则 DelegateToExternalAgent 报能力缺席。 */
+  externalAgentPort?: ExternalAgentPort;
   workflowPort?: WorkflowPort;
   /** workflow run 提交端口；缺席则 CreateWorkflow 回占位诊断而不启动。 */
   dynamicWorkflowRunPort?: DynamicWorkflowRunPort;

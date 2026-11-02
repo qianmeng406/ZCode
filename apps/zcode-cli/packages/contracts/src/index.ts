@@ -106,3 +106,4 @@ export * from "./tracing/local-turn-preparation.js";
 export type { LocalTtftDetail } from "@zcode/shared";
 
 export * from "./interfaces/permission-full-access.js";
+export * from "./interfaces/external-agent.port.js";
