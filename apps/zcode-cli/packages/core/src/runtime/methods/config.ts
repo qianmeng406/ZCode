@@ -36,6 +36,7 @@ import { projectToolModelContract } from "../../tool/model-contract.js";
 import { isMcpToolName } from "../../mcp/name.js";
 import { rebuildContextPrefix } from "./context-refresh.js";
 import { filterEmbeddedSearchRuntimeVisibleTools } from "./embedded-search-branch.js";
+import { refreshBranchAwareBuiltInTools } from "./embedded-search-branch.js";
 import {
   getSessionShellSelection as readSessionShellSelection,
   initializeSessionShellEnvironmentIfNeeded as initializeSessionShellEnvironment,
@@ -113,6 +114,24 @@ export function getExecutionState(this: AgentRuntimeInternal): ResolvedExecution
 
 export function getPlanEnabled(this: AgentRuntimeInternal): boolean {
   return resolveRestoredExecutionState(this.config).planEnabled;
+}
+
+/**
+ * 只读主控锁的写入点。切换本身仍走 setExecutionState；锁只负责让执行状态的
+ * 唯一写入口（execution-state.ts 的 applyRuntimeExecutionState）拒绝放出只读。
+ */
+export function setExternalAgentReadOnly(this: AgentRuntimeInternal, readOnly: boolean): void {
+  const changed = this.externalAgentReadOnly !== readOnly;
+  this.externalAgentReadOnly = readOnly;
+  // 委派工具的注册门读的就是这个字段（runtime-tools / embedded-search-branch 两处）。
+  // 不重注册的话，绑定后工具面要到下次进程启动才出现；解绑后则一直留着一个必然
+  // 报 unbound 的工具。走 refreshBranchAwareBuiltInTools 与工作流激活同一个入口：
+  // 它已按共用判据重注册全部内置工具并清 cachedTools。
+  if (changed) refreshBranchAwareBuiltInTools(this);
+}
+
+export function isExternalAgentReadOnly(this: AgentRuntimeInternal): boolean {
+  return this.externalAgentReadOnly;
 }
 
 export function getSessionModelSelection(this: AgentRuntimeInternal): ModelSelection | undefined {

@@ -57,7 +57,10 @@ import {
 import { askUserQuestionToolEntry } from "./ask-user-question.js";
 import { sendMessageToolEntry } from "./send-message.js";
 import { respondToCoordinatorToolEntry } from "./respond-to-coordinator.js";
-import { delegateToExternalAgentToolEntry } from "./delegate-to-external-agent.js";
+import {
+  DELEGATE_TO_EXTERNAL_AGENT_TOOL_NAME,
+  delegateToExternalAgentToolEntry,
+} from "./delegate-to-external-agent.js";
 import { createSubmitResultToolEntry, submitResultToolEntry } from "./submit-result.js";
 import { escalateToolEntry } from "./escalate.js";
 import { resolveWorkflowQuestionToolEntry } from "./resolve-workflow-question.js";
@@ -227,6 +230,15 @@ interface RegisterBuiltInToolsOptions {
   includeMonitor?: boolean;
   includeNotebookEdit?: boolean;
   includeApplyPatch?: boolean;
+  /**
+   * 外部 agent 委派工具面的注册门：只有真的绑定了外部 agent 的会话才注册。
+   *
+   * 与「端口在场即注册」的 submit_result / escalate 刻意不同：那个端口的在场
+   * 表达的是「本会话有能力做这件事」，而委派端口是**全局装配**的（每个 App 都有，
+   * 未绑定时返回 unbound）。按端口注册会让每个普通会话都看见一个永远失败的
+   * DelegateToExternalAgent，白占预算也误导模型。真正的在场事实是只读锁。
+   */
+  includeExternalAgent?: boolean;
   /** browser-use 说明和 agent.browsers 注入由官方 browser-use 插件 + 宿主 browser bridge 共同启用。 */
   includeBrowserUse?: boolean;
   embeddedSearchEnabled?: boolean;
@@ -314,6 +326,13 @@ export function registerBuiltInTools(
       continue;
     }
     if (entry.metadata.name === "ApplyPatch" && options.includeApplyPatch !== true) {
+      continue;
+    }
+    // 委派工具只在真的绑定了外部 agent 的会话里注册（理由见 includeExternalAgent 的说明）。
+    if (
+      entry.metadata.name === DELEGATE_TO_EXTERNAL_AGENT_TOOL_NAME &&
+      options.includeExternalAgent !== true
+    ) {
       continue;
     }
     registry.register(resolveBuiltInToolEntryForBranch(entry, options), {

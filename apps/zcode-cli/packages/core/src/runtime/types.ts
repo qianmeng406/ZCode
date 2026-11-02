@@ -78,6 +78,7 @@ import type {
   AutomationPort,
   OffPeakPort,
   TopicResourcePort,
+  ExternalAgentPort,
   FileSystemPort,
   HttpClientPort,
   ImageProcessorPort,
@@ -417,6 +418,8 @@ export interface AgentRuntimeDeps {
   automationPort?: AutomationPort;
   offPeakPort?: OffPeakPort;
   topicResourcePort?: TopicResourcePort;
+  /** 外部 coding agent 委派端口；缺席则 DelegateToExternalAgent 报能力缺席。 */
+  externalAgentPort?: ExternalAgentPort;
   contextSourcePort?: ContextSourcePort;
   eventSink?: SessionEventSink;
   logger?: Logger;

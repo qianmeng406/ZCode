@@ -163,6 +163,9 @@ export const SessionEventType = {
   // 软门禁:准入状态变化时发射,pendingCount=0 时投影层清空 snapshot 字段。
   WorkspaceHookAdmissionUpdated: "workspace_hook_admission_updated",
   WorkspaceMcpAdmissionUpdated: "workspace_mcp_admission_updated",
+  // 会话绑定的外部 coding agent 变化（绑定/解绑）。payload 为 null 表示已解绑；
+  // 「绑定即只读」由同一次绑定补发的 SessionModeChanged 承担，这里只承载绑定身份。
+  ExternalAgentBindingChanged: "external_agent_binding_changed",
   HookRunStarted: "hook_run_started",
   HookRunProgress: "hook_run_progress",
   HookRunCompleted: "hook_run_completed",
@@ -1185,6 +1188,21 @@ export interface WorkspaceMcpAdmissionUpdatedPayload {
   workspaceIdentity?: string;
 }
 
+/**
+ * 会话外部 agent 绑定变化。null = 已解绑。
+ *
+ * 只带 UI 需要的事实（展示名/驱动/是否只读）；argv 与 env 留在 session entry，
+ * 不进广播事件——快照会发给所有订阅者，不是配置读回通道。
+ */
+export type ExternalAgentBindingChangedPayload = {
+  label: string;
+  driver: string;
+  command: string;
+  promptDelivery: string;
+  permissionMode?: string;
+  readOnly: true;
+} | null;
+
 export type PermissionDecision = "allow" | "deny" | "escalate" | "modify";
 
 export type TargetChangedAction =
@@ -1403,6 +1421,7 @@ export type SessionEventPayload =
   | WorkspaceHookReviewSupersededPayload
   | WorkspaceHookAdmissionUpdatedPayload
   | WorkspaceMcpAdmissionUpdatedPayload
+  | ExternalAgentBindingChangedPayload
   | HookRunLifecyclePayload
   | CompactLifecyclePayload
   | MicrocompactBoundaryEventPayload

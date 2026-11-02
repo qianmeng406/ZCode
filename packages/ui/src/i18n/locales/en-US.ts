@@ -5195,6 +5195,11 @@ const enUS: Record<string, string> = {
   "chat.planUsage.titleWithPlan": "{plan} Plan usage",
   "chat.planUsage.providerFallback": "Current provider",
   "chat.planUsage.open": "Details",
+  // External agent binding: the session is read-only; the badge is the only way out.
+  "chat.externalAgent.readOnly": "Read-only · {agent}",
+  "chat.externalAgent.unbind": "Unbind {agent}",
+  "chat.externalAgent.readOnlyHint":
+    "This session is bound to {agent}: it can analyse and plan, while {agent} makes the changes. Click to unbind and restore the previous permissions.",
   "chat.planUsage.noPlan":
     "No active Coding Plan was found for this account. Confirm that the connected account is subscribed.",
   "chat.planUsage.contextWindow": "Current context window",

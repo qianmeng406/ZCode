@@ -106,6 +106,7 @@ import {
 } from "./node-repl-browser-broker.js";
 import { resolveBuiltInNodeReplMcpServers } from "./built-in-node-repl.js";
 import { resolveZCodeCustomCommandPrompt } from "../custom-command-prompt.js";
+import { createSessionExternalAgentPort } from "../zcode-protocol/external-agent-port-impl.js";
 import { resolveZCodeBuiltinPromptCommandInvocation } from "../builtin-prompt-command.js";
 import { BUILTIN_WORKFLOW_COMMAND_NAME } from "../builtin-workflow-command.js";
 import { collectDisabledPaths } from "../skill-command-overrides.js";
@@ -488,6 +489,14 @@ export async function createZCodeApp(options: ZCodeAppOptions): Promise<ZCodeApp
       options.executionPort === undefined && sessionExecutionPortBinding === undefined;
     const pdfDocumentPort =
       options.pdfDocumentPort ?? createPopplerPdfDocumentAdapter({ executionPort });
+    // 外部 coding agent 委派端口：绑定读取 + 一次性进程执行都在 bootstrap 侧，
+    // core 的 DelegateToExternalAgent 只认契约。端口恒在场（未绑定时返回 unbound），
+    // 因为"是否可用"是会话级的事实，不该由 App 构造期决定工具是否存在。
+    const externalAgentPort = createSessionExternalAgentPort({
+      executionPort,
+      sessionStore,
+      logger,
+    });
     // browser-use 控制端口：仅当宿主（desktop）注入时可用，无本地 fallback（纯 CLI 无浏览器底座）。
     const fileSystemPort = sessionExecutionPortBinding?.fileSystemPort ?? localFileSystemPort;
     const httpClientPort =
@@ -900,6 +909,7 @@ export async function createZCodeApp(options: ZCodeAppOptions): Promise<ZCodeApp
       eventStore: options.eventStore ?? createInMemorySessionEventStore(),
       sessionStore,
       sessionMailboxPort,
+      externalAgentPort,
       logger,
       executionPort,
       workspaceHookAdmission: workspaceHookRuntimeSecurity?.admission,

@@ -8,6 +8,7 @@ import {
   setExecutionState,
 } from "./config.js";
 import { getExecutionState, getMode, getPlanEnabled } from "./config.js";
+import { isExternalAgentReadOnly, setExternalAgentReadOnly } from "./config.js";
 import {
   getLastRequestCacheReadTokens,
   getSessionModelSelection,
@@ -217,6 +218,8 @@ export function installAgentRuntimeMethods(ctor: AgentRuntimeConstructor): void 
   proto.getSessionShellSelection = getSessionShellSelection;
   proto.getMode = getMode;
   proto.getPlanEnabled = getPlanEnabled;
+  proto.setExternalAgentReadOnly = setExternalAgentReadOnly;
+  proto.isExternalAgentReadOnly = isExternalAgentReadOnly;
   proto.getExecutionState = getExecutionState;
   proto.getSessionModelSelection = getSessionModelSelection;
   proto.setSessionModelSelection = setSessionModelSelection;

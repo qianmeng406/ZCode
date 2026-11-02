@@ -18,6 +18,8 @@ import { toolCallDisplaySchema } from "./toolDisplay.js";
 import { workspaceHookReviewRequestPayloadSchema } from "./workspace-hook-review.js";
 import { workflowRunsStateSchema } from "./workflow-runs.js";
 import { sessionConfigStateSchema, sessionModelTransitionSchema } from "./session-config.js";
+import { externalAgentStateSchema } from "./external-agent.js";
+export { externalAgentStateSchema, type ExternalAgentState } from "./external-agent.js";
 export {
   sessionConfigStateSchema,
   sessionModelTransitionSchema,
@@ -520,6 +522,9 @@ export const conversationSnapshotSchema = z.object({
   meta: sessionMetaStateSchema.default({ title: "", titleSource: "default" }),
   // Additive：旧 CLI/旧快照不带该字段时仍按普通会话处理。
   sharedContextImport: sharedContextImportStateSchema.optional(),
+  // Additive：本会话绑定的外部 coding agent。null/缺席 = 未绑定（旧快照兼容）。
+  // 绑定即只读，UI 据此禁用协作模式切换并显示只读徽标。
+  externalAgent: externalAgentStateSchema.nullable().optional(),
   config: sessionConfigStateSchema,
   // 持久化稳定事实供 live 客户端识别一次性提示；旧快照缺字段时不触发。
   modelTransition: sessionModelTransitionSchema.nullable().default(null),

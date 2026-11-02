@@ -5093,6 +5093,16 @@ export function SessionPane({
     [handleDraftSwitchMode],
   );
 
+  // 只读徽标的唯一出口。失败不吞：解绑不成时用户必须知道会话仍是只读，
+  // 否则会以为"点了就恢复了"而继续在一个不可写的会话里操作。
+  const handleUnbindExternalAgent = useCallback(async () => {
+    if (!sessionId) return;
+    const ack = await dispatchCommand("unbindExternalAgent", {}, sessionId);
+    if (ack.status !== "accepted" && ack.status !== "noop") {
+      throw new Error(ack.reasonCode ?? ack.status);
+    }
+  }, [dispatchCommand, sessionId]);
+
   // context usage 面板的压缩入口（命令文本 = "/compact"，复用 slash 解析路径）。
   const handleSendCompressionCommand = useCallback(
     (command: string) => {
@@ -6337,6 +6347,7 @@ export function SessionPane({
       onSelectModel={handleSelectModel}
       onSelectThought={handleSelectThought}
       onSwitchMode={handleSwitchMode}
+      onUnbindExternalAgent={handleUnbindExternalAgent}
       onOpenRunningBackgroundWorks={
         sessionId && runningBackgroundWorkCount > 0 ? handleOpenRunningBackgroundWorks : undefined
       }

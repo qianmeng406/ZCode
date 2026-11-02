@@ -100,6 +100,7 @@ import type {
 import { HYDRATION_TRACE_ID } from "../zcode-protocol-v4/projection-state.js";
 import { cloneModelSelection, derivedSessionModelSelection } from "./fork-model-selection.js";
 import { resolveWorkspaceRefFromId } from "./mapper.js";
+import { readSessionExternalAgent } from "./session-external-agent.js";
 import { buildLiveWorkspaceConfigStateV4 } from "./v4-workspace-config.js";
 import {
   hasSessionModelProvider,
@@ -910,6 +911,25 @@ export function createConversationV4Gateway(
   // 50 次整额外升 warn——三个候选根因（busy 僵尸/暂停队列/goal 未收口）都有迹可循。
   const timerLoggingEnabledFor = (sessionId: string, retryCount: number): boolean =>
     retryCount <= 5 || (retryCount > 50 && (retryCount - 50) % 50 === 0);
+  /**
+   * 冷恢复后把「只读主控」重新对齐到 runtime。
+   *
+   * 锁是运行期事实（core.internal.externalAgentReadOnly），不会随 session entry 复活。
+   * 少了这一步，重启一次「已绑定 + 只读」的会话就变成「已绑定但可写」——绑定还在、
+   * 委派还能用，但主会话可以自己改文件，整个只读契约静默失效。
+   *
+   * 读绑定失败按未绑定处理（与 readSessionExternalAgent 的既有语义一致）：宁可放开
+   * 只读，也不能把一个读不出配置的会话永久锁死。
+   */
+  const restoreExternalAgentReadOnly = async (sessionId: string): Promise<void> => {
+    const record = context.sessions.get(sessionId);
+    if (!record) return;
+    const binding = await readSessionExternalAgent({
+      sessionId,
+      sessionStore: context.deps.sessionStore,
+    });
+    record.app.runtime.setExternalAgentReadOnly(binding !== undefined);
+  };
   const coreHost: V4CommandCoreHost = {
     // 同一注册表对象引用：view 是旧 record 的结构化窄视图，字段变更双向可见。
     getRecord: (sessionId) => context.sessions.get(sessionId),
@@ -1824,6 +1844,10 @@ export function createConversationV4Gateway(
       }
       const record = activated?.record ?? context.sessions.get(sessionId);
       if (!record) throw new Error("Session runtime unavailable after initialization");
+      // 只读主控锁是运行期事实，不随 session entry 自动回到 runtime。冷恢复必须在这里
+      // 重新对齐，否则重启一次「绑定 + 只读」就退化成「绑定但可写」。
+      // 顺序：先上锁再读绑定状态无关——锁只拦"放出只读"的写入，读绑定不写状态。
+      await restoreExternalAgentReadOnly(sessionId);
       return {
         status: "resumed",
         persistedMessages: activated?.persistedMessages,

@@ -117,6 +117,18 @@ export async function applyRuntimeExecutionState(
   // 命令面 mode 字段从不携带档位意图，真正切换模式时遗留 fusion 统一清掉，防止退出 Beta 后
   // 继续吃融合提示词；同模式重申或仅 planEnabled 变化不触发，历史组合与计划批准保留档位。
   const next = resolveExecutionState(input, previous);
+  // 只读主控（会话绑定了外部 coding agent）：一切把会话放出只读的写入都被拒。
+  //
+  // 这一层必须在**唯一写入口**做，而不是只在命令 handler 里：提交意图
+  // （turn-model.ts 把 intent.mode/intent.planEnabled 直接 apply 到这里）与
+  // plan 工具路径都不经过 switchCollaborationMode，只堵命令面等于没堵。
+  // 只读的判据是 planEnabled——执行状态的 mode 值域里没有 "plan"，只读恒由它表达。
+  // 保持只读的写入照常成功（绑定那次进入 plan、同值重申）。
+  if (runtime.externalAgentReadOnly && !next.planEnabled) {
+    throw new Error(
+      "Session is bound to an external agent and is read-only; unbind before changing the collaboration mode",
+    );
+  }
   // 根因：早返回此前只比较 mode/planEnabled，contextProfile 单独变化时被误判为无变化而
   // 幂等短路——既不持久化也不发布事件，下一次请求仍按旧档位构建上下文。修复：三字段全部
   // 相同才算真正无变化；保存失败时错误向上冒泡，安装与事件天然不会执行，内存事实不变。

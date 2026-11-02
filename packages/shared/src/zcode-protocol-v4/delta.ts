@@ -11,6 +11,7 @@ import { z } from "zod";
 import { streamablePathSchema } from "./core.js";
 import { conversationRowSchema } from "./rows.js";
 import { sharedContextImportStateSchema } from "./shared-context-import.js";
+import { externalAgentStateSchema } from "./external-agent.js";
 import {
   backgroundWorkSummarySchema,
   commandStateSummarySchema,
@@ -63,6 +64,9 @@ export const statePatchSchema = z.object({
   // 软门禁：null = pending 清零(提示条消失);对象 = 待审核状态更新。
   workspaceHookAdmission: workspaceHookAdmissionStateSchema.nullable().optional(),
   workspaceMcpAdmission: workspaceMcpAdmissionStateSchema.nullable().optional(),
+  // Additive：会话外部 agent 绑定。null = 已解绑——必须显式写 null，
+  // 缺键在键级整体替换语义下等于「没改过」，客户端会留着旧徽标。
+  externalAgent: externalAgentStateSchema.nullable().optional(),
 });
 export type StatePatch = z.infer<typeof statePatchSchema>;
 

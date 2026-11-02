@@ -66,6 +66,7 @@ export class ToolExecutorImpl implements ToolExecutor {
       topicResourcePort: options.topicResourcePort,
       sessionStore: options.sessionStore,
       sessionModePort: options.sessionModePort,
+      externalAgentPort: options.externalAgentPort,
       workflowPort: options.workflowPort,
       dynamicWorkflowRunPort: options.dynamicWorkflowRunPort,
       dynamicWorkflowSnippetPort: options.dynamicWorkflowSnippetPort,

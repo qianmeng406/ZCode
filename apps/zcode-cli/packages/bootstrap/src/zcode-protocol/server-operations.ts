@@ -3275,6 +3275,8 @@ function isNonActivitySessionEvent(event: SessionEvent): boolean {
     event.type === SessionEventType.SessionResumed ||
     event.type === SessionEventType.WorkspaceHookAdmissionUpdated ||
     event.type === SessionEventType.WorkspaceMcpAdmissionUpdated ||
+    // 绑定/解绑外部 agent 是配置动作，不是用户消息活动。
+    event.type === SessionEventType.ExternalAgentBindingChanged ||
     event.type === SessionEventType.HookRunStarted ||
     event.type === SessionEventType.HookRunProgress ||
     event.type === SessionEventType.HookRunCompleted ||

@@ -130,6 +130,9 @@ export const delegateToExternalAgentToolEntry: ToolEntry = {
     sideEffectScope: "session",
     riskLevel: "medium",
     needsApproval: false,
+    // 非驻留工具：ToolSearch 模式下按需加载 schema。绑定会话是长会话（外部 agent
+    // 单次执行可达数分钟），把它的完整 schema 常驻在请求里没有收益。
+    shouldDefer: true,
   },
   handler,
   formatModelContent,

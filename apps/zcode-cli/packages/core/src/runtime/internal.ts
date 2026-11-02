@@ -95,6 +95,14 @@ export interface AgentRuntimeInternal
   /** 工作流工具面是否已注册（launch.md「On demand: activation」）；非 onDemand 会话出生即 true。 */
   dynamicWorkflowToolsActivated: boolean;
   dynamicWorkflowActivationSource?: DynamicWorkflowActivationSource;
+  /**
+   * 只读主控锁（会话绑定外部 coding agent 期间为 true）。
+   *
+   * 绑定本身由 Bootstrap 持有（core 不做 IO），这里只保存"本会话当前履约的是只读契约"
+   * 这一事实，供执行状态的唯一写入口兜底：无论切换来自命令面、工具面还是提交意图
+   * （turn-model 会直接 apply 提交 intent 的 mode），都不能把会话从只读放回可写。
+   */
+  externalAgentReadOnly: boolean;
   /** 本会话用过的能力标签（session-features 模块是唯一写入方）；只增不减。 */
   sessionFeatures: Set<ModelRequestSessionFeature>;
   /** session-features entry 写入队列的尾部；串行写，避免旧集合覆盖新集合。 */

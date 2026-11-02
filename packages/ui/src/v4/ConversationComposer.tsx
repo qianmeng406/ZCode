@@ -211,6 +211,7 @@ import { ConversationBackgroundWorkTrigger } from "@/v4/composer/ConversationBac
 import { V4ComposerCuaEntry } from "@/v4/composer/V4ComposerCuaEntry.js";
 import { hasChatLoadingBlockingActiveWork } from "@/v4/chatLoadingVisibility.js";
 import { ComposerTurnMetricsCapsule } from "@/v4/composer/ComposerTurnMetricsCapsule.js";
+import { ExternalAgentReadOnlyBadge } from "@/v4/composer/ExternalAgentReadOnlyBadge.js";
 import { deriveComposerTurnMetricsFact } from "@/v4/composer/composerTurnMetricsFact.js";
 import {
   V4ComposerModeSwitch,
@@ -545,6 +546,11 @@ export interface ConversationComposerProps {
   /** 选中思考深度；同时带上用户操作时看到的模型，避免异步回流后把 thought 归到另一模型。 */
   onSelectThought: (thought: string, modelContext: { provider: string; model: string }) => void;
   onSwitchMode: (mode: string) => void;
+  /**
+   * 解绑本会话的外部 coding agent（只读徽标的唯一出口）。
+   * 缺省时徽标只展示不可点——宿主还没接命令面时不应该假装能解绑。
+   */
+  onUnbindExternalAgent?: () => Promise<void>;
   /** 打开当前 session 的 Status panel，并直达 Running 明细。 */
   onOpenRunningBackgroundWorks?: () => void;
   /**
@@ -671,6 +677,7 @@ function ConversationComposerImpl({
   onSelectModel,
   onSelectThought,
   onSwitchMode,
+  onUnbindExternalAgent,
   onOpenRunningBackgroundWorks,
   backgroundWorkOpenTarget = "panel",
   runningSubagentCount = 0,
@@ -3031,6 +3038,7 @@ function ConversationComposerImpl({
       memoryDreamRunning,
       memoryDreamDisabled,
       onSwitchMode,
+      onUnbindExternalAgent,
       pending,
       provider,
       modifierTooltip,
@@ -3063,6 +3071,15 @@ function ConversationComposerImpl({
           onConfigPickerOpenChange={handleConfigPickerOpenChange}
           onSwitchMode={onSwitchMode}
         />
+        {/* 外部 agent 绑定：只读主控期间，模式选择器实际上点不动（CLI 唯一写入口会拒），
+            所以徽标必须紧邻它并自带解绑出口——用户看到"只读"就该看到"怎么退出"。 */}
+        {snapshot?.externalAgent ? (
+          <ExternalAgentReadOnlyBadge
+            binding={snapshot.externalAgent}
+            disabled={disabled || runtimeBlocked}
+            onUnbind={onUnbindExternalAgent}
+          />
+        ) : null}
         {sessionId && snapshot?.workspaceHookAdmission ? (
           <WorkspaceHookPendingIndicator
             key={JSON.stringify([sessionId, snapshot.workspaceHookAdmission.bundleDigest])}

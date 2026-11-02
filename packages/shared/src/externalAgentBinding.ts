@@ -39,6 +39,8 @@ export const externalAgentBindingSchema = z
     timeoutMs: z.number().int().positive().max(3_600_000).optional(),
     /** 绑定时被覆盖的 plan 状态，解绑时据此恢复。 */
     previousPlanEnabled: z.boolean().optional(),
+    /** 绑定时被覆盖的协作模式，解绑时据此恢复。 */
+    previousMode: z.string().max(40).optional(),
   })
   .strict();
 

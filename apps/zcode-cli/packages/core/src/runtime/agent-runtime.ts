@@ -194,6 +194,8 @@ export class AgentRuntime {
   /** launch.md「On demand: activation」：onDemand 会话出生为 false，`activateDynamicWorkflowTools` 翻为 true。 */
   private dynamicWorkflowToolsActivated: boolean;
   private dynamicWorkflowActivationSource?: DynamicWorkflowActivationSource;
+  /** 只读主控锁：绑定外部 coding agent 期间为 true（见 internal.ts 的说明）。 */
+  private externalAgentReadOnly = false;
   /** docs/design/v2/model/session-features-header.md：本会话用过的能力标签，出生为空。 */
   private sessionFeatures = new Set<ModelRequestSessionFeature>();
   private sessionFeaturesWrite: Promise<void> = Promise.resolve();
@@ -379,6 +381,8 @@ export class AgentRuntime {
     this.workspaceRoot = this.workingDirectory;
     // 必须先于工具装配：registerRuntimeBuiltInTools 的灰度门读的就是这个状态。
     this.dynamicWorkflowToolsActivated = resolveInitialDynamicWorkflowToolsActivated(this.config);
+    // 只读主控锁的初值在字段声明处（false）：绑定是 Bootstrap 在会话就绪后显式设置的
+    // 运行期事实，构造期不猜测；冷恢复同样由装配方在 resume 后对齐。
     const tooling = initializeRuntimeTooling(runtime, deps, sessionId);
     this.hookRunner = tooling.hookRunner;
     this.workspaceHookAdmission = deps.workspaceHookAdmission;
@@ -529,6 +533,12 @@ export interface AgentRuntime {
   getSessionShellSelection(): ExecutionShellSelection | undefined;
   getMode(): CollaborationMode;
   getPlanEnabled(): boolean;
+  /**
+   * 设置/清除只读主控锁。绑定外部 coding agent 时由 Bootstrap 置 true，
+   * 解绑时置 false（必须在恢复原 mode 之前）。
+   */
+  setExternalAgentReadOnly(readOnly: boolean): void;
+  isExternalAgentReadOnly(): boolean;
   /** 权威执行状态（mode/plan/contextProfile 已解析）；v4 admission 冻结语义消费。 */
   getExecutionState(): import("@zcode/shared").ResolvedExecutionState;
   grantPermissionFullAccess(interactionId: string, signal?: AbortSignal): Promise<string>;

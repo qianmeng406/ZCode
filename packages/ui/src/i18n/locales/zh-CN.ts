@@ -4885,6 +4885,11 @@ const zhCN: Record<string, string> = {
   "chat.planUsage.titleWithPlan": "{plan} 套餐用量",
   "chat.planUsage.providerFallback": "当前供应商",
   "chat.planUsage.open": "详情",
+  // 外部 agent 绑定：会话处于只读主控，徽标是唯一的退出入口。
+  "chat.externalAgent.readOnly": "只读 · {agent}",
+  "chat.externalAgent.unbind": "解绑 {agent}",
+  "chat.externalAgent.readOnlyHint":
+    "本会话已绑定 {agent}：这里只能分析与出计划，改动由 {agent} 执行。点击解绑并恢复原权限。",
   "chat.planUsage.noPlan": "当前连接账号暂无有效编程套餐。",
   "chat.planUsage.contextWindow": "当前会话上下文",
   "chat.planUsage.contextDetail": "{used} / {total}",

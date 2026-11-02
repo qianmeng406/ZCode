@@ -19,6 +19,7 @@ import type {
   Model,
   ModelCatalogPort,
   OffPeakPort,
+  ExternalAgentPort,
   TopicResourcePort,
   PdfDocumentPort,
   PermissionBrokerPort,
@@ -113,6 +114,8 @@ export interface ToolExecutorOptions {
   topicResourcePort?: TopicResourcePort;
   sessionStore?: SessionStorePort;
   sessionModePort?: SessionModePort;
+  /** 外部 coding agent 委派端口；缺席则 DelegateToExternalAgent 报能力缺席。 */
+  externalAgentPort?: ExternalAgentPort;
   workflowPort?: WorkflowPort;
   /** workflow run 端口；按工具名查表时 CreateWorkflow 的后台生命周期提供者。 */
   dynamicWorkflowRunPort?: DynamicWorkflowRunPort;
@@ -240,6 +243,8 @@ export interface ToolExecutorDeps {
   topicResourcePort?: TopicResourcePort;
   sessionStore?: SessionStorePort;
   sessionModePort?: SessionModePort;
+  /** 外部 coding agent 委派端口；缺席则 DelegateToExternalAgent 报能力缺席。 */
+  externalAgentPort?: ExternalAgentPort;
   workflowPort?: WorkflowPort;
   /** workflow run 端口；按工具名查表时 CreateWorkflow 的后台生命周期提供者。 */
   dynamicWorkflowRunPort?: DynamicWorkflowRunPort;

@@ -270,6 +270,22 @@ export const commandPayloadSchemas = {
     mode: z.enum(["build", "edit", "plan", "yolo", "guarded", "research", "minimal", "beta"]),
   }),
   setFollowupMode: z.object({ mode: z.enum(["queue", "guide"]) }),
+  // 绑定外部 coding agent：绑定即只读（CLI 强制开启 plan，并拒绝一切切走只读的模式命令）。
+  // 只收静态执行配置；进程句柄、外部 session_id 等运行态不落盘。
+  bindExternalAgent: z
+    .object({
+      label: z.string().trim().min(1).max(80),
+      driver: z.enum(["claude-family", "generic-template"]),
+      command: z.string().trim().min(1).max(500),
+      args: z.array(z.string().max(2_000)).max(50).optional(),
+      promptDelivery: z.enum(["argv-append", "stdin", "template"]).optional(),
+      permissionMode: z.string().max(40).optional(),
+      env: z.record(z.string(), z.string()).optional(),
+      timeoutMs: z.number().int().positive().max(3_600_000).optional(),
+    })
+    .strict(),
+  // 解绑：恢复绑定时被覆盖的 plan 状态。
+  unbindExternalAgent: z.object({}).strict(),
   pauseGoal: z.object({}),
   resumeGoal: z.object({}),
   // 删除当前会话目标：幂等清空 target，不携 baseRevision（同 deleteSession 的控制面语义）。
@@ -335,6 +351,8 @@ export const COMMANDS_REQUIRING_BASE_REVISION: ReadonlySet<CommandType> = new Se
   "setAutoDrain",
   "switchModelConfig",
   "switchCollaborationMode",
+  "bindExternalAgent",
+  "unbindExternalAgent",
   "setFollowupMode",
   "pauseGoal",
   "resumeGoal",

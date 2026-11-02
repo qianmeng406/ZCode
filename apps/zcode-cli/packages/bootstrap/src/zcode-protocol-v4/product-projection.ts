@@ -54,6 +54,7 @@ import type {
   UserInputAutoResolutionUpdatedPayload,
   WorkspaceHookAdmissionUpdatedPayload,
   WorkspaceMcpAdmissionUpdatedPayload,
+  ExternalAgentBindingChangedPayload,
   WorkspaceHookReviewRequestedPayload,
   WorkspaceHookReviewSettledPayload,
   WorkspaceHookReviewSupersededPayload,
@@ -98,6 +99,7 @@ import type {
   ConversationRow,
   ConversationRowTarget,
   ConversationSnapshot,
+  ExternalAgentState,
   CuaAppIdentity,
   GoalState,
   HookExecutionProjection,
@@ -1582,6 +1584,8 @@ export class ProductProjection {
         const workspaceMcpAdmission = payload.pendingCount > 0 ? payload : null;
         return [{ op: "state.updated", patch: { workspaceMcpAdmission } }];
       }
+      case SessionEventType.ExternalAgentBindingChanged:
+        return this.onExternalAgentBindingChanged(event);
       case SessionEventType.HookRunStarted:
       case SessionEventType.HookRunProgress:
       case SessionEventType.HookRunCompleted:
@@ -3733,6 +3737,27 @@ export class ProductProjection {
             ...(payload.workspaceIdentity ? { workspaceIdentity: payload.workspaceIdentity } : {}),
           };
     return [{ op: "state.updated", patch: { workspaceHookAdmission } }];
+  }
+
+  /**
+   * 会话外部 agent 绑定变化。
+   *
+   * payload 为 null 即解绑：写回 null 而不是删字段——A 区是字段级整体替换，
+   * 缺字段会让客户端保留旧值（"解绑后徽标不消失"）。
+   */
+  private onExternalAgentBindingChanged(event: SessionEvent): ConversationDelta[] {
+    const payload = event.payload as ExternalAgentBindingChangedPayload;
+    const externalAgent = payload
+      ? {
+          label: payload.label,
+          driver: payload.driver as "claude-family" | "generic-template",
+          command: payload.command,
+          promptDelivery: payload.promptDelivery as ExternalAgentState["promptDelivery"],
+          ...(payload.permissionMode ? { permissionMode: payload.permissionMode } : {}),
+          readOnly: true as const,
+        }
+      : null;
+    return [{ op: "state.updated", patch: { externalAgent } }];
   }
 
   private onUserInputAutoResolutionUpdated(event: SessionEvent): ConversationDelta[] {
