@@ -1,4 +1,5 @@
 import { sessionLifecycleParamsSchema, sessionLifecycleSnapshotSchema } from "@zcode/shared";
+import { zcodeProtocolErrorCodes } from "@zcode/shared";
 import { querySessionDebug } from "./session-debug.js";
 import { offPeakControlParamsSchema, offPeakControlResultSchema } from "@zcode/shared";
 import { createNodeNetworkCapture } from "@zcode/shared/node";
@@ -25,6 +26,7 @@ import {
   parseConversationTopic,
   parseSessionsIndexTopic,
   parseWorkspaceConfigTopic,
+  v4ExternalAgentProbeParamsSchema,
 } from "@zcode/shared/zcode-protocol-v4";
 import type {
   ZCodeProtocolError,
@@ -757,6 +759,19 @@ export class ZCodeProtocolAgentServer {
         return await getUsageStats(this.context, request.params);
       case V4_METHODS.conversationUsage:
         return await getTaskTokenUsage(this.context, request.params);
+      // 外部 coding agent 的绑定候选探测：只读、无状态。跑在本会话的 ExecutionPort
+      // 上，因此远程/容器会话探测的是真正执行的那台机器。
+      case V4_METHODS.externalAgentProbe: {
+        const params = v4ExternalAgentProbeParamsSchema.parse(request.params);
+        const record = this.context.sessions.get(params.sessionId);
+        if (!record?.app.probeExternalAgents) {
+          throw new ProtocolRequestError(
+            zcodeProtocolErrorCodes.sessionUnavailable,
+            `External agent probe unavailable for ${params.sessionId}`,
+          );
+        }
+        return await record.app.probeExternalAgents();
+      }
       // Oracle 审查记录：会话附属持久化（session entry），CLI 侧按 sessionId 隔离。
       case zcodeProtocolMethods.oracleReviewSaveRecord:
         return await saveOracleReviewRecord(this.context, request.params);

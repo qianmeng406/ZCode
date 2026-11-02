@@ -364,6 +364,9 @@ export const V4_METHODS = {
   conversationRowsRange: "v4/conversation/rowsRange",
   // 手机输入预测（input-prediction.ts）：只读查询；旧 CLI 不认识时手机静默无 hint。
   conversationInputPrediction: "v4/conversation/inputPrediction",
+  // 外部 coding agent 的绑定候选探测：本机装了哪些已适配 CLI、各自能用哪些模型。
+  // 只读、无状态、超时重发安全；旧 CLI 返回 method-not-found，UI 据此退回手填表单。
+  externalAgentProbe: "v4/externalAgent/probe",
   // 当前有效分支的终态 ExitPlanMode 目录；只读、无状态、超时重发安全。
   conversationPlans: "v4/conversation/plans",
   conversationFileChanges: "v4/conversation/fileChanges",

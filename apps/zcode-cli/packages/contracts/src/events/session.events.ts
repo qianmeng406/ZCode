@@ -1200,6 +1200,10 @@ export type ExternalAgentBindingChangedPayload = {
   command: string;
   promptDelivery: string;
   permissionMode?: string;
+  /** 来自哪个内置预设。 */
+  presetId?: string;
+  /** 当前使用的模型（缺省 = CLI 默认）。 */
+  model?: string;
   readOnly: true;
 } | null;
 

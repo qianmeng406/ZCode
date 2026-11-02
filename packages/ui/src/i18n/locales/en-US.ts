@@ -5208,6 +5208,16 @@ const enUS: Record<string, string> = {
   "chat.externalAgent.bindCommand": "Executable command",
   "chat.externalAgent.bindPermissionMode": "Agent permission mode",
   "chat.externalAgent.bindSubmit": "Bind and go read-only",
+  "chat.externalAgent.bindChoose": "Choose an adapted agent",
+  "chat.externalAgent.bindReprobe": "Detect again",
+  "chat.externalAgent.installed": "Installed",
+  "chat.externalAgent.notInstalled": "Not found",
+  "chat.externalAgent.probeUnavailable":
+    "Could not detect local installations. Fill in the command manually.",
+  "chat.externalAgent.bindModel": "Model",
+  "chat.externalAgent.modelDefault": "Use the CLI default model",
+  "chat.externalAgent.modelPlaceholder": "Model name (blank = CLI default)",
+  "chat.externalAgent.modelMenuLabel": "Model for {agent}",
   "chat.planUsage.noPlan":
     "No active Coding Plan was found for this account. Confirm that the connected account is subscribed.",
   "chat.planUsage.contextWindow": "Current context window",

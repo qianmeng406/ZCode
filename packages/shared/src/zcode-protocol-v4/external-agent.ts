@@ -13,6 +13,10 @@ export const externalAgentStateSchema = z.object({
   command: z.string().min(1),
   promptDelivery: z.enum(EXTERNAL_AGENT_PROMPT_DELIVERIES),
   permissionMode: z.string().optional(),
+  /** 来自哪个内置预设；UI 据此回显"已适配"标记与预设名。 */
+  presetId: z.string().optional(),
+  /** 当前使用的模型（缺省 = 该 CLI 的默认模型）。 */
+  model: z.string().optional(),
   /** 绑定强制开启了只读主控：UI 据此显示只读徽标并禁用模式切换。 */
   readOnly: z.literal(true),
 });

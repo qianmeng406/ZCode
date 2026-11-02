@@ -329,6 +329,7 @@ import type {
   ZCodeAgentConversationFileRewindPreviewParams,
   ZCodeAgentConversationRowsRangeParams,
   ZCodeAgentConversationPlansParams,
+  ZCodeAgentExternalAgentProbeParams,
   ZCodeAgentConversationInputPredictionParams,
   ZCodeAgentConversationWorkflowRunEventsParams,
   ZCodeAgentConversationWorkflowRunArtifactDataParams,
@@ -384,6 +385,7 @@ import {
   v4ConversationFileRewindPreviewResultSchema,
   v4ConversationRowsRangeResultSchema,
   v4ConversationPlansResultSchema,
+  v4ExternalAgentProbeResultSchema,
   v4ConversationInputPredictionResultSchema,
   emptyInputPredictionResult,
   v4ConversationWorkflowRunEventsResultSchema,
@@ -7531,6 +7533,17 @@ export function createZCodeAgentService(
         V4_METHODS.conversationPlans,
         { sessionId: params.sessionId },
         v4ConversationPlansResultSchema,
+      );
+    },
+
+    // 外部 agent 的绑定候选探测：只读查询，但**必须**落到会话所在那台机器
+    // （远程会话的 CLI 在远端）。因此同样走 client.request，而不是本地探测。
+    async externalAgentProbeV4(params: ZCodeAgentExternalAgentProbeParams) {
+      const client = await getReadOnlyClient(params, "existing-only");
+      return client.request(
+        V4_METHODS.externalAgentProbe,
+        { sessionId: params.sessionId },
+        v4ExternalAgentProbeResultSchema,
       );
     },
 

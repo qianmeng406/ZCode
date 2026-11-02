@@ -88,6 +88,8 @@ import { formatMemoryDreamResult } from "@/v4/memory/memoryDreamResult.js";
 import { resolveOracleRequestOptions } from "@/v4/oracleReview/oracleReviewSupport.js";
 import type { TurnHeaderRow } from "@zcode/shared/zcode-protocol-v4";
 import type { BindExternalAgentPayload } from "@/v4/composer/externalAgentCommands.js";
+import { loadExternalAgentProbe } from "@/v4/composer/externalAgentProbe.js";
+import type { ExternalAgentPresetStatus } from "@zcode/shared";
 
 const MEMORY_CAPTURE_REQUEST_TIMEOUT_MS = 120_000;
 import { Button } from "@/components/ui/button.js";
@@ -745,6 +747,7 @@ export function SessionPane({
     onRuntimeLifecycle,
     fileChanges,
     fileRewindPreview,
+    externalAgentProbe: requestExternalAgentProbe,
   } = useV4Conversation();
   const platform = useOptionalPlatform();
   const {
@@ -5104,6 +5107,61 @@ export function SessionPane({
     }
   }, [dispatchCommand, sessionId]);
 
+  // 外部 agent 的本地探测状态。探测跑在 CLI 侧（远程会话在远端），结果按会话缓存。
+  const [externalAgentProbe, setExternalAgentProbe] = useState<ExternalAgentPresetStatus[] | null>(
+    null,
+  );
+  const [externalAgentProbing, setExternalAgentProbing] = useState(false);
+  const externalAgentProbeWorkspaceRef = useRef<string | null>(null);
+
+  const runExternalAgentProbe = useCallback(
+    async (options: { force?: boolean } = {}) => {
+      if (!sessionId) return;
+      setExternalAgentProbing(true);
+      try {
+        const snapshot = await loadExternalAgentProbe(
+          sessionId,
+          async (targetSessionId) => {
+            const result = await requestExternalAgentProbe({ sessionId: targetSessionId });
+            return result;
+          },
+          options,
+        );
+        if (snapshot) setExternalAgentProbe(snapshot.result.agents);
+      } catch {
+        // 探测失败不改写已有结果：一次瞬时错误不该把"已装"变成"未装"。
+      } finally {
+        setExternalAgentProbing(false);
+      }
+    },
+    [requestExternalAgentProbe, sessionId],
+  );
+
+  const handleReprobeExternalAgents = useCallback(() => {
+    void runExternalAgentProbe({ force: true });
+  }, [runExternalAgentProbe]);
+
+  useEffect(() => {
+    if (!sessionId) return;
+    // 按会话切换重置：探测结果绑定在"那台机器"上，换会话就该重探。
+    if (externalAgentProbeWorkspaceRef.current === sessionId) return;
+    externalAgentProbeWorkspaceRef.current = sessionId;
+    setExternalAgentProbe(null);
+    void runExternalAgentProbe();
+  }, [sessionId, runExternalAgentProbe]);
+
+  // 换模型：只改 model 字段，不解绑（解绑会重新快照权限，见 setExternalAgentModel 的注释）。
+  const handleChangeExternalAgentModel = useCallback(
+    async (model: string | null) => {
+      if (!sessionId) return;
+      const ack = await dispatchCommand("setExternalAgentModel", { model }, sessionId);
+      if (ack.status !== "accepted" && ack.status !== "noop") {
+        throw new Error(ack.reasonCode ?? ack.status);
+      }
+    },
+    [dispatchCommand, sessionId],
+  );
+
   // 绑定入口的提交动作。命令面会先把 entry 落盘再切只读，所以这里不做乐观更新：
   // 徽标出现在下一次投影刷新里，与真实状态一致。
   const handleBindExternalAgent = useCallback(
@@ -6363,6 +6421,10 @@ export function SessionPane({
       onSwitchMode={handleSwitchMode}
       onUnbindExternalAgent={handleUnbindExternalAgent}
       onBindExternalAgent={handleBindExternalAgent}
+      onChangeExternalAgentModel={handleChangeExternalAgentModel}
+      externalAgentProbe={externalAgentProbe}
+      externalAgentProbing={externalAgentProbing}
+      onReprobeExternalAgents={handleReprobeExternalAgents}
       onOpenRunningBackgroundWorks={
         sessionId && runningBackgroundWorkCount > 0 ? handleOpenRunningBackgroundWorks : undefined
       }

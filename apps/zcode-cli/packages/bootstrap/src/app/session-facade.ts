@@ -32,6 +32,7 @@ import { resolveLocale } from "@zcode/i18n";
 import { normalizeModelSelection, type ModelSelection } from "@zcode/provider";
 import { listMcpServerStatuses } from "../mcp-config.js";
 import { loadSessionTranscriptFromStore } from "../session-transcript.js";
+import { probeExternalAgents } from "../zcode-protocol/external-agent-probe.js";
 import { getLocaleConfigPath } from "./locale-selection.js";
 import type { ProviderRegistryModelSource } from "./provider-registry-model-runtime.js";
 import {
@@ -64,6 +65,7 @@ type SessionFacade = Pick<
   | "connectMcpServer"
   | "disconnectMcpServer"
   | "generateWorkspaceText"
+  | "probeExternalAgents"
   | "sampleModel"
   | "testModelConnectivity"
   | "forkFromCheckpoint"
@@ -601,6 +603,11 @@ export function createSessionFacade(deps: CreateSessionFacadeDeps): SessionFacad
         },
       );
     },
+    probeExternalAgents: async () =>
+      probeExternalAgents({
+        executionPort: deps.executionPort,
+        cwd: deps.workingDirectory,
+      }),
     setMode: async (mode: CollaborationMode) => {
       const previousMode = deps.runtime.getMode();
       const session = await deps.sessionStore.getSession(deps.sessionId);

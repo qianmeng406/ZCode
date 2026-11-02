@@ -76,6 +76,8 @@ async function bindExternalAgent(
     args: payload.args ?? [],
     promptDelivery: payload.promptDelivery ?? "argv-append",
     ...(payload.permissionMode ? { permissionMode: payload.permissionMode } : {}),
+    ...(payload.presetId ? { presetId: payload.presetId } : {}),
+    ...(payload.model ? { model: payload.model } : {}),
     ...(payload.env ? { env: payload.env } : {}),
     ...(payload.timeoutMs ? { timeoutMs: payload.timeoutMs } : {}),
     // 快照原状态：解绑时恢复。planEnabled 单独记，因为 plan 模式可以独立于 mode 存在。
@@ -171,6 +173,8 @@ async function publishBindingChanged(
           command: binding.command,
           promptDelivery: binding.promptDelivery,
           ...(binding.permissionMode ? { permissionMode: binding.permissionMode } : {}),
+          ...(binding.presetId ? { presetId: binding.presetId } : {}),
+          ...(binding.model ? { model: binding.model } : {}),
           readOnly: true as const,
         }
       : null,
@@ -179,4 +183,47 @@ async function publishBindingChanged(
   await record.app.runtime.appendEvent(event, record.traceContext);
 }
 
-export const externalAgentHandlers = { bindExternalAgent, unbindExternalAgent };
+/**
+ * 切换已绑定外部 agent 的模型。
+ *
+ * 刻意不复用 bindExternalAgent：绑定会重新快照 previousPlanEnabled/previousMode，
+ * 把用户原本的权限再覆盖一层——连切两次模型，解绑就恢复不到原状态了。
+ * 这里只改 model 一个字段，entry 原子覆盖，只读契约与授权完全不动。
+ */
+async function setExternalAgentModel(
+  host: V4CommandCoreHost,
+  envelope: CommandEnvelope,
+): Promise<CommandResult | undefined> {
+  const payload = envelope.payload as CommandPayloadMap["setExternalAgentModel"];
+  const record = requireRecord(host, envelope.sessionId);
+  const sessionStore = requireSessionStore(record);
+  const binding = await readSessionExternalAgent({
+    sessionId: record.app.sessionId,
+    sessionStore,
+  });
+  if (!binding) {
+    throw new V4InputAdmissionRejectedError(
+      "proto.externalAgentNotBound",
+      "该会话没有绑定外部 agent",
+    );
+  }
+  const model = payload.model?.trim() || undefined;
+  if (binding.model === model) {
+    throw new V4CommandNoopError(BINDING_UNCHANGED);
+  }
+
+  const next: ExternalAgentBinding = { ...binding };
+  if (model) next.model = model;
+  else delete next.model;
+  await persistSessionExternalAgent({
+    sessionId: record.app.sessionId,
+    sessionStore,
+    binding: next,
+    logger: warningLogger(host),
+  });
+  // 模型是徽标文案的一部分（"只读 · codebuddy / hy3"），必须走同一条投影链路。
+  await publishBindingChanged(record, next);
+  return undefined;
+}
+
+export const externalAgentHandlers = { bindExternalAgent, unbindExternalAgent, setExternalAgentModel };

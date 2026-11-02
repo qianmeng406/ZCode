@@ -215,6 +215,7 @@ import { ComposerTurnMetricsCapsule } from "@/v4/composer/ComposerTurnMetricsCap
 import { ExternalAgentReadOnlyBadge } from "@/v4/composer/ExternalAgentReadOnlyBadge.js";
 import { ExternalAgentBindDialog } from "@/v4/composer/ExternalAgentBindDialog.js";
 import type { BindExternalAgentPayload } from "@/v4/composer/externalAgentCommands.js";
+import type { ExternalAgentPresetStatus } from "@zcode/shared";
 import { deriveComposerTurnMetricsFact } from "@/v4/composer/composerTurnMetricsFact.js";
 import {
   V4ComposerModeSwitch,
@@ -559,6 +560,17 @@ export interface ConversationComposerProps {
    * 缺省时入口不渲染——宿主没接命令面时不应该露出一个点不动的按钮。
    */
   onBindExternalAgent?: (payload: BindExternalAgentPayload) => Promise<void>;
+  /**
+   * 切换已绑定外部 agent 的模型（null = 回到 CLI 默认）。
+   * 与"解绑再绑"不同：只改 model，不重新快照权限。
+   */
+  onChangeExternalAgentModel?: (model: string | null) => Promise<void>;
+  /** 本机探测到的外部 agent 列表；null/缺席 = 探测不可用（对话框退回手填）。 */
+  externalAgentProbe?: ExternalAgentPresetStatus[] | null;
+  /** 是否正在探测（对话框里显示 loading）。 */
+  externalAgentProbing?: boolean;
+  /** 重新探测（用户刚装完 CLI 回来）。 */
+  onReprobeExternalAgents?: () => void;
   /** 打开当前 session 的 Status panel，并直达 Running 明细。 */
   onOpenRunningBackgroundWorks?: () => void;
   /**
@@ -687,6 +699,10 @@ function ConversationComposerImpl({
   onSwitchMode,
   onUnbindExternalAgent,
   onBindExternalAgent,
+  onChangeExternalAgentModel,
+  externalAgentProbe,
+  externalAgentProbing,
+  onReprobeExternalAgents,
   onOpenRunningBackgroundWorks,
   backgroundWorkOpenTarget = "panel",
   runningSubagentCount = 0,
@@ -3050,6 +3066,7 @@ function ConversationComposerImpl({
       onSwitchMode,
       onUnbindExternalAgent,
       onBindExternalAgent,
+      onChangeExternalAgentModel,
       intl,
       pending,
       provider,
@@ -3067,6 +3084,16 @@ function ConversationComposerImpl({
       workspacePath,
     ],
   );
+
+  // 徽标的模型候选 = 当前绑定那个预设探测到的模型清单。
+  // 找不到对应预设（手填命令 / 预设已移除）时为空 → 徽标不显示模型菜单，
+  // 用户仍可通过解绑重绑换模型，而不是给一个空下拉。
+  // 必须声明在下面 leadingActionsNode 的依赖数组之前（TDZ）。
+  const externalAgentModelOptions = useMemo(() => {
+    const presetId = snapshot?.externalAgent?.presetId;
+    if (!presetId || !externalAgentProbe) return [];
+    return externalAgentProbe.find((entry) => entry.preset.id === presetId)?.models ?? [];
+  }, [snapshot?.externalAgent?.presetId, externalAgentProbe]);
 
   // 左下：模式选择 + CUA 入口 + 当前 session 后台任务入口。followupMode 由 app 设置页同步到 CLI，
   // 不在 composer 暴露局部开关；后台入口只消费同一 snapshot，不维护第二份任务状态。
@@ -3090,6 +3117,8 @@ function ConversationComposerImpl({
             binding={snapshot.externalAgent}
             disabled={disabled || runtimeBlocked}
             onUnbind={onUnbindExternalAgent}
+            onChangeModel={onChangeExternalAgentModel}
+            modelOptions={externalAgentModelOptions}
           />
         ) : sessionId && onBindExternalAgent ? (
           // 未绑定时才给入口：已绑定的会话里这一格由只读徽标占据，
@@ -3164,6 +3193,7 @@ function ConversationComposerImpl({
       snapshot?.workspaceHookAdmission,
       snapshot?.workspaceMcpAdmission,
       snapshot?.backgroundWorks,
+      externalAgentModelOptions,
       workspaceIdentity,
       workspacePath,
     ],
@@ -3562,6 +3592,9 @@ function ConversationComposerImpl({
         <ExternalAgentBindDialog
           open={bindDialogOpen}
           onOpenChange={setBindDialogOpen}
+          probe={externalAgentProbe ?? null}
+          probing={externalAgentProbing}
+          {...(onReprobeExternalAgents ? { onReprobe: onReprobeExternalAgents } : {})}
           onSubmit={async (payload) => {
             await onBindExternalAgent(payload);
             // 成功后关闭：失败时 onSubmit 会抛，对话框保持打开让用户改参数重试。

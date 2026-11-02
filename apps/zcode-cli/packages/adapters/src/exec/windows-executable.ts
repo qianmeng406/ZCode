@@ -43,7 +43,12 @@ export function splitWindowsPath(value: string): string[] {
 
 function windowsExtensionCandidates(file: string, pathExts: string[]): string[] {
   if (extname(file)) return [file];
-  return [file, ...pathExts.map((extension) => `${file}${extension.toLowerCase()}`)];
+  // 顺序即优先级。裸名必须排在最后：npm 全局目录里除了 `foo.cmd` 还有一个
+  // 无扩展名的 POSIX shell 脚本 `foo`（#!/bin/sh）。Windows 的 CreateProcess
+  // 不能直接执行它，spawn 只会 ENOENT——裸名排第一时，PATH 上的 "foo" 就永远
+  // 解析成那个跑不起来的文件（实测 codebuddy / claude / codex 全部命中）。
+  // PATHEXT 里的 .exe/.cmd 才是真正可执行的落点。
+  return [...pathExts.map((extension) => `${file}${extension.toLowerCase()}`), file];
 }
 
 function getWindowsPathExts(env: NodeJS.ProcessEnv): string[] {

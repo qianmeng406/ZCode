@@ -201,3 +201,65 @@ describe("v4 原生 unbindExternalAgent", () => {
     ).rejects.toThrow(/没有绑定/);
   });
 });
+
+describe("v4 原生 setExternalAgentModel", () => {
+  it("只改 model 字段：不重新快照 previous*，只读契约与授权不动", async () => {
+    const sessionStore = makeSessionStore();
+    const app = makeApp({ planEnabled: false, mode: "yolo" });
+    const executor = new V4CommandExecutor(makeHost(makeRecord(app, sessionStore)));
+    await executor.execute(
+      envelope("bindExternalAgent", { ...BINDING_PAYLOAD, model: "hy3" }),
+    );
+    const before = [...sessionStore.entries.values()][0]!.data as Record<string, unknown>;
+    expect(before.model).toBe("hy3");
+    app.runtime.setExecutionState.mockClear();
+    // 绑定自己发过一条绑定变化事件；这里只看换模型这一次。
+    app.runtime.appendEvent.mockClear();
+
+    await executor.execute(envelope("setExternalAgentModel", { model: "deepseek-v4-pro" }));
+
+    const after = [...sessionStore.entries.values()][0]!.data as Record<string, unknown>;
+    expect(after.model).toBe("deepseek-v4-pro");
+    // 关键不变量：解绑恢复用的快照没被第二层覆盖。
+    expect(after.previousPlanEnabled).toBe(before.previousPlanEnabled);
+    expect(after.previousMode).toBe(before.previousMode);
+    // 换模型不动执行状态——不该产生只读相关的写入。
+    expect(app.runtime.setExecutionState).not.toHaveBeenCalled();
+    // 但必须发绑定变化事件：徽标文案带模型名，投影要跟上。
+    expect(app.runtime.appendEvent).toHaveBeenCalledTimes(1);
+  });
+
+  it("model=null 清空模型（回到 CLI 默认）", async () => {
+    const sessionStore = makeSessionStore();
+    const app = makeApp();
+    const executor = new V4CommandExecutor(makeHost(makeRecord(app, sessionStore)));
+    await executor.execute(
+      envelope("bindExternalAgent", { ...BINDING_PAYLOAD, model: "hy3" }),
+    );
+    await executor.execute(envelope("setExternalAgentModel", { model: null }));
+    const after = [...sessionStore.entries.values()][0]!.data as Record<string, unknown>;
+    expect(after.model).toBeUndefined();
+  });
+
+  it("同值切换 → noop（不产生空转事件）", async () => {
+    const sessionStore = makeSessionStore();
+    const app = makeApp();
+    const executor = new V4CommandExecutor(makeHost(makeRecord(app, sessionStore)));
+    await executor.execute(
+      envelope("bindExternalAgent", { ...BINDING_PAYLOAD, model: "hy3" }),
+    );
+    await expect(
+      executor.execute(envelope("setExternalAgentModel", { model: "hy3" })),
+    ).rejects.toBeInstanceOf(V4CommandNoopError);
+  });
+
+  it("未绑定就换模型 → 明确拒绝", async () => {
+    const sessionStore = makeSessionStore();
+    const app = makeApp();
+    await expect(
+      new V4CommandExecutor(makeHost(makeRecord(app, sessionStore))).execute(
+        envelope("setExternalAgentModel", { model: "hy3" }),
+      ),
+    ).rejects.toThrow(/没有绑定/);
+  });
+});

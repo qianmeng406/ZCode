@@ -9,8 +9,14 @@ import { z } from "zod";
 //
 // 只保存驱动所需的静态配置；进程句柄、输出缓冲、session_id 等运行态一律不持久化。
 
-/** 驱动族：决定参数形状。claude-family 覆盖 codebuddy / claude 等同构 CLI。 */
-export const EXTERNAL_AGENT_DRIVER_KINDS = ["claude-family", "generic-template"] as const;
+/** 驱动族：决定参数形状与输出解析。 */
+export const EXTERNAL_AGENT_DRIVER_KINDS = [
+  "claude-family",
+  // codex 的非交互入口是子命令 `codex exec`，输出是 JSONL 事件流，
+  // 与 claude 族的"单个 JSON 数组"不同，所以必须独立成族。
+  "codex-exec",
+  "generic-template",
+] as const;
 export type ExternalAgentDriverKind = (typeof EXTERNAL_AGENT_DRIVER_KINDS)[number];
 
 /** prompt 怎么交给外部 CLI。 */
@@ -33,6 +39,14 @@ export const externalAgentBindingSchema = z
     promptDelivery: z.enum(EXTERNAL_AGENT_PROMPT_DELIVERIES),
     /** 外部 agent 自己的只读档位（claude-family 下为 --permission-mode 的值）。 */
     permissionMode: z.string().max(40).optional(),
+    /**
+     * 内置预设 id（绑定来自哪个已适配的 agent）。
+     * 只作溯源与 UI 回显；真正的调用形状仍由 driver/args 决定，
+     * 这样用户手改过参数后不会因为预设目录变化而被静默改写。
+     */
+    presetId: z.string().max(60).optional(),
+    /** 外部 agent 使用的模型（为空 = 用该 CLI 的默认模型）。 */
+    model: z.string().max(200).optional(),
     /** 额外环境变量（如 CODEBUDDY_FORCE_LITE_WB_BUNDLE）。 */
     env: z.record(z.string(), z.string()).optional(),
     /** 单次委派的超时（ms）；缺省由调用方兜底。 */
@@ -47,13 +61,25 @@ export const externalAgentBindingSchema = z
 export type ExternalAgentBinding = z.infer<typeof externalAgentBindingSchema>;
 
 const CLAUDE_FAMILY_DEFAULT_ARGS = ["-p", "--output-format", "json"] as const;
+const CODEX_EXEC_DEFAULT_ARGS = ["exec"] as const;
+
+/**
+ * 模型 flag：按驱动族给默认值，绑定时用户显式选过 preset 则用 preset 的。
+ * `none` 表示该 CLI 不接受模型参数（generic-template），此时 model 被忽略。
+ */
+function resolveModelFlag(binding: ExternalAgentBinding): string | undefined {
+  if (binding.driver === "codex-exec") return "-m";
+  if (binding.driver === "claude-family") return "--model";
+  return undefined;
+}
 
 /**
  * 把绑定展开成可执行的 argv。
  *
- * - claude-family：`{command} -p --output-format json [...args] "<prompt>"`
- *   （codebuddy / claude 实测同构：`-p` 非交互，`--output-format json` 返回数组，
+ * - claude-family：`{command} -p --output-format json [--model M] "<prompt>"`
+ *   （claude / codebuddy 实测同构：`-p` 非交互，`--output-format json` 返回数组，
  *   取 `type:"result"` 的 `.result`）。
+ * - codex-exec：`{command} exec [-m M] "<prompt>"`（非交互入口是子命令）。
  * - generic-template：`{command} [...args]`，`{prompt}` 占位替换；
  *   `stdin` 模式则把 prompt 通过 stdin 传入。
  */
@@ -64,10 +90,22 @@ export function buildExternalAgentInvocation(
   if (binding.driver === "claude-family") {
     const base = binding.args.length > 0 ? binding.args : [...CLAUDE_FAMILY_DEFAULT_ARGS];
     const args = [...base];
+    const modelFlag = resolveModelFlag(binding);
+    if (binding.model && modelFlag) args.push(modelFlag, binding.model);
     if (binding.permissionMode) args.push("--permission-mode", binding.permissionMode);
     if (binding.promptDelivery === "stdin")
       return { command: binding.command, args, stdin: prompt };
     // argv-append / template 在 family 族里都落到末尾追加 prompt。
+    args.push(prompt);
+    return { command: binding.command, args };
+  }
+  if (binding.driver === "codex-exec") {
+    const base = binding.args.length > 0 ? binding.args : [...CODEX_EXEC_DEFAULT_ARGS];
+    const args = [...base];
+    const modelFlag = resolveModelFlag(binding);
+    if (binding.model && modelFlag) args.push(modelFlag, binding.model);
+    if (binding.promptDelivery === "stdin")
+      return { command: binding.command, args, stdin: prompt };
     args.push(prompt);
     return { command: binding.command, args };
   }
@@ -84,7 +122,9 @@ export function buildExternalAgentInvocation(
  * 从外部 agent 的 stdout 提取最终回答。
  *
  * - claude-family + `--output-format json`：返回 `type:"result"` 条目的 `.result`
- *   （实测 codebuddy 2.179.2 的结构）；解析失败时退回原文。
+ *   （实测 codebuddy 2.179.2 / claude 2.1.193 的结构）；解析失败时退回原文。
+ * - codex-exec：不加 `--json` 时 stdout 就是最终回答，原样返回；
+ *   `is_error` 只能由退出码判定（见 driver）。
  * - 其余情况：原文（generic 模板无法假设结构）。
  */
 export function parseExternalAgentResult(

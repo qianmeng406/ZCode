@@ -16,6 +16,8 @@ import type {
   V4ConversationFileChangesResult,
   V4ConversationFileRewindPreviewParams,
   V4ConversationFileRewindPreviewResult,
+  V4ExternalAgentProbeParams,
+  V4ExternalAgentProbeResult,
   V4ConversationWorkflowRunArtifactDataParams,
   V4ConversationWorkflowRunArtifactDataResult,
   V4ConversationWorkflowRunArtifactReadParams,
@@ -57,6 +59,8 @@ export interface V4ConversationContextValue {
   fileRewindPreview(
     params: V4ConversationFileRewindPreviewParams,
   ): Promise<V4ConversationFileRewindPreviewResult>;
+  /** 外部 coding agent 的绑定候选探测：本机装了哪些已适配 CLI、各自能用哪些模型。 */
+  externalAgentProbe(params: V4ExternalAgentProbeParams): Promise<V4ExternalAgentProbeResult>;
   /** workflow run 事件日志分页（详情页审计面）；只读、无状态、超时重发安全。 */
   workflowRunEvents(
     params: V4ConversationWorkflowRunEventsParams,
@@ -179,6 +183,8 @@ function ReadyV4ConversationProvider({
       fileChanges: (params: V4ConversationFileChangesParams) => transport.fileChanges(params),
       fileRewindPreview: (params: V4ConversationFileRewindPreviewParams) =>
         transport.fileRewindPreview(params),
+      externalAgentProbe: (params: V4ExternalAgentProbeParams) =>
+        transport.externalAgentProbe(params),
       workflowRunEvents: (params: V4ConversationWorkflowRunEventsParams) =>
         transport.workflowRunEvents(params),
       workflowRunArtifacts: (params: V4ConversationWorkflowRunArtifactsParams) =>
@@ -372,6 +378,8 @@ function ReadyV4PaneConversationProvider({
           lease.transport.fileChanges(params),
         fileRewindPreview: (params: V4ConversationFileRewindPreviewParams) =>
           lease.transport.fileRewindPreview(params),
+        externalAgentProbe: (params: V4ExternalAgentProbeParams) =>
+          lease.transport.externalAgentProbe(params),
         workflowRunEvents: (params: V4ConversationWorkflowRunEventsParams) =>
           lease.transport.workflowRunEvents(params),
         workflowRunArtifacts: (params: V4ConversationWorkflowRunArtifactsParams) =>

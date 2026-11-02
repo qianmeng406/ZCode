@@ -275,17 +275,24 @@ export const commandPayloadSchemas = {
   bindExternalAgent: z
     .object({
       label: z.string().trim().min(1).max(80),
-      driver: z.enum(["claude-family", "generic-template"]),
+      driver: z.enum(["claude-family", "codex-exec", "generic-template"]),
       command: z.string().trim().min(1).max(500),
       args: z.array(z.string().max(2_000)).max(50).optional(),
       promptDelivery: z.enum(["argv-append", "stdin", "template"]).optional(),
       permissionMode: z.string().max(40).optional(),
+      /** 来自哪个内置预设（溯源与 UI 回显；调用形状仍由 driver/args 决定）。 */
+      presetId: z.string().max(60).optional(),
+      /** 外部 agent 使用的模型；缺省 = 该 CLI 的默认模型。 */
+      model: z.string().max(200).optional(),
       env: z.record(z.string(), z.string()).optional(),
       timeoutMs: z.number().int().positive().max(3_600_000).optional(),
     })
     .strict(),
   // 解绑：恢复绑定时被覆盖的 plan 状态。
   unbindExternalAgent: z.object({}).strict(),
+  // 切换已绑定外部 agent 的模型（只改 model 字段，不动只读契约与授权）。
+  // 不重建绑定：重建会重新快照 previous*，把用户原本的权限再覆盖一层。
+  setExternalAgentModel: z.object({ model: z.string().max(200).nullable() }).strict(),
   pauseGoal: z.object({}),
   resumeGoal: z.object({}),
   // 删除当前会话目标：幂等清空 target，不携 baseRevision（同 deleteSession 的控制面语义）。
@@ -353,6 +360,7 @@ export const COMMANDS_REQUIRING_BASE_REVISION: ReadonlySet<CommandType> = new Se
   "switchCollaborationMode",
   "bindExternalAgent",
   "unbindExternalAgent",
+  "setExternalAgentModel",
   "setFollowupMode",
   "pauseGoal",
   "resumeGoal",

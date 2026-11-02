@@ -19,6 +19,8 @@ import type {
   V4ConversationFileRewindPreviewResult,
   V4ConversationPlansParams,
   V4ConversationPlansResult,
+  V4ExternalAgentProbeParams,
+  V4ExternalAgentProbeResult,
   V4ConversationRowsRangeParams,
   V4ConversationRowsRangeResult,
   V4ConversationWorkflowRunArtifactDataParams,
@@ -68,6 +70,11 @@ export interface ConversationTransport {
   rowsRange(params: V4ConversationRowsRangeParams): Promise<V4ConversationRowsRangeResult>;
   /** v4/conversation/plans：当前有效分支里的全部终态计划。 */
   plans(params: V4ConversationPlansParams): Promise<V4ConversationPlansResult>;
+  /**
+   * v4/externalAgent/probe：本机装了哪些已适配的外部 coding agent、各自能用哪些模型。
+   * 只读、无状态；旧 CLI 不支持时抛错，调用方降级为手填表单。
+   */
+  externalAgentProbe(params: V4ExternalAgentProbeParams): Promise<V4ExternalAgentProbeResult>;
   /** v4/conversation/workflowRunEvents：workflow run 的事件日志分页（cursor = journal sequence）。 */
   workflowRunEvents(
     params: V4ConversationWorkflowRunEventsParams,

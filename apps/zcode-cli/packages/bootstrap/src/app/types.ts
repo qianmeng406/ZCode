@@ -110,6 +110,7 @@ import type { NodeReplBrowserBroker } from "./node-repl-browser-broker.js";
 import type { SessionExecutionPortBinding } from "./session-execution-port-binding.js";
 import type { ProviderRegistryModelSource } from "./provider-registry-model-runtime.js";
 import type { WorkspaceHookReviewCommandResult } from "./workspace-hook-review-controller.js";
+import type { AppExternalAgentProbeResult } from "./external-agent-probe-types.js";
 export type { ZCodeModelOption } from "@zcode/shared";
 
 export interface WorkspaceHookReviewHostContext {
@@ -368,6 +369,13 @@ export interface ZCodeApp {
   close?(): Promise<void>;
   getMode(): CollaborationMode;
   getModel(): string;
+  /**
+   * 外部 coding agent 的绑定候选探测：本机装了哪些已适配 CLI、各自能用哪些模型。
+   *
+   * 只读、无副作用；复用本会话的 ExecutionPort，因此远程/容器会话探测的是
+   * 真正执行的那台机器。缺席 = 宿主不支持探测（UI 退回手填表单）。
+   */
+  probeExternalAgents?(): Promise<AppExternalAgentProbeResult>;
   /** current-only 协议快照精确读取当前 Registry 模型，避免枚举整个目录。 */
   getCurrentModelOption?(): ZCodeModelOption | undefined;
   /** 只读 Registry 元数据；不要求选项完整，也不绑定执行模型。 */

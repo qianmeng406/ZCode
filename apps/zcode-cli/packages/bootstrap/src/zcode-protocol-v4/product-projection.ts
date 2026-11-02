@@ -3750,10 +3750,12 @@ export class ProductProjection {
     const externalAgent = payload
       ? {
           label: payload.label,
-          driver: payload.driver as "claude-family" | "generic-template",
+          driver: payload.driver as "claude-family" | "codex-exec" | "generic-template",
           command: payload.command,
           promptDelivery: payload.promptDelivery as ExternalAgentState["promptDelivery"],
           ...(payload.permissionMode ? { permissionMode: payload.permissionMode } : {}),
+          ...(payload.presetId ? { presetId: payload.presetId } : {}),
+          ...(payload.model ? { model: payload.model } : {}),
           readOnly: true as const,
         }
       : null;

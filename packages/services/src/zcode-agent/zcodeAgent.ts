@@ -119,6 +119,7 @@ import type {
   V4ConversationFileRewindPreviewResult,
   V4ConversationInputPredictionResult,
   V4ConversationPlansResult,
+  V4ExternalAgentProbeResult,
   V4ConversationWorkflowRunEventsResult,
   V4ConversationWorkflowRunArtifactDataResult,
   V4ConversationWorkflowRunArtifactReadResult,
@@ -469,6 +470,14 @@ export interface ZCodeAgentConversationRowsRangeParams extends ZCodeAgentSession
 
 /** 当前有效分支里的终态 ExitPlanMode 目录。 */
 export type ZCodeAgentConversationPlansParams = ZCodeAgentSessionTarget;
+
+/**
+ * 外部 coding agent 的绑定候选探测。
+ *
+ * 复用 session target：探测必须落在本会话真正执行的那台机器上（远程会话的 CLI 在远端），
+ * 所以它需要一个会话身份而不是裸 workspace 路径。
+ */
+export type ZCodeAgentExternalAgentProbeParams = ZCodeAgentSessionTarget;
 
 /** 手机远控输入预测（ghost hint）；线格式见 docs/web-remote-control/mobile-input-prediction.md。 */
 export interface ZCodeAgentConversationInputPredictionParams extends ZCodeAgentSessionTarget {
@@ -1027,6 +1036,10 @@ export interface IZCodeAgentService {
   conversationPlansV4(
     params: ZCodeAgentConversationPlansParams,
   ): Promise<V4ConversationPlansResult>;
+  /** 外部 coding agent 的绑定候选探测：本机装了哪些已适配 CLI、各自能用哪些模型。 */
+  externalAgentProbeV4(
+    params: ZCodeAgentExternalAgentProbeParams,
+  ): Promise<V4ExternalAgentProbeResult>;
   /** 输入预测：只读、无状态；Host 开关关闭 / 无运行时 / 失败一律回空结果，不抛错。 */
   conversationInputPredictionV4(
     params: ZCodeAgentConversationInputPredictionParams,
