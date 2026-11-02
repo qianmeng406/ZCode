@@ -30,6 +30,7 @@ interface TurnHeaderLike {
   ttftOutputTokens?: number;
   ttftGenerationDurationMs?: number;
   requestTtftSumMs?: number;
+  ttftRequestCount?: number;
 }
 
 interface SessionUsageLike {
@@ -71,11 +72,13 @@ export function deriveComposerTurnMetricsFact(
         lastRequestTurn = { ordinal: row.turnOrdinal, step };
       }
       // 聚合 decode 事实同源同一个 turnHeader：多步轮次的速度靠它才稳定。
+      // stepCount 决定聚合有没有平滑意义（< 2 交回单请求口径）。
       if (row.ttftOutputTokens !== undefined && row.ttftGenerationDurationMs !== undefined) {
         turnDecode = {
           outputTokens: row.ttftOutputTokens,
           generationDurationMs: row.ttftGenerationDurationMs,
           ...(row.requestTtftSumMs !== undefined ? { ttftSumMs: row.requestTtftSumMs } : {}),
+          ...(row.ttftRequestCount !== undefined ? { stepCount: row.ttftRequestCount } : {}),
         };
       }
       break;

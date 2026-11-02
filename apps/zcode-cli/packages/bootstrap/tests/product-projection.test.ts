@@ -10854,6 +10854,67 @@ describe("ProductProjection main-turn metrics", () => {
     );
   });
 
+  it("轮指标累计聚合 decode 事实：只统计同时带 TTFT 与 outputTokens 的 main step", () => {
+    const log = new EventLog();
+    log.push(SessionEventType.SessionCreated, { mode: "default", contextWindow: 200_000 });
+    log.push(
+      SessionEventType.TurnStarted,
+      { turnNumber: 1, input: "decode", inputId: "cmd-1", messageId: "user-1" },
+      { turnId: "turn-1" },
+    );
+    // step 1：带 TTFT + outputTokens → 参与聚合（TTFT 320 / 墙钟 800 / 20 tok）。
+    log.push(
+      SessionEventType.ModelComplete,
+      {
+        content: "a",
+        stopReason: "tool_use",
+        querySource: "main_turn",
+        usage: { inputTokens: 10, outputTokens: 20 },
+        timings: { startedAt: 1_000, firstTokenAt: 1_320, generationDurationMs: 800 },
+      },
+      { turnId: "turn-1", timestampMs: 1_800 },
+    );
+    // step 2：带 TTFT + outputTokens → 参与聚合（200 / 1_200 / 30 tok）。
+    log.push(
+      SessionEventType.ModelComplete,
+      {
+        content: "b",
+        stopReason: "end_turn",
+        querySource: "main_turn",
+        usage: { inputTokens: 10, outputTokens: 30 },
+        timings: { startedAt: 2_000, firstTokenAt: 2_200, generationDurationMs: 1_200 },
+      },
+      { turnId: "turn-1", timestampMs: 3_200 },
+    );
+    // step 3：没有 TTFT 事实（非流式）→ 不计入聚合窗口与分子。
+    log.push(
+      SessionEventType.ModelComplete,
+      {
+        content: "c",
+        stopReason: "end_turn",
+        querySource: "main_turn",
+        usage: { inputTokens: 10, outputTokens: 500 },
+        timings: { startedAt: 4_000, generationDurationMs: 3_000 } as never,
+      },
+      { turnId: "turn-1", timestampMs: 7_000 },
+    );
+    const snapshot = runAll(log.events).projection.getSnapshot();
+    const header = snapshot.rows.window.find((row) => row.kind === "turnHeader");
+    expect(header).toEqual(
+      expect.objectContaining({
+        // 聚合口径：ΣTTFT 520 / Σ墙钟 2_000 / Σtoken 50 / 2 个可聚合 step。
+        requestTtftSumMs: 520,
+        ttftRequestCount: 2,
+        ttftOutputTokens: 50,
+        ttftGenerationDurationMs: 2_000,
+        // 全轮口径不受影响：无 TTFT 的 step 仍计入总量与 requestCount。
+        outputTokens: 550,
+        requestCount: 3,
+        generationDurationMs: 5_000,
+      }),
+    );
+  });
+
   it("轮指标累计 usage 明细（推理/缓存）与单请求事实", () => {
     const log = new EventLog();
     log.push(SessionEventType.SessionCreated, { mode: "default", contextWindow: 200_000 });

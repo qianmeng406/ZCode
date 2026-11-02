@@ -6,9 +6,11 @@ import {
   appendInputPredictionDirective,
   createNextInputStreamFilter,
   decideInputPrediction,
+  isDirectiveEchoText,
   normalizeInputPredictionDraft,
   parseInputPredictionResponse,
   parseNextInputPredictionBlock,
+  stripInjectedPredictionDirective,
   toInputPredictionSuffix,
   type InputPredictionModelMessage,
 } from "../src/runtime/methods/input-prediction-sidecar.js";
@@ -125,6 +127,36 @@ describe("decideInputPrediction", () => {
     ).toMatchObject({ decision: "show", topConfidence: 1 });
   });
 
+  it("丢弃指令回显型候选（线上事故：胶囊回显注入指令，接受后整段被当输入发出）", () => {
+    const directive = [
+      "【输入预测】回复正文全部结束后，另起一行输出一个预测块：",
+      '<next_input>{"candidates":[{"text":"...","confidence":0.9}]}</next_input>',
+      "- 每条 text 单行、不超过 40 字。",
+    ].join("\n");
+    expect(isDirectiveEchoText(directive)).toBe(true);
+    expect(isDirectiveEchoText("<next_input>{}</next_input>")).toBe(true);
+    expect(isDirectiveEchoText("<system-reminder>环境</system-reminder>")).toBe(true);
+    expect(isDirectiveEchoText("帮我跑一下单测")).toBe(false);
+
+    // decide 与 parse 两条入口都必须把它丢掉。
+    expect(
+      decideInputPrediction({
+        rawCandidates: [
+          { text: directive, confidence: 0.99 },
+          { text: "帮我跑一下单测", confidence: 0.7 },
+        ],
+        draft: "",
+        recentUserInputs: [],
+        turnCount: 3,
+      }).candidates,
+    ).toEqual([{ text: "帮我跑一下单测", confidence: 0.7 }]);
+    expect(
+      parseNextInputPredictionBlock(
+        `正文<next_input>{"candidates":[{"text":"【输入预测】回复正文全部结束后","confidence":1}]}</next_input>`,
+      ),
+    ).toBeNull();
+  });
+
   it("草稿模式按「草稿 + 续写」与最近输入去重", () => {
     expect(
       decideInputPrediction({
@@ -174,6 +206,74 @@ describe("appendInputPredictionDirective", () => {
     expect(blocks[1]).toBe(imageBlock);
     expect(blocks[0]!.text).toContain("看得到图片吗");
     expect(blocks[0]!.text).toContain("<next_input>");
+  });
+
+  it("正文里已带指令副本时先剥掉再注入，只留末尾一份", () => {
+    // 线上事故：指令原文本被当成用户输入发出（胶囊回显被接受 / 粘贴）。
+    // 出站前必须清洗，否则指令会一轮轮堆进对话正文。
+    const leaked = [
+      "【输入预测】回复正文全部结束后，另起一行输出一个预测块：",
+      '<next_input>{"candidates":[{"text":"...","confidence":0.9}]}</next_input>',
+      "- 没有把握就少写几条，不要编造；预测块必须放在回复的最末尾，除此之外不要输出任何解释。",
+    ].join("\n");
+    const messages: InputPredictionModelMessage[] = [
+      { role: "user", content: `帮我看看这个\n\n${leaked}\n\n${leaked}` },
+    ];
+    appendInputPredictionDirective(messages);
+    const content = messages[0]!.content as string;
+    expect(content).toContain("帮我看看这个");
+    // 只保留一份指令（末尾注入的那份）。
+    expect(content.split("【输入预测】").length - 1).toBe(1);
+    expect(content).toContain("<next_input>");
+  });
+
+  it("清洗整个请求：历史消息里的指令副本也要剥掉", () => {
+    // 线上：指令被当成用户消息发出后会留在历史里，继续一轮轮回放给模型。
+    const leaked = [
+      "【输入预测】回复正文全部结束后，另起一行输出一个预测块：",
+      '<next_input>{"candidates":[]}</next_input>',
+      "- 除此之外不要输出任何解释。",
+    ].join("\n");
+    const messages: InputPredictionModelMessage[] = [
+      { role: "user", content: "第一条真实输入" },
+      { role: "assistant", content: "回复" },
+      { role: "user", content: leaked },
+      { role: "user", content: "最新一条输入" },
+    ];
+    appendInputPredictionDirective(messages);
+    // 历史里那条纯指令消息被清空，不再是 "指令文本"。
+    expect(messages[2]!.content as string).not.toContain("【输入预测】");
+    expect((messages[2]!.content as string).trim()).toBe("");
+    // assistant 不受影响；真实用户正文保留。
+    expect(messages[1]!.content).toBe("回复");
+    expect(messages[0]!.content).toBe("第一条真实输入");
+    // 最新一条仍带且只带一份规范指令。
+    expect(messages[3]!.content).toContain("最新一条输入");
+    expect((messages[3]!.content as string).split("【输入预测】").length - 1).toBe(1);
+  });
+
+  it("纯指令消息被清洗后不再注入（避免造出无正文的预测请求）", () => {
+    const leaked = [
+      "【输入预测】回复正文全部结束后，另起一行输出一个预测块：",
+      '<next_input>{"candidates":[]}</next_input>',
+      "- 除此之外不要输出任何解释。",
+    ].join("\n");
+    const messages: InputPredictionModelMessage[] = [{ role: "user", content: leaked }];
+    appendInputPredictionDirective(messages);
+    expect((messages[0]!.content as string).trim()).toBe("");
+  });
+
+  it("stripInjectedPredictionDirective 只删标记段，不吞其它正文", () => {
+    const withDirective =
+      "前文\n\n【输入预测】回复正文全部结束后，另起一行输出一个预测块：\n<next_input>{}</next_input>\n- 除此之外不要输出任何解释。\n\n后文";
+    const stripped = stripInjectedPredictionDirective(withDirective);
+    expect(stripped).toBe("前文\n后文");
+    // 没有标记的文本原样返回。
+    expect(stripInjectedPredictionDirective("普通消息")).toBe("普通消息");
+    // 只有起点没有终点：不猜边界，原样返回。
+    expect(stripInjectedPredictionDirective("【输入预测】回复正文全部结束后……无终点")).toBe(
+      "【输入预测】回复正文全部结束后……无终点",
+    );
   });
 
   it("块数组没有 text 块时追加一个 text 块而不是拼接", () => {

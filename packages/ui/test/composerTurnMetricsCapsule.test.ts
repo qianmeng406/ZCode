@@ -112,9 +112,62 @@ describe("ComposerTurnMetricsCapsule", () => {
         outputTokens: 900,
         generationDurationMs: 40_000,
         ttftSumMs: 10_000,
+        stepCount: 3,
       },
     });
     expect(item(container, "last-request-tokens-per-second")?.textContent).toContain("30");
+  });
+
+  it("never shows an absurd speed when the aggregation has nothing to smooth", () => {
+    // Oracle 高危回归：单步聚合（stepCount=1）恒等于单请求口径，若聚合路径放行
+    // 就等于绕过 500ms 下限——8212 tok / 300ms ≈ 27,373 tok/s 会重新出现。
+    const singleStepDegenerate = renderCapsule({
+      session: sessionUsage,
+      lastRequest: {
+        outputTokens: 8_212,
+        generationDurationMs: 13_300,
+        timeToFirstTokenMs: 13_000,
+      },
+      lastRequestTurn,
+      turnDecode: {
+        outputTokens: 8_212,
+        generationDurationMs: 13_300,
+        ttftSumMs: 13_000,
+        stepCount: 1,
+      },
+    });
+    expect(item(singleStepDegenerate.container, "last-request-tokens-per-second")).toBeNull();
+
+    // 多步但整轮窗口仍退化（Σ墙钟 13_300 − ΣTTFT 13_000 = 300ms）：同样不出导数。
+    const multiStepDegenerate = renderCapsule({
+      session: sessionUsage,
+      lastRequest: { ...lastRequest, timeToFirstTokenMs: 1_500 },
+      lastRequestTurn,
+      turnDecode: {
+        outputTokens: 8_212,
+        generationDurationMs: 13_300,
+        ttftSumMs: 13_000,
+        stepCount: 4,
+      },
+    });
+    expect(item(multiStepDegenerate.container, "last-request-tokens-per-second")).toBeNull();
+
+    // stepCount 缺席（旧 CLI 快照）按“无法证明可摊平”处理，同样交回单请求口径。
+    const unknownStepCount = renderCapsule({
+      session: sessionUsage,
+      lastRequest: {
+        outputTokens: 8_212,
+        generationDurationMs: 13_300,
+        timeToFirstTokenMs: 13_000,
+      },
+      lastRequestTurn,
+      turnDecode: {
+        outputTokens: 8_212,
+        generationDurationMs: 13_300,
+        ttftSumMs: 13_000,
+      },
+    });
+    expect(item(unknownStepCount.container, "last-request-tokens-per-second")).toBeNull();
   });
 
   it("omits the speed item when the streaming window is implausibly short", () => {
@@ -274,6 +327,7 @@ describe("deriveComposerTurnMetricsFact", () => {
       ttftOutputTokens: 900,
       ttftGenerationDurationMs: 40_000,
       requestTtftSumMs: 10_000,
+      ttftRequestCount: 3,
     };
     expect(deriveComposerTurnMetricsFact([headerWithDecode], usage)).toEqual({
       session: sessionUsage,
@@ -283,6 +337,7 @@ describe("deriveComposerTurnMetricsFact", () => {
         outputTokens: 900,
         generationDurationMs: 40_000,
         ttftSumMs: 10_000,
+        stepCount: 3,
       },
     });
   });

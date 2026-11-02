@@ -21,6 +21,10 @@ export const INPUT_PREDICTION_CONFIDENCE_THRESHOLD = 0.6;
 /** 去重时只看最近 2 条真实用户输入：用户刚发过的不再预测。 */
 const RECENT_USER_INPUT_DEDUPE_COUNT = 2;
 
+// 预测块标签：既用于流过滤/完成边界解析，也用于拦"指令回显型"候选。
+const NEXT_INPUT_BLOCK_OPEN = "<next_input";
+const NEXT_INPUT_BLOCK_CLOSE = "</next_input>";
+
 export interface InputPredictionCandidate {
   text: string;
   confidence: number;
@@ -110,9 +114,22 @@ export function toInputPredictionSuffix(rawText: string, draft: string): string 
 }
 
 /**
+ * 候选是否携带协议标记：指令回显、预测块标签或系统提醒包装。
+ * 这类文本一旦被当成候选展示并被接受，就会被用户原样发回模型
+ * （2026-11-02 线上事故：候选胶囊回显注入指令，接受后整段指令被当成输入发出）。
+ */
+export function isDirectiveEchoText(text: string): boolean {
+  if (text.includes("【输入预测】")) return true;
+  if (text.includes(NEXT_INPUT_BLOCK_OPEN) || text.includes(NEXT_INPUT_BLOCK_CLOSE)) return true;
+  if (text.includes("<system-reminder>") || text.includes("</system-reminder>")) return true;
+  return false;
+}
+
+/**
  * 后过滤 + 决策：
  * - 轮数不够 → suppress_no_context；
  * - 收敛为续写文本，空白丢弃；
+ * - 指令/协议标记回显一律丢弃（见 {@link isDirectiveEchoText}）；
  * - 与最近 2 条真实用户输入相同（按完整文本，大小写/空白不敏感）丢弃；
  * - 候选间同文本只留置信度高者；
  * - 按置信度降序取前 3；top ≥ 门槛 → show，否则 suppress_below_threshold。
@@ -134,6 +151,7 @@ export function decideInputPrediction(input: {
     const confidence = Math.min(1, Math.max(0, candidate.confidence));
     const text = toInputPredictionSuffix(candidate.text, draft);
     if (text.trim().length === 0) continue;
+    if (isDirectiveEchoText(text)) continue;
     const key = normalizeForDedupe(draft + text);
     if (recent.has(key)) continue;
     const existing = byKey.get(key);
@@ -153,9 +171,6 @@ export function decideInputPrediction(input: {
 
 // ─── 主轮输出附带预测（注入指令 + 流过滤 + 尾块解析） ────────────────────────
 
-const NEXT_INPUT_BLOCK_OPEN = "<next_input";
-const NEXT_INPUT_BLOCK_CLOSE = "</next_input>";
-
 /** 注入到本轮最后一条 user message 尾部的指令（request-only，不写入持久化轨迹）。 */
 export const INPUT_PREDICTION_INJECTION_DIRECTIVE = [
   "",
@@ -166,19 +181,78 @@ export const INPUT_PREDICTION_INJECTION_DIRECTIVE = [
   "- 没有把握就少写几条，不要编造；预测块必须放在回复的最末尾，除此之外不要输出任何解释。",
 ].join("\n");
 
+// 指令起止标记：用于把「已经被带进消息正文的指令副本」剥掉（出站清洗）。
+const DIRECTIVE_START_MARKER = "【输入预测】回复正文全部结束后";
+const DIRECTIVE_END_MARKER = "不要输出任何解释。";
+
 /**
- * 把预测指令追加到最后一条 user message 的文本尾部（原地修改传入数组）。
+ * 剥掉消息正文里已存在的注入指令副本（可能来自模型回显被接受、粘贴、或
+ * 上一轮注入残留）。循环删除每一段「标记起点 → 标记终点」，保护用户真实内容。
+ * 没有标记（或标记不成对）时原样返回，不猜边界。
+ */
+export function stripInjectedPredictionDirective(text: string): string {
+  let result = text;
+  for (;;) {
+    const start = result.indexOf(DIRECTIVE_START_MARKER);
+    if (start < 0) return result;
+    const endIndex = result.indexOf(DIRECTIVE_END_MARKER, start);
+    if (endIndex < 0) return result;
+    const before = result.slice(0, start);
+    const after = result.slice(endIndex + DIRECTIVE_END_MARKER.length);
+    // 合并两侧时去掉因删除产生的多余空行，但不吞用户正文。
+    const trimmedBefore = before.replace(/\s+$/u, "");
+    const trimmedAfter = after.replace(/^\s+/u, "");
+    result =
+      trimmedAfter.length > 0
+        ? `${trimmedBefore}${trimmedBefore.length > 0 ? "\n" : ""}${trimmedAfter}`
+        : trimmedBefore;
+  }
+}
+
+/**
+ * 出站清洗：把**整个请求**里所有 user message 中残留的指令副本剥掉。
+ * 指令副本可能来自：模型回显被当成候选接受、用户粘贴、上一轮注入残留。
+ * 不清洗的话指令会一轮轮堆进对话正文（2026-11-02 线上：同一段指令被连续
+ * 多轮当成用户消息发给模型）。只删标记段，用户真实正文不受影响。
+ */
+function sanitizeInjectedDirectives(messages: ModelInputMessage[]): void {
+  for (const message of messages) {
+    if (message.role !== "user") continue;
+    if (typeof message.content === "string") {
+      message.content = stripInjectedPredictionDirective(message.content);
+      continue;
+    }
+    if (!Array.isArray(message.content)) continue;
+    for (const block of message.content) {
+      if (block.type === "text") block.text = stripInjectedPredictionDirective(block.text);
+    }
+  }
+}
+
+/**
+ * 给本次请求注入预测指令（原地修改传入数组）。
+ *
+ * 分两步，顺序不能反：
+ * 1. **先全请求清洗**：剥掉所有 user message 里已存在的指令副本；
+ * 2. **再对最后一条 user message 追加一份**。
+ * 这样无论指令副本从哪条路径进来，模型每次只会看到末尾这一份规范副本。
+ *
  * content 为块数组（带图片/文件附件的消息）时复用最后一个 text 块——
  * 绝不能用模板字符串拼接整个 content，那会把块数组强转成
  * "[object Object],[object Object]" 并毁掉图片块（2026-11-01 线上事故）。
  * 找不到 user message 时不做任何事。
  */
 export function appendInputPredictionDirective(messages: ModelInputMessage[]): void {
+  sanitizeInjectedDirectives(messages);
   for (let index = messages.length - 1; index >= 0; index -= 1) {
     const message = messages[index];
     if (!message || message.role !== "user") continue;
     if (typeof message.content === "string") {
-      message.content = `${message.content}
+      const cleaned = message.content.trimEnd();
+      // 清洗后正文为空 = 这条消息原本只有指令副本：不注入（否则会造出
+      // "只有指令、没有任何提问"的请求，模型无从预测）。
+      if (cleaned.length === 0) return;
+      message.content = `${cleaned}
 
 ${INPUT_PREDICTION_INJECTION_DIRECTIVE}`;
       return;
@@ -187,7 +261,9 @@ ${INPUT_PREDICTION_INJECTION_DIRECTIVE}`;
       for (let block = message.content.length - 1; block >= 0; block -= 1) {
         const candidate = message.content[block];
         if (candidate?.type === "text") {
-          candidate.text = `${candidate.text}
+          const cleaned = candidate.text.trimEnd();
+          if (cleaned.length === 0) return;
+          candidate.text = `${cleaned}
 
 ${INPUT_PREDICTION_INJECTION_DIRECTIVE}`;
           return;
@@ -263,10 +339,13 @@ export function parseNextInputPredictionBlock(fullText: string): InputPrediction
   const raw = tryParseCandidates(inner);
   if (!raw || raw.length === 0) return null;
   // 钳制置信度 + 按文本去重 + 截到上限（与独立调模型路径同规则）。
+  // 解析边界同样拦指令回显：模型可能把注入指令本身当成"用户会说的话"返回，
+  // 那种文本一旦进胶囊并被接受，就会被原样发回模型（线上事故）。
   const byKey = new Map<string, InputPredictionCandidate>();
   for (const candidate of raw) {
     const text = toInputPredictionSuffix(candidate.text, "");
     if (text.trim().length === 0) continue;
+    if (isDirectiveEchoText(text)) continue;
     const confidence = Math.min(1, Math.max(0, candidate.confidence));
     const key = normalizeForDedupe(text);
     const existing = byKey.get(key);

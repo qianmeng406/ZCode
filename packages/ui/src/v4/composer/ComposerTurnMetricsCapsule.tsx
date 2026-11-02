@@ -41,6 +41,8 @@ export interface ComposerTurnDecodeTotals {
   generationDurationMs?: number;
   /** 参与聚合的 step 的 TTFT 之和。 */
   ttftSumMs?: number;
+  /** 参与聚合的 step 数；< 2 时聚合无平滑意义，交回单请求口径。 */
+  stepCount?: number;
 }
 
 /** snapshot.usage.cumulative 中本卡片用到的字段（全部是会话级累计）。 */
@@ -147,21 +149,31 @@ function formatTokensPerSecond(
 }
 
 /**
- * 多步聚合口径（对齐 dsh）：Σdecode 窗口 = Σ墙钟 − ΣTTFT，
- * 速度 = Σ(带 TTFT 的 step 的 outputTokens) / 该窗口。
- * 短窗口的单步会被同轮的其它步摊平，因此这里不设下限门槛——
- * 聚合窗口本身就是可信的（唯一的防线是窗口必须为正）。
+ * 多步聚合口径（借用 dsh `assistantStepReading` 的逐 step decode 定义）：
+ * Σdecode 窗口 = Σ墙钟 − ΣTTFT，速度 = Σ(带 TTFT 的 step 的 outputTokens) / 该窗口。
+ *
+ * **与 dsh 的有意差异**：dsh 的 `deriveStats` 是**整个会话**所有 step 求和后再相除，
+ * 本次是**单个 product turn** 内聚合。范围更小意味着平滑样本更少——单步轮次的
+ * 聚合值恒等于单请求值，没有可摊平的对象。因此这里必须保留下面两道防线
+ * （否则等于把 dsh 的会话级平滑当成逐轮可用，正是线上荒谬速度的语义根源）：
+ * - **至少 2 个 step 才走聚合**：单步轮次交回单请求路径，按同一套退化规则处理，
+ *   否则等于绕过 500ms 下限（线上 8212 tok / 300ms ≈ 27,373 tok/s）。
+ * - **聚合窗口同样受 {@link STREAMING_WINDOW_MIN_MS} 约束**：即使多步，整轮窗口
+ *   过短同样说明计时退化（非流式回落 / 输出末尾一次性涌出），不出导数。
  */
 function formatAggregatedTokensPerSecond(
   staffOutputTokens: number | undefined,
   generationDurationMs: number | undefined,
   ttftSumMs: number | undefined,
+  stepCount: number | undefined,
   locale: string,
 ): string | null {
   if (staffOutputTokens === undefined || staffOutputTokens <= 0) return null;
   if (generationDurationMs === undefined || ttftSumMs === undefined) return null;
+  // 单步聚合没有平滑对象：交回单请求路径（它自带 500ms 下限）。
+  if (stepCount === undefined || stepCount < 2) return null;
   const streamingMs = generationDurationMs - ttftSumMs;
-  if (streamingMs <= 0) return null;
+  if (streamingMs < STREAMING_WINDOW_MIN_MS) return null;
   return new Intl.NumberFormat(locale, {
     maximumFractionDigits: TOKENS_PER_SECOND_FRACTION_DIGITS,
   }).format((staffOutputTokens * 1000) / streamingMs);
@@ -330,13 +342,15 @@ export const ComposerTurnMetricsCapsule = memo(function ComposerTurnMetricsCapsu
         ? formatDurationMs(last.timeToFirstTokenMs, locale)
         : null,
     );
-    // 速度优先用本轮聚合口径（多步轮次稳定）；聚合事实缺席时退回单请求口径。
+    // 速度优先用本轮聚合口径（多步轮次稳定）；聚合事实缺席、或聚合无从摊平
+    // （单步 / 窗口退化）时退回单请求口径，两条路径共用同一套退化规则。
     const turnDecode = fact?.turnDecode;
     const aggregatedSpeed = turnDecode
       ? formatAggregatedTokensPerSecond(
           turnDecode.outputTokens,
           turnDecode.generationDurationMs,
           turnDecode.ttftSumMs,
+          turnDecode.stepCount,
           locale,
         )
       : null;
