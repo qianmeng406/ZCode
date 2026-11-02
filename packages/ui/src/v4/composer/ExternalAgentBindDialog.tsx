@@ -77,6 +77,9 @@ function ExternalAgentBindDialogImpl({
   const { intl } = useZCodeIntl();
   const [draft, setDraft] = useState<BindDraft>(EMPTY_DRAFT);
   const [pending, setPending] = useState(false);
+  // 提交失败必须可见：绑定的失败模式是"会话没进只读"，静默失败会让用户
+  // 以为已绑定而在一个可写会话里继续操作。
+  const [error, setError] = useState<string | null>(null);
 
   const statuses = probe ?? [];
   const selectedStatus = useMemo(
@@ -114,6 +117,7 @@ function ExternalAgentBindDialogImpl({
     if (!draft.command.trim()) return;
     const preset = selectedPreset;
     setPending(true);
+    setError(null);
     void onSubmit({
       label: preset?.label ?? draft.command.trim(),
       // 手填时按 claude-family 处理：它的参数形状最宽（-p + 输出格式 + 末尾 prompt），
@@ -127,8 +131,14 @@ function ExternalAgentBindDialogImpl({
       ...(preset ? { presetId: preset.id } : {}),
       ...(draft.model.trim() ? { model: draft.model.trim() } : {}),
       ...(draft.effort.trim() ? { effort: draft.effort.trim() } : {}),
-    }).finally(() => setPending(false));
-  }, [draft, onSubmit, pending, selectedPreset]);
+    })
+      .then(() => onOpenChange(false))
+      .catch((cause: unknown) => {
+        // 命令被拒（revision 冲突/已绑定/存储缺失…）：把原因留在页脚，不再无声无息。
+        setError(cause instanceof Error ? cause.message : String(cause));
+      })
+      .finally(() => setPending(false));
+  }, [draft, onOpenChange, onSubmit, pending, selectedPreset]);
 
   const canSubmit = !pending && draft.command.trim().length > 0;
 
@@ -305,6 +315,12 @@ function ExternalAgentBindDialogImpl({
               />
             </Field>
           </section>
+        ) : null}
+
+        {error ? (
+          <p className="text-ui-sm text-danger" data-testid="external-agent-bind-error">
+            {error}
+          </p>
         ) : null}
 
         <DialogFooter>

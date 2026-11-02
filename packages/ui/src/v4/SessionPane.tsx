@@ -5101,7 +5101,13 @@ export function SessionPane({
   // 否则会以为"点了就恢复了"而继续在一个不可写的会话里操作。
   const handleUnbindExternalAgent = useCallback(async () => {
     if (!sessionId) return;
-    const ack = await dispatchCommand("unbindExternalAgent", {}, sessionId);
+    // CAS 命令必须带 baseRevision，否则 createCommandEnvelope 客户端就地抛。
+    const ack = await dispatchCommand(
+      "unbindExternalAgent",
+      {},
+      sessionId,
+      snapshotRef.current?.revision,
+    );
     if (ack.status !== "accepted" && ack.status !== "noop") {
       throw new Error(ack.reasonCode ?? ack.status);
     }
@@ -5154,7 +5160,13 @@ export function SessionPane({
   const handleChangeExternalAgentModel = useCallback(
     async (model: string | null) => {
       if (!sessionId) return;
-      const ack = await dispatchCommand("setExternalAgentModel", { model }, sessionId);
+      // CAS 命令必须带 baseRevision（同 unbindExternalAgent）。
+      const ack = await dispatchCommand(
+        "setExternalAgentModel",
+        { model },
+        sessionId,
+        snapshotRef.current?.revision,
+      );
       if (ack.status !== "accepted" && ack.status !== "noop") {
         throw new Error(ack.reasonCode ?? ack.status);
       }
@@ -5166,7 +5178,13 @@ export function SessionPane({
   const handleChangeExternalAgentEffort = useCallback(
     async (effort: string | null) => {
       if (!sessionId) return;
-      const ack = await dispatchCommand("setExternalAgentEffort", { effort }, sessionId);
+      // CAS 命令必须带 baseRevision（同 unbindExternalAgent）。
+      const ack = await dispatchCommand(
+        "setExternalAgentEffort",
+        { effort },
+        sessionId,
+        snapshotRef.current?.revision,
+      );
       if (ack.status !== "accepted" && ack.status !== "noop") {
         throw new Error(ack.reasonCode ?? ack.status);
       }
@@ -5179,7 +5197,13 @@ export function SessionPane({
   const handleBindExternalAgent = useCallback(
     async (payload: BindExternalAgentPayload) => {
       if (!sessionId) return;
-      const ack = await dispatchCommand("bindExternalAgent", { ...payload }, sessionId);
+      // CAS 命令必须带 baseRevision（同 unbindExternalAgent）。
+      const ack = await dispatchCommand(
+        "bindExternalAgent",
+        { ...payload },
+        sessionId,
+        snapshotRef.current?.revision,
+      );
       if (ack.status !== "accepted" && ack.status !== "noop") {
         throw new Error(ack.reasonCode ?? ack.status);
       }
