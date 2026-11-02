@@ -24,7 +24,7 @@ import { z } from "zod";
  */
 export const EXTERNAL_AGENT_MODEL_SOURCES = [
   "static",
-  "npm-product-json",
+  "server-cache",
   "help-probe",
   "free-text",
 ] as const;
@@ -109,8 +109,14 @@ export function resolveEffortLevels(
   model: string | undefined,
   probedModels?: readonly ExternalAgentModelInfo[],
 ): string[] {
+  // 服务端目录命中：有 supportedEfforts 用之；固定档回落到 CLI 选择器的缺省档——
+  // codebuddy 的 EffortPanel 对固定档也是这么做的（不隐藏，回落基础档）。
   const probed = probedModels?.find((entry) => entry.id === model);
-  if (probed) return probed.supportedEfforts;
+  if (probed) {
+    return probed.supportedEfforts.length > 0
+      ? probed.supportedEfforts
+      : [...CLI_PICKER_DEFAULT_EFFORTS];
+  }
   const exact = preset.effortLevelsByModel[model ?? ""];
   if (exact) return exact;
   if (model && preset.effortLevelsByModel[""]) return preset.effortLevelsByModel[""];
@@ -121,8 +127,8 @@ export function resolveEffortLevels(
  * 静态档位表的兜底数据（探测不可用时才用）。
  *
  * 已知局限：这三家的 `--help` 都没有逐模型档位清单，所以这里只能登记 CLI 级范围。
- * codebuddy 有权威来源（npm 包里的 product.json，逐模型 supportedEfforts），
- * 探测可用时一律以它为准——这张表只在读不到目录时兜底。
+ * codebuddy 的权威来源是服务端下发的缓存（登录后才有），探测可用时一律以它为准
+ * ——这张表只在读不到缓存时兜底。
  * - claude-code：`--effort` 的合法值固定为这五个（非法值警告原文列出）；
  * - codebuddy：在 claude 那组之上多一个 minimal（`--help` 原文列出）；
  * - codex：档位来自 config.toml 的 `model_reasoning_effort`，本机配置的
@@ -176,11 +182,10 @@ export const EXTERNAL_AGENT_PRESETS: readonly ExternalAgentPreset[] = [
     promptDelivery: "argv-append",
     permissionMode: "acceptEdits",
     modelFlag: "--model",
-    // codebuddy 的 npm 包带 product.json（逐模型 supportedEfforts）——比 --help 权威。
-    modelSource: "npm-product-json",
+    // 模型与档位都来自服务端下发的缓存（登录后才有）；product.json 只作兜底。
+    modelSource: "server-cache",
     models: [],
     effortDelivery: "flag",
-    // codebuddy 的 --effort 比 claude 多一个 minimal。
     effortLevelsByModel: { "": [...CODEBUDDY_EFFORT_LEVELS] },
   },
   {
@@ -238,19 +243,97 @@ export function parseModelListFromHelp(helpText: string): string[] {
 }
 
 /**
- * 从 CLI 的 `product.json` 解析逐模型档位。
+ * 从服务端模型缓存解析模型目录（key = 模型 id）。
  *
- * codebuddy（及其 WorkBuddy 桌面版）的 npm 包里带一份产品清单，其中 `models[]`
- * 是权威模型目录。每个模型的 `reasoning` 有两种形态：
+ * 这是 codebuddy `/model` 面板的**权威来源**：登录后服务端把目录下发给 CLI，
+ * 缓存在 `~/.codebuddy/local_storage/entry_*.info`。与本地 `product.json` 的差别
+ * 是实打实的——`/model` 列表里有 `space-bunny`、`minimax-m3.1-flash` 等 9 个
+ * product.json 里没有的模型，价格也对不上（deepseek-v4.1-flash 服务端 x0.11、
+ * 本地 x0.00）；反过来的 13 个（gpt-5.6-*、gemini-3.5-flash 等）不在 `/model` 里。
  *
- * - `{ effort: "high" }`               —— 固定档，不可选；
- * - `{ supportedEfforts: [...], defaultEffort: "high" }` —— 可选。
+ * 缓存形状：`[{userId, data: {models: [...], agents: [{name, models: [id]}], ...}, ts}]`。
+ * 模型清单取 `agents` 里 `name === "cli"`（缺省取第一个）那份——它正是面板显示的集合。
+ */
+export function parseServerModelCache(raw: unknown): ExternalAgentModelInfo[] {
+  // 兼容两种输入：完整的用户数组，或探测脚本直接给出的单个 data 对象。
+  const users = Array.isArray(raw)
+    ? raw
+    : raw && typeof raw === "object" && Array.isArray((raw as { models?: unknown }).models)
+      ? [{ data: raw }]
+      : [];
+  // 多用户缓存取 ts 最新的那份。
+  let best: { ts: number; data: Record<string, unknown> } | undefined;
+  for (const user of users) {
+    if (!user || typeof user !== "object") continue;
+    const data = (user as { data?: unknown }).data;
+    if (!data || typeof data !== "object") continue;
+    const models = (data as { models?: unknown }).models;
+    if (!Array.isArray(models) || models.length === 0) continue;
+    const ts = typeof (user as { ts?: unknown }).ts === "number" ? (user as { ts: number }).ts : 0;
+    if (!best || ts > best.ts) best = { ts, data: data as Record<string, unknown> };
+  }
+  if (!best) return [];
+  const data = best.data as {
+    models?: Array<Record<string, unknown>>;
+    agents?: Array<Record<string, unknown>>;
+  };
+  const byId = new Map<string, Record<string, unknown>>();
+  for (const m of data.models ?? []) {
+    if (m && typeof m === "object" && typeof m.id === "string") byId.set(m.id, m);
+  }
+  const agents = data.agents ?? [];
+  const cli = agents.find((a) => a && a.name === "cli") ?? agents[0];
+  const ids =
+    cli && Array.isArray(cli.models)
+      ? cli.models.filter((id): id is string => typeof id === "string")
+      : [...byId.keys()];
+  const parsed: ExternalAgentModelInfo[] = [];
+  for (const id of ids) {
+    const m = byId.get(id);
+    if (!m) {
+      // agent 清单里有、目录里没有（理论不达）：仍给占位，让 UI 能显示这个模型。
+      parsed.push({ id, name: id, supportedEfforts: [] });
+      continue;
+    }
+    const reasoning =
+      m.reasoning && typeof m.reasoning === "object"
+        ? (m.reasoning as { supportedEfforts?: unknown; defaultEffort?: unknown; effort?: unknown })
+        : undefined;
+    const supported = Array.isArray(reasoning?.supportedEfforts)
+      ? reasoning.supportedEfforts.filter((value): value is string => typeof value === "string")
+      : [];
+    const defaultEffort =
+      typeof reasoning?.defaultEffort === "string"
+        ? reasoning.defaultEffort
+        : typeof reasoning?.effort === "string"
+          ? reasoning.effort
+          : undefined;
+    parsed.push({
+      id,
+      name: typeof m.name === "string" && m.name.length > 0 ? m.name : id,
+      supportedEfforts: supported,
+      ...(defaultEffort ? { defaultEffort } : {}),
+    });
+  }
+  return parsed;
+}
+
+/**
+ * CLI 档位选择器的缺省候选。
  *
- * 这是唯一可靠的逐模型档位事实源：`--help` 里那行全局值域对具体模型并不成立，
- * 而 CLI 对不支持的档位**静默接受**（实测把 low 传给只支持 high 的模型照样返回成功），
- * 所以拿错表用户根本察觉不到。
+ * codebuddy 的 EffortPanel 规则：模型没有 `supportedEfforts`（固定档）时，面板
+ * **不隐藏**，而是回落到这组基础档（`filterEffortLevelsForPicker` 的 `ep` 常量）。
+ * 固定档模型也是可选的——发出去是否被后端采纳是另一回事，但选择面与 CLI 一致。
+ */
+export const CLI_PICKER_DEFAULT_EFFORTS = ["low", "medium", "high", "xhigh"] as const;
+
+/**
+ * 从本地 `product.json` 解析模型目录（服务端缓存读不到时的兜底）。
  *
- * 解析失败返回空数组：调用方退回静态表，不把"读不到"当成"没有模型"。
+ * 已知局限（实测）：它是构建期快照，与登录后的 `/model` 列表对不上——缺 9 个
+ * 服务端新增的模型，多 13 个未上架的；价格也过期。所以只在读不到服务端缓存时
+ * 兜底用，档位同样以 `supportedEfforts` 为准（没有 = 固定档，调用方按
+ * `CLI_PICKER_DEFAULT_EFFORTS` 回落）。
  */
 export function parseModelCatalogFromProductJson(raw: unknown): ExternalAgentModelInfo[] {
   if (!raw || typeof raw !== "object") return [];
@@ -284,10 +367,11 @@ export function parseModelCatalogFromProductJson(raw: unknown): ExternalAgentMod
         : typeof reasoning?.effort === "string"
           ? reasoning.effort
           : undefined;
+    const efforts = supported;
     parsed.push({
       id: record.id,
       name: typeof record.name === "string" && record.name.length > 0 ? record.name : record.id,
-      supportedEfforts: supported,
+      supportedEfforts: efforts,
       ...(defaultEffort ? { defaultEffort } : {}),
     });
   }

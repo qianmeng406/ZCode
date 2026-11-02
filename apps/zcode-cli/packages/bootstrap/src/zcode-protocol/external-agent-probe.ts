@@ -11,6 +11,7 @@ import {
   EXTERNAL_AGENT_PRESETS,
   parseModelCatalogFromProductJson,
   parseModelListFromHelp,
+  parseServerModelCache,
   type ExternalAgentModelInfo,
   type ExternalAgentPreset,
 } from "@zcode/shared";
@@ -141,7 +142,15 @@ async function probeModelCatalog(
   preset: ExternalAgentPreset,
   cwd: string,
 ): Promise<ExternalAgentModelInfo[]> {
-  if (preset.modelSource !== "npm-product-json") return [];
+  if (preset.modelSource !== "server-cache") return [];
+  // ── 首选：服务端下发的模型缓存（~/.codebuddy/local_storage/entry_*.info）──
+  // 这是 /model 面板的权威来源：模型集合与逐模型档位都来自登录后的服务端目录。
+  // 本地 product.json 是构建期快照，与服务端列表对得上（实测差 9 / 13 个模型、
+  // 价格过期），只作读不到缓存时的兜底。
+  const serverCache = await probeServerModelCache(executionPort, cwd);
+  if (serverCache.length > 0) return serverCache;
+
+  // ── 兜底：npm 包里的 product.json ──
   const script = [
     "const fs=require('fs'),path=require('path');",
     "const cmd=process.argv[1];",
@@ -155,12 +164,12 @@ async function probeModelCatalog(
     "const candidates=[found];",
     // npm 的 .cmd shim 只转发到包内真实入口；从 shim 文本里取出那条相对路径。
     // 不用正则拼捕获组（多层转义容易出错）：直接找 node_modules 那一截。
-    "if(/\\.cmd$/i.test(found)){",
+    "if(/\.cmd$/i.test(found)){",
     "  try{const t=fs.readFileSync(found,'utf8');",
     "    const i=t.indexOf('node_modules');",
     "    if(i>=0){",
     "      let rel=t.slice(i);",
-    "      rel=rel.split('%*')[0].replace(/[\"\\r\\n]+$/g,'').trim();",
+    "      rel=rel.split('%*')[0].replace(/[\"\r\n]+$/g,'').trim();",
     "      rel=rel.split('\"')[0];",
     "      candidates.push(path.join(path.dirname(found),rel));",
     "    }",
@@ -185,6 +194,49 @@ async function probeModelCatalog(
   if (!read.ok || !read.stdout.trim()) return [];
   try {
     return parseModelCatalogFromProductJson(JSON.parse(read.stdout));
+  } catch {
+    return [];
+  }
+}
+
+/**
+ * 读服务端模型缓存（codebuddy 的 `~/.codebuddy/local_storage/entry_*.info`）。
+ *
+ * 必须在 CLI 所在机器上执行（复用 ExecutionPort），远程会话的缓存在远端；
+ * 用 `os.homedir()` 定位，多用户缓存取 ts 最新的一份（解析规则见 shared 的
+ * parseServerModelCache）。失败返回空数组 → 调用方退回 product.json 兜底。
+ */
+async function probeServerModelCache(
+  executionPort: ExecutionPort,
+  cwd: string,
+): Promise<ExternalAgentModelInfo[]> {
+  const script = [
+    "const fs=require('fs'),path=require('path'),os=require('os');",
+    "const dir=path.join(os.homedir(),'.codebuddy','local_storage');",
+    "if(!fs.existsSync(dir))process.exit(5);",
+    "let best=null;",
+    "for(const f of fs.readdirSync(dir)){",
+    "  if(!f.startsWith('entry_')||!f.endsWith('.info'))continue;",
+    "  try{",
+    "    const arr=JSON.parse(fs.readFileSync(path.join(dir,f),'utf8'));",
+    "    for(const u of (Array.isArray(arr)?arr:[])){",
+    "      const d=u&&u.data;",
+    "      if(!d||!Array.isArray(d.models)||!d.models.length)continue;",
+    "      const ts=typeof u.ts==='number'?u.ts:0;",
+    "      if(!best||ts>best.ts)best={ts,d};",
+    "    }",
+    "  }catch{}",
+    "}",
+    "if(!best)process.exit(5);",
+    "process.stdout.write(JSON.stringify(best.d));",
+  ].join("");
+  const read = await probeCommand(executionPort, "node", ["-e", script], cwd, {
+    maxInlineBytes: 4_000_000,
+    maxBufferBytes: 4_000_000,
+  });
+  if (!read.ok || !read.stdout.trim()) return [];
+  try {
+    return parseServerModelCache(JSON.parse(read.stdout));
   } catch {
     return [];
   }

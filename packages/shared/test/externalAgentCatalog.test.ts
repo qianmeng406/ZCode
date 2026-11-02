@@ -5,6 +5,7 @@ import {
   findExternalAgentPreset,
   parseModelCatalogFromProductJson,
   parseModelListFromHelp,
+  parseServerModelCache,
   resolveEffortLevels,
 } from "../src/externalAgentCatalog.js";
 import {
@@ -340,11 +341,104 @@ test("resolveEffortLevels: 真实目录优先于静态表（逐模型不同）",
   ]);
 });
 
-test("resolveEffortLevels: 目录里该模型不可选（空 supportedEfforts）→ 空，不退静态表", () => {
+test("resolveEffortLevels: 固定档回落到 CLI 选择器缺省档（与 EffortPanel 行为一致）", () => {
   const preset = findExternalAgentPreset("codebuddy")!;
   const catalog = [
     { id: "deepseek-v4.1-flash", name: "DS", supportedEfforts: [], defaultEffort: "high" },
   ];
-  // 关键：真实目录说"没有可选档位"，就不能再拿静态表糊上去。
-  assert.deepEqual(resolveEffortLevels(preset, "deepseek-v4.1-flash", catalog), []);
+  // codebuddy 的 EffortPanel 对固定档不隐藏入口，而是回落基础档
+  // （filterEffortLevelsForPicker 的缺省 ep = low/medium/high/xhigh）。
+  assert.deepEqual(resolveEffortLevels(preset, "deepseek-v4.1-flash", catalog), [
+    "low",
+    "medium",
+    "high",
+    "xhigh",
+  ]);
+});
+
+// ── 服务端模型缓存（/model 面板的权威来源）──
+// product.json 是构建期快照，与登录后的 /model 列表对不上（实测差 9/13 个、价格过期）；
+// 服务端缓存里 deepseek-v4.1-flash 直接带 supportedEfforts: [low,high,max]，与截图一致。
+
+test("parseServerModelCache: 兼容用户数组与单个 data 对象两种输入", () => {
+  const models = [
+    { id: "hy3", name: "Hy3", reasoning: { effort: "high" } },
+    {
+      id: "deepseek-v4.1-flash",
+      name: "DS",
+      reasoning: { defaultEffort: "high", supportedEfforts: ["low", "high", "max"] },
+    },
+  ];
+  const users = [
+    {
+      userId: "u1",
+      ts: 1,
+      data: { models, agents: [{ name: "cli", models: ["hy3", "deepseek-v4.1-flash"] }] },
+    },
+  ];
+  const fromArray = parseServerModelCache(users);
+  const fromData = parseServerModelCache({
+    models,
+    agents: [{ name: "cli", models: ["hy3", "deepseek-v4.1-flash"] }],
+  });
+  assert.deepEqual(fromArray, fromData);
+  assert.equal(fromArray.length, 2);
+  assert.deepEqual(fromArray[1]!.supportedEfforts, ["low", "high", "max"]);
+  // hy3 服务端没给 supportedEfforts → 固定档（空；调用方回落缺省档）。
+  assert.deepEqual(fromArray[0]!.supportedEfforts, []);
+});
+
+test("parseServerModelCache: 只取 cli agent 的模型清单（正是 /model 显示的集合）", () => {
+  const raw = [
+    {
+      ts: 5,
+      data: {
+        models: [
+          { id: "a", name: "A", reasoning: { effort: "high" } },
+          { id: "b", name: "B", reasoning: { effort: "high" } },
+          { id: "c", name: "C", reasoning: { effort: "high" } },
+        ],
+        agents: [
+          { name: "other", models: ["a"] },
+          { name: "cli", models: ["b", "c"] },
+        ],
+      },
+    },
+  ];
+  assert.deepEqual(
+    parseServerModelCache(raw).map((m) => m.id),
+    ["b", "c"],
+  );
+});
+
+test("parseServerModelCache: 多用户缓存取 ts 最新；畸形输入返回空", () => {
+  const mk = (id: string) => ({ id, name: id, reasoning: { effort: "high" } });
+  const raw = [
+    {
+      userId: "old",
+      ts: 1,
+      data: { models: [mk("old-model")], agents: [{ name: "cli", models: ["old-model"] }] },
+    },
+    {
+      userId: "new",
+      ts: 9,
+      data: { models: [mk("new-model")], agents: [{ name: "cli", models: ["new-model"] }] },
+    },
+  ];
+  assert.deepEqual(
+    parseServerModelCache(raw).map((m) => m.id),
+    ["new-model"],
+  );
+  assert.deepEqual(parseServerModelCache(null), []);
+  assert.deepEqual(parseServerModelCache({ models: [] }), []);
+  // agent 清单里有、目录里没有 → 占位保留（UI 能显示）。
+  const withMissing = parseServerModelCache({
+    models: [mk("a")],
+    agents: [{ name: "cli", models: ["a", "ghost"] }],
+  });
+  assert.deepEqual(
+    withMissing.map((m) => m.id),
+    ["a", "ghost"],
+  );
+  assert.deepEqual(withMissing[1]!.supportedEfforts, []);
 });
