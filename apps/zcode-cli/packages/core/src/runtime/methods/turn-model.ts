@@ -170,7 +170,14 @@ export async function applySubmissionExecutionState(
   }
 
   if (intent?.mode !== undefined || intent?.planEnabled !== undefined) {
-    await applyRuntimeExecutionState(runtime, intent, { source: "command", traceContext });
+    // 只读主控（绑定外部 agent）：提交意图可能还带着绑定前的 mode/planEnabled——
+    // composer 草稿不会因为绑定而重置。原样 apply 会被唯一写入口拒绝，turn 在
+    // ACK 之后才死，用户看到的是"发送没反应"。只读期间把提交意图钉在 plan：
+    // 与徽标显示一致；命令面的模式切换仍走 switchCollaborationMode 的显式拒绝。
+    const effectiveIntent = runtime.externalAgentReadOnly
+      ? { ...intent, mode: "plan", planEnabled: true }
+      : intent;
+    await applyRuntimeExecutionState(runtime, effectiveIntent, { source: "command", traceContext });
   }
 
   return model;
