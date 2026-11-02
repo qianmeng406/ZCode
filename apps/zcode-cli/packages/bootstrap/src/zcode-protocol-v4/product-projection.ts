@@ -373,6 +373,13 @@ export type ConversationRowTargetResolution =
     };
 
 // 旧事件没有 retryable 字段；保持历史 UI 的可重试语义，但新事件必须尊重显式 false。
+/**
+ * 可信流式窗口下限（ms）：首 token → 完成的窗口短于此值说明 provider 把这次
+ * 输出一次性吐完（工具调用步常见），token 数不能按"流式速率"计。
+ * 与 UI 侧 STREAMING_WINDOW_MIN_MS 同值，两端口径必须一致。
+ */
+const MIN_TRUSTED_STREAMING_WINDOW_MS = 500;
+
 const LEGACY_TURN_ERROR_RECOVERABLE_FALLBACK = true;
 
 function modelRetryReasonCode(
@@ -5785,18 +5792,25 @@ export class ProductProjection {
     // 速度口径（对齐 dsh assistantStepReading）：逐 step 求 decode 窗口
     // = 墙钟 − 该步 TTFT，再分别累加窗口与 token 后相除。多步轮次因此不会被
     // 单步的短窗口（工具输入末尾一次性吐出，窗口几十毫秒）带偏。
-    // 分子分母必须同口径：只统计「同时带 TTFT 与 outputTokens」的请求。
+    // 分子分母必须同口径：只统计「同时带 TTFT 与 outputTokens」、且流式窗口
+    // 可信的请求。工具调用步常被 provider 在末尾一次性吐出（窗口 30-50ms，
+    // 却输出上百 token），把它们计入会凭空抬高整轮速度（线上实测：某轮 4 个
+    // 这类步把速度推到 212 tok/s）。窗口下限与 UI 侧同值，两处语义保持一致。
+    const stepStreamingMs =
+      requestTtftMs !== undefined && timings?.generationDurationMs !== undefined
+        ? timings.generationDurationMs - requestTtftMs
+        : undefined;
     if (
       requestTtftMs !== undefined &&
       usage.outputTokens !== undefined &&
-      timings?.generationDurationMs !== undefined &&
-      timings.generationDurationMs >= requestTtftMs
+      stepStreamingMs !== undefined &&
+      stepStreamingMs >= MIN_TRUSTED_STREAMING_WINDOW_MS
     ) {
       patch.requestTtftSumMs = (headerRow.requestTtftSumMs ?? 0) + requestTtftMs;
       patch.ttftRequestCount = (headerRow.ttftRequestCount ?? 0) + 1;
       patch.ttftOutputTokens = (headerRow.ttftOutputTokens ?? 0) + usage.outputTokens;
       patch.ttftGenerationDurationMs =
-        (headerRow.ttftGenerationDurationMs ?? 0) + timings.generationDurationMs;
+        (headerRow.ttftGenerationDurationMs ?? 0) + (timings?.generationDurationMs ?? 0);
     }
     return patch;
   }

@@ -4040,13 +4040,22 @@ describe("V4 API 重试状态投影", () => {
 
   it("配置读取重试保留错误类别，桌面与手机使用同一状态", () => {
     const { log, projection } = runningProjection();
-    const deltas = projection.applyEvent(log.push(
-      SessionEventType.ModelNetworkStatus,
-      modelStatus({ type: "model_retry_scheduled", delayMs: 2000, nextAttempt: 2,
-        reason: "network_error", errorCode: ModelErrorCode.ModelRequestVerificationConfigNetwork }),
-      { turnId: "turn-retry-1" },
-    ));
-    expect(projection.getSnapshot().control.apiRetry?.reasonCode).toBe("request_verification_config_network");
+    const deltas = projection.applyEvent(
+      log.push(
+        SessionEventType.ModelNetworkStatus,
+        modelStatus({
+          type: "model_retry_scheduled",
+          delayMs: 2000,
+          nextAttempt: 2,
+          reason: "network_error",
+          errorCode: ModelErrorCode.ModelRequestVerificationConfigNetwork,
+        }),
+        { turnId: "turn-retry-1" },
+      ),
+    );
+    expect(projection.getSnapshot().control.apiRetry?.reasonCode).toBe(
+      "request_verification_config_network",
+    );
     expect(() => conversationSnapshotSchema.parse(projection.getSnapshot())).not.toThrow();
     for (const profile of [DELIVERY_PROFILES.continuous, DELIVERY_PROFILES.replayable]) {
       expect(filterConversationDeltasForProfile(deltas, profile)).toEqual(deltas);
@@ -10862,7 +10871,8 @@ describe("ProductProjection main-turn metrics", () => {
       { turnNumber: 1, input: "decode", inputId: "cmd-1", messageId: "user-1" },
       { turnId: "turn-1" },
     );
-    // step 1：带 TTFT + outputTokens → 参与聚合（TTFT 320 / 墙钟 800 / 20 tok）。
+    // step 1：带 TTFT + outputTokens → 参与聚合（TTFT 320 / 墙钟 1_500 / 20 tok，
+    // 窗口 1_180ms 在可信区间内）。
     log.push(
       SessionEventType.ModelComplete,
       {
@@ -10870,11 +10880,11 @@ describe("ProductProjection main-turn metrics", () => {
         stopReason: "tool_use",
         querySource: "main_turn",
         usage: { inputTokens: 10, outputTokens: 20 },
-        timings: { startedAt: 1_000, firstTokenAt: 1_320, generationDurationMs: 800 },
+        timings: { startedAt: 1_000, firstTokenAt: 1_320, generationDurationMs: 1_500 },
       },
-      { turnId: "turn-1", timestampMs: 1_800 },
+      { turnId: "turn-1", timestampMs: 2_500 },
     );
-    // step 2：带 TTFT + outputTokens → 参与聚合（200 / 1_200 / 30 tok）。
+    // step 2：带 TTFT + outputTokens → 参与聚合（200 / 1_200 / 30 tok，窗口 1_000ms）。
     log.push(
       SessionEventType.ModelComplete,
       {
@@ -10902,15 +10912,65 @@ describe("ProductProjection main-turn metrics", () => {
     const header = snapshot.rows.window.find((row) => row.kind === "turnHeader");
     expect(header).toEqual(
       expect.objectContaining({
-        // 聚合口径：ΣTTFT 520 / Σ墙钟 2_000 / Σtoken 50 / 2 个可聚合 step。
+        // 聚合口径：ΣTTFT 520 / Σ墙钟 2_700 / Σtoken 50 / 2 个可聚合 step。
         requestTtftSumMs: 520,
         ttftRequestCount: 2,
         ttftOutputTokens: 50,
-        ttftGenerationDurationMs: 2_000,
+        ttftGenerationDurationMs: 2_700,
         // 全轮口径不受影响：无 TTFT 的 step 仍计入总量与 requestCount。
         outputTokens: 550,
         requestCount: 3,
-        generationDurationMs: 5_000,
+        generationDurationMs: 5_700,
+      }),
+    );
+  });
+
+  it("退化流式窗口（provider 一次性吐完）不计入聚合 decode 事实", () => {
+    // 线上案例：工具调用步窗口只有 30-50ms 却输出上百 token，
+    // 计入后会把整轮速度抬高到 212 tok/s（真实值应 ~30 tok/s）。
+    const log = new EventLog();
+    log.push(SessionEventType.SessionCreated, { mode: "default", contextWindow: 200_000 });
+    log.push(
+      SessionEventType.TurnStarted,
+      { turnNumber: 1, input: "decode-degenerate", inputId: "cmd-1", messageId: "user-1" },
+      { turnId: "turn-1" },
+    );
+    // 正常流式步：TTFT 500 / 墙钟 2500 → 窗口 2000ms，保留。
+    log.push(
+      SessionEventType.ModelComplete,
+      {
+        content: "a",
+        stopReason: "tool_use",
+        querySource: "main_turn",
+        usage: { inputTokens: 10, outputTokens: 120 },
+        timings: { startedAt: 1_000, firstTokenAt: 1_500, generationDurationMs: 2_500 },
+      },
+      { turnId: "turn-1", timestampMs: 3_500 },
+    );
+    // 退化步：TTFT 6000 / 墙钟 6035 → 窗口 35ms，输出 180 token → 必须排除。
+    log.push(
+      SessionEventType.ModelComplete,
+      {
+        content: "b",
+        stopReason: "tool_use",
+        querySource: "main_turn",
+        usage: { inputTokens: 10, outputTokens: 180 },
+        timings: { startedAt: 5_000, firstTokenAt: 11_000, generationDurationMs: 6_035 },
+      },
+      { turnId: "turn-1", timestampMs: 11_035 },
+    );
+    const snapshot = runAll(log.events).projection.getSnapshot();
+    const header = snapshot.rows.window.find((row) => row.kind === "turnHeader");
+    expect(header).toEqual(
+      expect.objectContaining({
+        // 只有正常步进入聚合：ΣTTFT 500 / Σ墙钟 2500 / Σtoken 120 / 1 step。
+        requestTtftSumMs: 500,
+        ttftRequestCount: 1,
+        ttftOutputTokens: 120,
+        ttftGenerationDurationMs: 2_500,
+        // 全轮口径仍然完整（退化步照常计入总量与请求数）。
+        outputTokens: 300,
+        requestCount: 2,
       }),
     );
   });
