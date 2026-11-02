@@ -5206,7 +5206,6 @@ const enUS: Record<string, string> = {
     "Once bound, this session becomes read-only: it can analyse and plan, but cannot change files — the bound agent makes the changes.",
   "chat.externalAgent.bindLabel": "Display name",
   "chat.externalAgent.bindCommand": "Executable command",
-  "chat.externalAgent.bindPermissionMode": "Agent permission mode",
   "chat.externalAgent.bindSubmit": "Bind and go read-only",
   "chat.externalAgent.bindChoose": "Choose an adapted agent",
   "chat.externalAgent.bindReprobe": "Detect again",

@@ -4896,7 +4896,6 @@ const zhCN: Record<string, string> = {
     "绑定后本会话进入只读：它可以分析、出计划，但不能改文件；改动由绑定的外部 agent 执行。",
   "chat.externalAgent.bindLabel": "展示名",
   "chat.externalAgent.bindCommand": "可执行命令",
-  "chat.externalAgent.bindPermissionMode": "外部 agent 的权限档位",
   "chat.externalAgent.bindSubmit": "绑定并进入只读",
   "chat.externalAgent.bindChoose": "选择已适配的 agent",
   "chat.externalAgent.bindReprobe": "重新检测",

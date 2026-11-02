@@ -1,12 +1,11 @@
 // 绑定外部 coding agent 的对话框。
 //
-// 三层信息，从上到下回答用户三个问题：
-//   1. 用哪个？——内置预设（已适配调用形状），标出本机装没装；
-//   2. 用哪个模型？——该 CLI 能枚举就给下拉，不能枚举就给自由输入；
-//   3. 装在哪 / 叫什么？——命令与展示名，默认由预设填好，可手改。
+// 表单刻意只有三件事：选哪个预设、用哪个模型、用哪一档推理。
+// 可执行命令与权限档位由预设自动带出（驱动/默认 argv/permissionMode 都实测过），
+// 不暴露给用户——能改对的场景预设里已写好，能改错的场景用户无从判断。
 //
-// 「已适配」的实际含义：driver + 默认 argv 都实测过。手改命令后仍然是可选的行为，
-// 但对话框不会假装那还是预设——预设标记只在未改动命令时保留。
+// 模型与档位候选来自探测（服务端缓存 → product.json 兜底）；探测不可用时退化为
+// 自由输入，保证功能不至于不可用。
 import { useCallback, useMemo, useState } from "react";
 import {
   Dialog,
@@ -17,11 +16,18 @@ import {
 } from "@/components/ui/dialog.js";
 import { Button } from "@/components/ui/button.js";
 import { Input } from "@/components/ui/input.js";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select.js";
 import { cn } from "@/components/lib/utils.js";
 import { CheckIcon, DownloadIcon, LoaderIcon } from "lucide-react";
 import { useZCodeIntl } from "@/i18n/IntlProvider.js";
+import { CLI_PICKER_DEFAULT_EFFORTS, resolveEffortLevels } from "@zcode/shared";
 import type { ExternalAgentPreset, ExternalAgentPresetStatus } from "@zcode/shared";
-import { resolveEffortLevels } from "@zcode/shared";
 import type { BindExternalAgentPayload } from "@/v4/composer/externalAgentCommands.js";
 
 export interface ExternalAgentBindDialogProps {
@@ -39,9 +45,7 @@ export interface ExternalAgentBindDialogProps {
 /** 表单状态：presetId 为 null 表示完全手填。 */
 interface BindDraft {
   presetId: string | null;
-  label: string;
   command: string;
-  permissionMode: string;
   model: string;
   effort: string;
 }
@@ -49,9 +53,7 @@ interface BindDraft {
 function draftFromPreset(preset: ExternalAgentPreset): BindDraft {
   return {
     presetId: preset.id,
-    label: preset.label,
     command: preset.command,
-    permissionMode: preset.permissionMode ?? "",
     // 预设给了静态候选就默认第一个；否则留空（用该 CLI 的默认模型）。
     model: preset.models[0] ?? "",
     // 档位刻意不预选：默认档是该 CLI 自己的判断，替用户钉死一个反而改变了行为。
@@ -59,14 +61,10 @@ function draftFromPreset(preset: ExternalAgentPreset): BindDraft {
   };
 }
 
-const EMPTY_DRAFT: BindDraft = {
-  presetId: null,
-  label: "",
-  command: "",
-  permissionMode: "",
-  model: "",
-  effort: "",
-};
+const EMPTY_DRAFT: BindDraft = { presetId: null, command: "", model: "", effort: "" };
+
+/** Radix 的 SelectItem 不允许空串 value，"默认"档用这个哨兵承载，提交时还原成空。 */
+const DEFAULT_OPTION = "__default__";
 
 function ExternalAgentBindDialogImpl({
   open,
@@ -93,9 +91,8 @@ function ExternalAgentBindDialogImpl({
     return probed.length > 0 ? probed : selectedPreset.models;
   }, [selectedPreset, selectedStatus]);
 
-  // 推理档位候选按**当前选中的模型**解析，且优先用探测到的真实目录：
-  // 静态表只是 CLI 级兜底，真实支持的档位逐模型不同（实测 hy4 只有 high、
-  // glm-5.2 只有 high/xhigh）。给错候选用户察觉不到——CLI 对不支持的档位静默接受。
+  // 推理档位候选按**当前选中的模型**解析，且优先用探测到的真实目录（服务端缓存）。
+  // 该模型没有已知档位时回落到 CLI 选择器缺省档（与 codebuddy EffortPanel 一致）。
   const effortOptions = useMemo(
     () =>
       selectedPreset
@@ -104,7 +101,7 @@ function ExternalAgentBindDialogImpl({
             draft.model || undefined,
             selectedStatus?.modelCatalog,
           )
-        : [],
+        : [...CLI_PICKER_DEFAULT_EFFORTS],
     [selectedPreset, selectedStatus, draft.model],
   );
 
@@ -114,25 +111,26 @@ function ExternalAgentBindDialogImpl({
 
   const handleSubmit = useCallback(() => {
     if (pending) return;
-    if (!draft.label.trim() || !draft.command.trim()) return;
+    if (!draft.command.trim()) return;
     const preset = selectedPreset;
     setPending(true);
     void onSubmit({
-      label: draft.label.trim(),
+      label: preset?.label ?? draft.command.trim(),
       // 手填时按 claude-family 处理：它的参数形状最宽（-p + 输出格式 + 末尾 prompt），
       // 用户手填的 CLI 多半同构；不合规时执行期会给出真实报错。
       driver: preset?.driver ?? "claude-family",
       command: draft.command.trim(),
       ...(preset && preset.args.length > 0 ? { args: [...preset.args] } : {}),
       promptDelivery: preset?.promptDelivery ?? "argv-append",
-      ...(draft.permissionMode.trim() ? { permissionMode: draft.permissionMode.trim() } : {}),
+      // 权限档位由预设带出，不暴露给用户编辑。
+      ...(preset?.permissionMode ? { permissionMode: preset.permissionMode } : {}),
       ...(preset ? { presetId: preset.id } : {}),
       ...(draft.model.trim() ? { model: draft.model.trim() } : {}),
       ...(draft.effort.trim() ? { effort: draft.effort.trim() } : {}),
     }).finally(() => setPending(false));
   }, [draft, onSubmit, pending, selectedPreset]);
 
-  const canSubmit = !pending && draft.label.trim().length > 0 && draft.command.trim().length > 0;
+  const canSubmit = !pending && draft.command.trim().length > 0;
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
@@ -219,80 +217,95 @@ function ExternalAgentBindDialogImpl({
           </div>
         </section>
 
-        <section className="flex flex-col gap-3">
-          <Field label={intl.formatMessage({ id: "chat.externalAgent.bindLabel" })}>
-            <Input
-              value={draft.label}
-              onChange={(event) => setDraft({ ...draft, label: event.target.value })}
-              data-testid="external-agent-bind-label"
-            />
-          </Field>
-          <Field label={intl.formatMessage({ id: "chat.externalAgent.bindCommand" })}>
-            <Input
-              value={draft.command}
-              onChange={(event) =>
-                // 手改命令视为自定义：预设标记只对未改动的命令成立。
-                setDraft({ ...draft, command: event.target.value, presetId: null })
-              }
-              data-testid="external-agent-bind-command"
-            />
-          </Field>
-          <Field label={intl.formatMessage({ id: "chat.externalAgent.bindModel" })}>
-            {modelOptions.length > 0 ? (
-              <select
-                value={draft.model}
-                onChange={(event) =>
-                  // 换模型时清空档位：旧档位属于旧模型，带过去可能根本无效。
-                  setDraft({ ...draft, model: event.target.value, effort: "" })
+        {selectedPreset ? (
+          <section className="flex flex-col gap-3">
+            <Field label={intl.formatMessage({ id: "chat.externalAgent.bindModel" })}>
+              {modelOptions.length > 0 ? (
+                <Select
+                  value={draft.model || DEFAULT_OPTION}
+                  onValueChange={(value) =>
+                    // 换模型时清空档位：旧档位属于旧模型，带过去可能根本无效。
+                    setDraft({ ...draft, model: value === DEFAULT_OPTION ? "" : value, effort: "" })
+                  }
+                >
+                  <SelectTrigger
+                    className="w-full"
+                    size="lg"
+                    data-testid="external-agent-bind-model"
+                  >
+                    <SelectValue
+                      placeholder={intl.formatMessage({ id: "chat.externalAgent.modelDefault" })}
+                    />
+                  </SelectTrigger>
+                  <SelectContent className="max-h-72">
+                    <SelectItem value={DEFAULT_OPTION}>
+                      {intl.formatMessage({ id: "chat.externalAgent.modelDefault" })}
+                    </SelectItem>
+                    {modelOptions.map((model) => (
+                      <SelectItem key={model} value={model}>
+                        {model}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              ) : (
+                <Input
+                  value={draft.model}
+                  placeholder={intl.formatMessage({ id: "chat.externalAgent.modelPlaceholder" })}
+                  onChange={(event) => setDraft({ ...draft, model: event.target.value })}
+                  data-testid="external-agent-bind-model"
+                />
+              )}
+            </Field>
+            <Field label={intl.formatMessage({ id: "chat.externalAgent.bindEffort" })}>
+              <Select
+                value={draft.effort || DEFAULT_OPTION}
+                onValueChange={(value) =>
+                  setDraft({ ...draft, effort: value === DEFAULT_OPTION ? "" : value })
                 }
-                data-testid="external-agent-bind-model"
-                className="h-9 w-full rounded-md border border-border bg-surface px-2 text-ui-base"
               >
-                <option value="">
-                  {intl.formatMessage({ id: "chat.externalAgent.modelDefault" })}
-                </option>
-                {modelOptions.map((model) => (
-                  <option key={model} value={model}>
-                    {model}
-                  </option>
-                ))}
-              </select>
-            ) : (
+                <SelectTrigger
+                  className="w-full"
+                  size="lg"
+                  data-testid="external-agent-bind-effort"
+                >
+                  <SelectValue
+                    placeholder={intl.formatMessage({ id: "chat.externalAgent.effortDefault" })}
+                  />
+                </SelectTrigger>
+                <SelectContent className="max-h-72">
+                  <SelectItem value={DEFAULT_OPTION}>
+                    {intl.formatMessage({ id: "chat.externalAgent.effortDefault" })}
+                  </SelectItem>
+                  {effortOptions.map((effort) => (
+                    <SelectItem key={effort} value={effort}>
+                      {effort}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </Field>
+          </section>
+        ) : statuses.length === 0 && !probing ? (
+          // 探测不可用：退回手填命令（此时没有任何预设可带出执行参数）。
+          <section className="flex flex-col gap-3">
+            <Field label={intl.formatMessage({ id: "chat.externalAgent.bindCommand" })}>
+              <Input
+                value={draft.command}
+                onChange={(event) => setDraft({ ...draft, command: event.target.value })}
+                data-testid="external-agent-bind-command"
+              />
+            </Field>
+            <Field label={intl.formatMessage({ id: "chat.externalAgent.bindModel" })}>
               <Input
                 value={draft.model}
                 placeholder={intl.formatMessage({ id: "chat.externalAgent.modelPlaceholder" })}
                 onChange={(event) => setDraft({ ...draft, model: event.target.value })}
                 data-testid="external-agent-bind-model"
               />
-            )}
-          </Field>
-          <Field label={intl.formatMessage({ id: "chat.externalAgent.bindPermissionMode" })}>
-            <Input
-              value={draft.permissionMode}
-              placeholder="acceptEdits"
-              onChange={(event) => setDraft({ ...draft, permissionMode: event.target.value })}
-            />
-          </Field>
-          {effortOptions.length > 0 ? (
-            <Field label={intl.formatMessage({ id: "chat.externalAgent.bindEffort" })}>
-              <select
-                value={draft.effort}
-                onChange={(event) => setDraft({ ...draft, effort: event.target.value })}
-                data-testid="external-agent-bind-effort"
-                className="h-9 w-full rounded-md border border-border bg-surface px-2 text-ui-base"
-              >
-                <option value="">
-                  {intl.formatMessage({ id: "chat.externalAgent.effortDefault" })}
-                </option>
-                {effortOptions.map((effort) => (
-                  <option key={effort} value={effort}>
-                    {effort}
-                  </option>
-                ))}
-              </select>
             </Field>
-          ) : null}
-        </section>
+          </section>
+        ) : null}
 
         <DialogFooter>
           <Button variant="ghost" onClick={() => onOpenChange(false)} disabled={pending}>
