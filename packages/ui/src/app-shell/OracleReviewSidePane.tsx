@@ -55,6 +55,12 @@ import { useOracleReviewQueue } from "@/v4/oracleReview/useOracleReviewQueue.js"
 
 const EMPTY_TRACE: readonly OracleReviewTraceEntry[] = [];
 
+/**
+ * 距底部多少像素内仍视为"在底部"，可以自动跟随新输出。
+ * 太小会把正常的一两行误差判成"用户上滚"，太大会让上滚一点就粘住跟随。
+ */
+const FOLLOW_BOTTOM_THRESHOLD_PX = 24;
+
 export function OracleReviewSidePane({
   tab,
   onClose,
@@ -145,20 +151,42 @@ export function OracleReviewSidePane({
     onClose();
   }, [state.status, history.length, onClose]);
 
+  // 滚动跟随的依赖只看 trace 长度：内容变化（每帧新数组）不该触发滚动。
+  // 注：trace 本体在下方声明（供渲染使用），这里先从 state 取长度。
+  const traceLength = state.status === "idle" ? 0 : (state.trace?.length ?? 0);
   const viewportRef = useRef<HTMLDivElement | null>(null);
   const previousStatusRef = useRef<OracleReviewState["status"]>(state.status);
+  // 贴底跟随只在「用户本来就在底部」时生效：审查进行中每来一条流式增量都会
+  // 生成新 state，旧实现无条件 scrollTop = scrollHeight，用户向上滚会立刻被
+  // 拉回底部（表现为"滚动被无限制卡回"）。用户主动上滚即退出跟随，回到底部
+  // 附近再自动恢复。
+  const followBottomRef = useRef(true);
   useEffect(() => {
     const viewport = viewportRef.current;
     if (!viewport) return;
-    if (state.status === "pending") {
-      // 运行中贴底跟随，看到最新一轮输出。
-      viewport.scrollTop = viewport.scrollHeight;
+    const onScroll = () => {
+      const distanceToBottom = viewport.scrollHeight - viewport.scrollTop - viewport.clientHeight;
+      followBottomRef.current = distanceToBottom <= FOLLOW_BOTTOM_THRESHOLD_PX;
+    };
+    viewport.addEventListener("scroll", onScroll, { passive: true });
+    return () => viewport.removeEventListener("scroll", onScroll);
+  }, []);
+  useEffect(() => {
+    const viewport = viewportRef.current;
+    if (!viewport) return;
+    const status = state.status;
+    if (status === "pending") {
+      // 运行中贴底跟随，但只在用户没有主动上滚时。
+      if (followBottomRef.current) viewport.scrollTop = viewport.scrollHeight;
     } else if (previousStatusRef.current === "pending") {
       // 出结果时回到顶部：先读结论，再往下看过程。
       viewport.scrollTop = 0;
+      followBottomRef.current = false;
     }
-    previousStatusRef.current = state.status;
-  }, [state]);
+    previousStatusRef.current = status;
+    // 依赖用 trace 长度而不是 trace 数组/整份 state：长度变化才需要跟一次滚动，
+    // 对象身份变化（每帧新数组）不应触发滚动。
+  }, [state.status, traceLength]);
 
   const trace = state.status === "idle" ? EMPTY_TRACE : (state.trace ?? EMPTY_TRACE);
   const pending = state.status === "pending";
