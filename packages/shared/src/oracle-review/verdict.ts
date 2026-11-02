@@ -35,6 +35,12 @@ const ORACLE_REQUIREMENTS_LINE_PATTERN =
 const ORACLE_SCOPE_LINE_PATTERN =
   /^\s*(?:\*\*)?(?:SCOPE|范围|审查范围)(?:\*\*)?\s*[:：]\s*(.*?)\s*$/i;
 const ORACLE_LIMITS_LINE_PATTERN = /^\s*(?:\*\*)?(?:LIMITS|限制)(?:\*\*)?\s*[:：]\s*(.*?)\s*$/i;
+/**
+ * 段落标题行（含裁决/总评）：回退切片与结构化解析都要挡掉。
+ * 与 findings.ts 的 SECTION_MARKER_PATTERN 同义，两处各自定义以保持模块独立。
+ */
+const ORACLE_SECTION_MARKER_PATTERN =
+  /^\s*(?:\*\*)?(?:VERDICT|SUMMARY|FINDINGS|REQUIREMENTS|SCOPE|LIMITS|结论|判定|总评|总结|摘要|发现|问题清单|需求核验|审查范围|范围|限制)(?:\*\*)?\s*[:：]/iu;
 
 /** 宽松归一：认英文与中文同义表达；认不出返回 unknown。 */
 function normalizeOracleVerdictWord(word: string): OracleVerdict {
@@ -121,6 +127,10 @@ export function parseOracleVerdict(raw: string): OracleVerdictParse {
       : lines
           .slice(verdictLineIndex + 1)
           .filter((line) => !ORACLE_SUMMARY_LINE_PATTERN.test(line))
+          // 无 FINDINGS 段的回退切片同样要挡掉段落标题行：模型按 REVIEW 风格
+          // 输出时，"FINDINGS:"/"REQUIREMENTS:"/"SCOPE:" 这些标题行会被当成
+          // 发现项，审查队列于是出现几十条纯标题噪声（2026-11-02 线上）。
+          .filter((line) => !ORACLE_SECTION_MARKER_PATTERN.test(line))
           .filter(
             (line) =>
               !stopAfterBody.some((pattern) => pattern.test(line)) &&

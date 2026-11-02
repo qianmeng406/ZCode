@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import {
   findingFingerprint,
+  parseOracleVerdict,
   parseStructuredFindings,
   severityForVerdict,
   type StructuredFinding,
@@ -23,6 +24,39 @@ describe("oracle review structured findings", () => {
     expect(parseStructuredFindings("no label here", "fail")[0]?.severity).toBe("error");
     expect(parseStructuredFindings("no label here", "warn")[0]?.severity).toBe("warning");
     expect(parseStructuredFindings("no label here", "pass")[0]?.severity).toBe("note");
+  });
+
+  it("skips section-marker and no-findings lines instead of turning them into items", () => {
+    // 线上事故（2026-11-02）：审查队列 75 条待审里只有 1 条真问题，
+    // 其余都是 FINDINGS:/VERDICT: FAIL/SUMMARY: 这类段落标题行。
+    const raw = [
+      "VERDICT: FAIL",
+      "SUMMARY: 聚合口径方向正确，但取消了下限。",
+      "FINDINGS:",
+      "- [高] packages/ui/src/a.tsx:155 — 聚合速度缺少 500ms 下限",
+      "REQUIREMENTS:",
+      "- 窗口 <500ms 不出速度 — 部分落实",
+      "SCOPE: 覆盖四轮",
+      "LIMITS: 沙箱拒绝部分命令",
+      "无",
+      "None",
+    ].join("\n");
+    // 走真实管线：先切段再结构化，REQUIREMENTS 段不会被算成发现项。
+    const parsed = parseOracleVerdict(raw);
+    const findings = parseStructuredFindings(parsed.findings, parsed.verdict);
+    expect(findings).toHaveLength(1);
+    expect(findings[0]).toMatchObject({
+      severity: "error",
+      file: "packages/ui/src/a.tsx",
+      line: 155,
+    });
+    // 单独喂标题行时也不能成条（模型格式更乱、没走切段的情况）。
+    expect(
+      parseStructuredFindings(
+        ["VERDICT: FAIL", "FINDINGS:", "REQUIREMENTS:", "SCOPE: 四轮", "无", "None"].join("\n"),
+        "fail",
+      ),
+    ).toEqual([]);
   });
 
   it("strips list markers and numbered bullets", () => {

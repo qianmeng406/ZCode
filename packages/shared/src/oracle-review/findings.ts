@@ -46,6 +46,19 @@ const SEVERITY_WORDS: Readonly<Record<string, StructuredFinding["severity"]>> = 
 
 const FINDING_LOCATION_PATTERN = /([\w@./\\-]+\.[A-Za-z0-9]{1,8}):(\d{1,7})/u;
 
+/**
+ * 机器标记行：审查输出的段落标题与裁决行。它们不是问题条目——
+ * 真实问题只来自 `- [高|中|低] 位置 — 问题` 这类列表项。
+ * 模型偶尔不按格式输出（把段落写成 `FINDINGS:` / `VERDICT: FAIL` 等独立行），
+ * 旧逻辑会把每一行都当成一条发现，审查队列因此出现几十条"待审"噪声
+ * （2026-11-02 线上：75 条待审里只有 1 条是真问题）。
+ */
+const SECTION_MARKER_PATTERN =
+  /^\s*(?:\*\*)?(?:VERDICT|SUMMARY|FINDINGS|REQUIREMENTS|SCOPE|LIMITS|结论|判定|总评|摘要|发现|需求|范围|限制)(?:\*\*)?\s*[:：]/iu;
+/** findings 段内常见的空/无问题标记。 */
+const NO_FINDINGS_LINE_PATTERN =
+  /^\s*(?:[-*+•]\s*)?(?:\*\*)?(?:无|none|no findings|no issues|没有(?:发现)?问题)(?:\*\*)?\s*[。.]?\s*$/iu;
+
 export function severityForVerdict(verdict: OracleVerdict): StructuredFinding["severity"] {
   if (verdict === "fail") return "error";
   if (verdict === "warn") return "warning";
@@ -69,6 +82,10 @@ export function parseStructuredFindings(
   for (const raw of findings.split(/\r?\n/u)) {
     const line = raw.trim();
     if (!line) continue;
+    // 段落标题 / 裁决行不是问题条目：模型不按格式输出时会留下一串这类行，
+    // 逐行成条会把审查队列刷满噪声待审项。
+    if (SECTION_MARKER_PATTERN.test(line)) continue;
+    if (NO_FINDINGS_LINE_PATTERN.test(line)) continue;
     // 去掉列表符号/编号，保留正文：message 要给行内 annotation 直接读。
     const message = line.replace(/^[-*+•]\s+/u, "").replace(/^\d+[.)]\s+/u, "");
     if (!message) continue;
