@@ -5218,6 +5218,9 @@ const enUS: Record<string, string> = {
   "chat.externalAgent.modelDefault": "Use the CLI default model",
   "chat.externalAgent.modelPlaceholder": "Model name (blank = CLI default)",
   "chat.externalAgent.modelMenuLabel": "Model for {agent}",
+  "chat.externalAgent.effortMenuLabel": "Reasoning effort",
+  "chat.externalAgent.effortDefault": "Use the CLI default effort",
+  "chat.externalAgent.bindEffort": "Reasoning effort",
   "chat.planUsage.noPlan":
     "No active Coding Plan was found for this account. Confirm that the connected account is subscribed.",
   "chat.planUsage.contextWindow": "Current context window",

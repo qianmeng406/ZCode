@@ -17,6 +17,8 @@ export const externalAgentStateSchema = z.object({
   presetId: z.string().optional(),
   /** 当前使用的模型（缺省 = 该 CLI 的默认模型）。 */
   model: z.string().optional(),
+  /** 当前推理档位（缺省 = 该 CLI 的默认档位）。 */
+  effort: z.string().optional(),
   /** 绑定强制开启了只读主控：UI 据此显示只读徽标并禁用模式切换。 */
   readOnly: z.literal(true),
 });

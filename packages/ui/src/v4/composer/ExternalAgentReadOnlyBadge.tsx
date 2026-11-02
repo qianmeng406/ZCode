@@ -35,6 +35,10 @@ export interface ExternalAgentReadOnlyBadgeProps {
   onChangeModel?: (model: string | null) => Promise<void>;
   /** 可选模型候选；空则不显示模型菜单。 */
   modelOptions?: string[];
+  /** 切换推理档位（null = CLI 默认）。 */
+  onChangeEffort?: (effort: string | null) => Promise<void>;
+  /** 可选推理档位；空 = 该 CLI 没有这个维度，不显示分区。 */
+  effortOptions?: string[];
   disabled?: boolean;
 }
 
@@ -43,6 +47,8 @@ function ExternalAgentReadOnlyBadgeImpl({
   onUnbind,
   onChangeModel,
   modelOptions,
+  onChangeEffort,
+  effortOptions,
   disabled,
 }: ExternalAgentReadOnlyBadgeProps) {
   const { intl } = useZCodeIntl();
@@ -64,14 +70,31 @@ function ExternalAgentReadOnlyBadgeImpl({
     [onChangeModel, switching],
   );
 
-  // 徽标文案带上模型：只读会话里"现在谁在干活"是事实，不是可省略的细节。
-  const agentName = binding.model ? `${binding.label} · ${binding.model}` : binding.label;
+  const handleChangeEffort = useCallback(
+    (value: string) => {
+      if (switching || !onChangeEffort) return;
+      setSwitching(true);
+      void onChangeEffort(value === "" ? null : value).finally(() => setSwitching(false));
+    },
+    [onChangeEffort, switching],
+  );
+
+  // 徽标文案带上模型与档位：只读会话里"现在谁在跑、以什么强度"是事实。
+  const agentName = [
+    binding.label,
+    binding.model,
+    binding.effort ? `effort: ${binding.effort}` : undefined,
+  ]
+    .filter(Boolean)
+    .join(" · ");
   const label = intl.formatMessage({ id: "chat.externalAgent.readOnly" }, { agent: agentName });
   const unbindLabel = intl.formatMessage(
     { id: "chat.externalAgent.unbind" },
     { agent: binding.label },
   );
-  const showModelMenu = Boolean(onChangeModel) && (modelOptions?.length ?? 0) > 0;
+  const hasModelMenu = Boolean(onChangeModel) && (modelOptions?.length ?? 0) > 0;
+  const hasEffortMenu = Boolean(onChangeEffort) && (effortOptions?.length ?? 0) > 0;
+  const showMenu = hasModelMenu || hasEffortMenu;
 
   const badge = (
     <Button
@@ -82,7 +105,7 @@ function ExternalAgentReadOnlyBadgeImpl({
       data-composer-collapse-priority="1"
       data-testid="v4-composer-external-agent-badge"
       aria-label={pending ? unbindLabel : label}
-      onClick={showModelMenu ? undefined : handleUnbind}
+      onClick={showMenu ? undefined : handleUnbind}
       className={cn(
         "h-7 gap-1 rounded-lg px-2 text-ui-base text-foreground-subtle",
         "hover:text-foreground-subtle data-[composer-compact=true]:w-7 data-[composer-compact=true]:px-0",
@@ -94,13 +117,11 @@ function ExternalAgentReadOnlyBadgeImpl({
         <LockIcon className="size-4" />
       )}
       <span className="inline max-w-48 truncate data-[composer-compact=true]:hidden">{label}</span>
-      {showModelMenu ? (
-        <ChevronDownIcon className="size-3 data-[composer-compact=true]:hidden" />
-      ) : null}
+      {showMenu ? <ChevronDownIcon className="size-3 data-[composer-compact=true]:hidden" /> : null}
     </Button>
   );
 
-  if (!showModelMenu) {
+  if (!showMenu) {
     return (
       <ControlHintTooltip
         title={intl.formatMessage(
@@ -124,23 +145,45 @@ function ExternalAgentReadOnlyBadgeImpl({
         <DropdownMenuTrigger asChild>{badge}</DropdownMenuTrigger>
       </ControlHintTooltip>
       <DropdownMenuContent align="start" side="top" className="w-64">
-        <DropdownMenuLabel className="text-ui-sm text-foreground-subtle">
-          {intl.formatMessage(
-            { id: "chat.externalAgent.modelMenuLabel" },
-            { agent: binding.label },
-          )}
-        </DropdownMenuLabel>
-        {/* RadioGroup 的空串 = "CLI 默认模型"，与绑定表单里那个占位选项同义。 */}
-        <DropdownMenuRadioGroup value={binding.model ?? ""} onValueChange={handleChangeModel}>
-          <DropdownMenuRadioItem value="">
-            {intl.formatMessage({ id: "chat.externalAgent.modelDefault" })}
-          </DropdownMenuRadioItem>
-          {modelOptions?.map((model) => (
-            <DropdownMenuRadioItem key={model} value={model}>
-              {model}
-            </DropdownMenuRadioItem>
-          ))}
-        </DropdownMenuRadioGroup>
+        {hasModelMenu ? (
+          <>
+            <DropdownMenuLabel className="text-ui-sm text-foreground-subtle">
+              {intl.formatMessage(
+                { id: "chat.externalAgent.modelMenuLabel" },
+                { agent: binding.label },
+              )}
+            </DropdownMenuLabel>
+            {/* RadioGroup 的空串 = "CLI 默认模型"，与绑定表单里那个占位选项同义。 */}
+            <DropdownMenuRadioGroup value={binding.model ?? ""} onValueChange={handleChangeModel}>
+              <DropdownMenuRadioItem value="">
+                {intl.formatMessage({ id: "chat.externalAgent.modelDefault" })}
+              </DropdownMenuRadioItem>
+              {modelOptions?.map((model) => (
+                <DropdownMenuRadioItem key={model} value={model}>
+                  {model}
+                </DropdownMenuRadioItem>
+              ))}
+            </DropdownMenuRadioGroup>
+          </>
+        ) : null}
+        {hasModelMenu && hasEffortMenu ? <DropdownMenuSeparator /> : null}
+        {hasEffortMenu ? (
+          <>
+            <DropdownMenuLabel className="text-ui-sm text-foreground-subtle">
+              {intl.formatMessage({ id: "chat.externalAgent.effortMenuLabel" })}
+            </DropdownMenuLabel>
+            <DropdownMenuRadioGroup value={binding.effort ?? ""} onValueChange={handleChangeEffort}>
+              <DropdownMenuRadioItem value="">
+                {intl.formatMessage({ id: "chat.externalAgent.effortDefault" })}
+              </DropdownMenuRadioItem>
+              {effortOptions?.map((effort) => (
+                <DropdownMenuRadioItem key={effort} value={effort}>
+                  {effort}
+                </DropdownMenuRadioItem>
+              ))}
+            </DropdownMenuRadioGroup>
+          </>
+        ) : null}
         <DropdownMenuSeparator />
         <DropdownMenuItem
           disabled={pending || !onUnbind}

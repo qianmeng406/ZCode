@@ -263,3 +263,63 @@ describe("v4 原生 setExternalAgentModel", () => {
     ).rejects.toThrow(/没有绑定/);
   });
 });
+
+describe("v4 原生 setExternalAgentEffort", () => {
+  it("只改 effort 字段：不重新快照 previous*，也不动模型", async () => {
+    const sessionStore = makeSessionStore();
+    const app = makeApp();
+    const executor = new V4CommandExecutor(makeHost(makeRecord(app, sessionStore)));
+    await executor.execute(
+      envelope("bindExternalAgent", { ...BINDING_PAYLOAD, model: "hy3", effort: "medium" }),
+    );
+    const before = [...sessionStore.entries.values()][0]!.data as Record<string, unknown>;
+    app.runtime.setExecutionState.mockClear();
+    app.runtime.appendEvent.mockClear();
+
+    await executor.execute(envelope("setExternalAgentEffort", { effort: "xhigh" }));
+
+    const after = [...sessionStore.entries.values()][0]!.data as Record<string, unknown>;
+    expect(after.effort).toBe("xhigh");
+    // 换档位不该动模型。
+    expect(after.model).toBe("hy3");
+    // 解绑恢复用的快照没被覆盖。
+    expect(after.previousPlanEnabled).toBe(before.previousPlanEnabled);
+    expect(after.previousMode).toBe(before.previousMode);
+    expect(app.runtime.setExecutionState).not.toHaveBeenCalled();
+    expect(app.runtime.appendEvent).toHaveBeenCalledTimes(1);
+  });
+
+  it("effort=null 清空档位（回到 CLI 默认）", async () => {
+    const sessionStore = makeSessionStore();
+    const app = makeApp();
+    const executor = new V4CommandExecutor(makeHost(makeRecord(app, sessionStore)));
+    await executor.execute(
+      envelope("bindExternalAgent", { ...BINDING_PAYLOAD, effort: "high" }),
+    );
+    await executor.execute(envelope("setExternalAgentEffort", { effort: null }));
+    const after = [...sessionStore.entries.values()][0]!.data as Record<string, unknown>;
+    expect(after.effort).toBeUndefined();
+  });
+
+  it("同值切换 → noop", async () => {
+    const sessionStore = makeSessionStore();
+    const app = makeApp();
+    const executor = new V4CommandExecutor(makeHost(makeRecord(app, sessionStore)));
+    await executor.execute(
+      envelope("bindExternalAgent", { ...BINDING_PAYLOAD, effort: "high" }),
+    );
+    await expect(
+      executor.execute(envelope("setExternalAgentEffort", { effort: "high" })),
+    ).rejects.toBeInstanceOf(V4CommandNoopError);
+  });
+
+  it("未绑定就换档位 → 明确拒绝", async () => {
+    const sessionStore = makeSessionStore();
+    const app = makeApp();
+    await expect(
+      new V4CommandExecutor(makeHost(makeRecord(app, sessionStore))).execute(
+        envelope("setExternalAgentEffort", { effort: "high" }),
+      ),
+    ).rejects.toThrow(/没有绑定/);
+  });
+});

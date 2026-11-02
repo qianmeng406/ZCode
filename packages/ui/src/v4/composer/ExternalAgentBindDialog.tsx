@@ -42,6 +42,7 @@ interface BindDraft {
   command: string;
   permissionMode: string;
   model: string;
+  effort: string;
 }
 
 function draftFromPreset(preset: ExternalAgentPreset): BindDraft {
@@ -52,6 +53,8 @@ function draftFromPreset(preset: ExternalAgentPreset): BindDraft {
     permissionMode: preset.permissionMode ?? "",
     // 预设给了静态候选就默认第一个；否则留空（用该 CLI 的默认模型）。
     model: preset.models[0] ?? "",
+    // 档位刻意不预选：默认档是该 CLI 自己的判断，替用户钉死一个反而改变了行为。
+    effort: "",
   };
 }
 
@@ -61,6 +64,7 @@ const EMPTY_DRAFT: BindDraft = {
   command: "",
   permissionMode: "",
   model: "",
+  effort: "",
 };
 
 function ExternalAgentBindDialogImpl({
@@ -88,6 +92,9 @@ function ExternalAgentBindDialogImpl({
     return probed.length > 0 ? probed : selectedPreset.models;
   }, [selectedPreset, selectedStatus]);
 
+  // 推理档位候选：来自预设（各 CLI 值域不同，claude 无 minimal、codebuddy 有）。
+  const effortOptions = selectedPreset?.effortLevels ?? [];
+
   const selectPreset = useCallback((preset: ExternalAgentPreset) => {
     setDraft(draftFromPreset(preset));
   }, []);
@@ -108,6 +115,7 @@ function ExternalAgentBindDialogImpl({
       ...(draft.permissionMode.trim() ? { permissionMode: draft.permissionMode.trim() } : {}),
       ...(preset ? { presetId: preset.id } : {}),
       ...(draft.model.trim() ? { model: draft.model.trim() } : {}),
+      ...(draft.effort.trim() ? { effort: draft.effort.trim() } : {}),
     }).finally(() => setPending(false));
   }, [draft, onSubmit, pending, selectedPreset]);
 
@@ -249,6 +257,25 @@ function ExternalAgentBindDialogImpl({
               onChange={(event) => setDraft({ ...draft, permissionMode: event.target.value })}
             />
           </Field>
+          {effortOptions.length > 0 ? (
+            <Field label={intl.formatMessage({ id: "chat.externalAgent.bindEffort" })}>
+              <select
+                value={draft.effort}
+                onChange={(event) => setDraft({ ...draft, effort: event.target.value })}
+                data-testid="external-agent-bind-effort"
+                className="h-9 w-full rounded-md border border-border bg-surface px-2 text-ui-base"
+              >
+                <option value="">
+                  {intl.formatMessage({ id: "chat.externalAgent.effortDefault" })}
+                </option>
+                {effortOptions.map((effort) => (
+                  <option key={effort} value={effort}>
+                    {effort}
+                  </option>
+                ))}
+              </select>
+            </Field>
+          ) : null}
         </section>
 
         <DialogFooter>

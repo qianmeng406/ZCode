@@ -47,6 +47,12 @@ export const externalAgentBindingSchema = z
     presetId: z.string().max(60).optional(),
     /** 外部 agent 使用的模型（为空 = 用该 CLI 的默认模型）。 */
     model: z.string().max(200).optional(),
+    /**
+     * 推理档位（如 low/medium/high）。
+     * 传参形状由预设的 effortDelivery 决定：flag 走 `--effort`，config 走 `-c key=value`。
+     * 为空 = 用该 CLI 的默认档位。
+     */
+    effort: z.string().max(40).optional(),
     /** 额外环境变量（如 CODEBUDDY_FORCE_LITE_WB_BUNDLE）。 */
     env: z.record(z.string(), z.string()).optional(),
     /** 单次委派的超时（ms）；缺省由调用方兜底。 */
@@ -74,12 +80,30 @@ function resolveModelFlag(binding: ExternalAgentBinding): string | undefined {
 }
 
 /**
+ * 推理档位的传参。按驱动族决定形状：
+ * - claude-family：`--effort <level>`（两家实测都支持）；
+ * - codex-exec：**没有** effort flag，只能 `-c model_reasoning_effort="<level>"`。
+ *
+ * 返回空数组表示该族不接受推理档位（generic-template），此时 effort 被忽略——
+ * 宁可忽略也不能猜一个参数名塞进去，那会让整个调用失败。
+ */
+function resolveEffortArgs(binding: ExternalAgentBinding): string[] {
+  if (!binding.effort) return [];
+  if (binding.driver === "claude-family") return ["--effort", binding.effort];
+  if (binding.driver === "codex-exec") {
+    // codex 的 -c 值是 TOML 片段，字符串要带引号；整体作为一个 argv 元素传给 CLI。
+    return ["-c", `model_reasoning_effort="${binding.effort}"`];
+  }
+  return [];
+}
+
+/**
  * 把绑定展开成可执行的 argv。
  *
- * - claude-family：`{command} -p --output-format json [--model M] "<prompt>"`
+ * - claude-family：`{command} -p --output-format json [--model M] [--effort L] "<prompt>"`
  *   （claude / codebuddy 实测同构：`-p` 非交互，`--output-format json` 返回数组，
  *   取 `type:"result"` 的 `.result`）。
- * - codex-exec：`{command} exec [-m M] "<prompt>"`（非交互入口是子命令）。
+ * - codex-exec：`{command} exec [-m M] [-c key=value] "<prompt>"`（非交互入口是子命令）。
  * - generic-template：`{command} [...args]`，`{prompt}` 占位替换；
  *   `stdin` 模式则把 prompt 通过 stdin 传入。
  */
@@ -92,6 +116,7 @@ export function buildExternalAgentInvocation(
     const args = [...base];
     const modelFlag = resolveModelFlag(binding);
     if (binding.model && modelFlag) args.push(modelFlag, binding.model);
+    args.push(...resolveEffortArgs(binding));
     if (binding.permissionMode) args.push("--permission-mode", binding.permissionMode);
     if (binding.promptDelivery === "stdin")
       return { command: binding.command, args, stdin: prompt };
@@ -104,6 +129,7 @@ export function buildExternalAgentInvocation(
     const args = [...base];
     const modelFlag = resolveModelFlag(binding);
     if (binding.model && modelFlag) args.push(modelFlag, binding.model);
+    args.push(...resolveEffortArgs(binding));
     if (binding.promptDelivery === "stdin")
       return { command: binding.command, args, stdin: prompt };
     args.push(prompt);

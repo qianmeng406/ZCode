@@ -3756,6 +3756,7 @@ export class ProductProjection {
           ...(payload.permissionMode ? { permissionMode: payload.permissionMode } : {}),
           ...(payload.presetId ? { presetId: payload.presetId } : {}),
           ...(payload.model ? { model: payload.model } : {}),
+          ...(payload.effort ? { effort: payload.effort } : {}),
           readOnly: true as const,
         }
       : null;

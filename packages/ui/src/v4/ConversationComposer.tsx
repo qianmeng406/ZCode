@@ -565,6 +565,11 @@ export interface ConversationComposerProps {
    * 与"解绑再绑"不同：只改 model，不重新快照权限。
    */
   onChangeExternalAgentModel?: (model: string | null) => Promise<void>;
+  /**
+   * 切换已绑定外部 agent 的推理档位（null = 回到 CLI 默认）。
+   * 与换模型分开：合法值域随 CLI 不同（claude 无 minimal、codebuddy 有）。
+   */
+  onChangeExternalAgentEffort?: (effort: string | null) => Promise<void>;
   /** 本机探测到的外部 agent 列表；null/缺席 = 探测不可用（对话框退回手填）。 */
   externalAgentProbe?: ExternalAgentPresetStatus[] | null;
   /** 是否正在探测（对话框里显示 loading）。 */
@@ -700,6 +705,7 @@ function ConversationComposerImpl({
   onUnbindExternalAgent,
   onBindExternalAgent,
   onChangeExternalAgentModel,
+  onChangeExternalAgentEffort,
   externalAgentProbe,
   externalAgentProbing,
   onReprobeExternalAgents,
@@ -3095,6 +3101,16 @@ function ConversationComposerImpl({
     return externalAgentProbe.find((entry) => entry.preset.id === presetId)?.models ?? [];
   }, [snapshot?.externalAgent?.presetId, externalAgentProbe]);
 
+  // 徽标的推理档位候选同理：值域来自预设（claude 无 minimal、codebuddy 有、codex 走配置项）。
+  // 空 = 该 CLI 没有这个维度，徽标不显示这一分区。
+  const externalAgentEffortOptions = useMemo(() => {
+    const presetId = snapshot?.externalAgent?.presetId;
+    if (!presetId || !externalAgentProbe) return [];
+    return (
+      externalAgentProbe.find((entry) => entry.preset.id === presetId)?.preset.effortLevels ?? []
+    );
+  }, [snapshot?.externalAgent?.presetId, externalAgentProbe]);
+
   // 左下：模式选择 + CUA 入口 + 当前 session 后台任务入口。followupMode 由 app 设置页同步到 CLI，
   // 不在 composer 暴露局部开关；后台入口只消费同一 snapshot，不维护第二份任务状态。
   const leadingActionsNode = useMemo(
@@ -3118,6 +3134,8 @@ function ConversationComposerImpl({
             disabled={disabled || runtimeBlocked}
             onUnbind={onUnbindExternalAgent}
             onChangeModel={onChangeExternalAgentModel}
+            onChangeEffort={onChangeExternalAgentEffort}
+            effortOptions={externalAgentEffortOptions}
             modelOptions={externalAgentModelOptions}
           />
         ) : sessionId && onBindExternalAgent ? (
@@ -3194,6 +3212,7 @@ function ConversationComposerImpl({
       snapshot?.workspaceMcpAdmission,
       snapshot?.backgroundWorks,
       externalAgentModelOptions,
+      externalAgentEffortOptions,
       workspaceIdentity,
       workspacePath,
     ],

@@ -5162,6 +5162,18 @@ export function SessionPane({
     [dispatchCommand, sessionId],
   );
 
+  // 换推理档位：与换模型同构，但独立一条命令（值域随 CLI 不同）。
+  const handleChangeExternalAgentEffort = useCallback(
+    async (effort: string | null) => {
+      if (!sessionId) return;
+      const ack = await dispatchCommand("setExternalAgentEffort", { effort }, sessionId);
+      if (ack.status !== "accepted" && ack.status !== "noop") {
+        throw new Error(ack.reasonCode ?? ack.status);
+      }
+    },
+    [dispatchCommand, sessionId],
+  );
+
   // 绑定入口的提交动作。命令面会先把 entry 落盘再切只读，所以这里不做乐观更新：
   // 徽标出现在下一次投影刷新里，与真实状态一致。
   const handleBindExternalAgent = useCallback(
@@ -6422,6 +6434,7 @@ export function SessionPane({
       onUnbindExternalAgent={handleUnbindExternalAgent}
       onBindExternalAgent={handleBindExternalAgent}
       onChangeExternalAgentModel={handleChangeExternalAgentModel}
+      onChangeExternalAgentEffort={handleChangeExternalAgentEffort}
       externalAgentProbe={externalAgentProbe}
       externalAgentProbing={externalAgentProbing}
       onReprobeExternalAgents={handleReprobeExternalAgents}

@@ -78,6 +78,7 @@ async function bindExternalAgent(
     ...(payload.permissionMode ? { permissionMode: payload.permissionMode } : {}),
     ...(payload.presetId ? { presetId: payload.presetId } : {}),
     ...(payload.model ? { model: payload.model } : {}),
+    ...(payload.effort ? { effort: payload.effort } : {}),
     ...(payload.env ? { env: payload.env } : {}),
     ...(payload.timeoutMs ? { timeoutMs: payload.timeoutMs } : {}),
     // 快照原状态：解绑时恢复。planEnabled 单独记，因为 plan 模式可以独立于 mode 存在。
@@ -175,6 +176,7 @@ async function publishBindingChanged(
           ...(binding.permissionMode ? { permissionMode: binding.permissionMode } : {}),
           ...(binding.presetId ? { presetId: binding.presetId } : {}),
           ...(binding.model ? { model: binding.model } : {}),
+          ...(binding.effort ? { effort: binding.effort } : {}),
           readOnly: true as const,
         }
       : null,
@@ -184,18 +186,15 @@ async function publishBindingChanged(
 }
 
 /**
- * 切换已绑定外部 agent 的模型。
+ * 读取绑定 + 明确拒绝未绑定。换模型/换档位共用。
  *
- * 刻意不复用 bindExternalAgent：绑定会重新快照 previousPlanEnabled/previousMode，
- * 把用户原本的权限再覆盖一层——连切两次模型，解绑就恢复不到原状态了。
- * 这里只改 model 一个字段，entry 原子覆盖，只读契约与授权完全不动。
+ * 未绑定必须拒绝而不是静默成功：调用方（UI）据此给出"先绑定"的提示，
+ * 静默成功会让用户以为设置生效了。
  */
-async function setExternalAgentModel(
+async function requireBoundExternalAgent(
   host: V4CommandCoreHost,
-  envelope: CommandEnvelope,
-): Promise<CommandResult | undefined> {
-  const payload = envelope.payload as CommandPayloadMap["setExternalAgentModel"];
-  const record = requireRecord(host, envelope.sessionId);
+  record: V4SessionRecordView,
+): Promise<{ binding: ExternalAgentBinding; sessionStore: ReturnType<typeof requireSessionStore> }> {
   const sessionStore = requireSessionStore(record);
   const binding = await readSessionExternalAgent({
     sessionId: record.app.sessionId,
@@ -207,23 +206,68 @@ async function setExternalAgentModel(
       "该会话没有绑定外部 agent",
     );
   }
-  const model = payload.model?.trim() || undefined;
-  if (binding.model === model) {
+  return { binding, sessionStore };
+}
+
+/**
+ * 只更新绑定的一个可选字段（model / effort）。
+ *
+ * 刻意不复用 bindExternalAgent：绑定会重新快照 previousPlanEnabled/previousMode，
+ * 把用户原本的权限再覆盖一层——连改两次设置，解绑就恢复不到原状态了。
+ * 这里只改目标字段，entry 原子覆盖，只读契约与授权完全不动。
+ */
+async function updateBoundField(
+  host: V4CommandCoreHost,
+  record: V4SessionRecordView,
+  field: "model" | "effort",
+  value: string | null,
+): Promise<void> {
+  const { binding, sessionStore } = await requireBoundExternalAgent(host, record);
+  const normalized = value?.trim() || undefined;
+  if (binding[field] === normalized) {
     throw new V4CommandNoopError(BINDING_UNCHANGED);
   }
-
   const next: ExternalAgentBinding = { ...binding };
-  if (model) next.model = model;
-  else delete next.model;
+  if (normalized) next[field] = normalized;
+  else delete next[field];
   await persistSessionExternalAgent({
     sessionId: record.app.sessionId,
     sessionStore,
     binding: next,
     logger: warningLogger(host),
   });
-  // 模型是徽标文案的一部分（"只读 · codebuddy / hy3"），必须走同一条投影链路。
+  // 模型与档位都是徽标文案的一部分，必须走同一条投影链路。
   await publishBindingChanged(record, next);
+}
+
+/** 切换已绑定外部 agent 的模型。 */
+async function setExternalAgentModel(
+  host: V4CommandCoreHost,
+  envelope: CommandEnvelope,
+): Promise<CommandResult | undefined> {
+  const payload = envelope.payload as CommandPayloadMap["setExternalAgentModel"];
+  await updateBoundField(host, requireRecord(host, envelope.sessionId), "model", payload.model);
   return undefined;
 }
 
-export const externalAgentHandlers = { bindExternalAgent, unbindExternalAgent, setExternalAgentModel };
+/**
+ * 切换已绑定外部 agent 的推理档位。
+ *
+ * 独立于换模型：两者的合法值域随 CLI 不同（claude 没有 minimal、codebuddy 有），
+ * 合成一条命令会让校验落在一个不属于任何一方的地方。
+ */
+async function setExternalAgentEffort(
+  host: V4CommandCoreHost,
+  envelope: CommandEnvelope,
+): Promise<CommandResult | undefined> {
+  const payload = envelope.payload as CommandPayloadMap["setExternalAgentEffort"];
+  await updateBoundField(host, requireRecord(host, envelope.sessionId), "effort", payload.effort);
+  return undefined;
+}
+
+export const externalAgentHandlers = {
+  bindExternalAgent,
+  unbindExternalAgent,
+  setExternalAgentModel,
+  setExternalAgentEffort,
+};

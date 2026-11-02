@@ -284,6 +284,8 @@ export const commandPayloadSchemas = {
       presetId: z.string().max(60).optional(),
       /** 外部 agent 使用的模型；缺省 = 该 CLI 的默认模型。 */
       model: z.string().max(200).optional(),
+      /** 推理档位；缺省 = 该 CLI 的默认档位。传参形状由预设决定。 */
+      effort: z.string().max(40).optional(),
       env: z.record(z.string(), z.string()).optional(),
       timeoutMs: z.number().int().positive().max(3_600_000).optional(),
     })
@@ -293,6 +295,9 @@ export const commandPayloadSchemas = {
   // 切换已绑定外部 agent 的模型（只改 model 字段，不动只读契约与授权）。
   // 不重建绑定：重建会重新快照 previous*，把用户原本的权限再覆盖一层。
   setExternalAgentModel: z.object({ model: z.string().max(200).nullable() }).strict(),
+  // 切换推理档位。与换模型同构，但独立成命令：两者互不依赖，
+  // 且 effort 的合法值域随 CLI 不同（claude 无 minimal、codebuddy 有）。
+  setExternalAgentEffort: z.object({ effort: z.string().max(40).nullable() }).strict(),
   pauseGoal: z.object({}),
   resumeGoal: z.object({}),
   // 删除当前会话目标：幂等清空 target，不携 baseRevision（同 deleteSession 的控制面语义）。
@@ -361,6 +366,7 @@ export const COMMANDS_REQUIRING_BASE_REVISION: ReadonlySet<CommandType> = new Se
   "bindExternalAgent",
   "unbindExternalAgent",
   "setExternalAgentModel",
+  "setExternalAgentEffort",
   "setFollowupMode",
   "pauseGoal",
   "resumeGoal",

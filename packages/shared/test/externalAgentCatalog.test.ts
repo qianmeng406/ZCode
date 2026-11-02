@@ -128,3 +128,78 @@ test("codex-exec 输出解析: stdout 原样返回", () => {
     isError: false,
   });
 });
+
+// ── 推理档位 ──
+// 三家 CLI 传 effort 的形状完全不同：claude/codebuddy 是 --effort，
+// codex 根本没有这个 flag，只能 -c model_reasoning_effort="…"。
+// 猜错形状会让整个调用失败，所以每种形状各钉一条。
+
+test("预设档位值域: claude 无 minimal，codebuddy 有，codex 走 config", () => {
+  const claude = findExternalAgentPreset("claude-code")!;
+  const codebuddy = findExternalAgentPreset("codebuddy")!;
+  const codex = findExternalAgentPreset("codex")!;
+  assert.ok(!claude.effortLevels.includes("minimal"));
+  assert.ok(codebuddy.effortLevels.includes("minimal"));
+  assert.equal(claude.effortDelivery, "flag");
+  assert.equal(codebuddy.effortDelivery, "flag");
+  assert.equal(codex.effortDelivery, "config");
+  assert.equal(codex.effortConfigKey, "model_reasoning_effort");
+});
+
+test("档位注入: claude-family 用 --effort", () => {
+  const invocation = buildExternalAgentInvocation({ ...baseBinding, effort: "high" }, "干活");
+  assert.deepEqual(invocation.args, ["-p", "--output-format", "json", "--effort", "high", "干活"]);
+});
+
+test("档位注入: codex-exec 用 -c model_reasoning_effort=...", () => {
+  const codex = externalAgentBindingSchema.parse({
+    label: "codex",
+    driver: "codex-exec",
+    command: "codex",
+    args: ["exec"],
+    promptDelivery: "argv-append",
+    effort: "high",
+  });
+  assert.deepEqual(buildExternalAgentInvocation(codex, "干活").args, [
+    "exec",
+    "-c",
+    'model_reasoning_effort="high"',
+    "干活",
+  ]);
+});
+
+test("档位注入: 未指定 effort 时不出现任何档位参数", () => {
+  const invocation = buildExternalAgentInvocation(baseBinding, "干活");
+  assert.ok(!invocation.args.includes("--effort"));
+  assert.ok(!invocation.args.some((arg) => arg.startsWith("model_reasoning_effort")));
+});
+
+test("档位注入: generic-template 忽略 effort（不猜参数名）", () => {
+  const template = externalAgentBindingSchema.parse({
+    label: "x",
+    driver: "generic-template",
+    command: "my-agent",
+    promptDelivery: "argv-append",
+    effort: "high",
+  });
+  assert.deepEqual(buildExternalAgentInvocation(template, "干活").args, ["干活"]);
+});
+
+test("模型与档位同时给时顺序稳定（model → effort → permissionMode）", () => {
+  const invocation = buildExternalAgentInvocation(
+    { ...baseBinding, model: "hy3", effort: "max", permissionMode: "acceptEdits" },
+    "干活",
+  );
+  assert.deepEqual(invocation.args, [
+    "-p",
+    "--output-format",
+    "json",
+    "--model",
+    "hy3",
+    "--effort",
+    "max",
+    "--permission-mode",
+    "acceptEdits",
+    "干活",
+  ]);
+});
