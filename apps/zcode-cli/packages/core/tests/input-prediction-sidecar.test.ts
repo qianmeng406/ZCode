@@ -252,6 +252,25 @@ describe("appendInputPredictionDirective", () => {
     expect((messages[3]!.content as string).split("【输入预测】").length - 1).toBe(1);
   });
 
+  it("跳过尾部系统提醒，注入落到真实用户输入上", () => {
+    // 线上统计 14/14 次都注到 <system-reminder> 环境提醒上（模型对着提醒做预测）。
+    const messages: InputPredictionModelMessage[] = [
+      { role: "user", content: "帮我修一下这个 bug" },
+      {
+        role: "user",
+        content: "<system-reminder>\n# Environment update\ncwd 变了\n</system-reminder>",
+      },
+      { role: "user", content: "<system-reminder>\nTodoWrite reminder\n</system-reminder>" },
+    ];
+    appendInputPredictionDirective(messages);
+    // 真实输入带上指令。
+    expect(messages[0]!.content).toContain("帮我修一下这个 bug");
+    expect((messages[0]!.content as string).split("【输入预测】").length - 1).toBe(1);
+    // 提醒消息保持原样，不带指令。
+    expect(messages[1]!.content).not.toContain("【输入预测】");
+    expect(messages[2]!.content).not.toContain("【输入预测】");
+  });
+
   it("纯指令消息被清洗后不再注入（避免造出无正文的预测请求）", () => {
     const leaked = [
       "【输入预测】回复正文全部结束后，另起一行输出一个预测块：",

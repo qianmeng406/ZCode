@@ -24,6 +24,9 @@ const RECENT_USER_INPUT_DEDUPE_COUNT = 2;
 // 预测块标签：既用于流过滤/完成边界解析，也用于拦"指令回显型"候选。
 const NEXT_INPUT_BLOCK_OPEN = "<next_input";
 const NEXT_INPUT_BLOCK_CLOSE = "</next_input>";
+// 系统提醒包装：注入要跳过这类旁路消息。
+const SYSTEM_REMINDER_OPEN = "<system-reminder>";
+const SYSTEM_REMINDER_CLOSE = "</system-reminder>";
 
 export interface InputPredictionCandidate {
   text: string;
@@ -229,6 +232,21 @@ function sanitizeInjectedDirectives(messages: ModelInputMessage[]): void {
   }
 }
 
+/** 消息是否只是一段（或几段）系统提醒包装：`<system-reminder>…</system-reminder>`。 */
+function isSystemReminderOnlyMessage(message: ModelInputMessage): boolean {
+  const textOf = (content: ModelInputMessage["content"]): string => {
+    if (typeof content === "string") return content;
+    if (!Array.isArray(content)) return "";
+    return content.map((block) => (block.type === "text" ? block.text : "")).join("");
+  };
+  const text = textOf(message.content).trim();
+  if (text.length === 0) return false;
+  if (!text.startsWith(SYSTEM_REMINDER_OPEN)) return false;
+  // 末尾闭合即视为"整条都是提醒"；不再检查中间是否夹带正文——
+  // 提醒包装内不会出现真实用户输入，多段提醒会连续闭合。
+  return text.endsWith(SYSTEM_REMINDER_CLOSE);
+}
+
 /**
  * 给本次请求注入预测指令（原地修改传入数组）。
  *
@@ -247,6 +265,10 @@ export function appendInputPredictionDirective(messages: ModelInputMessage[]): v
   for (let index = messages.length - 1; index >= 0; index -= 1) {
     const message = messages[index];
     if (!message || message.role !== "user") continue;
+    // 跳过尾部系统提醒（环境更新 / todo 提醒等）：它们是 model-only 的旁路
+    // 消息，把指令挂上去等于让模型对着提醒做预测（线上 14/14 次都错挂在这里，
+    // 也是候选质量差的根因之一）。真实用户输入才是唯一有意义的落点。
+    if (isSystemReminderOnlyMessage(message)) continue;
     if (typeof message.content === "string") {
       const cleaned = message.content.trimEnd();
       // 清洗后正文为空 = 这条消息原本只有指令副本：不注入（否则会造出
