@@ -8,6 +8,7 @@
 // - 环境能力（模型就绪 / legacy 广播 / shell 解析）是注入钩子：旧协议 binder 在过渡期
 //   提供实现，与旧协议同生命周期——每个钩子都标注过渡归宿，新增钩子必须标注。
 import type {
+  SessionStorePort,
   SessionTaskType,
   StableForkGoalBoundaryMetadata,
   TraceContext,
@@ -93,6 +94,11 @@ export interface V4CommandCoreHost {
   /** 会话查找（同一注册表对象引用；不存在返回 undefined → handler 拒绝）。 */
   getRecord(sessionId: string): V4SessionRecordView | undefined;
   logger?: V4CommandLogger;
+  /**
+   * 会话存储（session entry 的唯一权威来源）。record 视图上没有它——record 是
+   * 内存态窄视图；要持久化会话级配置（外部 agent 绑定等）一律走这里。
+   */
+  sessionStore?: SessionStorePort;
 
   // ── v4 原生能力（非过渡钩子）────────────────────────────────
   /** queue 项完整权威 intent；sendQueuedNow 禁止退化成 text-only 重发。 */

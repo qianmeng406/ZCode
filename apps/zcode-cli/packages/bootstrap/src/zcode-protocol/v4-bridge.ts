@@ -933,6 +933,8 @@ export function createConversationV4Gateway(
   const coreHost: V4CommandCoreHost = {
     // 同一注册表对象引用：view 是旧 record 的结构化窄视图，字段变更双向可见。
     getRecord: (sessionId) => context.sessions.get(sessionId),
+    // 会话级配置（外部 agent 绑定等）的唯一持久化出口；record 上没有它。
+    sessionStore: context.deps.sessionStore,
     // 同一登记表实例：broker（旧目录）注册反向请求 deferred，
     // v4 resolveInteraction handler 经此投递应答（v4 原生基础设施，非过渡钩子）。
     interactions: context.v4Interactions,

@@ -172,7 +172,7 @@ async function switchCollaborationMode(
   const previousMode = record.app.getMode();
   // 绑定外部 agent 的会话是只读主控：它的价值就在于"只能出计划、不能自己改"。
   // 允许在这里切走等于绕过整个只读契约，因此显式拒绝（而不是静默改回 plan）。
-  if (await hasBoundExternalAgent(record)) {
+  if (await hasBoundExternalAgent(host, record.app.sessionId)) {
     throw new V4InputAdmissionRejectedError(
       "proto.externalAgentReadOnly",
       "该会话绑定了外部 agent，处于只读主控模式；请先解绑再切换协作模式",
@@ -299,13 +299,14 @@ export const modelConfigHandlers = { switchModelConfig, switchCollaborationMode 
  * 读失败按"未绑定"处理：绑定读取是配置查询，不该让模式切换整体失败；
  * 真异常时下一次切换还会重新检查。
  */
-async function hasBoundExternalAgent(record: {
-  app: { sessionId: string };
-  sessionStore?: unknown;
-}): Promise<boolean> {
+async function hasBoundExternalAgent(
+  host: V4CommandCoreHost,
+  sessionId: string,
+): Promise<boolean> {
   const binding = await readSessionExternalAgent({
-    sessionId: record.app.sessionId,
-    sessionStore: record.sessionStore as never,
+    // host 注入的 context.deps.sessionStore 是唯一权威；record 视图上没有这个字段。
+    sessionId,
+    sessionStore: host.sessionStore,
   });
   return binding !== undefined;
 }

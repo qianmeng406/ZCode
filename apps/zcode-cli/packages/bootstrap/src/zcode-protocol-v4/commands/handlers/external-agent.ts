@@ -32,13 +32,17 @@ import {
 /** 同值绑定的 noop reasonCode。 */
 const BINDING_UNCHANGED = "proto.externalAgentUnchanged";
 
-/** 从 record 取会话级 sessionStore；缺失说明宿主没接线，绑定无从落地。 */
-function requireSessionStore(record: V4SessionRecordView) {
-  const store = (record as { sessionStore?: unknown }).sessionStore;
-  if (!store) {
-    throw new Error("v4 bindExternalAgent requires a session-scoped storage capability");
+/**
+ * 取会话级 sessionStore（host 注入的 context.deps.sessionStore）。
+ *
+ * 缺失必须显式拒绝：静默跳过持久化会造出"本次内存里只读、重启后绑定消失"的
+ * 半态绑定，用户无从察觉。
+ */
+function requireSessionStore(host: V4CommandCoreHost) {
+  if (!host.sessionStore) {
+    throw new Error("fault.command.externalAgentStoreUnavailable");
   }
-  return store as Parameters<typeof readSessionExternalAgent>[0]["sessionStore"];
+  return host.sessionStore;
 }
 
 /** 把 host 的可选 logger 收窄成 external-agent 需要的 warn。 */
@@ -53,7 +57,7 @@ async function bindExternalAgent(
 ): Promise<CommandResult | undefined> {
   const payload = envelope.payload as CommandPayloadMap["bindExternalAgent"];
   const record = requireRecord(host, envelope.sessionId);
-  const sessionStore = requireSessionStore(record);
+  const sessionStore = requireSessionStore(host);
 
   const existing = await readSessionExternalAgent({
     sessionId: record.app.sessionId,
@@ -120,7 +124,7 @@ async function unbindExternalAgent(
   envelope: CommandEnvelope,
 ): Promise<CommandResult | undefined> {
   const record = requireRecord(host, envelope.sessionId);
-  const sessionStore = requireSessionStore(record);
+  const sessionStore = requireSessionStore(host);
   const binding = await readSessionExternalAgent({
     sessionId: record.app.sessionId,
     sessionStore,
@@ -254,7 +258,7 @@ async function requireBoundExternalAgent(
   host: V4CommandCoreHost,
   record: V4SessionRecordView,
 ): Promise<{ binding: ExternalAgentBinding; sessionStore: ReturnType<typeof requireSessionStore> }> {
-  const sessionStore = requireSessionStore(record);
+  const sessionStore = requireSessionStore(host);
   const binding = await readSessionExternalAgent({
     sessionId: record.app.sessionId,
     sessionStore,

@@ -70,13 +70,17 @@ function makeRecord(
     workspace: { workspacePath: "/w" },
     persistence: "immediate",
     traceContext: TRACE,
-    sessionStore,
   } as unknown as V4SessionRecordView;
 }
 
-function makeHost(record: V4SessionRecordView): V4CommandCoreHost {
+function makeHost(
+  record: V4SessionRecordView,
+  sessionStore: ReturnType<typeof makeSessionStore>,
+): V4CommandCoreHost {
+  // sessionStore 挂在 host 上（= context.deps.sessionStore），不在 record 视图上。
   return {
     getRecord: (id) => (id === "s1" ? record : undefined),
+    sessionStore: sessionStore as unknown as V4CommandCoreHost["sessionStore"],
   };
 }
 
@@ -101,7 +105,7 @@ describe("v4 原生 bindExternalAgent", () => {
     const sessionStore = makeSessionStore();
     const app = makeApp({ planEnabled: false, mode: "yolo" });
     const record = makeRecord(app, sessionStore);
-    await new V4CommandExecutor(makeHost(record)).execute(
+    await new V4CommandExecutor(makeHost(record, sessionStore)).execute(
       envelope("bindExternalAgent", BINDING_PAYLOAD),
     );
 
@@ -130,7 +134,7 @@ describe("v4 原生 bindExternalAgent", () => {
   it("已是只读时不重复写执行状态（避免空转事件）", async () => {
     const sessionStore = makeSessionStore();
     const app = makeApp({ planEnabled: true, mode: "plan" });
-    await new V4CommandExecutor(makeHost(makeRecord(app, sessionStore))).execute(
+    await new V4CommandExecutor(makeHost(makeRecord(app, sessionStore), sessionStore)).execute(
       envelope("bindExternalAgent", BINDING_PAYLOAD),
     );
     expect(app.runtime.setExecutionState).not.toHaveBeenCalled();
@@ -143,7 +147,7 @@ describe("v4 原生 bindExternalAgent", () => {
     const sessionStore = makeSessionStore();
     const app = makeApp({ planEnabled: true, mode: "plan" });
     const record = makeRecord(app, sessionStore);
-    const executor = new V4CommandExecutor(makeHost(record));
+    const executor = new V4CommandExecutor(makeHost(record, sessionStore));
     await executor.execute(envelope("bindExternalAgent", BINDING_PAYLOAD));
     await expect(
       executor.execute(envelope("bindExternalAgent", BINDING_PAYLOAD)),
@@ -153,7 +157,7 @@ describe("v4 原生 bindExternalAgent", () => {
   it("绑定另一个 agent → 拒绝，要求先解绑", async () => {
     const sessionStore = makeSessionStore();
     const app = makeApp({ planEnabled: true, mode: "plan" });
-    const executor = new V4CommandExecutor(makeHost(makeRecord(app, sessionStore)));
+    const executor = new V4CommandExecutor(makeHost(makeRecord(app, sessionStore), sessionStore));
     await executor.execute(envelope("bindExternalAgent", BINDING_PAYLOAD));
     await expect(
       executor.execute(
@@ -167,7 +171,7 @@ describe("v4 原生 unbindExternalAgent", () => {
   it("解绑：清 entry 并恢复绑定时快照的 mode/plan", async () => {
     const sessionStore = makeSessionStore();
     const app = makeApp({ planEnabled: false, mode: "yolo" });
-    const executor = new V4CommandExecutor(makeHost(makeRecord(app, sessionStore)));
+    const executor = new V4CommandExecutor(makeHost(makeRecord(app, sessionStore), sessionStore));
     await executor.execute(envelope("bindExternalAgent", BINDING_PAYLOAD));
     app.runtime.setExecutionState.mockClear();
     app.runtime.appendEvent.mockClear();
@@ -195,7 +199,7 @@ describe("v4 原生 unbindExternalAgent", () => {
     const sessionStore = makeSessionStore();
     const app = makeApp();
     await expect(
-      new V4CommandExecutor(makeHost(makeRecord(app, sessionStore))).execute(
+      new V4CommandExecutor(makeHost(makeRecord(app, sessionStore), sessionStore)).execute(
         envelope("unbindExternalAgent", {}),
       ),
     ).rejects.toThrow(/没有绑定/);
@@ -206,7 +210,7 @@ describe("v4 原生 setExternalAgentModel", () => {
   it("只改 model 字段：不重新快照 previous*，只读契约与授权不动", async () => {
     const sessionStore = makeSessionStore();
     const app = makeApp({ planEnabled: false, mode: "yolo" });
-    const executor = new V4CommandExecutor(makeHost(makeRecord(app, sessionStore)));
+    const executor = new V4CommandExecutor(makeHost(makeRecord(app, sessionStore), sessionStore));
     await executor.execute(
       envelope("bindExternalAgent", { ...BINDING_PAYLOAD, model: "hy3" }),
     );
@@ -232,7 +236,7 @@ describe("v4 原生 setExternalAgentModel", () => {
   it("model=null 清空模型（回到 CLI 默认）", async () => {
     const sessionStore = makeSessionStore();
     const app = makeApp();
-    const executor = new V4CommandExecutor(makeHost(makeRecord(app, sessionStore)));
+    const executor = new V4CommandExecutor(makeHost(makeRecord(app, sessionStore), sessionStore));
     await executor.execute(
       envelope("bindExternalAgent", { ...BINDING_PAYLOAD, model: "hy3" }),
     );
@@ -244,7 +248,7 @@ describe("v4 原生 setExternalAgentModel", () => {
   it("同值切换 → noop（不产生空转事件）", async () => {
     const sessionStore = makeSessionStore();
     const app = makeApp();
-    const executor = new V4CommandExecutor(makeHost(makeRecord(app, sessionStore)));
+    const executor = new V4CommandExecutor(makeHost(makeRecord(app, sessionStore), sessionStore));
     await executor.execute(
       envelope("bindExternalAgent", { ...BINDING_PAYLOAD, model: "hy3" }),
     );
@@ -257,7 +261,7 @@ describe("v4 原生 setExternalAgentModel", () => {
     const sessionStore = makeSessionStore();
     const app = makeApp();
     await expect(
-      new V4CommandExecutor(makeHost(makeRecord(app, sessionStore))).execute(
+      new V4CommandExecutor(makeHost(makeRecord(app, sessionStore), sessionStore)).execute(
         envelope("setExternalAgentModel", { model: "hy3" }),
       ),
     ).rejects.toThrow(/没有绑定/);
@@ -269,7 +273,7 @@ describe("v4 原生 setExternalAgentEffort（档位按模型记）", () => {
   it("写入当前模型的档位槽，不动模型本身与权限快照", async () => {
     const sessionStore = makeSessionStore();
     const app = makeApp();
-    const executor = new V4CommandExecutor(makeHost(makeRecord(app, sessionStore)));
+    const executor = new V4CommandExecutor(makeHost(makeRecord(app, sessionStore), sessionStore));
     await executor.execute(
       envelope("bindExternalAgent", { ...BINDING_PAYLOAD, model: "hy3", effort: "medium" }),
     );
@@ -290,7 +294,7 @@ describe("v4 原生 setExternalAgentEffort（档位按模型记）", () => {
   it("换模型后改档位只写新模型的槽，旧模型的档位保留", async () => {
     const sessionStore = makeSessionStore();
     const app = makeApp();
-    const executor = new V4CommandExecutor(makeHost(makeRecord(app, sessionStore)));
+    const executor = new V4CommandExecutor(makeHost(makeRecord(app, sessionStore), sessionStore));
     await executor.execute(
       envelope("bindExternalAgent", { ...BINDING_PAYLOAD, model: "hy3", effort: "high" }),
     );
@@ -305,7 +309,7 @@ describe("v4 原生 setExternalAgentEffort（档位按模型记）", () => {
   it("换回原模型时自动沿用该模型记着的档位", async () => {
     const sessionStore = makeSessionStore();
     const app = makeApp();
-    const executor = new V4CommandExecutor(makeHost(makeRecord(app, sessionStore)));
+    const executor = new V4CommandExecutor(makeHost(makeRecord(app, sessionStore), sessionStore));
     await executor.execute(
       envelope("bindExternalAgent", { ...BINDING_PAYLOAD, model: "hy3", effort: "high" }),
     );
@@ -319,7 +323,7 @@ describe("v4 原生 setExternalAgentEffort（档位按模型记）", () => {
   it("effort=null 清除当前模型的槽", async () => {
     const sessionStore = makeSessionStore();
     const app = makeApp();
-    const executor = new V4CommandExecutor(makeHost(makeRecord(app, sessionStore)));
+    const executor = new V4CommandExecutor(makeHost(makeRecord(app, sessionStore), sessionStore));
     await executor.execute(
       envelope("bindExternalAgent", { ...BINDING_PAYLOAD, model: "hy3", effort: "high" }),
     );
@@ -331,7 +335,7 @@ describe("v4 原生 setExternalAgentEffort（档位按模型记）", () => {
   it("同值切换 → noop", async () => {
     const sessionStore = makeSessionStore();
     const app = makeApp();
-    const executor = new V4CommandExecutor(makeHost(makeRecord(app, sessionStore)));
+    const executor = new V4CommandExecutor(makeHost(makeRecord(app, sessionStore), sessionStore));
     await executor.execute(
       envelope("bindExternalAgent", { ...BINDING_PAYLOAD, model: "hy3", effort: "high" }),
     );
@@ -344,7 +348,7 @@ describe("v4 原生 setExternalAgentEffort（档位按模型记）", () => {
     const sessionStore = makeSessionStore();
     const app = makeApp();
     await expect(
-      new V4CommandExecutor(makeHost(makeRecord(app, sessionStore))).execute(
+      new V4CommandExecutor(makeHost(makeRecord(app, sessionStore), sessionStore)).execute(
         envelope("setExternalAgentEffort", { effort: "high" }),
       ),
     ).rejects.toThrow(/没有绑定/);
