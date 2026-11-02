@@ -19,6 +19,22 @@ const presetStatusSchema = z
     version: z.string().optional(),
     /** 模型候选；空 = 该 CLI 不支持枚举，UI 应退回自由输入。 */
     models: z.array(z.string()),
+    /**
+     * 逐模型档位事实（CLI 自带模型目录）。空 = 读不到目录，UI 退回静态兜底表。
+     * 这是"某模型能选哪些档位"的唯一权威来源。
+     */
+    modelCatalog: z
+      .array(
+        z
+          .object({
+            id: z.string().min(1),
+            name: z.string().min(1),
+            supportedEfforts: z.array(z.string()),
+            defaultEffort: z.string().optional(),
+          })
+          .strict(),
+      )
+      .default([]),
   })
   .strict();
 

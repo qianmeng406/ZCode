@@ -9,7 +9,9 @@
 import type { ExecutionPort } from "@zcode/contracts";
 import {
   EXTERNAL_AGENT_PRESETS,
+  parseModelCatalogFromProductJson,
   parseModelListFromHelp,
+  type ExternalAgentModelInfo,
   type ExternalAgentPreset,
 } from "@zcode/shared";
 
@@ -21,6 +23,14 @@ export interface ExternalAgentPresetStatus {
   version?: string;
   /** 模型候选；空 = 该 CLI 不支持枚举（UI 退回自由输入）。 */
   models: string[];
+  /**
+   * 逐模型的档位事实（从 CLI 自带的模型目录读出）。
+   *
+   * 这是判断"某模型能选哪些档位"的唯一权威来源：`--help` 的全局值域对具体模型
+   * 并不成立，而 CLI 对不支持的档位静默接受，拿错表用户察觉不到。空 = 读不到目录，
+   * 调用方退回静态兜底表。
+   */
+  modelCatalog: ExternalAgentModelInfo[];
 }
 
 /** 探测结果的 RPC 形状（只读、无状态、超时重发安全）。 */
@@ -35,12 +45,17 @@ const PROBE_TIMEOUT_MS = 15_000;
  *
  * 复用 ExecutionPort 而不是自己 spawn：探测与执行走同一条进程边界，
  * 远程/容器会话里的探测因此也能落到正确的工作机上（与 Bash 工具同源）。
+ *
+ * `outputLimit` 按用途给：读 product.json 需要整份（实测 370KB），默认的 64KB
+ * 会把 JSON 截断成片段、解析失败后静默退回静态表——"探测不到"于是被误读成
+ * "这个 CLI 没有模型目录"。
  */
 async function probeCommand(
   executionPort: ExecutionPort,
   file: string,
   args: string[],
   cwd: string,
+  outputLimit?: { maxInlineBytes: number; maxBufferBytes: number },
 ): Promise<{ ok: boolean; stdout: string }> {
   try {
     const result = (await executionPort.run(
@@ -49,8 +64,8 @@ async function probeCommand(
         cwd,
         timeoutMs: PROBE_TIMEOUT_MS,
         outputLimit: {
-          maxInlineBytes: 64_000,
-          maxBufferBytes: 64_000,
+          maxInlineBytes: outputLimit?.maxInlineBytes ?? 64_000,
+          maxBufferBytes: outputLimit?.maxBufferBytes ?? 64_000,
           persistOutput: "none",
           tailBytes: 8_000,
         },
@@ -112,7 +127,70 @@ function readStreamEntry(entry: unknown): string | undefined {
   return typeof tail === "string" ? tail : undefined;
 }
 
-/** 单个预设的探测：先版本，装了才查模型。 */
+/**
+ * 读取 CLI 自带的产品清单（`product.json`）里的模型目录。
+ *
+ * 定位方式：让 node 沿 PATH 找到命令的真实文件（压过 .cmd shim / 无扩展名脚本），
+ * 再从它往上找 `product.json`。用 `node -e` 而不是在 zcode 进程里拼路径：
+ * 远程/容器会话里文件在工作机上，只有子进程读得到。
+ *
+ * 失败一律返回空数组：探测不可用时调用方退回静态兜底表，不把"读不到"当"没模型"。
+ */
+async function probeModelCatalog(
+  executionPort: ExecutionPort,
+  preset: ExternalAgentPreset,
+  cwd: string,
+): Promise<ExternalAgentModelInfo[]> {
+  if (preset.modelSource !== "npm-product-json") return [];
+  const script = [
+    "const fs=require('fs'),path=require('path');",
+    "const cmd=process.argv[1];",
+    "const exts=(process.env.PATHEXT||'.COM;.EXE;.BAT;.CMD').split(';');",
+    "const dirs=(process.env.PATH||process.env.Path||'').split(path.delimiter).filter(Boolean);",
+    // 扩展名优先、裸名兜底：Windows 裸名多半是跑不了的 sh 脚本。
+    "const names=[...(process.platform==='win32'?exts.map(e=>cmd+e.toLowerCase()):[]),cmd];",
+    "let found=null;",
+    "for(const d of dirs){if(found)break;for(const n of names){const q=path.join(d,n);try{if(fs.statSync(q).isFile()){found=q;break;}}catch{}}}",
+    "if(!found)process.exit(2);",
+    "const candidates=[found];",
+    // npm 的 .cmd shim 只转发到包内真实入口；从 shim 文本里取出那条相对路径。
+    // 不用正则拼捕获组（多层转义容易出错）：直接找 node_modules 那一截。
+    "if(/\\.cmd$/i.test(found)){",
+    "  try{const t=fs.readFileSync(found,'utf8');",
+    "    const i=t.indexOf('node_modules');",
+    "    if(i>=0){",
+    "      let rel=t.slice(i);",
+    "      rel=rel.split('%*')[0].replace(/[\"\\r\\n]+$/g,'').trim();",
+    "      rel=rel.split('\"')[0];",
+    "      candidates.push(path.join(path.dirname(found),rel));",
+    "    }",
+    "  }catch{}",
+    "}",
+    "for(const start of candidates){",
+    "  let d=path.dirname(start);",
+    "  for(let i=0;i<6&&d&&d!==path.dirname(d);i++){",
+    "    const p=path.join(d,'product.json');",
+    "    if(fs.existsSync(p)){process.stdout.write(fs.readFileSync(p,'utf8'));process.exit(0);}",
+    "    d=path.dirname(d);",
+    "  }",
+    "}",
+    "process.exit(3);",
+  ].join("");
+  // 整份 product.json 实测约 370KB：给足上限，否则截断后 JSON.parse 失败，
+  // 会静默退回静态表，把"目录读到了"错判成"没有目录"。
+  const read = await probeCommand(executionPort, "node", ["-e", script, preset.command], cwd, {
+    maxInlineBytes: 4_000_000,
+    maxBufferBytes: 4_000_000,
+  });
+  if (!read.ok || !read.stdout.trim()) return [];
+  try {
+    return parseModelCatalogFromProductJson(JSON.parse(read.stdout));
+  } catch {
+    return [];
+  }
+}
+
+/** 单个预设的探测：先版本，装了才查模型与档位目录。 */
 async function probePreset(
   executionPort: ExecutionPort,
   preset: ExternalAgentPreset,
@@ -120,19 +198,24 @@ async function probePreset(
 ): Promise<ExternalAgentPresetStatus> {
   const versionProbe = await probeCommand(executionPort, preset.command, ["--version"], cwd);
   if (!versionProbe.ok) {
-    return { preset, installed: false, models: [] };
+    return { preset, installed: false, models: [], modelCatalog: [] };
   }
   const version = versionProbe.stdout.trim().split(/\r?\n/u)[0]?.trim() || undefined;
-  if (preset.modelSource !== "help-probe") {
-    return { preset, installed: true, ...(version ? { version } : {}), models: [] };
+  const base = { preset, installed: true, ...(version ? { version } : {}) };
+
+  // 产品清单优先：它同时给出模型名与逐模型档位，是唯一权威来源。
+  const modelCatalog = await probeModelCatalog(executionPort, preset, cwd);
+  if (modelCatalog.length > 0) {
+    return { ...base, models: modelCatalog.map((entry) => entry.id), modelCatalog };
   }
-  // static 与 help-probe 之外都是自由输入；只有 help-probe 才值得再起一个进程。
+
+  // 退回 --help 解析（只有模型名，没有逐模型档位）。
+  if (preset.modelSource !== "help-probe") return { ...base, models: [], modelCatalog: [] };
   const helpProbe = await probeCommand(executionPort, preset.command, ["--help"], cwd);
   return {
-    preset,
-    installed: true,
-    ...(version ? { version } : {}),
+    ...base,
     models: helpProbe.ok ? parseModelListFromHelp(helpProbe.stdout) : [],
+    modelCatalog: [],
   };
 }
 

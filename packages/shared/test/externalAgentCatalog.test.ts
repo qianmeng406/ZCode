@@ -3,6 +3,7 @@ import test from "node:test";
 import {
   EXTERNAL_AGENT_PRESETS,
   findExternalAgentPreset,
+  parseModelCatalogFromProductJson,
   parseModelListFromHelp,
   resolveEffortLevels,
 } from "../src/externalAgentCatalog.js";
@@ -270,4 +271,80 @@ test("模型与档位同时给时顺序稳定（model → effort → permissionM
     "acceptEdits",
     "干活",
   ]);
+});
+
+// ── 真实模型目录（product.json）优先于静态表 ──
+// 静态表只有 CLI 级范围；逐模型事实来自 CLI 自带的 product.json。
+// 实测：hy4-preview 只支持 high、glm-5.2 只支持 high/xhigh，
+// 而 CLI 对不支持的档位**静默接受**——所以候选必须来自真实目录。
+
+test("parseModelCatalogFromProductJson: 解析 supportedEfforts 与 defaultEffort", () => {
+  const catalog = parseModelCatalogFromProductJson({
+    models: [
+      {
+        id: "hy4-preview",
+        name: "Hy4 preview",
+        supportsReasoning: true,
+        reasoning: { canDisableThinking: false, defaultEffort: "high", supportedEfforts: ["high"] },
+      },
+      {
+        id: "glm-5.2",
+        name: "GLM-5.2",
+        reasoning: { defaultEffort: "high", supportedEfforts: ["high", "xhigh"] },
+      },
+    ],
+  });
+  assert.deepEqual(
+    catalog.map((m) => [m.id, m.supportedEfforts, m.defaultEffort]),
+    [
+      ["hy4-preview", ["high"], "high"],
+      ["glm-5.2", ["high", "xhigh"], "high"],
+    ],
+  );
+});
+
+test("parseModelCatalogFromProductJson: 固定档（只有 effort 没有 supportedEfforts）→ 不可选", () => {
+  const catalog = parseModelCatalogFromProductJson({
+    models: [{ id: "deepseek-v4.1-flash", name: "DS", reasoning: { effort: "high" } }],
+  });
+  assert.deepEqual(catalog[0]!.supportedEfforts, []);
+  assert.equal(catalog[0]!.defaultEffort, "high");
+});
+
+test("parseModelCatalogFromProductJson: 无 reasoning / 畸形输入 → 空结果不抛", () => {
+  assert.deepEqual(parseModelCatalogFromProductJson({ models: [{ id: "x", name: "x" }] }), [
+    { id: "x", name: "x", supportedEfforts: [] },
+  ]);
+  assert.deepEqual(parseModelCatalogFromProductJson(null), []);
+  assert.deepEqual(parseModelCatalogFromProductJson({}), []);
+  assert.deepEqual(parseModelCatalogFromProductJson({ models: "nope" }), []);
+});
+
+test("resolveEffortLevels: 真实目录优先于静态表（逐模型不同）", () => {
+  const preset = findExternalAgentPreset("codebuddy")!;
+  const catalog = [
+    { id: "hy4-preview", name: "Hy4", supportedEfforts: ["high"], defaultEffort: "high" },
+    { id: "glm-5.2", name: "GLM-5.2", supportedEfforts: ["high", "xhigh"], defaultEffort: "high" },
+  ];
+  // 两个模型在同一个 CLI 下得到不同候选——这正是静态表给不出的。
+  assert.deepEqual(resolveEffortLevels(preset, "hy4-preview", catalog), ["high"]);
+  assert.deepEqual(resolveEffortLevels(preset, "glm-5.2", catalog), ["high", "xhigh"]);
+  // 目录里没有的模型退回静态表。
+  assert.deepEqual(resolveEffortLevels(preset, "unknown", catalog), [
+    "minimal",
+    "low",
+    "medium",
+    "high",
+    "xhigh",
+    "max",
+  ]);
+});
+
+test("resolveEffortLevels: 目录里该模型不可选（空 supportedEfforts）→ 空，不退静态表", () => {
+  const preset = findExternalAgentPreset("codebuddy")!;
+  const catalog = [
+    { id: "deepseek-v4.1-flash", name: "DS", supportedEfforts: [], defaultEffort: "high" },
+  ];
+  // 关键：真实目录说"没有可选档位"，就不能再拿静态表糊上去。
+  assert.deepEqual(resolveEffortLevels(preset, "deepseek-v4.1-flash", catalog), []);
 });

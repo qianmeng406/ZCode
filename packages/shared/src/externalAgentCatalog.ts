@@ -11,8 +11,23 @@ import { z } from "zod";
 // 只放"已经实测过调用形状"的 CLI：猜一个没验证过的参数组合，用户会得到
 // 一个静默失败的绑定，比没有预设更糟。其余 CLI 走 generic-template 手填。
 
-/** 模型清单的来源策略。 */
-export const EXTERNAL_AGENT_MODEL_SOURCES = ["static", "help-probe", "free-text"] as const;
+/**
+ * 模型目录的来源。
+ *
+ * - `npm-product-json`：CLI 的 npm 包里带一份 `product.json`，其中 `models[]` 是
+ *   权威模型目录，**每个模型各自声明 `reasoning.supportedEfforts`**。这是唯一
+ *   可靠的逐模型档位事实源——`--help` 里那行 `--effort (minimal, low, …)` 只是
+ *   全局可接受值域，对具体模型并不成立（实测把 low 传给只支持 high 的模型，
+ *   CLI 照收不报错，用户无从察觉）。
+ * - `help-probe`：从 `--help` 的 `--model` 说明里解析模型名列表（无逐模型档位）。
+ * - `free-text`：完全手填。
+ */
+export const EXTERNAL_AGENT_MODEL_SOURCES = [
+  "static",
+  "npm-product-json",
+  "help-probe",
+  "free-text",
+] as const;
 export type ExternalAgentModelSource = (typeof EXTERNAL_AGENT_MODEL_SOURCES)[number];
 
 /** 模型的传参形状：决定在 argv 里补哪个 flag。 */
@@ -62,16 +77,40 @@ export const externalAgentPresetSchema = z.object({
 export type ExternalAgentPreset = z.infer<typeof externalAgentPresetSchema>;
 
 /**
+ * 单个模型的推理能力（从模型目录读回来的事实）。
+ *
+ * 与 preset.effortLevelsByModel 的区别：那个是**静态猜测表**，这个是**跑探测读出来的
+ * 真实事实**。探测可用时后者优先。
+ */
+export const externalAgentModelInfoSchema = z.object({
+  id: z.string().min(1),
+  name: z.string().min(1),
+  /** 该模型可选的档位；空 = 不可选（固定档或没有推理维度）。 */
+  supportedEfforts: z.array(z.string()).default([]),
+  /** 该模型的默认档位（不可选时就是它实际使用的那个）。 */
+  defaultEffort: z.string().optional(),
+});
+export type ExternalAgentModelInfo = z.infer<typeof externalAgentModelInfoSchema>;
+
+/**
  * 推断某个模型的档位候选。
  *
- * 先查精确的模型键，再退回 `""`（CLI 默认模型那一档）。两处都没有 = 该模型
- * 没有已知档位能力，调用方应隐藏档位选择——给一组猜的候选比不给更糟
- * （用户选了才发现无效）。
+ * 优先级：
+ * 1. 探测回来的真实模型目录（`probedModels`）——唯一权威，逐模型；
+ * 2. 静态表的精确模型键；
+ * 3. 静态表的 `""` 键（CLI 级兜底）；
+ * 4. 空 = 不提供档位选择。
+ *
+ * 前两步之外都给"猜的候选"，所以探测结果永远优先——实测把低档传给只支持高档的
+ * 模型，CLI 会静默接受，用户根本发现不了档位无效。
  */
 export function resolveEffortLevels(
   preset: ExternalAgentPreset,
   model: string | undefined,
+  probedModels?: readonly ExternalAgentModelInfo[],
 ): string[] {
+  const probed = probedModels?.find((entry) => entry.id === model);
+  if (probed) return probed.supportedEfforts;
   const exact = preset.effortLevelsByModel[model ?? ""];
   if (exact) return exact;
   if (model && preset.effortLevelsByModel[""]) return preset.effortLevelsByModel[""];
@@ -79,19 +118,15 @@ export function resolveEffortLevels(
 }
 
 /**
- * 各 CLI 的档位候选表（按键 `""` = CLI 默认模型那一档）。
+ * 静态档位表的兜底数据（探测不可用时才用）。
  *
- * 实测事实：这三家的 `--help` 都没有"每模型档位"清单，也没有可枚举的模型能力接口
- * （claude 的非法值警告列的是 CLI 级同一组、codebuddy 静默接受任意值、codex 接受
- * 任意模型名）。因此这里只登记**能确证**的范围：
- * - claude-code：`--effort` 的合法值固定为这五个（非法值警告原文列出），
- *   即对任意模型都是同一组；
+ * 已知局限：这三家的 `--help` 都没有逐模型档位清单，所以这里只能登记 CLI 级范围。
+ * codebuddy 有权威来源（npm 包里的 product.json，逐模型 supportedEfforts），
+ * 探测可用时一律以它为准——这张表只在读不到目录时兜底。
+ * - claude-code：`--effort` 的合法值固定为这五个（非法值警告原文列出）；
  * - codebuddy：在 claude 那组之上多一个 minimal（`--help` 原文列出）；
  * - codex：档位来自 config.toml 的 `model_reasoning_effort`，本机配置的
  *   `enabled-reasoning-efforts` 是这七项。
- *
- * 结构是 per-model 的（`effortLevelsByModel`）：一旦将来拿到真实的逐模型数据，
- * 只需在这里补键，调用方与 UI 都不用改。
  */
 const CLAUDE_EFFORT_LEVELS = ["low", "medium", "high", "xhigh", "max"] as const;
 const CODEBUDDY_EFFORT_LEVELS = ["minimal", ...CLAUDE_EFFORT_LEVELS] as const;
@@ -141,8 +176,8 @@ export const EXTERNAL_AGENT_PRESETS: readonly ExternalAgentPreset[] = [
     promptDelivery: "argv-append",
     permissionMode: "acceptEdits",
     modelFlag: "--model",
-    // codebuddy --help 把支持列表直接印在 --model 的说明里，可解析。
-    modelSource: "help-probe",
+    // codebuddy 的 npm 包带 product.json（逐模型 supportedEfforts）——比 --help 权威。
+    modelSource: "npm-product-json",
     models: [],
     effortDelivery: "flag",
     // codebuddy 的 --effort 比 claude 多一个 minimal。
@@ -183,6 +218,8 @@ export interface ExternalAgentPresetStatus {
   version?: string;
   /** 模型候选；空 = 该 CLI 不支持枚举，UI 应退回自由输入。 */
   models: string[];
+  /** 逐模型档位事实（CLI 自带模型目录）；空 = 读不到，退回静态兜底表。 */
+  modelCatalog: ExternalAgentModelInfo[];
 }
 
 /**
@@ -198,4 +235,61 @@ export function parseModelListFromHelp(helpText: string): string[] {
     .split(",")
     .map((value) => value.trim())
     .filter((value) => value.length > 0 && value.length <= 120);
+}
+
+/**
+ * 从 CLI 的 `product.json` 解析逐模型档位。
+ *
+ * codebuddy（及其 WorkBuddy 桌面版）的 npm 包里带一份产品清单，其中 `models[]`
+ * 是权威模型目录。每个模型的 `reasoning` 有两种形态：
+ *
+ * - `{ effort: "high" }`               —— 固定档，不可选；
+ * - `{ supportedEfforts: [...], defaultEffort: "high" }` —— 可选。
+ *
+ * 这是唯一可靠的逐模型档位事实源：`--help` 里那行全局值域对具体模型并不成立，
+ * 而 CLI 对不支持的档位**静默接受**（实测把 low 传给只支持 high 的模型照样返回成功），
+ * 所以拿错表用户根本察觉不到。
+ *
+ * 解析失败返回空数组：调用方退回静态表，不把"读不到"当成"没有模型"。
+ */
+export function parseModelCatalogFromProductJson(raw: unknown): ExternalAgentModelInfo[] {
+  if (!raw || typeof raw !== "object") return [];
+  const models = (raw as { models?: unknown }).models;
+  if (!Array.isArray(models)) return [];
+  const parsed: ExternalAgentModelInfo[] = [];
+  for (const entry of models) {
+    if (!entry || typeof entry !== "object") continue;
+    const record = entry as {
+      id?: unknown;
+      name?: unknown;
+      reasoning?: unknown;
+      supportsReasoning?: unknown;
+      onlyReasoning?: unknown;
+    };
+    if (typeof record.id !== "string" || record.id.length === 0) continue;
+    const reasoning =
+      record.reasoning && typeof record.reasoning === "object"
+        ? (record.reasoning as {
+            supportedEfforts?: unknown;
+            defaultEffort?: unknown;
+            effort?: unknown;
+          })
+        : undefined;
+    const supported = Array.isArray(reasoning?.supportedEfforts)
+      ? reasoning.supportedEfforts.filter((value): value is string => typeof value === "string")
+      : [];
+    const defaultEffort =
+      typeof reasoning?.defaultEffort === "string"
+        ? reasoning.defaultEffort
+        : typeof reasoning?.effort === "string"
+          ? reasoning.effort
+          : undefined;
+    parsed.push({
+      id: record.id,
+      name: typeof record.name === "string" && record.name.length > 0 ? record.name : record.id,
+      supportedEfforts: supported,
+      ...(defaultEffort ? { defaultEffort } : {}),
+    });
+  }
+  return parsed;
 }

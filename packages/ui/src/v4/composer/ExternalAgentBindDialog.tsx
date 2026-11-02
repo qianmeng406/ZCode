@@ -93,11 +93,19 @@ function ExternalAgentBindDialogImpl({
     return probed.length > 0 ? probed : selectedPreset.models;
   }, [selectedPreset, selectedStatus]);
 
-  // 推理档位候选按**当前选中的模型**解析：档位是模型能力，不是 CLI 能力。
-  // 该模型没有已知档位时空数组 → 不渲染这一栏（给猜的候选比不给更糟）。
+  // 推理档位候选按**当前选中的模型**解析，且优先用探测到的真实目录：
+  // 静态表只是 CLI 级兜底，真实支持的档位逐模型不同（实测 hy4 只有 high、
+  // glm-5.2 只有 high/xhigh）。给错候选用户察觉不到——CLI 对不支持的档位静默接受。
   const effortOptions = useMemo(
-    () => (selectedPreset ? resolveEffortLevels(selectedPreset, draft.model || undefined) : []),
-    [selectedPreset, draft.model],
+    () =>
+      selectedPreset
+        ? resolveEffortLevels(
+            selectedPreset,
+            draft.model || undefined,
+            selectedStatus?.modelCatalog,
+          )
+        : [],
+    [selectedPreset, selectedStatus, draft.model],
   );
 
   const selectPreset = useCallback((preset: ExternalAgentPreset) => {

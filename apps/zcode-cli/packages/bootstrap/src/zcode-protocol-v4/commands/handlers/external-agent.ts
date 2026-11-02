@@ -111,7 +111,7 @@ async function bindExternalAgent(
     );
   }
 
-  await publishBindingChanged(record, binding);
+  await publishBindingChanged(record, binding, await resolveEffortLevelsForBinding(record, binding));
   return undefined;
 }
 
@@ -191,10 +191,33 @@ function fallbackEffortPreset(binding: ExternalAgentBinding): ExternalAgentPrese
   };
 }
 
+/**
+ * 解析"当前模型能选哪些档位"。
+ *
+ * 优先读本机探测到的模型目录（App 的 probeExternalAgents）——那是 CLI 自带的
+ * 逐模型事实；探测不可用时才退回预设的静态兜底表。每条绑定事件的档位候选都走这里，
+ * 保证 UI 看到的候选与实际能用的集合一致。
+ */
+async function resolveEffortLevelsForBinding(
+  record: V4SessionRecordView,
+  binding: ExternalAgentBinding,
+): Promise<string[]> {
+  const preset = findExternalAgentPreset(binding.presetId) ?? fallbackEffortPreset(binding);
+  try {
+    const probe = await record.app.probeExternalAgents?.();
+    const status = probe?.agents.find((entry) => entry.preset.id === preset.id);
+    return resolveEffortLevels(preset, binding.model, status?.modelCatalog);
+  } catch {
+    // 探测失败退回静态表：宁可给一组"可能不够精确"的候选，也不让档位入口消失。
+    return resolveEffortLevels(preset, binding.model);
+  }
+}
+
 /** 发一条 ExternalAgentBindingChanged：payload 只带 UI 需要的事实。 */
 async function publishBindingChanged(
   record: V4SessionRecordView,
   binding: ExternalAgentBinding | null,
+  effortLevels: string[] = [],
 ): Promise<void> {
   const event = createSessionEvent(
     SessionEventType.ExternalAgentBindingChanged,
@@ -212,10 +235,7 @@ async function publishBindingChanged(
           ...(readModelEffort(binding, binding.model)
             ? { effort: readModelEffort(binding, binding.model) }
             : {}),
-          effortLevels: resolveEffortLevels(
-            findExternalAgentPreset(binding.presetId) ?? fallbackEffortPreset(binding),
-            binding.model,
-          ),
+          effortLevels,
           readOnly: true as const,
         }
       : null,
@@ -278,7 +298,7 @@ async function setExternalAgentModel(
     binding: next,
     logger: warningLogger(host),
   });
-  await publishBindingChanged(record, next);
+  await publishBindingChanged(record, next, await resolveEffortLevelsForBinding(record, next));
   return undefined;
 }
 
@@ -306,7 +326,7 @@ async function setExternalAgentEffort(
     binding: next,
     logger: warningLogger(host),
   });
-  await publishBindingChanged(record, next);
+  await publishBindingChanged(record, next, await resolveEffortLevelsForBinding(record, next));
   return undefined;
 }
 
