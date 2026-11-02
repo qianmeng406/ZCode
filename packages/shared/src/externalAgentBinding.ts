@@ -171,7 +171,7 @@ export function withModelEffort(
   level: string | null,
 ): ExternalAgentBinding {
   const key = model ?? "";
-  const existing = { ...(binding.effortsByModel ?? {}) };
+  const existing = { ...binding.effortsByModel };
   const normalized = level?.trim();
   if (normalized) existing[key] = normalized;
   else delete existing[key];
