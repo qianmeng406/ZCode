@@ -3757,6 +3757,7 @@ export class ProductProjection {
           ...(payload.presetId ? { presetId: payload.presetId } : {}),
           ...(payload.model ? { model: payload.model } : {}),
           ...(payload.effort ? { effort: payload.effort } : {}),
+          effortLevels: payload.effortLevels ?? [],
           readOnly: true as const,
         }
       : null;

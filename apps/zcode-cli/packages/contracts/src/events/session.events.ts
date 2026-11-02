@@ -1204,8 +1204,10 @@ export type ExternalAgentBindingChangedPayload = {
   presetId?: string;
   /** 当前使用的模型（缺省 = CLI 默认）。 */
   model?: string;
-  /** 当前推理档位（缺省 = CLI 默认）。 */
+  /** 当前这个模型的推理档位（缺省 = 该模型用 CLI 默认）。 */
   effort?: string;
+  /** 当前模型可选的档位；空 = 该模型没有已知档位能力。 */
+  effortLevels?: string[];
   readOnly: true;
 } | null;
 

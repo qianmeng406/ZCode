@@ -48,11 +48,16 @@ export const externalAgentBindingSchema = z
     /** 外部 agent 使用的模型（为空 = 用该 CLI 的默认模型）。 */
     model: z.string().max(200).optional(),
     /**
-     * 推理档位（如 low/medium/high）。
-     * 传参形状由预设的 effortDelivery 决定：flag 走 `--effort`，config 走 `-c key=value`。
-     * 为空 = 用该 CLI 的默认档位。
+     * 每个模型各自记住的推理档位（model key → level）。
+     *
+     * 档位是**模型能力**，不是 CLI 能力：同一个 CLI 里不同模型支持的一组档位不同，
+     * 换模型后沿用旧档位可能根本无效（claude 会警告后静默退回默认，codebuddy 直接
+     * 收下）。所以按模型分开记，而不是在绑定上挂一个全局值。
+     *
+     * key 用 model 的原始 id；空串 key 对应"没指定模型（用 CLI 默认模型）"这一档。
+     * 值为空 = 该模型用 CLI 默认档位。
      */
-    effort: z.string().max(40).optional(),
+    effortsByModel: z.record(z.string().max(200), z.string().max(40)).optional(),
     /** 额外环境变量（如 CODEBUDDY_FORCE_LITE_WB_BUNDLE）。 */
     env: z.record(z.string(), z.string()).optional(),
     /** 单次委派的超时（ms）；缺省由调用方兜底。 */
@@ -84,15 +89,17 @@ function resolveModelFlag(binding: ExternalAgentBinding): string | undefined {
  * - claude-family：`--effort <level>`（两家实测都支持）；
  * - codex-exec：**没有** effort flag，只能 `-c model_reasoning_effort="<level>"`。
  *
- * 返回空数组表示该族不接受推理档位（generic-template），此时 effort 被忽略——
- * 宁可忽略也不能猜一个参数名塞进去，那会让整个调用失败。
+ * 档位从 `effortsByModel[当前模型]` 取——它是模型的能力，不是 CLI 的能力。
+ * 返回空数组表示该模型没有显式档位（用 CLI 默认），或该族不接受档位
+ * （generic-template）——宁可忽略也不能猜一个参数名塞进去。
  */
 function resolveEffortArgs(binding: ExternalAgentBinding): string[] {
-  if (!binding.effort) return [];
-  if (binding.driver === "claude-family") return ["--effort", binding.effort];
+  const effort = binding.effortsByModel?.[binding.model ?? ""];
+  if (!effort) return [];
+  if (binding.driver === "claude-family") return ["--effort", effort];
   if (binding.driver === "codex-exec") {
     // codex 的 -c 值是 TOML 片段，字符串要带引号；整体作为一个 argv 元素传给 CLI。
-    return ["-c", `model_reasoning_effort="${binding.effort}"`];
+    return ["-c", `model_reasoning_effort="${effort}"`];
   }
   return [];
 }
@@ -142,6 +149,36 @@ export function buildExternalAgentInvocation(
   if (binding.promptDelivery === "stdin") return { command: binding.command, args, stdin: prompt };
   if (!binding.args.some((arg) => arg.includes(PROMPT_PLACEHOLDER))) args.push(prompt);
   return { command: binding.command, args };
+}
+
+/** 读取某个模型当前的推理档位（undefined = 用该 CLI 默认档位）。 */
+export function readModelEffort(
+  binding: ExternalAgentBinding,
+  model: string | undefined,
+): string | undefined {
+  return binding.effortsByModel?.[model ?? ""];
+}
+
+/**
+ * 返回"把某个模型的档位设为 level"后的新绑定（level 为 null/空 = 清除该模型的档位）。
+ *
+ * 只动 effortsByModel 里的一条：换 A 模型的档位不影响 B 模型记着的值——
+ * 这正是"档位属于模型"的实现。
+ */
+export function withModelEffort(
+  binding: ExternalAgentBinding,
+  model: string | undefined,
+  level: string | null,
+): ExternalAgentBinding {
+  const key = model ?? "";
+  const existing = { ...(binding.effortsByModel ?? {}) };
+  const normalized = level?.trim();
+  if (normalized) existing[key] = normalized;
+  else delete existing[key];
+  const next: ExternalAgentBinding = { ...binding };
+  if (Object.keys(existing).length > 0) next.effortsByModel = existing;
+  else delete next.effortsByModel;
+  return next;
 }
 
 /**

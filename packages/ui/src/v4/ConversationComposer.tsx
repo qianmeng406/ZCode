@@ -3101,15 +3101,12 @@ function ConversationComposerImpl({
     return externalAgentProbe.find((entry) => entry.preset.id === presetId)?.models ?? [];
   }, [snapshot?.externalAgent?.presetId, externalAgentProbe]);
 
-  // 徽标的推理档位候选同理：值域来自预设（claude 无 minimal、codebuddy 有、codex 走配置项）。
-  // 空 = 该 CLI 没有这个维度，徽标不显示这一分区。
-  const externalAgentEffortOptions = useMemo(() => {
-    const presetId = snapshot?.externalAgent?.presetId;
-    if (!presetId || !externalAgentProbe) return [];
-    return (
-      externalAgentProbe.find((entry) => entry.preset.id === presetId)?.preset.effortLevels ?? []
-    );
-  }, [snapshot?.externalAgent?.presetId, externalAgentProbe]);
+  // 徽标的推理档位候选 = **当前模型**的档位（由 CLI 侧按模型解析后随快照下发）。
+  // 不在 UI 拼全局表：档位是模型能力，不同模型不同；空 = 不显示档位入口。
+  const externalAgentEffortOptions = useMemo(
+    () => snapshot?.externalAgent?.effortLevels ?? [],
+    [snapshot?.externalAgent?.effortLevels],
+  );
 
   // 左下：模式选择 + CUA 入口 + 当前 session 后台任务入口。followupMode 由 app 设置页同步到 CLI，
   // 不在 composer 暴露局部开关；后台入口只消费同一 snapshot，不维护第二份任务状态。

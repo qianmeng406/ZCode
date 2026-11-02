@@ -284,7 +284,7 @@ export const commandPayloadSchemas = {
       presetId: z.string().max(60).optional(),
       /** 外部 agent 使用的模型；缺省 = 该 CLI 的默认模型。 */
       model: z.string().max(200).optional(),
-      /** 推理档位；缺省 = 该 CLI 的默认档位。传参形状由预设决定。 */
+      /** 推理档位；作用于**本次选定的模型**（缺省 = 该模型用 CLI 默认档位）。 */
       effort: z.string().max(40).optional(),
       env: z.record(z.string(), z.string()).optional(),
       timeoutMs: z.number().int().positive().max(3_600_000).optional(),
@@ -296,7 +296,7 @@ export const commandPayloadSchemas = {
   // 不重建绑定：重建会重新快照 previous*，把用户原本的权限再覆盖一层。
   setExternalAgentModel: z.object({ model: z.string().max(200).nullable() }).strict(),
   // 切换推理档位。与换模型同构，但独立成命令：两者互不依赖，
-  // 且 effort 的合法值域随 CLI 不同（claude 无 minimal、codebuddy 有）。
+  // 且档位是**模型能力**——值域随模型变化，命令只落"当前模型这一档"。
   setExternalAgentEffort: z.object({ effort: z.string().max(40).nullable() }).strict(),
   pauseGoal: z.object({}),
   resumeGoal: z.object({}),

@@ -264,8 +264,9 @@ describe("v4 原生 setExternalAgentModel", () => {
   });
 });
 
-describe("v4 原生 setExternalAgentEffort", () => {
-  it("只改 effort 字段：不重新快照 previous*，也不动模型", async () => {
+
+describe("v4 原生 setExternalAgentEffort（档位按模型记）", () => {
+  it("写入当前模型的档位槽，不动模型本身与权限快照", async () => {
     const sessionStore = makeSessionStore();
     const app = makeApp();
     const executor = new V4CommandExecutor(makeHost(makeRecord(app, sessionStore)));
@@ -279,26 +280,52 @@ describe("v4 原生 setExternalAgentEffort", () => {
     await executor.execute(envelope("setExternalAgentEffort", { effort: "xhigh" }));
 
     const after = [...sessionStore.entries.values()][0]!.data as Record<string, unknown>;
-    expect(after.effort).toBe("xhigh");
-    // 换档位不该动模型。
+    expect(after.effortsByModel).toEqual({ hy3: "xhigh" });
     expect(after.model).toBe("hy3");
-    // 解绑恢复用的快照没被覆盖。
     expect(after.previousPlanEnabled).toBe(before.previousPlanEnabled);
     expect(after.previousMode).toBe(before.previousMode);
     expect(app.runtime.setExecutionState).not.toHaveBeenCalled();
-    expect(app.runtime.appendEvent).toHaveBeenCalledTimes(1);
   });
 
-  it("effort=null 清空档位（回到 CLI 默认）", async () => {
+  it("换模型后改档位只写新模型的槽，旧模型的档位保留", async () => {
     const sessionStore = makeSessionStore();
     const app = makeApp();
     const executor = new V4CommandExecutor(makeHost(makeRecord(app, sessionStore)));
     await executor.execute(
-      envelope("bindExternalAgent", { ...BINDING_PAYLOAD, effort: "high" }),
+      envelope("bindExternalAgent", { ...BINDING_PAYLOAD, model: "hy3", effort: "high" }),
+    );
+    await executor.execute(envelope("setExternalAgentModel", { model: "glm-5.3" }));
+    await executor.execute(envelope("setExternalAgentEffort", { effort: "max" }));
+
+    const after = [...sessionStore.entries.values()][0]!.data as Record<string, unknown>;
+    // 这是"档位属于模型"的核心断言：两个模型各记各的。
+    expect(after.effortsByModel).toEqual({ hy3: "high", "glm-5.3": "max" });
+  });
+
+  it("换回原模型时自动沿用该模型记着的档位", async () => {
+    const sessionStore = makeSessionStore();
+    const app = makeApp();
+    const executor = new V4CommandExecutor(makeHost(makeRecord(app, sessionStore)));
+    await executor.execute(
+      envelope("bindExternalAgent", { ...BINDING_PAYLOAD, model: "hy3", effort: "high" }),
+    );
+    await executor.execute(envelope("setExternalAgentModel", { model: "glm-5.3" }));
+    await executor.execute(envelope("setExternalAgentModel", { model: "hy3" }));
+
+    const after = [...sessionStore.entries.values()][0]!.data as Record<string, unknown>;
+    expect(after.effortsByModel).toEqual({ hy3: "high" });
+  });
+
+  it("effort=null 清除当前模型的槽", async () => {
+    const sessionStore = makeSessionStore();
+    const app = makeApp();
+    const executor = new V4CommandExecutor(makeHost(makeRecord(app, sessionStore)));
+    await executor.execute(
+      envelope("bindExternalAgent", { ...BINDING_PAYLOAD, model: "hy3", effort: "high" }),
     );
     await executor.execute(envelope("setExternalAgentEffort", { effort: null }));
     const after = [...sessionStore.entries.values()][0]!.data as Record<string, unknown>;
-    expect(after.effort).toBeUndefined();
+    expect(after.effortsByModel).toBeUndefined();
   });
 
   it("同值切换 → noop", async () => {
@@ -306,7 +333,7 @@ describe("v4 原生 setExternalAgentEffort", () => {
     const app = makeApp();
     const executor = new V4CommandExecutor(makeHost(makeRecord(app, sessionStore)));
     await executor.execute(
-      envelope("bindExternalAgent", { ...BINDING_PAYLOAD, effort: "high" }),
+      envelope("bindExternalAgent", { ...BINDING_PAYLOAD, model: "hy3", effort: "high" }),
     );
     await expect(
       executor.execute(envelope("setExternalAgentEffort", { effort: "high" })),

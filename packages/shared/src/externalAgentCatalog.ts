@@ -48,18 +48,62 @@ export const externalAgentPresetSchema = z.object({
   models: z.array(z.string()).default([]),
   /** 推理档位的传参形状；none = 该 CLI 没有这个概念。 */
   effortDelivery: z.enum(EXTERNAL_AGENT_EFFORT_DELIVERIES).default("none"),
-  /** 该 CLI 接受的档位值（按从低到高排列）；空 = 自由输入。 */
-  effortLevels: z.array(z.string()).default([]),
-  /** effortDelivery=config 时的配置键（codex 的 model_reasoning_effort）。 */
-  effortConfigKey: z.string().optional(),
+  /**
+   * 每个模型的档位候选（model id → levels）。
+   *
+   * 档位是模型能力：同一 CLI 里不同模型能接受的档位集合不同，不能拿 CLI 级的一张
+   * 固定表套所有模型。这张表只放**已核实**的映射；没有映射的模型返回 undefined，
+   * 调用方据此不提供档位选择（而不是给一组可能是错的候选）。
+   *
+   * 键 `""` 表示"未指定模型 / 用 CLI 默认模型"时的候选。
+   */
+  effortLevelsByModel: z.record(z.string().max(200), z.array(z.string())).default({}),
 });
 export type ExternalAgentPreset = z.infer<typeof externalAgentPresetSchema>;
 
-/** claude / codebuddy 共有的档位（两家的 --effort 说明一致，codebuddy 多 minimal）。 */
-const CLAUDE_FAMILY_EFFORT_LEVELS = ["low", "medium", "high", "xhigh", "max"] as const;
-const CODEBUDDY_EFFORT_LEVELS = ["minimal", ...CLAUDE_FAMILY_EFFORT_LEVELS] as const;
-// codex 的 model_reasoning_effort 取 minimal/low/medium/high（config.toml 实测 medium）。
-const CODEX_EFFORT_LEVELS = ["minimal", "low", "medium", "high"] as const;
+/**
+ * 推断某个模型的档位候选。
+ *
+ * 先查精确的模型键，再退回 `""`（CLI 默认模型那一档）。两处都没有 = 该模型
+ * 没有已知档位能力，调用方应隐藏档位选择——给一组猜的候选比不给更糟
+ * （用户选了才发现无效）。
+ */
+export function resolveEffortLevels(
+  preset: ExternalAgentPreset,
+  model: string | undefined,
+): string[] {
+  const exact = preset.effortLevelsByModel[model ?? ""];
+  if (exact) return exact;
+  if (model && preset.effortLevelsByModel[""]) return preset.effortLevelsByModel[""];
+  return preset.effortLevelsByModel[""] ?? [];
+}
+
+/**
+ * 各 CLI 的档位候选表（按键 `""` = CLI 默认模型那一档）。
+ *
+ * 实测事实：这三家的 `--help` 都没有"每模型档位"清单，也没有可枚举的模型能力接口
+ * （claude 的非法值警告列的是 CLI 级同一组、codebuddy 静默接受任意值、codex 接受
+ * 任意模型名）。因此这里只登记**能确证**的范围：
+ * - claude-code：`--effort` 的合法值固定为这五个（非法值警告原文列出），
+ *   即对任意模型都是同一组；
+ * - codebuddy：在 claude 那组之上多一个 minimal（`--help` 原文列出）；
+ * - codex：档位来自 config.toml 的 `model_reasoning_effort`，本机配置的
+ *   `enabled-reasoning-efforts` 是这七项。
+ *
+ * 结构是 per-model 的（`effortLevelsByModel`）：一旦将来拿到真实的逐模型数据，
+ * 只需在这里补键，调用方与 UI 都不用改。
+ */
+const CLAUDE_EFFORT_LEVELS = ["low", "medium", "high", "xhigh", "max"] as const;
+const CODEBUDDY_EFFORT_LEVELS = ["minimal", ...CLAUDE_EFFORT_LEVELS] as const;
+const CODEX_EFFORT_LEVELS = [
+  "low",
+  "medium",
+  "high",
+  "xhigh",
+  "ultra",
+  "persistent",
+  "max",
+] as const;
 
 /**
  * 内置预设。
@@ -85,7 +129,7 @@ export const EXTERNAL_AGENT_PRESETS: readonly ExternalAgentPreset[] = [
     modelSource: "free-text",
     models: [],
     effortDelivery: "flag",
-    effortLevels: [...CLAUDE_FAMILY_EFFORT_LEVELS],
+    effortLevelsByModel: { "": [...CLAUDE_EFFORT_LEVELS] },
   },
   {
     id: "codebuddy",
@@ -102,7 +146,7 @@ export const EXTERNAL_AGENT_PRESETS: readonly ExternalAgentPreset[] = [
     models: [],
     effortDelivery: "flag",
     // codebuddy 的 --effort 比 claude 多一个 minimal。
-    effortLevels: [...CODEBUDDY_EFFORT_LEVELS],
+    effortLevelsByModel: { "": [...CODEBUDDY_EFFORT_LEVELS] },
   },
   {
     id: "codex",
@@ -117,8 +161,7 @@ export const EXTERNAL_AGENT_PRESETS: readonly ExternalAgentPreset[] = [
     modelSource: "free-text",
     models: [],
     effortDelivery: "config",
-    effortConfigKey: "model_reasoning_effort",
-    effortLevels: [...CODEX_EFFORT_LEVELS],
+    effortLevelsByModel: { "": [...CODEX_EFFORT_LEVELS] },
   },
 ] as const;
 

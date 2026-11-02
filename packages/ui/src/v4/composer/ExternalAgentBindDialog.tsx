@@ -21,6 +21,7 @@ import { cn } from "@/components/lib/utils.js";
 import { CheckIcon, DownloadIcon, LoaderIcon } from "lucide-react";
 import { useZCodeIntl } from "@/i18n/IntlProvider.js";
 import type { ExternalAgentPreset, ExternalAgentPresetStatus } from "@zcode/shared";
+import { resolveEffortLevels } from "@zcode/shared";
 import type { BindExternalAgentPayload } from "@/v4/composer/externalAgentCommands.js";
 
 export interface ExternalAgentBindDialogProps {
@@ -92,8 +93,12 @@ function ExternalAgentBindDialogImpl({
     return probed.length > 0 ? probed : selectedPreset.models;
   }, [selectedPreset, selectedStatus]);
 
-  // 推理档位候选：来自预设（各 CLI 值域不同，claude 无 minimal、codebuddy 有）。
-  const effortOptions = selectedPreset?.effortLevels ?? [];
+  // 推理档位候选按**当前选中的模型**解析：档位是模型能力，不是 CLI 能力。
+  // 该模型没有已知档位时空数组 → 不渲染这一栏（给猜的候选比不给更糟）。
+  const effortOptions = useMemo(
+    () => (selectedPreset ? resolveEffortLevels(selectedPreset, draft.model || undefined) : []),
+    [selectedPreset, draft.model],
+  );
 
   const selectPreset = useCallback((preset: ExternalAgentPreset) => {
     setDraft(draftFromPreset(preset));
@@ -228,7 +233,10 @@ function ExternalAgentBindDialogImpl({
             {modelOptions.length > 0 ? (
               <select
                 value={draft.model}
-                onChange={(event) => setDraft({ ...draft, model: event.target.value })}
+                onChange={(event) =>
+                  // 换模型时清空档位：旧档位属于旧模型，带过去可能根本无效。
+                  setDraft({ ...draft, model: event.target.value, effort: "" })
+                }
                 data-testid="external-agent-bind-model"
                 className="h-9 w-full rounded-md border border-border bg-surface px-2 text-ui-base"
               >

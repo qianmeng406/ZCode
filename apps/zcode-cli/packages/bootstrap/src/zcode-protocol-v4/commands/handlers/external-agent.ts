@@ -12,7 +12,13 @@ import type {
   CommandPayloadMap,
   CommandResult,
 } from "@zcode/shared/zcode-protocol-v4";
-import type { ExternalAgentBinding } from "@zcode/shared";
+import type { ExternalAgentBinding, ExternalAgentPreset } from "@zcode/shared";
+import {
+  findExternalAgentPreset,
+  readModelEffort,
+  resolveEffortLevels,
+  withModelEffort,
+} from "@zcode/shared";
 import { createSessionEvent, SessionEventType } from "@zcode/contracts";
 import { V4CommandNoopError } from "../../v4-gateway.js";
 import { V4InputAdmissionRejectedError } from "../input-admission.js";
@@ -78,7 +84,8 @@ async function bindExternalAgent(
     ...(payload.permissionMode ? { permissionMode: payload.permissionMode } : {}),
     ...(payload.presetId ? { presetId: payload.presetId } : {}),
     ...(payload.model ? { model: payload.model } : {}),
-    ...(payload.effort ? { effort: payload.effort } : {}),
+    // 档位挂在"这次选的模型"名下：换模型后各记各的，不互相污染。
+    ...(payload.effort ? { effortsByModel: { [payload.model ?? ""]: payload.effort } } : {}),
     ...(payload.env ? { env: payload.env } : {}),
     ...(payload.timeoutMs ? { timeoutMs: payload.timeoutMs } : {}),
     // 快照原状态：解绑时恢复。planEnabled 单独记，因为 plan 模式可以独立于 mode 存在。
@@ -159,6 +166,31 @@ async function unbindExternalAgent(
   return undefined;
 }
 
+/**
+ * 没有 presetId 时的档位兜底（用户手填了命令）。
+ *
+ * 按驱动族造一个等价形状：手填的 CLI 多半与某一族同构，档位候选沿用该族的已知集合。
+ * 这只是"给一点合理默认"，不改变调用形状——真正决定 argv 的仍是 binding.driver。
+ */
+function fallbackEffortPreset(binding: ExternalAgentBinding): ExternalAgentPreset {
+  return {
+    id: "custom",
+    label: binding.label,
+    description: "",
+    driver: binding.driver,
+    command: binding.command,
+    args: binding.args,
+    promptDelivery: binding.promptDelivery,
+    modelFlag: "none",
+    modelSource: "free-text",
+    models: [],
+    effortDelivery: binding.driver === "codex-exec" ? "config" : "flag",
+    // claude-family 的 --effort 合法值集合（实测）；generic-template 为空 = 不提供档位。
+    effortLevelsByModel:
+      binding.driver === "generic-template" ? {} : { "": ["low", "medium", "high", "xhigh", "max"] },
+  };
+}
+
 /** 发一条 ExternalAgentBindingChanged：payload 只带 UI 需要的事实。 */
 async function publishBindingChanged(
   record: V4SessionRecordView,
@@ -176,7 +208,14 @@ async function publishBindingChanged(
           ...(binding.permissionMode ? { permissionMode: binding.permissionMode } : {}),
           ...(binding.presetId ? { presetId: binding.presetId } : {}),
           ...(binding.model ? { model: binding.model } : {}),
-          ...(binding.effort ? { effort: binding.effort } : {}),
+          // 档位按"当前模型"解析后一起下发：UI 不该自己拿全局表猜候选。
+          ...(readModelEffort(binding, binding.model)
+            ? { effort: readModelEffort(binding, binding.model) }
+            : {}),
+          effortLevels: resolveEffortLevels(
+            findExternalAgentPreset(binding.presetId) ?? fallbackEffortPreset(binding),
+            binding.model,
+          ),
           readOnly: true as const,
         }
       : null,
@@ -210,58 +249,64 @@ async function requireBoundExternalAgent(
 }
 
 /**
- * 只更新绑定的一个可选字段（model / effort）。
+ * 只更新绑定的模型字段。
  *
  * 刻意不复用 bindExternalAgent：绑定会重新快照 previousPlanEnabled/previousMode，
  * 把用户原本的权限再覆盖一层——连改两次设置，解绑就恢复不到原状态了。
- * 这里只改目标字段，entry 原子覆盖，只读契约与授权完全不动。
+ * 这里只改 model，entry 原子覆盖，只读契约与授权完全不动。
+ *
+ * 换模型**不动**档位：档位按模型分开记（effortsByModel），切到哪个模型就自动
+ * 用那个模型自己记着的值——这正是"档位属于模型"的直接体现。
  */
-async function updateBoundField(
+async function setExternalAgentModel(
   host: V4CommandCoreHost,
-  record: V4SessionRecordView,
-  field: "model" | "effort",
-  value: string | null,
-): Promise<void> {
+  envelope: CommandEnvelope,
+): Promise<CommandResult | undefined> {
+  const payload = envelope.payload as CommandPayloadMap["setExternalAgentModel"];
+  const record = requireRecord(host, envelope.sessionId);
   const { binding, sessionStore } = await requireBoundExternalAgent(host, record);
-  const normalized = value?.trim() || undefined;
-  if (binding[field] === normalized) {
+  const model = payload.model?.trim() || undefined;
+  if (binding.model === model) {
     throw new V4CommandNoopError(BINDING_UNCHANGED);
   }
   const next: ExternalAgentBinding = { ...binding };
-  if (normalized) next[field] = normalized;
-  else delete next[field];
+  if (model) next.model = model;
+  else delete next.model;
   await persistSessionExternalAgent({
     sessionId: record.app.sessionId,
     sessionStore,
     binding: next,
     logger: warningLogger(host),
   });
-  // 模型与档位都是徽标文案的一部分，必须走同一条投影链路。
   await publishBindingChanged(record, next);
-}
-
-/** 切换已绑定外部 agent 的模型。 */
-async function setExternalAgentModel(
-  host: V4CommandCoreHost,
-  envelope: CommandEnvelope,
-): Promise<CommandResult | undefined> {
-  const payload = envelope.payload as CommandPayloadMap["setExternalAgentModel"];
-  await updateBoundField(host, requireRecord(host, envelope.sessionId), "model", payload.model);
   return undefined;
 }
 
 /**
- * 切换已绑定外部 agent 的推理档位。
+ * 切换**当前模型**的推理档位。
  *
- * 独立于换模型：两者的合法值域随 CLI 不同（claude 没有 minimal、codebuddy 有），
- * 合成一条命令会让校验落在一个不属于任何一方的地方。
+ * 写入的是 effortsByModel[当前模型]，不是绑定上的全局值：
+ * 同一个 CLI 的不同模型支持不同档位，A 模型记 high 不该让 B 模型也变成 high。
  */
 async function setExternalAgentEffort(
   host: V4CommandCoreHost,
   envelope: CommandEnvelope,
 ): Promise<CommandResult | undefined> {
   const payload = envelope.payload as CommandPayloadMap["setExternalAgentEffort"];
-  await updateBoundField(host, requireRecord(host, envelope.sessionId), "effort", payload.effort);
+  const record = requireRecord(host, envelope.sessionId);
+  const { binding, sessionStore } = await requireBoundExternalAgent(host, record);
+  const next = withModelEffort(binding, binding.model, payload.effort);
+  // 同值判定放在 withModelEffort 之后再比：它已经把 null/空串归一成"删除该键"。
+  if (JSON.stringify(next.effortsByModel ?? {}) === JSON.stringify(binding.effortsByModel ?? {})) {
+    throw new V4CommandNoopError(BINDING_UNCHANGED);
+  }
+  await persistSessionExternalAgent({
+    sessionId: record.app.sessionId,
+    sessionStore,
+    binding: next,
+    logger: warningLogger(host),
+  });
+  await publishBindingChanged(record, next);
   return undefined;
 }
 
