@@ -97,15 +97,6 @@ export interface AgentRuntimeInternal
   dynamicWorkflowActivationSource?: DynamicWorkflowActivationSource;
   /** 本会话用过的能力标签（session-features 模块是唯一写入方）；只增不减。 */
   sessionFeatures: Set<ModelRequestSessionFeature>;
-  /**
-   * 最近一轮主链路输出的「下一步输入预测」候选（内存态；重启即失）。
-   * 由 turn-model-step 在完成边界写入；v4 inputPrediction 查询直接读取。
-   */
-  lastInputPrediction?: {
-    sessionId: SessionId;
-    candidates: { text: string; confidence: number }[];
-    completedAt: number;
-  };
   /** session-features entry 写入队列的尾部；串行写，避免旧集合覆盖新集合。 */
   sessionFeaturesWrite: Promise<void>;
   /**

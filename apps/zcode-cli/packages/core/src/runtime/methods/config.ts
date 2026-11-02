@@ -119,12 +119,10 @@ export function getSessionModelSelection(this: AgentRuntimeInternal): ModelSelec
   return this.sessionModelSelection && cloneModelSelection(this.sessionModelSelection);
 }
 
-export function getLastInputPrediction(
-  this: AgentRuntimeInternal,
-): { candidates: { text: string; confidence: number }[]; completedAt: number } | null {
-  const prediction = this.lastInputPrediction;
-  if (!prediction || prediction.sessionId !== this.sessionId) return null;
-  return { candidates: prediction.candidates, completedAt: prediction.completedAt };
+export function getLastRequestCacheReadTokens(this: AgentRuntimeInternal): number {
+  // MessageHistory 在每次 main 请求后由 setCacheHit 记录 cacheReadTokens；
+  // 0 = 缓存冷或从未命中，输入预测据此跳过（冷缓存下预测不划算）。
+  return this.messageHistory.getCacheStats().cacheReadTokens ?? 0;
 }
 export function setSessionModelSelection(
   this: AgentRuntimeInternal,

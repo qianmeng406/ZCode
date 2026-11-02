@@ -311,7 +311,7 @@ export interface AppSettings {
    * 把关模型在设置页指定，默认跟随会话模型。
    */
   oracleReviewEnabled?: boolean;
-  /** 输入框 ghost 预测（实验）：默认关闭；开启后会把最近轮次与草稿发给会话模型。 */
+  /** 输入预测（实验）：默认关闭；开启后客户端在回复结束时请求一次短预测（不改动主轮对话）。 */
   inputPredictionEnabled?: boolean;
   /** Oracle 审查模型；缺省/null = 跟随会话模型。 */
   oracleReviewModel?: ModelSelection | null;

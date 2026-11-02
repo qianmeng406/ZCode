@@ -37,10 +37,13 @@ const GIT_COMMIT_MESSAGE_QUERY_SOURCE = "git_commit_message";
 // 提示词优化与 Git 提交消息同为「快进快出」的辅助调用：最低推理档 + 辅助预算，
 // 不吃调用方自带的 maxOutputTokens，避免思考模型把小预算烧在推理上输出为空。
 const PROMPT_OPTIMIZER_QUERY_SOURCE = "prompt_optimizer";
+// 输入预测（2026-11-02 重构）：独立的短辅助请求，绝不注入主轮对话。
+// 导出供 bootstrap 的 v4 handler 使用，避免同一字符串在两处各写一份。
+export const INPUT_PREDICTION_QUERY_SOURCE = "input_prediction";
 const AUXILIARY_QUERY_SOURCES = new Set([
   GIT_COMMIT_MESSAGE_QUERY_SOURCE,
   PROMPT_OPTIMIZER_QUERY_SOURCE,
-  // 输入预测（2026-11-01）改由主轮输出附带候选，不再发起独立辅助请求。
+  INPUT_PREDICTION_QUERY_SOURCE,
 ]);
 
 export interface WorkspaceGenerateTextInput {
@@ -432,9 +435,7 @@ export async function streamModelTextResult(
     } else if (event.type === "reasoning_delta") {
       outputChars += event.text.length;
       onProgress?.(
-        event.text.length > 0
-          ? { outputChars, reasoningDelta: event.text }
-          : { outputChars },
+        event.text.length > 0 ? { outputChars, reasoningDelta: event.text } : { outputChars },
       );
     } else if (event.type === "tool_call") {
       pushToolCall(event.toolCall);

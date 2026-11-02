@@ -84,11 +84,6 @@ import {
   recordMainTurnCacheHitUsage,
   recordMainTurnModelUsage,
 } from "./turn-model-step-usage.js";
-import {
-  createNextInputStreamFilter,
-  parseNextInputPredictionBlock,
-  type NextInputStreamFilter,
-} from "./input-prediction-sidecar.js";
 import { firstModelTokenAt } from "./usage-observability.js";
 import { estimateCurrentModelInputTokens } from "./compact.js";
 import {
@@ -256,17 +251,11 @@ async function runModelBackedTurnStepImpl(
     }
   };
 
-  // 输入预测：过滤器与 result 同作用域；完成边界从全文解析候选存入 runtime。
-  let inputPredictionFilter: NextInputStreamFilter | undefined;
   let result: RuntimeModelTextResult;
   try {
     const baselineMaxOutputTokens = resolveNormalRequestMaxOutputTokens({
       modelMaxOutputTokens: executionMaxOutputTokens,
     });
-    // 输入预测：流过滤器吞掉回复尾部的候选块；完成边界从全文解析候选存入 runtime。
-    inputPredictionFilter = state.inputPredictionEnabled
-      ? createNextInputStreamFilter()
-      : undefined;
     result = await this.runModelTextRequest({
       abortSignal: state.turnAbortSignal,
       assistantMessageId,
@@ -292,7 +281,6 @@ async function runModelBackedTurnStepImpl(
       onStreamTextDelta: (text) => streamingToolCoordinator.recordTextDelta(text),
       onStreamToolCall: (toolCall) => streamingToolCoordinator.accept(toolCall),
       streamRecovery: streamRecoveryRequest,
-      ...(inputPredictionFilter ? { streamTextFilter: inputPredictionFilter } : {}),
       tools: options.tools,
       toolSearchEnabled: options.toolSearch?.mode === "native",
       traceContext: modelTraceContext,
@@ -563,16 +551,6 @@ async function runModelBackedTurnStepImpl(
   }
 
   state.modelResponse = result.text;
-  if (inputPredictionFilter) {
-    const prediction = parseNextInputPredictionBlock(inputPredictionFilter.fullText);
-    if (prediction) {
-      this.lastInputPrediction = {
-        sessionId: this.sessionId,
-        candidates: prediction,
-        completedAt: Date.now(),
-      };
-    }
-  }
   state.modelStepCount += 1;
   state.tokenCount += getModelUsageTotalTokens(result.usage);
 

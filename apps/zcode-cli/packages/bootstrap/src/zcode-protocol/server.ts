@@ -10,14 +10,15 @@ import {
   zcodeWorkspaceCancelGenerateTextParamsSchema,
   zcodeWorkspaceHookTrustGrantParamsSchema,
 } from "@zcode/shared";
-import type { BrowserControlPort, HttpClientPort } from "@zcode/contracts";
+import type { BrowserControlPort, HttpClientPort, SessionId } from "@zcode/contracts";
 import type {
   McpElicitationRequest,
   McpElicitationResult,
   McpServerNotification,
 } from "@zcode/contracts";
 import { requestMcpElicitation } from "./interaction-broker.js";
-import { InMemoryWorkspaceHookPolicyProvider } from "@zcode/core";
+import { InMemoryWorkspaceHookPolicyProvider, INPUT_PREDICTION_QUERY_SOURCE } from "@zcode/core";
+import { loadSessionTranscriptFromStore } from "../session-transcript.js";
 import {
   V4_METHODS,
   V4_NOTIFICATIONS,
@@ -343,8 +344,54 @@ export class ZCodeProtocolAgentServer {
     // v4 通道：gateway 闭包持有 context 做帧出口与命令副作用，构造完立即挂回。
     this.context.v4Gateway = createConversationV4Gateway(this.context);
     this.inputPrediction = new ConversationInputPredictionHandler({
-      getLastPrediction: (sessionId) =>
-        this.context.sessions.get(sessionId)?.app.runtime.getLastInputPrediction() ?? null,
+      loadTranscript: async (sessionId) => {
+        const record = this.context.sessions.get(sessionId);
+        if (!record) return [];
+        return await loadSessionTranscriptFromStore({
+          sessionId: record.app.sessionId as SessionId,
+          ...(this.context.deps.sessionStore
+            ? { sessionStore: this.context.deps.sessionStore }
+            : {}),
+        });
+      },
+      // getProjection 是异步的，但门禁需要同步回答；busy 改由运行时已有的
+      // 同步状态判断（有活动 turn / 队列非空），避免在 RPC handler 里 await 两遍。
+      readGate: (sessionId) => {
+        const record = this.context.sessions.get(sessionId);
+        if (!record) return null;
+        const runtime = record.app.runtime;
+        const selection = runtime.getSessionModelSelection();
+        return {
+          // 0 = provider 侧缓存冷：预测要全量计价，跳过。
+          cacheReadTokens: runtime.getLastRequestCacheReadTokens(),
+          // 会话在跑（含队列/预留）时不预测：上下文还在变。
+          busy: runtime.hasActiveOrQueuedTurnWork(),
+          ...(selection ? { selection } : {}),
+        };
+      },
+      generate: async (input) => {
+        const record = this.context.sessions.get(input.sessionId);
+        if (!record) return { text: "" };
+        const controller = new AbortController();
+        const timer = setTimeout(() => controller.abort(), input.timeoutMs);
+        try {
+          const result = await record.app.generateWorkspaceText(
+            {
+              selection: input.selection,
+              messages: [
+                { role: "system", content: input.system },
+                { role: "user", content: input.prompt },
+              ],
+              querySource: INPUT_PREDICTION_QUERY_SOURCE,
+              maxOutputTokens: input.maxOutputTokens,
+            },
+            { abortSignal: controller.signal },
+          );
+          return { text: result.text };
+        } finally {
+          clearTimeout(timer);
+        }
+      },
       logger: this.logger,
     });
     this.browserControlPort = createProtocolBrowserControlBroker(this.context);

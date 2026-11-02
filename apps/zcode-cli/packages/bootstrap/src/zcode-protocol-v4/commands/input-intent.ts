@@ -18,7 +18,6 @@ export interface CanonicalCommandIntent {
   modelSelection?: ModelSelection;
   mode?: SubmissionMode;
   planEnabled?: boolean;
-  inputPredictionEnabled?: boolean;
   contextProfile?: ContextProfile;
   sourceCommandId?: string;
   clientId?: string;
@@ -48,7 +47,6 @@ export function inputIntentMetadata(
     mode?: SubmissionMode;
     planEnabled?: boolean;
     contextProfile?: ContextProfile;
-    inputPredictionEnabled?: boolean;
     genUiContext?: TurnInputIntentMetadata["genUiContext"];
     sharedContextRefs?: TurnInputIntentMetadata["sharedContextRefs"];
     source?: TurnInputIntentMetadata["source"];
@@ -80,9 +78,6 @@ export function inputIntentMetadata(
     ...(options.modelSelection ? { modelSelection: options.modelSelection } : {}),
     ...(options.mode ? { mode: options.mode } : {}),
     ...(options.planEnabled !== undefined ? { planEnabled: options.planEnabled } : {}),
-    ...(options.inputPredictionEnabled !== undefined
-      ? { inputPredictionEnabled: options.inputPredictionEnabled }
-      : {}),
     ...(options.contextProfile !== undefined ? { contextProfile: options.contextProfile } : {}),
     ...(options.genUiContext !== undefined ? { genUiContext: options.genUiContext } : {}),
     admissionSeq: admission.admissionSeq,
@@ -127,12 +122,7 @@ export function inputIntentMetadataFromCanonical(
     ...(canonical.modelSelection ? { modelSelection: canonical.modelSelection } : {}),
     ...(canonical.mode ? { mode: canonical.mode } : {}),
     ...(canonical.planEnabled !== undefined ? { planEnabled: canonical.planEnabled } : {}),
-    ...(canonical.inputPredictionEnabled !== undefined
-      ? { inputPredictionEnabled: canonical.inputPredictionEnabled }
-      : {}),
-    ...(canonical.contextProfile !== undefined
-      ? { contextProfile: canonical.contextProfile }
-      : {}),
+    ...(canonical.contextProfile !== undefined ? { contextProfile: canonical.contextProfile } : {}),
     admissionSeq: admission.admissionSeq,
     admittedAt: admission.admittedAt,
     requestedDelivery: canonical.requestedDelivery ?? "startNow",

@@ -1,5 +1,4 @@
 import type { ToolSearchExecutionContext, ToolSearchMode } from "@zcode/contracts";
-import type { NextInputStreamFilter } from "./methods/input-prediction-sidecar.js";
 import type { RequestVerificationReason } from "@zcode/shared";
 import type { GetAgentDefinitions, LoadAgentDefinitions } from "../subagent/definitions.js";
 import type { RuntimeInputPresentation, TurnExecutionModelFallbackReason } from "@zcode/contracts";
@@ -906,8 +905,6 @@ export interface RunModelTextRequestOptions {
   onStreamTextDelta?: (text: string) => void;
   onStreamToolCall?: (toolCall: ModelToolCall) => void;
   onModelNetworkStatus?: (event: ModelNetworkStatusEvent) => void;
-  /** 输入预测流过滤器：吞掉回复尾部的预测块，只放行可见正文。 */
-  streamTextFilter?: NextInputStreamFilter;
   streamRecovery?: ModelStreamRecoveryStatus;
   tools: ModelToolContract[];
   traceContext: TraceContext;

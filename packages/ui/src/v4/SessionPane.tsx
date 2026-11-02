@@ -566,7 +566,6 @@ function submissionConfigFromCommand(
         : candidate.mode === "plan",
     contextProfile: state.contextProfile,
     // 命令回读（队列/重试展示）：开关随 payload 冻结，缺席按关。
-    inputPredictionEnabled: candidate.inputPredictionEnabled === true,
   };
 }
 
@@ -2213,11 +2212,8 @@ export function SessionPane({
     modelSelectionView,
   });
   const createSubmissionFromComposer = useCallback(
-    () =>
-      createComposerSubmissionConfig(draftConfigRef.current, modelSelectionView, {
-        inputPredictionEnabled: sharedSettings?.inputPredictionEnabled ?? false,
-      }),
-    [draftConfigRef, modelSelectionView, sharedSettings?.inputPredictionEnabled],
+    () => createComposerSubmissionConfig(draftConfigRef.current, modelSelectionView),
+    [draftConfigRef, modelSelectionView],
   );
   const composerSubmissionReady = useMemo(
     () => createComposerSubmissionConfig(draftConfig, modelSelectionView) !== null,

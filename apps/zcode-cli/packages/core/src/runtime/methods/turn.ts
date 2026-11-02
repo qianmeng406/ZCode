@@ -856,7 +856,6 @@ export async function executeTurnCommand(
           ...(options?.offPeakExecutionId
             ? { offPeakExecutionId: options.offPeakExecutionId }
             : {}),
-          inputPredictionEnabled: options?.intent?.inputPredictionEnabled === true,
           anomalyWarningsInjected: 0,
           backgroundSubagentResultConsumed: options?.backgroundSubagentResultConsumed === true,
           workflowResultConsumed: options?.workflowResultConsumed === true,

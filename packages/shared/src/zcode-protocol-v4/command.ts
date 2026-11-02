@@ -63,7 +63,6 @@ export const commandPayloadSchemas = {
         mode: submissionModeSchema.optional(),
         planEnabled: z.boolean().optional(),
         contextProfile: contextProfileSchema.optional(),
-        inputPredictionEnabled: z.boolean().optional(),
       })
       .optional(),
     config: createSessionRequestedConfigSchema.optional(),
@@ -117,7 +116,6 @@ export const commandPayloadSchemas = {
       planEnabled: z.boolean().optional(),
       contextProfile: contextProfileSchema.optional(),
       // 本轮是否注入「下一步输入预测」指令；由桌面设置开关在提交时冻结。
-      inputPredictionEnabled: z.boolean().optional(),
       // 本次执行仍使用上面的标准 Selection；这里只携带不持久化语义、动态鉴权和 child 策略。
       // 仅 idle startNow 接受，防止 Secret/Ticket 进入普通 CommandInbox。
       modelExecution: modelExecutionSchema.optional(),
@@ -160,7 +158,6 @@ export const commandPayloadSchemas = {
     mode: submissionModeSchema.optional(),
     planEnabled: z.boolean().optional(),
     contextProfile: contextProfileSchema.optional(),
-    inputPredictionEnabled: z.boolean().optional(),
     heldQueueDisposition: z.enum(["clearQueueAndSend", "keepQueueAndSend"]).optional(),
     expectedHeldQueueItemIds: z.array(z.string().min(1)).optional(),
   }),

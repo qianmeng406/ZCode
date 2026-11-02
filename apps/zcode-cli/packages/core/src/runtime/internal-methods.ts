@@ -90,11 +90,12 @@ export interface AgentRuntimeCoreMethods {
     traceContext?: TraceContext,
   ): Promise<void>;
   getSessionModelSelection(): ModelSelection | undefined;
-  /** 最近一轮主链路输出的「下一步输入预测」候选（内存态；重启即失）。 */
-  getLastInputPrediction(): {
-    candidates: { text: string; confidence: number }[];
-    completedAt: number;
-  } | null;
+  /**
+   * 最近一次 main 请求的缓存命中 token 数（0 = 缓存冷或从未命中）。
+   * 输入预测据此判断「上下文是否已在 provider 侧温热」——冷缓存时预测的
+   * 收益远小于成本，直接跳过（对齐 Claude Code 的 prompt suggestion 门禁）。
+   */
+  getLastRequestCacheReadTokens(): number;
   setSessionModelSelection(selection: ModelSelection | undefined): void;
   getProjectId(): ProjectId;
   setWorkingDirectory(cwd: string): void;

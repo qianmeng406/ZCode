@@ -337,8 +337,6 @@ export type TurnInputSourceMetadata =
 
 export interface TurnInputIntentMetadata {
   planEnabled?: boolean;
-  /** 本轮请求注入「下一步输入预测」指令；由桌面设置开关在提交时冻结。 */
-  inputPredictionEnabled?: boolean;
   conversationQuotes?: Array<{
     text: string;
     path?: string;

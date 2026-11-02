@@ -537,10 +537,11 @@ export interface AgentRuntime {
     traceContext?: TraceContext,
   ): Promise<void>;
   getSessionModelSelection(): ModelSelection | undefined;
-  getLastInputPrediction(): {
-    candidates: { text: string; confidence: number }[];
-    completedAt: number;
-  } | null;
+  /**
+   * 最近一次 main 请求的缓存命中 token 数（0 = 缓存冷或从未命中）。
+   * 输入预测据此判断「上下文是否已在 provider 侧温热」。
+   */
+  getLastRequestCacheReadTokens(): number;
   setSessionModelSelection(selection: ModelSelection | undefined): void;
   getProjectId(): ProjectId;
   ensureSessionPersistedForExternalActivity(

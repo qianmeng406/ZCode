@@ -3862,7 +3862,7 @@ const enUS: Record<string, string> = {
   "settings.sessionHandoffModel.description":
     "Model used for the smart handoff summary. Leave empty to follow the session model.",
   "settings.inputPrediction.description":
-    "When enabled, the model appends a prediction of your next input at the end of each reply; shown while the input box is idle. Tab accepts, Esc dismisses.",
+    "When enabled, a short prediction of your next input is requested after each reply (reusing the conversation context, never modifying it); shown while the input box is idle. Tab accepts, Esc dismisses. Skipped when the prompt cache is cold.",
   "settings.aiFeature.followSession": "Follow session model",
   "settings.aiFeature.reasoningLevel": "Reasoning level",
   "settings.aiFeature.saveError": "Could not save AI feature settings",

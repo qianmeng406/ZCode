@@ -3611,7 +3611,7 @@ const zhCN: Record<string, string> = {
   "settings.sessionHandoffModel.label": "交接模型",
   "settings.sessionHandoffModel.description": "会话交接智能摘要使用的模型；留空跟随会话模型。",
   "settings.inputPrediction.description":
-    "开启后，模型会在每轮回复末尾附带下一步输入预测；输入框空闲时展示，Tab 接受，Esc 忽略。",
+    "开启后，每轮回复结束后会单独请求一次下一步输入预测（复用当前对话上下文，不改动对话内容）；输入框空闲时展示，Tab 接受，Esc 忽略。缓存未命中时自动跳过。",
   "settings.aiFeature.followSession": "跟随会话模型",
   "settings.aiFeature.reasoningLevel": "推理档位",
   "settings.aiFeature.saveError": "保存 AI 功能设置失败",
