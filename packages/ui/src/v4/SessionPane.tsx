@@ -87,6 +87,7 @@ import {
 import { formatMemoryDreamResult } from "@/v4/memory/memoryDreamResult.js";
 import { resolveOracleRequestOptions } from "@/v4/oracleReview/oracleReviewSupport.js";
 import type { TurnHeaderRow } from "@zcode/shared/zcode-protocol-v4";
+import type { BindExternalAgentPayload } from "@/v4/composer/externalAgentCommands.js";
 
 const MEMORY_CAPTURE_REQUEST_TIMEOUT_MS = 120_000;
 import { Button } from "@/components/ui/button.js";
@@ -5103,6 +5104,19 @@ export function SessionPane({
     }
   }, [dispatchCommand, sessionId]);
 
+  // 绑定入口的提交动作。命令面会先把 entry 落盘再切只读，所以这里不做乐观更新：
+  // 徽标出现在下一次投影刷新里，与真实状态一致。
+  const handleBindExternalAgent = useCallback(
+    async (payload: BindExternalAgentPayload) => {
+      if (!sessionId) return;
+      const ack = await dispatchCommand("bindExternalAgent", { ...payload }, sessionId);
+      if (ack.status !== "accepted" && ack.status !== "noop") {
+        throw new Error(ack.reasonCode ?? ack.status);
+      }
+    },
+    [dispatchCommand, sessionId],
+  );
+
   // context usage 面板的压缩入口（命令文本 = "/compact"，复用 slash 解析路径）。
   const handleSendCompressionCommand = useCallback(
     (command: string) => {
@@ -6348,6 +6362,7 @@ export function SessionPane({
       onSelectThought={handleSelectThought}
       onSwitchMode={handleSwitchMode}
       onUnbindExternalAgent={handleUnbindExternalAgent}
+      onBindExternalAgent={handleBindExternalAgent}
       onOpenRunningBackgroundWorks={
         sessionId && runningBackgroundWorkCount > 0 ? handleOpenRunningBackgroundWorks : undefined
       }

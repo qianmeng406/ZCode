@@ -5200,6 +5200,14 @@ const enUS: Record<string, string> = {
   "chat.externalAgent.unbind": "Unbind {agent}",
   "chat.externalAgent.readOnlyHint":
     "This session is bound to {agent}: it can analyse and plan, while {agent} makes the changes. Click to unbind and restore the previous permissions.",
+  "chat.externalAgent.bind": "Bind external agent",
+  "chat.externalAgent.bindTitle": "Bind an external coding agent",
+  "chat.externalAgent.bindDescription":
+    "Once bound, this session becomes read-only: it can analyse and plan, but cannot change files — the bound agent makes the changes.",
+  "chat.externalAgent.bindLabel": "Display name",
+  "chat.externalAgent.bindCommand": "Executable command",
+  "chat.externalAgent.bindPermissionMode": "Agent permission mode",
+  "chat.externalAgent.bindSubmit": "Bind and go read-only",
   "chat.planUsage.noPlan":
     "No active Coding Plan was found for this account. Confirm that the connected account is subscribed.",
   "chat.planUsage.contextWindow": "Current context window",

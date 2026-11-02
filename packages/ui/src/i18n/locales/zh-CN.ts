@@ -4890,6 +4890,14 @@ const zhCN: Record<string, string> = {
   "chat.externalAgent.unbind": "解绑 {agent}",
   "chat.externalAgent.readOnlyHint":
     "本会话已绑定 {agent}：这里只能分析与出计划，改动由 {agent} 执行。点击解绑并恢复原权限。",
+  "chat.externalAgent.bind": "绑定外部 agent",
+  "chat.externalAgent.bindTitle": "绑定外部 coding agent",
+  "chat.externalAgent.bindDescription":
+    "绑定后本会话进入只读：它可以分析、出计划，但不能改文件；改动由绑定的外部 agent 执行。",
+  "chat.externalAgent.bindLabel": "展示名",
+  "chat.externalAgent.bindCommand": "可执行命令",
+  "chat.externalAgent.bindPermissionMode": "外部 agent 的权限档位",
+  "chat.externalAgent.bindSubmit": "绑定并进入只读",
   "chat.planUsage.noPlan": "当前连接账号暂无有效编程套餐。",
   "chat.planUsage.contextWindow": "当前会话上下文",
   "chat.planUsage.contextDetail": "{used} / {total}",

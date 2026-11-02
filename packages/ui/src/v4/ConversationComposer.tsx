@@ -74,6 +74,7 @@ import {
   ArrowUpIcon,
   ClipboardPenLineIcon,
   InfoIcon,
+  LockIcon,
   RotateCcwIcon,
   ScanSearchIcon,
   ShieldCheckIcon,
@@ -212,6 +213,8 @@ import { V4ComposerCuaEntry } from "@/v4/composer/V4ComposerCuaEntry.js";
 import { hasChatLoadingBlockingActiveWork } from "@/v4/chatLoadingVisibility.js";
 import { ComposerTurnMetricsCapsule } from "@/v4/composer/ComposerTurnMetricsCapsule.js";
 import { ExternalAgentReadOnlyBadge } from "@/v4/composer/ExternalAgentReadOnlyBadge.js";
+import { ExternalAgentBindDialog } from "@/v4/composer/ExternalAgentBindDialog.js";
+import type { BindExternalAgentPayload } from "@/v4/composer/externalAgentCommands.js";
 import { deriveComposerTurnMetricsFact } from "@/v4/composer/composerTurnMetricsFact.js";
 import {
   V4ComposerModeSwitch,
@@ -551,6 +554,11 @@ export interface ConversationComposerProps {
    * 缺省时徽标只展示不可点——宿主还没接命令面时不应该假装能解绑。
    */
   onUnbindExternalAgent?: () => Promise<void>;
+  /**
+   * 绑定一个外部 coding agent（未绑定时左下角入口的提交动作）。
+   * 缺省时入口不渲染——宿主没接命令面时不应该露出一个点不动的按钮。
+   */
+  onBindExternalAgent?: (payload: BindExternalAgentPayload) => Promise<void>;
   /** 打开当前 session 的 Status panel，并直达 Running 明细。 */
   onOpenRunningBackgroundWorks?: () => void;
   /**
@@ -678,6 +686,7 @@ function ConversationComposerImpl({
   onSelectThought,
   onSwitchMode,
   onUnbindExternalAgent,
+  onBindExternalAgent,
   onOpenRunningBackgroundWorks,
   backgroundWorkOpenTarget = "panel",
   runningSubagentCount = 0,
@@ -972,6 +981,7 @@ function ConversationComposerImpl({
   }, [dropTargetController, onDropTargetControllerChange]);
   const [attachmentPreviewIndex, setAttachmentPreviewIndex] = useState(0);
   const [attachmentPreviewOpen, setAttachmentPreviewOpen] = useState(false);
+  const [bindDialogOpen, setBindDialogOpen] = useState(false);
   const [pdfAttachmentPreview, setPdfAttachmentPreview] =
     useState<ChatMediaAttachmentPreviewTarget | null>(null);
   const [pdfAttachmentPreviewOpen, setPdfAttachmentPreviewOpen] = useState(false);
@@ -3039,6 +3049,8 @@ function ConversationComposerImpl({
       memoryDreamDisabled,
       onSwitchMode,
       onUnbindExternalAgent,
+      onBindExternalAgent,
+      intl,
       pending,
       provider,
       modifierTooltip,
@@ -3079,6 +3091,20 @@ function ConversationComposerImpl({
             disabled={disabled || runtimeBlocked}
             onUnbind={onUnbindExternalAgent}
           />
+        ) : sessionId && onBindExternalAgent ? (
+          // 未绑定时才给入口：已绑定的会话里这一格由只读徽标占据，
+          // 两个按钮并排会让"绑定"看起来像"再绑一个"。
+          <Button
+            type="button"
+            variant="ghost"
+            size="sm"
+            data-testid="v4-composer-external-agent-bind"
+            className="h-7 gap-1 rounded-lg px-2 text-ui-base text-foreground-subtle hover:text-foreground-subtle"
+            onClick={() => setBindDialogOpen(true)}
+          >
+            <LockIcon className="size-4" />
+            <span className="inline">{intl.formatMessage({ id: "chat.externalAgent.bind" })}</span>
+          </Button>
         ) : null}
         {sessionId && snapshot?.workspaceHookAdmission ? (
           <WorkspaceHookPendingIndicator
@@ -3532,6 +3558,17 @@ function ConversationComposerImpl({
       <div className="mt-1 flex w-full min-w-0 justify-start px-1">
         <ComposerTurnMetricsCapsule fact={turnMetricsFact} />
       </div>
+      {onBindExternalAgent ? (
+        <ExternalAgentBindDialog
+          open={bindDialogOpen}
+          onOpenChange={setBindDialogOpen}
+          onSubmit={async (payload) => {
+            await onBindExternalAgent(payload);
+            // 成功后关闭：失败时 onSubmit 会抛，对话框保持打开让用户改参数重试。
+            setBindDialogOpen(false);
+          }}
+        />
+      ) : null}
       <ImagePreviewDialog
         initialIndex={attachmentPreviewIndex}
         items={composerMediaPreviewItems}
