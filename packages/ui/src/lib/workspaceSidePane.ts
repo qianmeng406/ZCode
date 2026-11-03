@@ -239,6 +239,26 @@ export interface OracleReviewSidePaneTab {
   sessionId: string;
 }
 
+/**
+ * 外部 coding agent 的执行过程面板：每个会话至多一个。
+ *
+ * 与 `oracle-review` 同构（按 sessionId 键控、可见性按 rootSessionId 收窄），
+ * 差异只在于数据源：这里读的是会话投影里的 `externalAgentActivity`，
+ * 由 SessionPane 写入模块级 store（见 v4/externalAgent/externalAgentActivityStore.ts）。
+ */
+export interface ExternalAgentActivitySidePaneTab {
+  id: string;
+  type: "external-agent-activity";
+  ownerTaskId?: string | null;
+  openedAt?: number;
+  workspaceKey: string;
+  workspacePath: string;
+  workspaceIdentity?: string;
+  remoteSessionId?: string;
+  rootSessionId: string;
+  sessionId: string;
+}
+
 export interface SelectionSideChatPaneTab {
   id: string;
   type: "selection-side-chat";
@@ -613,6 +633,7 @@ export type WorkspaceSidePaneTab =
   | SubagentSessionSidePaneTab
   | SubagentDirectorySidePaneTab
   | OracleReviewSidePaneTab
+  | ExternalAgentActivitySidePaneTab
   | SelectionSideChatPaneTab
   | PlanDetailSidePaneTab
   | PluginUiSidePaneTab
@@ -838,6 +859,27 @@ export function createOracleReviewSidePaneTab(options: {
     // 每会话唯一：同一会话重复点「展开」只激活已有 tab。
     id: ["oracle-review", encodeSidePaneTabIdPart(options.sessionId)].join(":"),
     type: "oracle-review",
+    openedAt: Date.now(),
+    workspaceKey: options.workspaceKey,
+    workspacePath: options.workspacePath,
+    ...(options.workspaceIdentity ? { workspaceIdentity: options.workspaceIdentity } : {}),
+    ...(options.remoteSessionId ? { remoteSessionId: options.remoteSessionId } : {}),
+    rootSessionId: options.sessionId,
+    sessionId: options.sessionId,
+  };
+}
+
+export function createExternalAgentActivitySidePaneTab(options: {
+  workspaceKey: string;
+  workspacePath: string;
+  workspaceIdentity?: string;
+  remoteSessionId?: string;
+  sessionId: string;
+}): ExternalAgentActivitySidePaneTab {
+  return {
+    // 每会话唯一：同一会话重复点「查看过程」只激活已有 tab。
+    id: ["external-agent-activity", encodeSidePaneTabIdPart(options.sessionId)].join(":"),
+    type: "external-agent-activity",
     openedAt: Date.now(),
     workspaceKey: options.workspaceKey,
     workspacePath: options.workspacePath,
@@ -1238,6 +1280,7 @@ export function isSidePaneTabVisibleInScope(
     case "subagent-session":
     case "subagent-directory":
     case "oracle-review":
+    case "external-agent-activity":
     case "bash-output":
       return tab.rootSessionId === scope.ownerTaskId;
     case "selection-side-chat":
@@ -1978,6 +2021,31 @@ export function openOracleReviewSidePane(
     (tab): tab is OracleReviewSidePaneTab => tab.type === "oracle-review" && tab.id === nextTab.id,
   );
   // 复用已有 tab 时刷新 workspace 字段（同一会话可被远端身份重连后重新打开）。
+  return activateSidePaneTab(current, existing ? { ...existing, ...nextTab } : nextTab);
+}
+
+export interface OpenExternalAgentActivitySidePaneRequest {
+  sessionId: string;
+  workspacePath: string;
+  workspaceIdentity?: string;
+  remoteSessionId?: string;
+}
+
+export function openExternalAgentActivitySidePane(
+  current: WorkspaceSidePaneState | null,
+  request: OpenExternalAgentActivitySidePaneRequest,
+): WorkspaceSidePaneState {
+  const nextTab = createExternalAgentActivitySidePaneTab({
+    workspaceKey: request.workspaceIdentity?.trim() || request.workspacePath,
+    workspacePath: request.workspacePath,
+    ...(request.workspaceIdentity ? { workspaceIdentity: request.workspaceIdentity } : {}),
+    ...(request.remoteSessionId ? { remoteSessionId: request.remoteSessionId } : {}),
+    sessionId: request.sessionId,
+  });
+  const existing = current?.tabs.find(
+    (tab): tab is ExternalAgentActivitySidePaneTab =>
+      tab.type === "external-agent-activity" && tab.id === nextTab.id,
+  );
   return activateSidePaneTab(current, existing ? { ...existing, ...nextTab } : nextTab);
 }
 

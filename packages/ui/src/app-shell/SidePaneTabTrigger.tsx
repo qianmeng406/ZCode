@@ -3,6 +3,7 @@ import { useRef, type CSSProperties } from "react";
 import { useSortable } from "@dnd-kit/sortable";
 import { CSS } from "@dnd-kit/utilities";
 import {
+  ActivityIcon,
   FolderOpenIcon,
   PuzzleIcon,
   BotIcon,
@@ -319,6 +320,11 @@ export function SidePaneTabIcon({ tab }: { tab: WorkspaceSidePaneTab }) {
     return <ScanSearchIcon className="size-3.5" />;
   }
 
+  // 外部 agent 过程面板与状态卡同一枚「活动」字形：卡片点开不跳变。
+  if (tab.type === "external-agent-activity") {
+    return <ActivityIcon className="size-3.5" />;
+  }
+
   if (tab.type === "browser") {
     return <BrowserTabFavicon faviconUrl={tab.faviconUrl} />;
   }
@@ -541,6 +547,10 @@ export function getSidePaneTabTitle(
 
   if (tab.type === "oracle-review") {
     return formatMessage({ id: "sidePane.oracleReview" });
+  }
+
+  if (tab.type === "external-agent-activity") {
+    return formatMessage({ id: "sidePane.externalAgentActivity" });
   }
 
   if (tab.type === "browser") {

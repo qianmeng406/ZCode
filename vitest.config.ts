@@ -74,6 +74,9 @@ const forkNodeTestRunnerFiles = [
   "packages/services/test/providerConfigMigration.test.ts",
   "packages/services/test/sessionModeOptions.test.ts",
   "packages/shared/test/execution-state.test.ts",
+  // fork 侧外部 agent 目录/参数/输出解析用例，`import test from "node:test"`；
+  // 不在排除表里会被 vitest 收集并报 “No test suite found”。
+  "packages/shared/test/externalAgentCatalog.test.ts",
   "packages/ui/test/aiFeatureModelOptions.test.ts",
   "packages/ui/test/codingPlanQuotaResetPrompt.test.ts",
   "packages/ui/test/composerContextProfile.test.ts",

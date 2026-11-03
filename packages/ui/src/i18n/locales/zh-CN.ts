@@ -1687,6 +1687,7 @@ const zhCN: Record<string, string> = {
   "sidePane.subagent": "子智能体",
   "sidePane.subagentDirectory": "子智能体目录",
   "sidePane.oracleReview": "审查",
+  "sidePane.externalAgentActivity": "外部 Agent 过程",
   "sidePane.selectionChat": "辅助对话",
   "sidePane.sites": "部署",
   "sidePane.workflowRun": "工作流实例",
@@ -4895,6 +4896,8 @@ const zhCN: Record<string, string> = {
   "chat.externalAgent.activity.collapse": "收起输出",
   "chat.externalAgent.activity.dismiss": "关闭活动卡片",
   "chat.externalAgent.activity.hiddenLines": "已折叠 {count} 行更早输出",
+  "chat.externalAgent.activity.viewProcess": "查看过程",
+  "chat.externalAgent.activity.empty": "还没有外部 Agent 的执行记录。",
   "chat.externalAgent.readOnly": "只读 · {agent}",
   "chat.externalAgent.unbind": "解绑 {agent}",
   "chat.externalAgent.readOnlyHint":

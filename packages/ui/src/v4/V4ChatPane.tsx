@@ -22,6 +22,7 @@ import type {
   OpenScopedWorkflowWorkspaceSideTabRequest,
   OpenScopedSubagentDirectorySideTabRequest,
   OpenOracleReviewSidePaneRequest,
+  OpenExternalAgentActivitySidePaneRequest,
   OpenScopedSubagentSideTabRequest,
   OpenBackgroundBashSideTabRequest,
   SyncSubagentSessionTabsRequest,
@@ -73,6 +74,8 @@ export interface V4ChatPaneProps {
   onOpenSubagentDirectory?: (request: OpenScopedSubagentDirectorySideTabRequest) => void;
   /** Oracle 审查面板（右侧 tab）：由审查卡片「展开」触发。 */
   onOpenOracleReviewPanel?: (request: OpenOracleReviewSidePaneRequest) => void;
+  /** 外部 agent 过程面板（右侧 tab）：由状态卡「查看过程」触发。 */
+  onOpenExternalAgentPanel?: (request: OpenExternalAgentActivitySidePaneRequest) => void;
   onSyncSubagentSessionTabs?: (request: SyncSubagentSessionTabsRequest) => void;
   onOpenPlanDetail?: (request: OpenScopedPlanDetailSideTabRequest) => void;
   onOpenWorkflowRun?: (request: OpenScopedWorkflowRunSideTabRequest) => void;
@@ -124,6 +127,7 @@ export function V4ChatPane({
   onOpenBackgroundBash,
   onOpenSubagentDirectory,
   onOpenOracleReviewPanel,
+  onOpenExternalAgentPanel,
   onSyncSubagentSessionTabs,
   onOpenPlanDetail,
   onOpenWorkflowRun,
@@ -191,6 +195,7 @@ export function V4ChatPane({
         onOpenBackgroundBash={onOpenBackgroundBash}
         onOpenSubagentDirectory={onOpenSubagentDirectory}
         onOpenOracleReviewPanel={onOpenOracleReviewPanel}
+        onOpenExternalAgentPanel={onOpenExternalAgentPanel}
         onSyncSubagentSessionTabs={onSyncSubagentSessionTabs}
         onOpenPlanDetail={onOpenPlanDetail}
         onOpenWorkflowRun={onOpenWorkflowRun}

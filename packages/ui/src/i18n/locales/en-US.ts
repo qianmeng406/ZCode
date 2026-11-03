@@ -1844,6 +1844,7 @@ const enUS: Record<string, string> = {
   "sidePane.subagent": "Subagent",
   "sidePane.subagentDirectory": "Subagents",
   "sidePane.oracleReview": "Review",
+  "sidePane.externalAgentActivity": "External agent activity",
   "sidePane.selectionChat": "Side conversation",
   "sidePane.sites": "Sites",
   "sidePane.workflowRun": "Workflow run",
@@ -5205,6 +5206,8 @@ const enUS: Record<string, string> = {
   "chat.externalAgent.activity.collapse": "Show less output",
   "chat.externalAgent.activity.dismiss": "Dismiss activity card",
   "chat.externalAgent.activity.hiddenLines": "{count} earlier lines hidden",
+  "chat.externalAgent.activity.viewProcess": "View activity",
+  "chat.externalAgent.activity.empty": "No external agent activity yet.",
   "chat.externalAgent.readOnly": "Read-only · {agent}",
   "chat.externalAgent.unbind": "Unbind {agent}",
   "chat.externalAgent.readOnlyHint":

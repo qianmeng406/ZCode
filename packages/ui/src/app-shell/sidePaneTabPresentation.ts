@@ -24,6 +24,7 @@ export interface SidePaneTabPresentationLabels {
   workflowActorTitle: string;
   workflowScriptTitle: string;
   workflowArtifactTitle: string;
+  externalAgentActivityTitle?: string;
 }
 
 export function getSidePaneTabSearchHint(tab: WorkspaceSidePaneTab): string {
@@ -61,6 +62,9 @@ export function getSidePaneTabSearchHint(tab: WorkspaceSidePaneTab): string {
   }
   if (tab.type === "oracle-review") {
     return `${tab.sessionId} oracle review findings verdict`;
+  }
+  if (tab.type === "external-agent-activity") {
+    return `${tab.sessionId} external agent codebuddy activity progress`;
   }
   if (tab.type === "browser-permissions") return `${tab.origin} permissions settings`;
   if (tab.type === "browser") return tab.initialUrl ?? "";
@@ -112,6 +116,7 @@ export function getLocalizedSidePaneTabTitle(
       "sidePane.workflowActor": labels.workflowActorTitle,
       "sidePane.workflowScript": labels.workflowScriptTitle,
       "sidePane.workflowArtifact": labels.workflowArtifactTitle,
+      "sidePane.externalAgentActivity": labels.externalAgentActivityTitle ?? labels.terminalTitle,
     };
     return titleByMessageId[descriptor.id] ?? descriptor.id;
   });
@@ -134,6 +139,8 @@ export function getSidePaneTabTypeLabel(
     return tab.subagentType.trim() || labels.subagentTypeLabel;
   }
   if (tab.type === "subagent-directory") return labels.subagentDirectoryTitle;
+  if (tab.type === "external-agent-activity")
+    return labels.externalAgentActivityTitle ?? labels.terminalTitle;
   if (tab.type === "browser" || tab.type === "browser-use") return labels.browserTitle;
   if (tab.type === "browser-permissions") return labels.browserPermissionsTitle;
   if (tab.type === "file-manager") return labels.fileManagerTitle ?? labels.codeViewerTitle;

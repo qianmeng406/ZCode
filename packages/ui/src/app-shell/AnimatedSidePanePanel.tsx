@@ -70,6 +70,7 @@ import { FileExplorerSidePane } from "@/app-shell/FileExplorerSidePane.js";
 import { SubagentSessionSidePane } from "@/app-shell/SubagentSessionSidePane.js";
 import { SubagentDirectorySidePane } from "@/app-shell/SubagentDirectorySidePane.js";
 import { OracleReviewSidePane } from "@/app-shell/OracleReviewSidePane.js";
+import { ExternalAgentActivitySidePane } from "@/app-shell/ExternalAgentActivitySidePane.js";
 import { SelectionSideChatPane } from "@/app-shell/SelectionSideChatPane.js";
 import { BackgroundBashOutputSidePane } from "@/app-shell/BackgroundBashOutputSidePane.js";
 import { PlanDetailSidePane } from "@/app-shell/PlanDetailSidePane.js";
@@ -1041,6 +1042,7 @@ export function AnimatedSidePanePanel({
         workflowActorTitle: intl.formatMessage({ id: "sidePane.workflowActor" }),
         workflowScriptTitle: intl.formatMessage({ id: "sidePane.workflowScript" }),
         workflowArtifactTitle: intl.formatMessage({ id: "sidePane.workflowArtifact" }),
+        externalAgentActivityTitle: intl.formatMessage({ id: "sidePane.externalAgentActivity" }),
       }}
       onActivateTab={activateSidePaneTab}
       onCloseTab={onCloseTab}
@@ -1304,6 +1306,11 @@ export function AnimatedSidePanePanel({
                             tab={tab}
                             onClose={() => onCloseTab(tab.id)}
                             onOpenCodeViewer={onOpenCodeViewer}
+                          />
+                        ) : tab.type === "external-agent-activity" ? (
+                          <ExternalAgentActivitySidePane
+                            tab={tab}
+                            onClose={() => onCloseTab(tab.id)}
                           />
                         ) : tab.type === "selection-side-chat" ? (
                           <SelectionSideChatPane

@@ -10,6 +10,7 @@ import {
 } from "@/lib/remoteWorkspaceServiceError.js";
 import { buildConversationShareItems } from "@/v4/conversationShareItems.js";
 import { ExternalAgentActivityCardSlot } from "@/v4/composer/ExternalAgentActivityCardSlot.js";
+import { publishExternalAgentActivity } from "@/v4/externalAgent/externalAgentActivityStore.js";
 import { resolveSelectionSideInheritedModel } from "@/lib/selectionSideInheritedModel.js";
 import { useStartPlanRecommendation } from "@/hooks/useStartPlanRecommendation.js";
 import type { SessionCreateSource } from "@zcode/shared";
@@ -380,6 +381,7 @@ import type {
   OpenBackgroundBashSideTabRequest,
   OpenScopedSubagentDirectorySideTabRequest,
   OpenOracleReviewSidePaneRequest,
+  OpenExternalAgentActivitySidePaneRequest,
   OpenSelectionSideChatRequest,
   SyncSubagentSessionTabsRequest,
   OpenSubagentSideTabRequest,
@@ -481,6 +483,8 @@ export interface SessionPaneProps {
   onOpenSubagentDirectory?: (request: OpenScopedSubagentDirectorySideTabRequest) => void;
   /** Oracle 审查卡片「展开」→ 右侧审查面板（完整结论与逐轮过程）。 */
   onOpenOracleReviewPanel?: (request: OpenOracleReviewSidePaneRequest) => void;
+  /** 外部 agent 状态卡「查看过程」→ 右侧执行过程面板。 */
+  onOpenExternalAgentPanel?: (request: OpenExternalAgentActivitySidePaneRequest) => void;
   onSyncSubagentSessionTabs?: (request: SyncSubagentSessionTabsRequest) => void;
   onOpenSelectionSideChat?: (request: OpenSelectionSideChatRequest) => void;
   onOpenPlanDetail?: (request: OpenScopedPlanDetailSideTabRequest) => void;
@@ -721,6 +725,7 @@ export function SessionPane({
   onOpenBackgroundBash,
   onOpenSubagentDirectory,
   onOpenOracleReviewPanel,
+  onOpenExternalAgentPanel,
   onSyncSubagentSessionTabs,
   onOpenSelectionSideChat,
   onOpenPlanDetail,
@@ -818,6 +823,13 @@ export function SessionPane({
   const [lease, setLease] = useSessionPaneLease(sessionId, layer);
   const state = useConversationProjection(lease);
   const snapshot = state.snapshot;
+  // 执行过程面板挂在 App 壳层，拿不到这里的 projection lease：把活动记录推进模块级
+  // store，面板只订阅它。投影里没有 patch 时引用不变，因此这里不会每帧通知。
+  const externalAgentActivity = snapshot?.externalAgentActivity ?? null;
+  useEffect(() => {
+    if (!sessionId) return;
+    publishExternalAgentActivity(sessionId, externalAgentActivity);
+  }, [sessionId, externalAgentActivity]);
   // 「冻结历史 + 尾轮」分区（spec：docs/ui/chat-virtual-scroll.md「每帧派生成本」）：
   // 下面随 snapshot 每帧执行的行扫描都按 history 引用缓存历史段，只扫尾轮。
   const rowsPartition = snapshot ? getConversationRowsPartition(snapshot.rows.window) : null;
@@ -6640,10 +6652,21 @@ export function SessionPane({
           modelSelectionView={modelSelectionView}
         />
       ) : null}
-      {/* 外部 agent 活动卡：放在输入框上方常驻——工具行会提前结算，这张卡才是
-          用户在委派执行期间唯一稳定的进度视图。 */}
+      {/* 外部 agent 状态卡：放在输入框上方常驻——工具行会提前结算，这张卡才是
+          用户在委派执行期间稳定可见的状态；过程在右侧面板（「查看过程」）。 */}
       <ExternalAgentActivityCardSlot
         activity={snapshot?.externalAgentActivity ?? null}
+        {...(onOpenExternalAgentPanel && effectiveSessionId
+          ? {
+              onOpenPanel: () =>
+                onOpenExternalAgentPanel({
+                  sessionId: effectiveSessionId,
+                  workspacePath,
+                  ...(workspaceIdentity ? { workspaceIdentity } : {}),
+                  ...(remoteSessionId ? { remoteSessionId } : {}),
+                }),
+            }
+          : {})}
         className="w-full px-3"
       />
       {composerNode}

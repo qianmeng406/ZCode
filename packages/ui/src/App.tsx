@@ -243,6 +243,7 @@ export function App({
     handleOpenBackgroundBash,
     handleOpenSubagentDirectory,
     handleOpenOracleReviewPanel,
+    handleOpenExternalAgentPanel,
     handleSyncSubagentSessionTabs,
     handleOpenSelectionSideChat,
     handleOpenPlanDetail,
@@ -1308,6 +1309,7 @@ export function App({
           handleAutoOpenAssistantPptx={handleAutoOpenAssistantPptx}
           handleOpenSubagentSession={handleOpenSubagentSession}
           handleOpenOracleReviewPanel={handleOpenOracleReviewPanel}
+          handleOpenExternalAgentPanel={handleOpenExternalAgentPanel}
           handleOpenBackgroundBash={handleOpenBackgroundBash}
           handleOpenSubagentDirectory={handleOpenSubagentDirectory}
           handleSyncSubagentSessionTabs={handleSyncSubagentSessionTabs}
