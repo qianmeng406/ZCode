@@ -66,6 +66,8 @@ export function createOneShotExternalAgentDriver(input: {
       const lastTail: Record<"stdout" | "stderr", string> = { stdout: "", stderr: "" };
       // 是否已经逐段推送过输出：推过就不再补发全文，否则进度里会出现两遍。
       let streamed = false;
+      // 正文是否已经以增量形式推过：推过就不再补整段结果，避免卡片里出现两遍。
+      let streamedText = false;
       // claude-family 是 stream-json：逐行解析成结构化条目（思考/正文/工具），
       // 半行 JSON 留在解析器缓冲里；非 JSONL 驱动原样转发。
       const streamParser = createClaudeStreamParser();
@@ -154,6 +156,11 @@ export function createOneShotExternalAgentDriver(input: {
       }
 
       const parsed = parseExternalAgentResult(binding, rawStdout);
+      // 没流式到正文时（模型只回了 result，或没开 partial）：把最终回答作为一条正文条目，
+      // 否则活动卡只有工具调用、看不到它的结论。
+      if (!streamedText && parsed.text.trim()) {
+        runInput.onOutput?.({ stream: "stdout", text: "", entries: [{ kind: "text", text: parsed.text }] });
+      }
       // 解析不出正文时不能静默返回空串：至少要给出证据（字节数/落盘位置），
       // 否则上层只能看到「已完成」，无从判断是 CLI 没输出还是我们没读到。
       const text = parsed.text.trim()

@@ -6644,7 +6644,7 @@ export function SessionPane({
           用户在委派执行期间唯一稳定的进度视图。 */}
       <ExternalAgentActivityCardSlot
         activity={snapshot?.externalAgentActivity ?? null}
-        className="w-full"
+        className="w-full px-3"
       />
       {composerNode}
       <SessionExecutionEnvironmentDialog
