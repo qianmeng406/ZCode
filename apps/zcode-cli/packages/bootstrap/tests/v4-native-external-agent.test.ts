@@ -266,6 +266,44 @@ describe("v4 原生 setExternalAgentModel", () => {
       ),
     ).rejects.toThrow(/没有绑定/);
   });
+
+  it("模型 + 档位一条命令落定（不再有“新模型 + 旧档位”的中间态）", async () => {
+    const sessionStore = makeSessionStore();
+    const app = makeApp();
+    const executor = new V4CommandExecutor(makeHost(makeRecord(app, sessionStore), sessionStore));
+    await executor.execute(envelope("bindExternalAgent", { ...BINDING_PAYLOAD, model: "hy3" }));
+    app.runtime.appendEvent.mockClear();
+
+    await executor.execute(
+      envelope("setExternalAgentModel", { model: "deepseek-v4-pro", effort: "high" }),
+    );
+
+    const after = [...sessionStore.entries.values()][0]!.data as Record<string, unknown>;
+    expect(after.model).toBe("deepseek-v4-pro");
+    // 档位记在“这个模型”名下，不是全局值。
+    expect(after.effortsByModel).toMatchObject({ "deepseek-v4-pro": "high" });
+    // 一次点选只对应一次投影更新。
+    expect(app.runtime.appendEvent).toHaveBeenCalledTimes(1);
+  });
+
+  it("同模型同档位 → noop；同模型换档位 → 接受", async () => {
+    const sessionStore = makeSessionStore();
+    const app = makeApp();
+    const executor = new V4CommandExecutor(makeHost(makeRecord(app, sessionStore), sessionStore));
+    await executor.execute(
+      envelope("bindExternalAgent", {
+        ...BINDING_PAYLOAD,
+        model: "hy3",
+        effort: "low",
+      }),
+    );
+    await expect(
+      executor.execute(envelope("setExternalAgentModel", { model: "hy3", effort: "low" })),
+    ).rejects.toBeInstanceOf(V4CommandNoopError);
+    await executor.execute(envelope("setExternalAgentModel", { model: "hy3", effort: "max" }));
+    const after = [...sessionStore.entries.values()][0]!.data as Record<string, unknown>;
+    expect(after.effortsByModel).toMatchObject({ hy3: "max" });
+  });
 });
 
 

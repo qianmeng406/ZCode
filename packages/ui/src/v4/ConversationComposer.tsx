@@ -45,6 +45,7 @@ import { cn } from "@/components/lib/utils.js";
 import { HighspeedComposerBackground } from "@/highspeed/HighspeedActivationVisual.js";
 import { useHighspeedComposerEntrance } from "@/highspeed/useHighspeedComposerEntrance.js";
 import {
+  resolveEffortLevels,
   type HighspeedCardSnapshot,
   type ModelSelection,
   type PlanIdentitySnapshot,
@@ -567,6 +568,11 @@ export interface ConversationComposerProps {
    */
   onChangeExternalAgentModel?: (model: string | null) => Promise<void>;
   /**
+   * 一次切换"模型 + 该模型的档位"（model=null → CLI 默认模型；effort=null → 默认档位）。
+   * 模型菜单做成"模型 → 档位"子菜单后走这条，保证两者原子落定。
+   */
+  onChangeExternalAgentModelEffort?: (model: string | null, effort: string | null) => Promise<void>;
+  /**
    * 切换已绑定外部 agent 的推理档位（null = 回到 CLI 默认）。
    * 与换模型分开：合法值域随 CLI 不同（claude 无 minimal、codebuddy 有）。
    */
@@ -713,6 +719,7 @@ function ConversationComposerImpl({
   onUnbindExternalAgent,
   onBindExternalAgent,
   onChangeExternalAgentModel,
+  onChangeExternalAgentModelEffort,
   onChangeExternalAgentEffort,
   onChangeExternalAgentSession,
   onLoadExternalAgentSessions,
@@ -3111,6 +3118,19 @@ function ConversationComposerImpl({
     return externalAgentProbe.find((entry) => entry.preset.id === presetId)?.models ?? [];
   }, [snapshot?.externalAgent?.presetId, externalAgentProbe]);
 
+  // 每个模型的档位集合：模型菜单据此渲染"模型 → 档位"两级子菜单。
+  // 档位是模型能力，逐模型取探测目录；`""` 是 CLI 默认模型。
+  const externalAgentModelEfforts = useMemo(() => {
+    const presetId = snapshot?.externalAgent?.presetId;
+    if (!presetId || !externalAgentProbe) return [];
+    const entry = externalAgentProbe.find((item) => item.preset.id === presetId);
+    if (!entry) return [];
+    return ["", ...entry.models].map((model) => ({
+      model,
+      levels: resolveEffortLevels(entry.preset, model || undefined, entry.modelCatalog),
+    }));
+  }, [snapshot?.externalAgent?.presetId, externalAgentProbe]);
+
   // 徽标的推理档位候选 = **当前模型**的档位（由 CLI 侧按模型解析后随快照下发）。
   // 不在 UI 拼全局表：档位是模型能力，不同模型不同；空 = 不显示档位入口。
   const externalAgentEffortOptions = useMemo(
@@ -3154,6 +3174,12 @@ function ConversationComposerImpl({
             onUnbind={onUnbindExternalAgent}
             onChangeModel={onChangeExternalAgentModel}
             onChangeEffort={onChangeExternalAgentEffort}
+            {...(onChangeExternalAgentModelEffort
+              ? {
+                  modelEfforts: externalAgentModelEfforts,
+                  onChangeModelEffort: onChangeExternalAgentModelEffort,
+                }
+              : {})}
             {...(onChangeExternalAgentSession
               ? { onChangeSession: onChangeExternalAgentSession }
               : {})}
@@ -3239,6 +3265,8 @@ function ConversationComposerImpl({
       snapshot?.workspaceMcpAdmission,
       snapshot?.backgroundWorks,
       externalAgentModelOptions,
+      externalAgentModelEfforts,
+      onChangeExternalAgentModelEffort,
       externalAgentEffortOptions,
       workspaceIdentity,
       workspacePath,

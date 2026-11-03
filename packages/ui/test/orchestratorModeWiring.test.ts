@@ -48,6 +48,16 @@ const LINKS: Array<{ file: string; pattern: RegExp; why: string }> = [
   },
   {
     file: "src/v4/composer/ExternalAgentReadOnlyBadge.tsx",
+    pattern: /modelEfforts\?\.map\(\(\{ model, levels \}\)/,
+    why: "模型列表与各自的档位绑定成两级子菜单",
+  },
+  {
+    file: "src/v4/SessionPane.tsx",
+    pattern: /"setExternalAgentModel",\s*\{ model, effort \}/,
+    why: "模型 + 档位一条命令原子提交",
+  },
+  {
+    file: "src/v4/composer/ExternalAgentReadOnlyBadge.tsx",
     pattern: /data-testid="external-agent-sessions-scroll"/,
     why: "会话列表单独滚动，避免把模型/档位/解绑一起卷走",
   },

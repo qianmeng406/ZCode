@@ -296,7 +296,14 @@ export const commandPayloadSchemas = {
   unbindExternalAgent: z.object({}).strict(),
   // 切换已绑定外部 agent 的模型（只改 model 字段，不动只读契约与授权）。
   // 不重建绑定：重建会重新快照 previous*，把用户原本的权限再覆盖一层。
-  setExternalAgentModel: z.object({ model: z.string().max(200).nullable() }).strict(),
+  // `effort` 可选：模型与档位在 UI 里是一次选择（每个模型有自己的档位集合），
+  // 带上它就能一条命令落定，避免"先换模型、再换档位"的中间态与竞态。
+  setExternalAgentModel: z
+    .object({
+      model: z.string().max(200).nullable(),
+      effort: z.string().max(40).nullable().optional(),
+    })
+    .strict(),
   // 切换推理档位。与换模型同构，但独立成命令：两者互不依赖，
   // 且档位是**模型能力**——值域随模型变化，命令只落"当前模型这一档"。
   setExternalAgentEffort: z.object({ effort: z.string().max(40).nullable() }).strict(),

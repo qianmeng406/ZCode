@@ -25,6 +25,9 @@ import {
   DropdownMenuRadioGroup,
   DropdownMenuRadioItem,
   DropdownMenuSeparator,
+  DropdownMenuSub,
+  DropdownMenuSubContent,
+  DropdownMenuSubTrigger,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu.js";
 import { ControlHintTooltip } from "@/ControlHintTooltip.js";
@@ -42,6 +45,15 @@ export interface ExternalAgentReadOnlyBadgeProps {
   onChangeModel?: (model: string | null) => Promise<void>;
   /** 可选模型候选；空则不显示模型菜单。 */
   modelOptions?: string[];
+  /**
+   * 每个模型的档位集合（`""` = CLI 默认模型）。
+   *
+   * 提供时模型菜单改为"模型 → 档位"两级子菜单：档位是模型能力，不同模型不同，
+   * 一次点选就把模型与该模型的档位一起落定，不再拆成两个互不相干的分区。
+   */
+  modelEfforts?: Array<{ model: string; levels: string[] }>;
+  /** 一次选择"模型 + 档位"（model=null → CLI 默认模型；effort=null → 该模型默认档位）。 */
+  onChangeModelEffort?: (model: string | null, effort: string | null) => Promise<void>;
   /** 切换推理档位（null = CLI 默认）。 */
   onChangeEffort?: (effort: string | null) => Promise<void>;
   /** 可选推理档位；空 = 该 CLI 没有这个维度，不显示分区。 */
@@ -70,6 +82,8 @@ function ExternalAgentReadOnlyBadgeImpl({
   onUnbind,
   onChangeModel,
   modelOptions,
+  modelEfforts,
+  onChangeModelEffort,
   onChangeEffort,
   effortOptions,
   onChangeSession,
@@ -96,6 +110,15 @@ function ExternalAgentReadOnlyBadgeImpl({
       void onChangeModel(value === "" ? null : value).finally(() => setSwitching(false));
     },
     [onChangeModel, switching],
+  );
+
+  const handleChangeModelEffort = useCallback(
+    (model: string | null, effort: string | null) => {
+      if (switching || !onChangeModelEffort) return;
+      setSwitching(true);
+      void onChangeModelEffort(model, effort).finally(() => setSwitching(false));
+    },
+    [onChangeModelEffort, switching],
   );
 
   const handleChangeEffort = useCallback(
@@ -147,9 +170,11 @@ function ExternalAgentReadOnlyBadgeImpl({
     { agent: binding.label },
   );
   const hasModelMenu = Boolean(onChangeModel) && (modelOptions?.length ?? 0) > 0;
+  // 模型-档位绑定菜单优先：提供 per-model 档位时，模型与档位合成一个两级菜单。
+  const hasModelEfforts = Boolean(onChangeModelEffort) && (modelEfforts?.length ?? 0) > 0;
   const hasEffortMenu = Boolean(onChangeEffort) && (effortOptions?.length ?? 0) > 0;
   const hasSessionMenu = Boolean(onChangeSession && onLoadSessions);
-  const showMenu = hasModelMenu || hasEffortMenu || hasSessionMenu;
+  const showMenu = hasModelEfforts || hasModelMenu || hasEffortMenu || hasSessionMenu;
 
   const badge = (
     <Button
@@ -212,7 +237,50 @@ function ExternalAgentReadOnlyBadgeImpl({
         <DropdownMenuTrigger asChild>{badge}</DropdownMenuTrigger>
       </ControlHintTooltip>
       <DropdownMenuContent align="start" side="top" className="w-72">
-        {hasModelMenu ? (
+        {hasModelEfforts ? (
+          <>
+            <DropdownMenuLabel className="text-ui-sm text-foreground-subtle">
+              {intl.formatMessage(
+                { id: "chat.externalAgent.modelMenuLabel" },
+                { agent: binding.label },
+              )}
+            </DropdownMenuLabel>
+            {modelEfforts?.map(({ model, levels }) => {
+              const isCurrent = (binding.model ?? "") === model;
+              return (
+                <DropdownMenuSub key={model || "__default__"}>
+                  <DropdownMenuSubTrigger disabled={disabled || switching}>
+                    <span className="flex min-w-0 flex-col">
+                      <span className={cn("min-w-0 truncate", isCurrent && "text-foreground")}>
+                        {model || intl.formatMessage({ id: "chat.externalAgent.modelDefault" })}
+                      </span>
+                      {isCurrent && binding.effort ? (
+                        <span className="text-ui-xs text-foreground-subtle">{binding.effort}</span>
+                      ) : null}
+                    </span>
+                  </DropdownMenuSubTrigger>
+                  <DropdownMenuSubContent>
+                    <DropdownMenuRadioGroup
+                      value={isCurrent ? (binding.effort ?? "") : ""}
+                      onValueChange={(value) =>
+                        handleChangeModelEffort(model || null, value === "" ? null : value)
+                      }
+                    >
+                      <DropdownMenuRadioItem value="">
+                        {intl.formatMessage({ id: "chat.externalAgent.effortDefault" })}
+                      </DropdownMenuRadioItem>
+                      {levels.map((level) => (
+                        <DropdownMenuRadioItem key={level} value={level}>
+                          {level}
+                        </DropdownMenuRadioItem>
+                      ))}
+                    </DropdownMenuRadioGroup>
+                  </DropdownMenuSubContent>
+                </DropdownMenuSub>
+              );
+            })}
+          </>
+        ) : hasModelMenu ? (
           <>
             <DropdownMenuLabel className="text-ui-sm text-foreground-subtle">
               {intl.formatMessage(
@@ -233,8 +301,10 @@ function ExternalAgentReadOnlyBadgeImpl({
             </DropdownMenuRadioGroup>
           </>
         ) : null}
-        {hasModelMenu && hasEffortMenu ? <DropdownMenuSeparator /> : null}
-        {hasEffortMenu ? (
+        {(hasModelEfforts || hasModelMenu) && hasEffortMenu && !hasModelEfforts ? (
+          <DropdownMenuSeparator />
+        ) : null}
+        {hasEffortMenu && !hasModelEfforts ? (
           <>
             <DropdownMenuLabel className="text-ui-sm text-foreground-subtle">
               {intl.formatMessage({ id: "chat.externalAgent.effortMenuLabel" })}

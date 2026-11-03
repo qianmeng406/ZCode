@@ -313,12 +313,20 @@ async function setExternalAgentModel(
   const record = requireRecord(host, envelope.sessionId);
   const { binding, sessionStore } = await requireBoundExternalAgent(host, record);
   const model = payload.model?.trim() || undefined;
-  if (binding.model === model) {
-    throw new V4CommandNoopError(BINDING_UNCHANGED);
-  }
-  const next: ExternalAgentBinding = { ...binding };
+  // 模型与档位一次落定：档位是模型能力，UI 在同一个菜单里选"模型 + 该模型的档位"。
+  // 拆两条命令会产生"新模型 + 旧档位"的中间态，还会让后一条误判 noop。
+  const hasEffort = payload.effort !== undefined;
+  const modelChanged = binding.model !== model;
+  let next: ExternalAgentBinding = { ...binding };
   if (model) next.model = model;
   else delete next.model;
+  if (hasEffort) next = withModelEffort(next, model, payload.effort?.trim() || null);
+  const effortChanged =
+    hasEffort &&
+    JSON.stringify(next.effortsByModel ?? {}) !== JSON.stringify(binding.effortsByModel ?? {});
+  if (!modelChanged && !effortChanged) {
+    throw new V4CommandNoopError(BINDING_UNCHANGED);
+  }
   await persistSessionExternalAgent({
     sessionId: record.app.sessionId,
     sessionStore,

@@ -5226,6 +5226,24 @@ export function SessionPane({
     [dispatchCommand, sessionId],
   );
 
+  // 模型 + 档位一次落定：模型菜单是"模型 → 档位"子菜单，两者必须原子提交，
+  // 否则会出现"新模型 + 旧档位"的中间态。
+  const handleChangeExternalAgentModelEffort = useCallback(
+    async (model: string | null, effort: string | null) => {
+      if (!sessionId) return;
+      const ack = await dispatchCommand(
+        "setExternalAgentModel",
+        { model, effort },
+        sessionId,
+        snapshotRef.current?.revision,
+      );
+      if (ack.status !== "accepted" && ack.status !== "noop") {
+        throw new Error(ack.reasonCode ?? ack.status);
+      }
+    },
+    [dispatchCommand, sessionId],
+  );
+
   // 换推理档位：与换模型同构，但独立一条命令（值域随 CLI 不同）。
   const handleChangeExternalAgentEffort = useCallback(
     async (effort: string | null) => {
@@ -6535,6 +6553,7 @@ export function SessionPane({
       onUnbindExternalAgent={handleUnbindExternalAgent}
       onBindExternalAgent={handleBindExternalAgent}
       onChangeExternalAgentModel={handleChangeExternalAgentModel}
+      onChangeExternalAgentModelEffort={handleChangeExternalAgentModelEffort}
       onChangeExternalAgentEffort={handleChangeExternalAgentEffort}
       onChangeExternalAgentSession={handleChangeExternalAgentSession}
       onLoadExternalAgentSessions={handleLoadExternalAgentSessions}
