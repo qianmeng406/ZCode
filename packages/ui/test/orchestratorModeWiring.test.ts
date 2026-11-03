@@ -38,6 +38,11 @@ const LINKS: Array<{ file: string; pattern: RegExp; why: string }> = [
   },
   {
     file: "src/v4/ConversationComposer.tsx",
+    pattern: /orchestratorAvailable=\{Boolean\(sessionId\)\}/,
+    why: "草稿任务没有 sessionId，主控入口要禁用（绑定命令无处可发）",
+  },
+  {
+    file: "src/v4/ConversationComposer.tsx",
     pattern: /if \(snapshot\?\.externalAgent\) return;[\s\S]*?setBindDialogOpen\(true\)/,
     why: "已绑定不重弹绑定窗；未绑定才弹",
   },

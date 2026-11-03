@@ -3142,6 +3142,7 @@ function ConversationComposerImpl({
           onConfigPickerOpenChange={handleConfigPickerOpenChange}
           onSwitchMode={onSwitchMode}
           orchestratorActive={Boolean(snapshot?.externalAgent)}
+          orchestratorAvailable={Boolean(sessionId)}
           onSelectOrchestrator={handleSelectOrchestrator}
         />
         {/* 外部 agent 绑定：主控模式下模式菜单勾在主控上，切走即自动解绑；

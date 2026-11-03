@@ -68,6 +68,7 @@ function V4ComposerModeSwitchImpl({
   onConfigPickerOpenChange,
   onSwitchMode,
   orchestratorActive = false,
+  orchestratorAvailable = true,
   onSelectOrchestrator,
 }: Pick<
   V4ComposerToolbarProps,
@@ -82,6 +83,8 @@ function V4ComposerModeSwitchImpl({
 > & {
   /** 当前会话已绑定外部 agent：模式菜单呈现为"主控模式"。 */
   orchestratorActive?: boolean;
+  /** 存在会话（绑定命令需要 sessionId）；草稿任务里主控入口不可用。 */
+  orchestratorAvailable?: boolean;
   /** 选中"主控模式"（未绑定时由调用方打开绑定弹窗）。 */
   onSelectOrchestrator?: () => void;
 }) {
@@ -244,7 +247,11 @@ function V4ComposerModeSwitchImpl({
                 <DropdownMenuRadioItem
                   key={mode.id}
                   value={mode.id}
-                  disabled={disabled || isLegacyEchoOnly}
+                  disabled={
+                    disabled ||
+                    isLegacyEchoOnly ||
+                    (mode.id === ORCHESTRATOR_MODE_ID && !orchestratorAvailable)
+                  }
                   data-testid={testId(TID_CHAT_MODE_SELECT_ITEM, mode.id)}
                   className="min-h-13 items-start gap-3 py-2"
                 >
