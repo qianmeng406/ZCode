@@ -5208,7 +5208,7 @@ const enUS: Record<string, string> = {
   "chat.externalAgent.activity.hiddenLines": "{count} earlier lines hidden",
   "chat.externalAgent.activity.viewProcess": "View activity",
   "chat.externalAgent.activity.empty": "No external agent activity yet.",
-  "chat.externalAgent.readOnly": "Read-only · {agent}",
+  "chat.externalAgent.readOnly": "Orchestrator · {agent}",
   "chat.externalAgent.unbind": "Unbind {agent}",
   "chat.externalAgent.readOnlyHint":
     "This session is bound to {agent}: it can analyse and plan, while {agent} makes the changes. Click to unbind and restore the previous permissions.",
@@ -6548,6 +6548,7 @@ const enUS: Record<string, string> = {
   "chat.modelSwitch.contextWindowGuard.stillTooLarge":
     "After compression, the context used by this conversation is still larger than the target model's available context after reserving maximum output. Model switching was canceled.",
   "chat.toolbar.mode.label": "Switch mode",
+  "chat.toolbar.mode.switchFailed": "Could not switch modes: {message}",
   // CUA composer entry button
   "chat.toolbar.computerUse.label": "Computer Use",
   "chat.toolbar.computerUse.tooltip.idle":
@@ -7818,6 +7819,9 @@ const enUS: Record<string, string> = {
   "mode.label.glm.research": "Research",
   "mode.label.glm.minimal": "Legacy minimal (auto)",
   "mode.label.glm.beta": "Beta mode",
+  "mode.label.glm.orchestrator": "Orchestrator",
+  "mode.description.glm.orchestrator":
+    "Analyze read-only, produce the plan, and delegate execution to the bound external agent. Direct edits are blocked.",
   "mode.description.glm.beta":
     "Prompt-fusion mode test version: collaborative, evidence-driven and delegation-aware behavior with the full context and toolset. Uses full-access permissions with fewer confirmations; plan stays read-only.",
   "mode.description.glm.build": "Ask before file changes.",

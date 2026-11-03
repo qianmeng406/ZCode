@@ -11,6 +11,7 @@ export const ZCODE_MODE_OPTION_LABEL_IDS: Record<ZCodeProvider, Record<string, s
     beta: "mode.label.glm.beta",
     yolo: "mode.label.glm.yolo",
     guarded: "mode.label.glm.guarded",
+    orchestrator: "mode.label.glm.orchestrator",
   },
 };
 
@@ -25,5 +26,6 @@ export const ZCODE_MODE_OPTION_DESCRIPTION_IDS: Record<ZCodeProvider, Record<str
     beta: "mode.description.glm.beta",
     yolo: "mode.description.glm.yolo",
     guarded: "mode.description.glm.guarded",
+    orchestrator: "mode.description.glm.orchestrator",
   },
 };

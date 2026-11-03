@@ -3121,6 +3121,12 @@ function ConversationComposerImpl({
   // 会话子菜单的数据由徽标在展开时拉取（onOpenSessions 回调），composer 只转发；
   // 列表落在执行机上（远程会话的 CLI 历史在远端），缺席 = 不显示会话入口。
   const externalAgentSessionsLoader = onLoadExternalAgentSessions;
+  // 模式菜单里的"主控模式"：未绑定 → 打开绑定弹窗（取消则什么都不变）；
+  // 已绑定 → 菜单已勾在主控上，不会再次触发。
+  const handleSelectOrchestrator = useCallback(() => {
+    if (snapshot?.externalAgent) return;
+    setBindDialogOpen(true);
+  }, [snapshot?.externalAgent]);
   // 左下：模式选择 + CUA 入口 + 当前 session 后台任务入口。followupMode 由 app 设置页同步到 CLI，
   // 不在 composer 暴露局部开关；后台入口只消费同一 snapshot，不维护第二份任务状态。
   const leadingActionsNode = useMemo(
@@ -3135,9 +3141,11 @@ function ConversationComposerImpl({
           activeConfigPicker={activeConfigPicker}
           onConfigPickerOpenChange={handleConfigPickerOpenChange}
           onSwitchMode={onSwitchMode}
+          orchestratorActive={Boolean(snapshot?.externalAgent)}
+          onSelectOrchestrator={handleSelectOrchestrator}
         />
-        {/* 外部 agent 绑定：只读主控期间，模式选择器实际上点不动（CLI 唯一写入口会拒），
-            所以徽标必须紧邻它并自带解绑出口——用户看到"只读"就该看到"怎么退出"。 */}
+        {/* 外部 agent 绑定：主控模式下模式菜单勾在主控上，切走即自动解绑；
+            徽标紧邻它并自带解绑出口（解绑恢复绑定前的模式，语义不同）。 */}
         {snapshot?.externalAgent ? (
           <ExternalAgentReadOnlyBadge
             binding={snapshot.externalAgent}
@@ -3220,6 +3228,8 @@ function ConversationComposerImpl({
       backgroundWorkOpenTarget,
       onOpenRunningBackgroundWorks,
       onSwitchMode,
+      handleSelectOrchestrator,
+      snapshot?.externalAgent,
       provider,
       remoteSessionId,
       runningSubagentCount,

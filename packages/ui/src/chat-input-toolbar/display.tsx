@@ -36,6 +36,7 @@ import { cn } from "@/components/lib/utils.js";
 import { useZCodeIntl } from "@/i18n/IntlProvider.js";
 import { logger } from "@/logger.js";
 import {
+  BotIcon,
   ChevronDownIcon,
   Feather,
   HandIcon,
@@ -257,6 +258,8 @@ export function resolveModeOptionIcon(value: unknown): LucideIcon {
   if (typeof value === "string" && value.toLocaleLowerCase() === "beta") return Layers;
   // fusion（历史会话的融合档位）：仅用于历史值回显，与新 Beta 模式共用层叠图标。
   if (typeof value === "string" && value.toLocaleLowerCase() === "fusion") return Layers;
+  // 主控模式：只读分析 + 委派绑定 agent 执行，用机器人表示"由外部 agent 干活"。
+  if (typeof value === "string" && value.toLocaleLowerCase() === "orchestrator") return BotIcon;
   if (isHighPermissionModeValue(value)) {
     return ShieldAlertIcon;
   }

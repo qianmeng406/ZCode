@@ -5106,12 +5106,45 @@ export function SessionPane({
     ],
   );
 
-  // 模式与模型一样属于下一次 Submission；选择时只更新 Composer。
+  // 模式与模型一样属于下一次 Submission；但主控模式背后是外部 agent 的运行时锁，
+  // 不能用草稿表达：已绑定时切走 = 退出主控。CLI 在 switchCollaborationMode 里
+  // 原子完成"清绑定 → 解锁 → 切模式"，所以这里只发一条命令，避免两步之间的 CAS 竞态。
   const handleSwitchMode = useCallback(
     (mode: string) => {
-      handleDraftSwitchMode(mode);
+      if (!snapshot?.externalAgent || mode === "plan" || mode === "plan-off") {
+        handleDraftSwitchMode(mode);
+        return;
+      }
+      void (async () => {
+        try {
+          const ack = await dispatchCommand(
+            "switchCollaborationMode",
+            { mode },
+            sessionId,
+            snapshotRef.current?.revision,
+          );
+          if (ack.status !== "accepted" && ack.status !== "noop") {
+            toast(
+              intl.formatMessage(
+                { id: "chat.toolbar.mode.switchFailed" },
+                { message: ack.reasonCode ?? ack.status },
+              ),
+            );
+            return;
+          }
+          // 投影会随事件刷新；草稿先跟上，避免菜单回显滞后一帧。
+          handleDraftSwitchMode(mode);
+        } catch (error) {
+          toast(
+            intl.formatMessage(
+              { id: "chat.toolbar.mode.switchFailed" },
+              { message: error instanceof Error ? error.message : String(error) },
+            ),
+          );
+        }
+      })();
     },
-    [handleDraftSwitchMode],
+    [dispatchCommand, handleDraftSwitchMode, intl, sessionId, snapshot?.externalAgent],
   );
 
   // 只读徽标的唯一出口。失败不吞：解绑不成时用户必须知道会话仍是只读，

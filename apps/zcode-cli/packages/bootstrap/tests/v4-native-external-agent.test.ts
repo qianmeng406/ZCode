@@ -354,3 +354,50 @@ describe("v4 原生 setExternalAgentEffort（档位按模型记）", () => {
     ).rejects.toThrow(/没有绑定/);
   });
 });
+
+describe("主控模式：switchCollaborationMode 自动解绑", () => {
+  /** makeApp 的既有 mock 不含 setMode；switch 命令的终点是它。 */
+  function withSetMode(app: ReturnType<typeof makeApp>) {
+    const setMode = vi.fn(async (mode: string) => {
+      app.calls.push(`setMode:${mode}`);
+      return {};
+    });
+    return Object.assign(app, { setMode });
+  }
+
+  it("已绑定：清 entry → 解锁 → 发布 binding=null → 落到目标模式", async () => {
+    const sessionStore = makeSessionStore();
+    const app = withSetMode(makeApp({ planEnabled: false, mode: "yolo" }));
+    const executor = new V4CommandExecutor(makeHost(makeRecord(app, sessionStore), sessionStore));
+    await executor.execute(envelope("bindExternalAgent", BINDING_PAYLOAD));
+    app.runtime.setExecutionState.mockClear();
+    app.runtime.appendEvent.mockClear();
+    app.calls.length = 0;
+
+    await executor.execute(envelope("switchCollaborationMode", { mode: "guarded" }));
+
+    // 只解锁，不再写 execution state：模式由 setMode 统一落，避免双事件。
+    expect(app.calls).toEqual(["unlock", "setMode:guarded"]);
+    expect(app.runtime.setExecutionState).not.toHaveBeenCalled();
+    // 绑定被清空；投影据此把徽标写回 null。
+    const saved = [...sessionStore.entries.values()];
+    expect(saved[0]!.data).toEqual({});
+    expect(app.runtime.appendEvent).toHaveBeenCalledTimes(1);
+    const event = (app.runtime.appendEvent.mock.calls[0] as unknown[])[0] as { payload: unknown };
+    expect(event.payload).toBeNull();
+  });
+
+  it("已绑定且目标就是 plan：noop，不清绑定（主控本身就是只读）", async () => {
+    const sessionStore = makeSessionStore();
+    const app = withSetMode(makeApp({ planEnabled: false, mode: "yolo" }));
+    const executor = new V4CommandExecutor(makeHost(makeRecord(app, sessionStore), sessionStore));
+    await executor.execute(envelope("bindExternalAgent", BINDING_PAYLOAD));
+    const bound = [...sessionStore.entries.values()][0]!.data;
+
+    await expect(
+      executor.execute(envelope("switchCollaborationMode", { mode: "plan" })),
+    ).rejects.toBeInstanceOf(V4CommandNoopError);
+    expect([...sessionStore.entries.values()][0]!.data).toEqual(bound);
+    expect(app.setMode).not.toHaveBeenCalled();
+  });
+});

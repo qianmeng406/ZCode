@@ -3,8 +3,9 @@
 // 不变量（贯穿本文件）：
 // 1. **绑定即只读**：绑定成功后本会话强制进入 plan（只读）状态。原先的 plan/mode
 //    记进 binding.previous*，解绑时恢复——用户不该因为试一次绑定就永久丢掉原权限。
-// 2. **只读期间不许切走**：switchCollaborationMode 已拒绝（model-config.ts）；
-//    这里再拒绝一次"绑定嵌套绑定"，避免 previous* 被第二层覆盖后无法还原。
+// 2. **切走主控 = 自动解绑**：switchCollaborationMode 会先调用
+//    clearExternalAgentBinding（清 entry + 解锁 + 发布 binding=null），再落到目标模式。
+//    这里仍拒绝"绑定嵌套绑定"，避免 previous* 被第二层覆盖后无法还原。
 // 3. **写顺序**：先落 binding entry，再改执行状态。反过来的话，改状态成功而写 entry
 //    失败会留下"只读但无绑定"的会话——既不能委派，也切不回去。
 import type {
@@ -125,28 +126,13 @@ async function unbindExternalAgent(
   envelope: CommandEnvelope,
 ): Promise<CommandResult | undefined> {
   const record = requireRecord(host, envelope.sessionId);
-  const sessionStore = requireSessionStore(host);
-  const binding = await readSessionExternalAgent({
-    sessionId: record.app.sessionId,
-    sessionStore,
-  });
+  const binding = await clearExternalAgentBinding(host, record);
   if (!binding) {
     throw new V4InputAdmissionRejectedError(
       "proto.externalAgentNotBound",
       "该会话没有绑定外部 agent",
     );
   }
-
-  // 先清 binding：之后无论恢复模式是否成功，会话都不会停在"有绑定但没写 entry"的半态。
-  await persistSessionExternalAgent({
-    sessionId: record.app.sessionId,
-    sessionStore,
-    binding: undefined,
-    logger: warningLogger(host),
-  });
-
-  // 先解锁再恢复：恢复是"放出只读"的写入，带着锁调用会被唯一写入口拒绝。
-  record.app.runtime.setExternalAgentReadOnly(false);
 
   // 恢复绑定时被覆盖的权限。previousMode 非法（历史脏数据）时只解锁 plan，不改 mode。
   const previousMode = binding.previousMode;
@@ -167,8 +153,42 @@ async function unbindExternalAgent(
     );
   }
 
-  await publishBindingChanged(record, null);
   return undefined;
+}
+
+/**
+ * 清掉绑定并把会话从只读锁里放出来（**不做**模式恢复）。
+ *
+ * 两个调用方共用：显式解绑（拿到原 binding 后恢复 previous*）与
+ * switchCollaborationMode（切走主控 = 自动解绑，随后由调用方落到目标模式）。
+ * 顺序固定为清 entry → 解锁 → 发布 binding=null：解锁必须在任何"放出只读"的
+ * setExecutionState 之前，否则会被唯一写入口拒绝。
+ *
+ * 返回 undefined 表示本来就没绑定（读不到 store / 读失败也按未绑定处理，
+ * 与 readSessionExternalAgent 的语义一致）。
+ */
+export async function clearExternalAgentBinding(
+  host: V4CommandCoreHost,
+  record: V4SessionRecordView,
+): Promise<ExternalAgentBinding | undefined> {
+  const sessionStore = host.sessionStore;
+  const binding = await readSessionExternalAgent({
+    sessionId: record.app.sessionId,
+    sessionStore,
+  });
+  if (!binding) return undefined;
+
+  // 先清 binding：之后无论调用方的模式写入是否成功，会话都不会停在
+  // "有绑定但已经解锁"的半态。
+  await persistSessionExternalAgent({
+    sessionId: record.app.sessionId,
+    sessionStore,
+    binding: undefined,
+    logger: warningLogger(host),
+  });
+  record.app.runtime.setExternalAgentReadOnly(false);
+  await publishBindingChanged(record, null);
+  return binding;
 }
 
 /**

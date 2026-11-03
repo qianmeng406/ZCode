@@ -4898,7 +4898,7 @@ const zhCN: Record<string, string> = {
   "chat.externalAgent.activity.hiddenLines": "已折叠 {count} 行更早输出",
   "chat.externalAgent.activity.viewProcess": "查看过程",
   "chat.externalAgent.activity.empty": "还没有外部 Agent 的执行记录。",
-  "chat.externalAgent.readOnly": "只读 · {agent}",
+  "chat.externalAgent.readOnly": "主控 · {agent}",
   "chat.externalAgent.unbind": "解绑 {agent}",
   "chat.externalAgent.readOnlyHint":
     "本会话已绑定 {agent}：这里只能分析与出计划，改动由 {agent} 执行。点击解绑并恢复原权限。",
@@ -6124,6 +6124,7 @@ const zhCN: Record<string, string> = {
   "chat.modelSwitch.contextWindowGuard.stillTooLarge":
     "压缩完成后，当前会话已使用的上下文仍大于目标模型预留最大输出后的可用上下文，模型切换已取消。",
   "chat.toolbar.mode.label": "切换模式",
+  "chat.toolbar.mode.switchFailed": "切换模式失败：{message}",
   // CUA 输入框常驻入口按钮
   "chat.toolbar.computerUse.label": "电脑操作",
   "chat.toolbar.computerUse.tooltip.idle": "电脑操作空闲——首次使用时自动启动",
@@ -7424,6 +7425,9 @@ const zhCN: Record<string, string> = {
   "mode.label.glm.research": "资料查询",
   "mode.label.glm.minimal": "极简模式",
   "mode.label.glm.beta": "Beta 模式",
+  "mode.label.glm.orchestrator": "主控模式",
+  "mode.description.glm.orchestrator":
+    "只读分析并制定计划，交给绑定的外部 agent 执行；不能直接改文件。",
   "mode.description.glm.beta":
     "提示词融合模式测试版本：协作、有据推进、按需委派，保留完整上下文与工具集；默认「完全访问」权限（减少确认次数），计划开启时只读。",
   "mode.description.glm.build": "改文件前先问我。",

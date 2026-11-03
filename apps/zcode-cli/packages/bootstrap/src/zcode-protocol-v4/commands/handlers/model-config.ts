@@ -10,8 +10,8 @@ import type {
   CommandResult,
 } from "@zcode/shared/zcode-protocol-v4";
 import { readSessionExternalAgent } from "../../../zcode-protocol/session-external-agent.js";
+import { clearExternalAgentBinding } from "./external-agent.js";
 import { V4CommandNoopError } from "../../v4-gateway.js";
-import { V4InputAdmissionRejectedError } from "../input-admission.js";
 import { runSessionModelConfigMutation } from "../../model-config-mutation.js";
 import { requireRecord } from "../record-access.js";
 import type { V4CommandCoreHost, V4SessionRecordView } from "../types.js";
@@ -170,15 +170,18 @@ async function switchCollaborationMode(
   const record = requireRecord(host, envelope.sessionId);
   const mode = payload.mode as CollaborationMode;
   const previousMode = record.app.getMode();
-  // 绑定外部 agent 的会话是只读主控：它的价值就在于"只能出计划、不能自己改"。
-  // 允许在这里切走等于绕过整个只读契约，因此显式拒绝（而不是静默改回 plan）。
-  if (await hasBoundExternalAgent(host, record.app.sessionId)) {
-    throw new V4InputAdmissionRejectedError(
-      "proto.externalAgentReadOnly",
-      "该会话绑定了外部 agent，处于只读主控模式；请先解绑再切换协作模式",
-    );
+  // 已绑定外部 agent（主控模式）时切走 = 退出主控：清绑定、解锁、再落到目标模式。
+  // 放在同一条命令里完成，客户端不需要"先解绑再切"两步，也就没有中间态的 CAS 竞态。
+  // 显式点"解绑"仍走 unbindExternalAgent（它恢复绑定前的模式，语义不同）。
+  const bound = await hasBoundExternalAgent(host, record.app.sessionId);
+  if (bound && mode === "plan") {
+    // 主控本身就是只读 plan：切到 plan 不退出主控，避免误触把绑定清掉。
+    throw new V4CommandNoopError(CONFIG_UNCHANGED);
   }
-  if (previousMode === mode && !record.app.runtime.getPlanEnabled()) {
+  if (bound) {
+    await clearExternalAgentBinding(host, record);
+  }
+  if (!bound && previousMode === mode && !record.app.runtime.getPlanEnabled()) {
     throw new V4CommandNoopError(CONFIG_UNCHANGED);
   }
   await record.app.setMode(mode);

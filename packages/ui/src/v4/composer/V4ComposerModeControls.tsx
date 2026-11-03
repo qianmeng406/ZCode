@@ -43,11 +43,22 @@ import type { V4ComposerToolbarProps } from "@/v4/composer/V4ComposerToolbar.js"
 function noop(): void {}
 
 /**
+ * 主控模式：绑定外部 agent 后"只读分析 + 委派执行"的呈现层别名。
+ *
+ * 内部仍然是 `mode=plan + planEnabled=true + externalAgentReadOnly`（只读的唯一事实
+ * 是 planEnabled），所以这个 id 只在本菜单里合成，不进 @zcode/shared 的模式目录——
+ * 否则会漏进 automation / off-peak 等共用同一目录的表单。
+ */
+const ORCHESTRATOR_MODE_ID = "orchestrator";
+
+/**
  * Plan 与工作模式（变更前确认/自主/资料查询/极简/Beta）正交；权限仍为单选；
  * 只编辑草稿，不向 Runtime 发切换命令。
  * Beta（提示词融合模式测试版本）是独立模式入口，触发按钮直接显示 Beta 标签，
  * 不再附加上下文档位徽标。历史 fusion 档位只作为读取兼容：build+fusion 等组合
  * 仍按原权限回显，不自动升级为完全访问的 Beta。
+ *
+ * 主控模式是例外：它不写草稿，而是打开绑定弹窗（未绑定）或保持现状（已绑定）。
  */
 function V4ComposerModeSwitchImpl({
   provider,
@@ -56,6 +67,8 @@ function V4ComposerModeSwitchImpl({
   activeConfigPicker,
   onConfigPickerOpenChange,
   onSwitchMode,
+  orchestratorActive = false,
+  onSelectOrchestrator,
 }: Pick<
   V4ComposerToolbarProps,
   | "workspacePath"
@@ -66,7 +79,12 @@ function V4ComposerModeSwitchImpl({
   | "activeConfigPicker"
   | "onConfigPickerOpenChange"
   | "onSwitchMode"
->) {
+> & {
+  /** 当前会话已绑定外部 agent：模式菜单呈现为"主控模式"。 */
+  orchestratorActive?: boolean;
+  /** 选中"主控模式"（未绑定时由调用方打开绑定弹窗）。 */
+  onSelectOrchestrator?: () => void;
+}) {
   const { intl } = useZCodeIntl();
   // 原草稿回调随 scope 换代，旧确认不能把权限写入后来选中的任务。
   const confirmMode = useYoloModeConfirmation(disabled ? null : onSwitchMode, draftConfig?.mode);
@@ -81,22 +99,27 @@ function V4ComposerModeSwitchImpl({
   const modes = getZCodeAgentAvailableModes();
   // Beta 由 shared 模式目录直接提供（mode=beta），UI 不再本地补候选。历史 fusion 档位
   // 只做读取兼容：按原权限回显，不把 build+fusion 自动升级成完全访问的 Beta。
-  const permissions = modes.filter((mode) => mode.id !== "plan");
-  const selectablePermissions = permissions;
-  // 当前值：历史 build+fusion 仍回显 build（权限未变）；其余历史值原样回显。
-  const currentModeId = draftConfig?.mode;
+  const permissionModes = modes.filter((mode) => mode.id !== "plan");
+  // 主控项排在权限组最前：它是"绑定 + 只读"的入口，语义上高于具体权限档位。
+  const selectablePermissions = [
+    { id: ORCHESTRATOR_MODE_ID, name: "Orchestrator" },
+    ...permissionModes,
+  ];
+  // 当前值：主控态强制回显主控；历史 build+fusion 仍回显 build（权限未变）。
+  const currentModeId = orchestratorActive ? ORCHESTRATOR_MODE_ID : draftConfig?.mode;
   // 新菜单隐藏 Edit/minimal，但历史草稿仍可回显，不能因候选变化隐藏整个权限入口。
   const selected =
     selectablePermissions.find((mode) => mode.id === currentModeId) ??
     (currentModeId === "edit" || currentModeId === "minimal"
       ? { id: currentModeId, name: currentModeId === "edit" ? "Edit" : "Minimal mode" }
       : undefined);
-  const label = (mode: (typeof modes)[number]) =>
+  const label = (mode: { id: string; name: string }) =>
     getModeOptionDisplayLabel(intl, displayProvider, { value: mode.id, name: mode.name });
   const plan = modes.find((mode) => mode.id === "plan")!;
   const planLabel = label(plan);
   // Plan 拆成独立勾选项后仍需保留原菜单说明，复用相同的国际化映射。
   const planDescriptionId = getModeOptionDescriptionMessageId(displayProvider, { value: plan.id });
+  // 快捷键循环只走真实权限档位：主控不在循环里，避免 Ctrl+Shift+M 意外弹出绑定窗。
   const modeOption = useMemo<ZCodeConfigOption>(
     () => ({
       id: "mode",
@@ -104,9 +127,9 @@ function V4ComposerModeSwitchImpl({
       category: "mode",
       type: "select",
       currentValue: currentModeId ?? "build",
-      options: selectablePermissions.map((mode) => ({ value: mode.id, name: mode.name })),
+      options: permissionModes.map((mode) => ({ value: mode.id, name: mode.name })),
     }),
-    [currentModeId, selectablePermissions],
+    [currentModeId, permissionModes],
   );
   const cycle = useCallback(() => {
     const next = getNextConfigSelectValue(modeOption);
@@ -174,25 +197,42 @@ function V4ComposerModeSwitchImpl({
                 ?.focus();
           }}
         >
-          <DropdownMenuCheckboxItem
-            checked={draftConfig?.planEnabled ?? false}
-            onCheckedChange={(checked) => onSwitchMode(checked ? "plan" : "plan-off")}
-            data-testid={testId(TID_CHAT_MODE_SELECT_ITEM, "plan")}
-            className="min-h-13 items-start gap-3 py-2"
-          >
-            <LightbulbIcon className="mt-0.5 size-4.5 shrink-0" />
-            <span className="flex min-w-0 flex-col gap-0.5">
-              <span>{planLabel}</span>
-              {planDescriptionId && (
-                <span className="text-ui-sm text-foreground-subtle">
-                  {intl.formatMessage({ id: planDescriptionId })}
+          {/* 主控态天然只读：Plan 勾选项与 plan 标记都要藏起来，否则用户会以为
+              还能单独关掉只读。 */}
+          {!orchestratorActive && (
+            <>
+              <DropdownMenuCheckboxItem
+                checked={draftConfig?.planEnabled ?? false}
+                onCheckedChange={(checked) => onSwitchMode(checked ? "plan" : "plan-off")}
+                data-testid={testId(TID_CHAT_MODE_SELECT_ITEM, "plan")}
+                className="min-h-13 items-start gap-3 py-2"
+              >
+                <LightbulbIcon className="mt-0.5 size-4.5 shrink-0" />
+                <span className="flex min-w-0 flex-col gap-0.5">
+                  <span>{planLabel}</span>
+                  {planDescriptionId && (
+                    <span className="text-ui-sm text-foreground-subtle">
+                      {intl.formatMessage({ id: planDescriptionId })}
+                    </span>
+                  )}
                 </span>
-              )}
-            </span>
-          </DropdownMenuCheckboxItem>
-          <DropdownMenuSeparator />
-          {/* 工作模式单选：Beta 与其他模式同组；显式选非 Beta 即退出 Beta（草稿层清融合档位）。 */}
-          <DropdownMenuRadioGroup value={selected.id} onValueChange={onSwitchMode}>
+              </DropdownMenuCheckboxItem>
+              <DropdownMenuSeparator />
+            </>
+          )}
+          {/* 工作模式单选：Beta 与其他模式同组；显式选非 Beta 即退出 Beta（草稿层清融合档位）。
+              主控不是草稿切换：未绑定时交给调用方弹绑定窗，已绑定时保持现状。 */}
+          <DropdownMenuRadioGroup
+            value={selected.id}
+            onValueChange={(value) => {
+              if (value === ORCHESTRATOR_MODE_ID) {
+                onConfigPickerOpenChange("mode", false);
+                onSelectOrchestrator?.();
+                return;
+              }
+              onSwitchMode(value);
+            }}
+          >
             {selectablePermissions.map((mode) => {
               const ModeIcon = resolveModeOptionIcon(mode.id);
               const descriptionId = getModeOptionDescriptionMessageId(displayProvider, {
@@ -223,7 +263,7 @@ function V4ComposerModeSwitchImpl({
           </DropdownMenuRadioGroup>
         </DropdownMenuContent>
       </DropdownMenu>
-      {draftConfig?.planEnabled && (
+      {draftConfig?.planEnabled && !orchestratorActive && (
         <span data-testid="v4-composer-plan-marker" className="flex items-center gap-1">
           <span
             role="separator"
