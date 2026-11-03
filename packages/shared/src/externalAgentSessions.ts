@@ -9,8 +9,11 @@
 //   续接必须用 meta 里的 id）；首条 message 前通常还有一条 command-caveat 的
 //   system-reminder 输入，跳过 `<` 开头的文本才是用户真实首句；
 // - `summary` / `ai-title` 事件给出会话标题（ai-title 是英文，summary 是用户语言）。
-import { promises as fs } from "node:fs";
-import path from "node:path";
+//
+// **本模块必须保持纯函数**：它经 @zcode/shared 的 index 进入 renderer 的模块图，
+// 顶层 import 任何 node:fs / node:path 都会在浏览器里炸成
+// "Module node:fs has been externalized"（整个 UI 白屏）。文件读取放在执行机侧
+// （bootstrap 的探针脚本），这里只做字符串解析。
 import { z } from "zod";
 
 export const externalAgentSessionSummarySchema = z.object({
@@ -46,7 +49,7 @@ export function cwdToProjectDirName(cwd: string): string {
 /**
  * 从一段 stdout/文件内容里扫描会话概要。
  *
- * 纯函数便于单测；文件读取版 `scanClaudeFamilySessionsFromDir` 只是逐文件喂进来。
+ * 纯函数便于单测；执行机侧的探针脚本逐文件读出内容后喂进来。
  * 单文件解析失败（半个事件、截断）不抛——列表是尽力而为的展示，缺一条不致命。
  */
 export function scanClaudeFamilySessionsFromLines(
@@ -136,47 +139,4 @@ export function scanClaudeFamilySessionFile(
     fallbackSessionId,
     updatedAtFallback,
   );
-}
-
-/**
- * 扫描 CLI 的 projects 目录，返回某 cwd 的外部会话列表（updatedAt 降序）。
- *
- * - 目录不存在（CLI 从未在本 cwd 跑过）→ 空数组，不是错误；
- * - home 缺席（没有 USERPROFILE/HOME 的非常规环境）→ 空数组；
- * - 只认 `*.jsonl`，忽略子目录与临时文件。
- */
-export async function scanClaudeFamilySessions(options: {
-  cliHome: string;
-  cwd: string;
-  driver: "claude-family";
-  limit?: number;
-}): Promise<ExternalAgentSessionSummary[]> {
-  const projectDir = path.join(options.cliHome, "projects", cwdToProjectDirName(options.cwd));
-  let entries: string[];
-  try {
-    entries = await fs.readdir(projectDir);
-  } catch {
-    return [];
-  }
-  const limit = options.limit ?? MAX_EXTERNAL_AGENT_SESSIONS;
-  const summaries: ExternalAgentSessionSummary[] = [];
-  for (const name of entries) {
-    if (!name.endsWith(".jsonl")) continue;
-    const filePath = path.join(projectDir, name);
-    let stat: Awaited<ReturnType<typeof fs.stat>>;
-    let content: string;
-    try {
-      stat = await fs.stat(filePath);
-      content = await fs.readFile(filePath, "utf8");
-    } catch {
-      continue;
-    }
-    const summary = scanClaudeFamilySessionFile(
-      content,
-      name.slice(0, -".jsonl".length),
-      stat.mtimeMs,
-    );
-    if (summary) summaries.push(summary);
-  }
-  return summaries.sort((left, right) => right.updatedAt - left.updatedAt).slice(0, limit);
 }
