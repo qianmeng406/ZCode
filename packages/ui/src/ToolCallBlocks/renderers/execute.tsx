@@ -266,11 +266,28 @@ function extractExecuteResultText(output: unknown): string | null {
   return null;
 }
 
+/** 取进度文本最后一行（收起态摘要用），过长截断。 */
+function lastProgressLine(text: string | undefined): string | undefined {
+  if (!text) return undefined;
+  const lines = text
+    .split(/\r?\n/u)
+    .map((line) => line.trim())
+    .filter(Boolean);
+  const last = lines.at(-1);
+  if (!last) return undefined;
+  return last.length > 120 ? `${last.slice(0, 120)}…` : last;
+}
+
 export function ExecuteToolCallBlock(context: ToolCallBlockRenderContext) {
   const { intl } = useZCodeIntl();
   const { toolCallNode, isRunning, statusLabel, errorText, isOfficeMode = false } = context;
   const { toolCall } = toolCallNode;
-  const secondaryText = getExecuteSecondaryText(toolCall.input);
+  // 外部 agent 的进度在收起态也要可见：命令输入为空时用输出的最后一行当副标题，
+  // 用户不用展开卡片就能看到"它现在在干什么"。
+  const isExternalAgentTool =
+    toolCall.toolName === "DelegateToExternalAgent" ||
+    toolCall.toolName === "StartExternalAgentTask" ||
+    toolCall.toolName === "GetExternalAgentTaskResult";
   const contentParts = getExecuteContentParts(toolCall.input);
   const outputText = extractExecuteResultText(toolCall.output);
   const rawOutputText = isPlainRecord(toolCall.raw)
@@ -282,13 +299,19 @@ export function ExecuteToolCallBlock(context: ToolCallBlockRenderContext) {
     return parsed.success ? parsed.data : undefined;
   }, [toolCall.raw]);
   const resultText = outputDisplay?.output ?? outputText ?? rawOutputText;
+  // 没有 isRunning 门控：外部 agent 的"启动"工具立即返回，后台任务仍在跑，
+  // 行已是终态但预览还在持续更新——这是用户唯一能看到进度的通道。
   const outputPreview = useMemo(() => {
-    if (!isRunning || !isPlainRecord(toolCall.raw)) return undefined;
+    if (!isPlainRecord(toolCall.raw)) return undefined;
     const parsed = executionOutputPreviewSchema.safeParse(toolCall.raw.outputPreview);
     return parsed.success ? parsed.data : undefined;
-  }, [isRunning, toolCall.raw]);
+  }, [toolCall.raw]);
   const failureVisibleText =
     toolCall.status === "failed" ? (errorText ?? resultText ?? undefined) : undefined;
+  // 副标题：命令输入优先；外部 agent 工具没有 command，用进度最后一行代替。
+  const secondaryText =
+    getExecuteSecondaryText(toolCall.input) ??
+    (isExternalAgentTool ? lastProgressLine(outputPreview?.text) : undefined);
   const secondaryTextNode = useMemo(
     // 收起态 command 属于摘要正文，使用 UI sans 与同一行文案保持一致；
     // 展开后的完整命令仍保留 font-mono，便于阅读和复制技术内容。

@@ -23,6 +23,12 @@ const LIVE_OUTPUT_TOOL_NAMES = new Set([
   "StartExternalAgentTask",
 ]);
 
+/** 立即返回、但后台仍在跑的工具：终态行也要继续接受实时预览。 */
+const EXTERNAL_AGENT_LIVE_TOOL_NAMES = new Set([
+  "StartExternalAgentTask",
+  "DelegateToExternalAgent",
+]);
+
 /** 进度只能更新已运行的工具行，不创建行、不把终态或后台任务复活。 */
 export function projectToolActivity(
   event: SessionEvent,
@@ -43,8 +49,11 @@ export function projectToolActivity(
       },
     ];
   }
-  if (!LIVE_OUTPUT_TOOL_NAMES.has(row.toolName) || row.status !== "running" || row.backgrounded)
-    return [];
+  if (!LIVE_OUTPUT_TOOL_NAMES.has(row.toolName) || row.backgrounded) return [];
+  // Bash 只在运行中接受预览（结束后有完整结果）；外部 agent 的"启动"工具立即返回，
+  // 行早已 completed 但后台任务还在跑——必须继续接受预览，否则进度全被丢弃。
+  const settledAllowed = EXTERNAL_AGENT_LIVE_TOOL_NAMES.has(row.toolName);
+  if (row.status !== "running" && !settledAllowed) return [];
   const parsed = executionOutputPreviewSchema.safeParse(
     (event.payload as ToolCallProgressPayload).outputPreview,
   );
@@ -59,6 +68,8 @@ export function clearSettledOutputPreviews(deltas: ConversationDelta[]): Convers
       (delta.op !== "row.upserted" && delta.op !== "row.appended") ||
       delta.row.kind !== "toolCall" ||
       !delta.row.outputPreview ||
+      // 外部 agent 的委派行：预览就是它的执行日志，终态也要保留。
+      EXTERNAL_AGENT_LIVE_TOOL_NAMES.has(delta.row.toolName) ||
       (delta.row.status === "running" && !delta.row.backgrounded)
     )
       return delta;
