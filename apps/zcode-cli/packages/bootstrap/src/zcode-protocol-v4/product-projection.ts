@@ -3761,6 +3761,8 @@ export class ProductProjection {
           ...(payload.model ? { model: payload.model } : {}),
           ...(payload.effort ? { effort: payload.effort } : {}),
           effortLevels: payload.effortLevels ?? [],
+          // 续接会话：徽标的会话子菜单据此回显当前项；漏映射会让 radio 永远停在"不续接"。
+          ...(payload.externalSessionId ? { externalSessionId: payload.externalSessionId } : {}),
           readOnly: true as const,
         }
       : null;
