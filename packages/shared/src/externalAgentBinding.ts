@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { findExternalAgentPreset } from "./externalAgentCatalog.js";
 
 // ============================================================
 // 会话绑定的外部 coding agent（只读主控 + 委派执行）
@@ -124,7 +125,12 @@ export function buildExternalAgentInvocation(
     const modelFlag = resolveModelFlag(binding);
     if (binding.model && modelFlag) args.push(modelFlag, binding.model);
     args.push(...resolveEffortArgs(binding));
-    if (binding.permissionMode) args.push("--permission-mode", binding.permissionMode);
+    // 预设自带的权限档位跟随代码走：绑定落库时抄的是当时的预设值，预设升级
+    // （如 acceptEdits 改 bypassPermissions）后旧绑定必须跟着生效，否则用户会
+    // 得到一个"能改文件但跑不了命令"的半残执行器。手填命令仍用绑定自己的值。
+    const permissionMode =
+      findExternalAgentPreset(binding.presetId)?.permissionMode ?? binding.permissionMode;
+    if (permissionMode) args.push("--permission-mode", permissionMode);
     if (binding.promptDelivery === "stdin")
       return { command: binding.command, args, stdin: prompt };
     // argv-append / template 在 family 族里都落到末尾追加 prompt。

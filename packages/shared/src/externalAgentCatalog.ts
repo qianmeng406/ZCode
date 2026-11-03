@@ -55,7 +55,14 @@ export const externalAgentPresetSchema = z.object({
   /** 不含 prompt 的固定前缀参数。 */
   args: z.array(z.string()).default([]),
   promptDelivery: z.enum(["argv-append", "stdin", "template"]),
-  /** 外部 agent 自己的只读档位参数值（如 claude-family 的 --permission-mode）。 */
+  /**
+   * 外部 agent 自己的权限档位参数值（claude-family 的 --permission-mode）。
+   *
+   * 委派执行需要**能跑命令**：实测 acceptEdits 只放行改文件，Bash 会被拒，
+   * 外部 agent 只能退回 Glob 猜目录、返回残缺结果。因此预设给 bypassPermissions
+   * ——用户绑定即明示同意把执行交给它。该字段跟随预设代码生效（旧绑定落库的
+   * 值不会覆盖新预设，见 buildExternalAgentInvocation）。
+   */
   permissionMode: z.string().optional(),
   modelFlag: z.enum(EXTERNAL_AGENT_MODEL_FLAGS),
   modelSource: z.enum(EXTERNAL_AGENT_MODEL_SOURCES),
@@ -164,7 +171,7 @@ export const EXTERNAL_AGENT_PRESETS: readonly ExternalAgentPreset[] = [
     command: "claude",
     args: ["-p", "--output-format", "json"],
     promptDelivery: "argv-append",
-    permissionMode: "acceptEdits",
+    permissionMode: "bypassPermissions",
     modelFlag: "--model",
     // Claude Code 的 --model 只接受别名或完整模型名，没有可枚举清单。
     modelSource: "free-text",
@@ -180,7 +187,7 @@ export const EXTERNAL_AGENT_PRESETS: readonly ExternalAgentPreset[] = [
     command: "codebuddy",
     args: ["-p", "--output-format", "json"],
     promptDelivery: "argv-append",
-    permissionMode: "acceptEdits",
+    permissionMode: "bypassPermissions",
     modelFlag: "--model",
     // 模型与档位都来自服务端下发的缓存（登录后才有）；product.json 只作兜底。
     modelSource: "server-cache",
