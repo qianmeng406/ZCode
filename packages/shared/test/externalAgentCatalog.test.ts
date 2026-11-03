@@ -442,3 +442,53 @@ test("parseServerModelCache: 多用户缓存取 ts 最新；畸形输入返回�
   );
   assert.deepEqual(withMissing[1]!.supportedEfforts, []);
 });
+
+test("parseExternalAgentResult: codebuddy 消息数组取 result 条目正文", () => {
+  const binding = externalAgentBindingSchema.parse({
+    label: "CodeBuddy",
+    driver: "claude-family",
+    command: "codebuddy",
+    args: ["-p", "--output-format", "json"],
+    promptDelivery: "argv-append",
+  });
+  // 实测形状：数组里 message/file-history-snapshot/... 混杂，最后一条 type=result。
+  const stdout = JSON.stringify([
+    { type: "message", role: "user", content: [{ type: "input_text", text: "hi" }] },
+    { type: "message", role: "assistant", content: [{ type: "output_text", text: "你好" }] },
+    { type: "result", subtype: "success", is_error: false, result: "你好" },
+  ]);
+  assert.deepEqual(parseExternalAgentResult(binding, stdout), { text: "你好", isError: false });
+});
+
+test("parseExternalAgentResult: result 为空时回退最后一条 assistant 正文", () => {
+  const binding = externalAgentBindingSchema.parse({
+    label: "CodeBuddy",
+    driver: "claude-family",
+    command: "codebuddy",
+    args: ["-p", "--output-format", "json"],
+    promptDelivery: "argv-append",
+  });
+  const stdout = JSON.stringify([
+    { type: "message", role: "assistant", content: [{ type: "output_text", text: "旧回答" }] },
+    { type: "message", role: "assistant", content: [{ type: "output_text", text: "最终回答" }] },
+    { type: "result", subtype: "success", is_error: false, result: "" },
+  ]);
+  assert.deepEqual(parseExternalAgentResult(binding, stdout), {
+    text: "最终回答",
+    isError: false,
+  });
+});
+
+test("parseExternalAgentResult: 非 JSON / 非数组退回原文，不抛", () => {
+  const binding = externalAgentBindingSchema.parse({
+    label: "CodeBuddy",
+    driver: "claude-family",
+    command: "codebuddy",
+    args: ["-p", "--output-format", "json"],
+    promptDelivery: "argv-append",
+  });
+  assert.deepEqual(parseExternalAgentResult(binding, "纯文本回答"), {
+    text: "纯文本回答",
+    isError: false,
+  });
+});

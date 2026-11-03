@@ -203,11 +203,33 @@ export function parseExternalAgentResult(
         !!entry && typeof entry === "object" && (entry as { type?: unknown }).type === "result",
     );
     if (!result) return { text: stdout, isError: false };
-    return {
-      text: typeof result.result === "string" ? result.result : JSON.stringify(result.result ?? ""),
-      isError: result.is_error === true,
-    };
+    const body =
+      typeof result.result === "string" ? result.result : JSON.stringify(result.result ?? "");
+    // 有些版本会给出空的 result 但消息数组里有 assistant 正文：退到最后一轮
+    // assistant 的 output_text，别把"有回答但没装进 result 字段"当成空回答。
+    const text = body.trim().length > 0 ? body : lastAssistantText(parsed);
+    return { text, isError: result.is_error === true };
   } catch {
     return { text: stdout, isError: false };
   }
+}
+
+/** 取消息数组里最后一条 assistant 的文本（兜底，可能为空）。 */
+function lastAssistantText(entries: readonly unknown[]): string {
+  for (let index = entries.length - 1; index >= 0; index -= 1) {
+    const entry = entries[index] as { type?: unknown; role?: unknown; content?: unknown };
+    if (entry?.type !== "message" || entry.role !== "assistant" || !Array.isArray(entry.content)) {
+      continue;
+    }
+    const text = entry.content
+      .map((part) =>
+        part && typeof part === "object" && typeof (part as { text?: unknown }).text === "string"
+          ? (part as { text: string }).text
+          : "",
+      )
+      .join("")
+      .trim();
+    if (text) return text;
+  }
+  return "";
 }

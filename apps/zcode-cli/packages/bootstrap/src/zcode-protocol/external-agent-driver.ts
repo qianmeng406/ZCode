@@ -75,12 +75,20 @@ export function createOneShotExternalAgentDriver(input: {
         } as never,
       );
 
-      const rawStdout = extractStreamText(result, "stdout");
+      const stdoutView = readStreamOutput(result, "stdout");
+      const rawStdout = stdoutView.text;
       const stderr = extractStreamText(result, "stderr");
       if (stderr.trim()) runInput.onOutput?.({ stream: "stderr", text: stderr });
       if (rawStdout) runInput.onOutput?.({ stream: "stdout", text: rawStdout });
 
       const parsed = parseExternalAgentResult(binding, rawStdout);
+      // 解析不出正文时不能静默返回空串：至少要给出证据（字节数/落盘位置），
+      // 否则上层只能看到「已完成」，无从判断是 CLI 没输出还是我们没读到。
+      const text = parsed.text.trim()
+        ? parsed.text
+        : rawStdout.trim()
+          ? rawStdout
+          : describeMissingOutput(stdoutView);
       const exitCode =
         typeof (result as { exitCode?: number }).exitCode === "number"
           ? (result as { exitCode: number }).exitCode
@@ -89,7 +97,7 @@ export function createOneShotExternalAgentDriver(input: {
             : 0;
 
       return {
-        text: parsed.text,
+        text,
         rawStdout,
         exitCode,
         // 退出码非 0 或结构里标了 is_error 都算失败；stderr 单有输出不算失败
@@ -101,29 +109,62 @@ export function createOneShotExternalAgentDriver(input: {
   };
 }
 
+interface StreamOutputView {
+  text: string;
+  bytes?: number;
+  artifactPath?: string;
+}
+
 /**
- * 从 ExecutionPort.run 的返回值里取某一路文本。
+ * 从 ExecutionPort.run 的返回值里取某一路输出。
  *
- * 端口返回形状在不同适配器间略有差异（streams / stdout / tail），这里做兼容读取：
- * 优先按路取，其次取 tail，最后退回空串——绝不抛错，避免把"取不到输出"伪装成失败。
+ * 端口返回形状在不同适配器间不一致：`streams.<路>` / 顶层 `<路>`，值可能是字符串
+ * 或 `{ text, bytes, tail, artifactPath }`。三条规则：
+ * 1. `text` 非空才算读到（空串当缺席——持久化模式下可能只给 tail）；
+ * 2. text 缺席时用 `tail`（请求了 tailBytes 时端口保底给尾部）；
+ * 3. 都拿不到就退回空串，绝不抛错——但要把 bytes/artifactPath 带出去，
+ *    让上层能诊断"是 CLI 没输出还是我们没读到"。
  */
-function extractStreamText(result: unknown, stream: "stdout" | "stderr"): string {
-  if (!result || typeof result !== "object") return "";
+function readStreamOutput(result: unknown, stream: "stdout" | "stderr"): StreamOutputView {
+  if (!result || typeof result !== "object") return { text: "" };
   const record = result as Record<string, unknown>;
   const streams = record.streams;
-  if (streams && typeof streams === "object") {
-    const entry = (streams as Record<string, unknown>)[stream];
-    if (typeof entry === "string") return entry;
-    if (entry && typeof entry === "object") {
-      const text = (entry as { text?: unknown }).text;
-      if (typeof text === "string") return text;
-      const tail = (entry as { tail?: unknown }).tail;
-      if (typeof tail === "string") return tail;
-    }
+  const fromStreams =
+    streams && typeof streams === "object"
+      ? readStreamEntry((streams as Record<string, unknown>)[stream])
+      : undefined;
+  if (fromStreams && (fromStreams.text.length > 0 || fromStreams.bytes !== undefined)) {
+    return fromStreams;
   }
-  const direct = record[stream];
-  if (typeof direct === "string") return direct;
-  const tail = record.tail;
-  if (stream === "stdout" && typeof tail === "string") return tail;
-  return "";
+  const direct = readStreamEntry(record[stream]);
+  if (direct && (direct.text.length > 0 || direct.bytes !== undefined)) return direct;
+  // 顶层 tail 只对应 requestedTail，端口把它挂在 stdout 条目上时上面已取到；
+  // 这里兜底旧形状（record.tail）。
+  if (stream === "stdout" && typeof record.tail === "string") return { text: record.tail };
+  return fromStreams ?? direct ?? { text: "" };
+}
+
+function readStreamEntry(entry: unknown): StreamOutputView | undefined {
+  if (typeof entry === "string") return { text: entry };
+  if (!entry || typeof entry !== "object") return undefined;
+  const record = entry as Record<string, unknown>;
+  const text = typeof record.text === "string" ? record.text : "";
+  const tail = typeof record.tail === "string" ? record.tail : "";
+  return {
+    text: text.length > 0 ? text : tail,
+    ...(typeof record.bytes === "number" ? { bytes: record.bytes } : {}),
+    ...(typeof record.artifactPath === "string" ? { artifactPath: record.artifactPath } : {}),
+  };
+}
+
+function extractStreamText(result: unknown, stream: "stdout" | "stderr"): string {
+  return readStreamOutput(result, stream).text;
+}
+
+/** 完全读不到输出时的说明文本（替代静默空串）。 */
+function describeMissingOutput(view: StreamOutputView): string {
+  const parts = ["（外部 agent 执行结束，但没有读到可解析的输出）"];
+  if (view.bytes !== undefined) parts.push(`stdout 共 ${view.bytes} 字节`);
+  if (view.artifactPath) parts.push(`原始输出已落盘：${view.artifactPath}`);
+  return parts.join("；");
 }
