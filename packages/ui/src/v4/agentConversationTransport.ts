@@ -31,6 +31,8 @@ import {
   type V4ConversationPlansResult,
   type V4ExternalAgentProbeParams,
   type V4ExternalAgentProbeResult,
+  type V4ExternalAgentSessionsParams,
+  type V4ExternalAgentSessionsResult,
   type V4ConversationRowsRangeParams,
   type V4ConversationRowsRangeResult,
   type V4ConversationSubscribeResult,
@@ -66,6 +68,7 @@ type ConversationV4AgentService = Pick<
   | "conversationRowsRangeV4"
   | "conversationPlansV4"
   | "externalAgentProbeV4"
+  | "externalAgentSessionsV4"
   | "conversationWorkflowRunEventsV4"
   | "conversationWorkflowRunsV4"
   | "conversationWorkflowRunArtifactsV4"
@@ -450,6 +453,16 @@ export function createAgentConversationTransport(
     ): Promise<V4ExternalAgentProbeResult> {
       await ensureHandshake();
       return agentService.externalAgentProbeV4({
+        ...workspace,
+        sessionId: params.sessionId,
+      });
+    },
+    // 外部 agent 的历史会话列表：同 probe 落到执行机，供续接选择菜单用。
+    async externalAgentSessions(
+      params: V4ExternalAgentSessionsParams,
+    ): Promise<V4ExternalAgentSessionsResult> {
+      await ensureHandshake();
+      return agentService.externalAgentSessionsV4({
         ...workspace,
         sessionId: params.sessionId,
       });

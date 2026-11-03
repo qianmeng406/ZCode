@@ -90,6 +90,7 @@ async function bindExternalAgent(
     ...(payload.model ? { model: payload.model } : {}),
     // 档位挂在"这次选的模型"名下：换模型后各记各的，不互相污染。
     ...(payload.effort ? { effortsByModel: { [payload.model ?? ""]: payload.effort } } : {}),
+    ...(payload.externalSessionId ? { externalSessionId: payload.externalSessionId } : {}),
     ...(payload.env ? { env: payload.env } : {}),
     ...(payload.timeoutMs ? { timeoutMs: payload.timeoutMs } : {}),
     // 快照原状态：解绑时恢复。planEnabled 单独记，因为 plan 模式可以独立于 mode 存在。
@@ -240,6 +241,8 @@ export async function publishBindingChanged(
             ? { effort: readModelEffort(binding, binding.model) }
             : {}),
           effortLevels,
+          // 续接会话跟着绑定走：UI 的会话子菜单据此回显当前项。
+          ...(binding.externalSessionId ? { externalSessionId: binding.externalSessionId } : {}),
           readOnly: true as const,
         }
       : null,
@@ -334,9 +337,42 @@ async function setExternalAgentEffort(
   return undefined;
 }
 
+/**
+ * 切换续接的外部会话。
+ *
+ * 与换模型/换档位同构：只改 externalSessionId 字段（null = 清除，回到每次
+ * 委派开新会话），不动只读契约、授权与 previous* 快照。委派时该 id 会以
+ * `-r <id>` 传给 CLI（见 buildExternalAgentInvocation）；CLI 起不到旧会话时
+ * 自动开新会话，不阻塞任务。
+ */
+async function setExternalAgentSession(
+  host: V4CommandCoreHost,
+  envelope: CommandEnvelope,
+): Promise<CommandResult | undefined> {
+  const payload = envelope.payload as CommandPayloadMap["setExternalAgentSession"];
+  const record = requireRecord(host, envelope.sessionId);
+  const { binding, sessionStore } = await requireBoundExternalAgent(host, record);
+  const sessionId = payload.sessionId?.trim() || undefined;
+  if (binding.externalSessionId === sessionId) {
+    throw new V4CommandNoopError(BINDING_UNCHANGED);
+  }
+  const next: ExternalAgentBinding = { ...binding };
+  if (sessionId) next.externalSessionId = sessionId;
+  else delete next.externalSessionId;
+  await persistSessionExternalAgent({
+    sessionId: record.app.sessionId,
+    sessionStore,
+    binding: next,
+    logger: warningLogger(host),
+  });
+  await publishBindingChanged(record, next, await resolveEffortLevelsForBinding(record, next));
+  return undefined;
+}
+
 export const externalAgentHandlers = {
   bindExternalAgent,
   unbindExternalAgent,
   setExternalAgentModel,
   setExternalAgentEffort,
+  setExternalAgentSession,
 };

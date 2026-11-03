@@ -376,6 +376,15 @@ export interface ZCodeApp {
    * 真正执行的那台机器。缺席 = 宿主不支持探测（UI 退回手填表单）。
    */
   probeExternalAgents?(): Promise<AppExternalAgentProbeResult>;
+  /**
+   * 绑定的外部 CLI 的历史会话列表（续接选择菜单的数据源）。
+   *
+   * 只读、无副作用；同 probeExternalAgents 落在真正执行的那台机器上。
+   * 目录不存在返回空数组（不是错误）。缺席 = 宿主不支持（UI 不显示会话入口）。
+   */
+  listExternalAgentSessions?(): Promise<
+    Array<{ sessionId: string; title: string; updatedAt: number; preview?: string }>
+  >;
   /** current-only 协议快照精确读取当前 Registry 模型，避免枚举整个目录。 */
   getCurrentModelOption?(): ZCodeModelOption | undefined;
   /** 只读 Registry 元数据；不要求选项完整，也不绑定执行模型。 */

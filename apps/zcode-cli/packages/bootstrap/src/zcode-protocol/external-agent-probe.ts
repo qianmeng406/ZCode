@@ -9,11 +9,14 @@
 import type { ExecutionPort } from "@zcode/contracts";
 import {
   EXTERNAL_AGENT_PRESETS,
+  cwdToProjectDirName,
   parseModelCatalogFromProductJson,
   parseModelListFromHelp,
   parseServerModelCache,
+  scanClaudeFamilySessionFile,
   type ExternalAgentModelInfo,
   type ExternalAgentPreset,
+  type ExternalAgentSessionSummary,
 } from "@zcode/shared";
 
 /** 一个预设在本机的实测状态。 */
@@ -286,4 +289,64 @@ export async function probeExternalAgents(options: {
     ),
   );
   return { agents };
+}
+
+/**
+ * 列出某 cwd 的外部会话（claude-family 落盘扫描）。
+ *
+ * 扫描必须发生在**执行机**上：远程/容器会话里 CLI 的 home 在工作机上，
+ * zcode 进程读不到。做法与 probeServerModelCache 同款——`node -e` 内联脚本
+ * 在目标机上枚举 `~/.codebuddy/projects/<cwd->/*.jsonl`，把每个文件的行流
+ * 原样倒回 stdout（事件之间以 \x00 分隔），宿主侧再按行扫描出概要。
+ *
+ * 失败语义与探测一致：不抛错，返回空列表（目录不存在 / node 不可用都是
+ * "没有可续接的会话"，不是故障）。
+ */
+export async function listExternalAgentSessions(options: {
+  executionPort: ExecutionPort;
+  cwd: string;
+  limit?: number;
+}): Promise<ExternalAgentSessionSummary[]> {
+  const limit = options.limit ?? 30;
+  const script = [
+    "const fs=require('fs'),path=require('path'),os=require('os');",
+    `const dir=path.join(os.homedir(),'.codebuddy','projects',${JSON.stringify(cwdToProjectDirName(options.cwd))});`,
+    "let files=[];",
+    "try{files=fs.readdirSync(dir).filter(f=>f.endsWith('.jsonl'));}catch{process.exit(0);}",
+    "const stats=files.map(f=>{try{return {f,m:fs.statSync(path.join(dir,f)).mtimeMs};}catch{return null;}}).filter(Boolean);",
+    "stats.sort((a,b)=>b.m-a.m);",
+    "for(const {f,m} of stats.slice(0,60)){",
+    "  let content='';",
+    "  try{content=fs.readFileSync(path.join(dir,f),'utf8');}catch{continue;}",
+    // \x00 分隔：JSONL 正文里不会出现 NUL，宿主侧切分安全。
+    "  process.stdout.write('\u0000FILE\u0000'+f+'\u0000'+m+'\u0000'+content.replace(/\u0000/g,'')+'\u0000END\u0000');",
+    "}",
+  ].join("");
+  const read = await probeCommand(
+    options.executionPort,
+    "node",
+    ["-e", script],
+    options.cwd,
+    { maxInlineBytes: 8_000_000, maxBufferBytes: 8_000_000 },
+  );
+  if (!read.ok || !read.stdout.trim()) return [];
+  const summaries: ExternalAgentSessionSummary[] = [];
+  for (const block of read.stdout.split("\u0000END\u0000")) {
+    const parts = block.split("\u0000FILE\u0000");
+    if (parts.length < 2) continue;
+    const rest = parts[1]!.split("\u0000");
+    const fileName = rest[0] ?? "";
+    const mtimeMs = Number(rest[1] ?? 0);
+    const content = rest.slice(2).join("\u0000");
+    if (!fileName || !content) continue;
+    const summary = scanClaudeFamilySessionFile(
+      content,
+      fileName.slice(0, -".jsonl".length),
+      Number.isFinite(mtimeMs) ? mtimeMs : 0,
+    );
+    if (summary) summaries.push(summary);
+  }
+  return summaries
+    .sort((left, right) => right.updatedAt - left.updatedAt)
+    .slice(0, limit);
 }

@@ -754,6 +754,7 @@ export function SessionPane({
     fileChanges,
     fileRewindPreview,
     externalAgentProbe: requestExternalAgentProbe,
+    externalAgentSessions: requestExternalAgentSessions,
   } = useV4Conversation();
   const platform = useOptionalPlatform();
   const {
@@ -5205,6 +5206,31 @@ export function SessionPane({
     [dispatchCommand, sessionId],
   );
 
+  // 拉取绑定的外部 CLI 的历史会话（续接子菜单）。失败必须抛给调用方：
+  // 菜单把"拉不到"呈现成空列表会把故障伪装成"没有会话"。
+  const handleLoadExternalAgentSessions = useCallback(async () => {
+    if (!sessionId) return { sessions: [] };
+    return requestExternalAgentSessions({ sessionId });
+  }, [requestExternalAgentSessions, sessionId]);
+
+  // 切换续接的外部会话（null = 清除，回到每次委派开新会话）。
+  const handleChangeExternalAgentSession = useCallback(
+    async (externalSessionId: string | null) => {
+      if (!sessionId) return;
+      // CAS 命令必须带 baseRevision（同 unbindExternalAgent）。
+      const ack = await dispatchCommand(
+        "setExternalAgentSession",
+        { sessionId: externalSessionId },
+        sessionId,
+        snapshotRef.current?.revision,
+      );
+      if (ack.status !== "accepted" && ack.status !== "noop") {
+        throw new Error(ack.reasonCode ?? ack.status);
+      }
+    },
+    [dispatchCommand, sessionId],
+  );
+
   // 绑定入口的提交动作。命令面会先把 entry 落盘再切只读，所以这里不做乐观更新：
   // 徽标出现在下一次投影刷新里，与真实状态一致。
   const handleBindExternalAgent = useCallback(
@@ -6472,6 +6498,8 @@ export function SessionPane({
       onBindExternalAgent={handleBindExternalAgent}
       onChangeExternalAgentModel={handleChangeExternalAgentModel}
       onChangeExternalAgentEffort={handleChangeExternalAgentEffort}
+      onChangeExternalAgentSession={handleChangeExternalAgentSession}
+      onLoadExternalAgentSessions={handleLoadExternalAgentSessions}
       externalAgentProbe={externalAgentProbe}
       externalAgentProbing={externalAgentProbing}
       onReprobeExternalAgents={handleReprobeExternalAgents}

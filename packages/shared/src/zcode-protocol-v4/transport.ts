@@ -367,6 +367,9 @@ export const V4_METHODS = {
   // 外部 coding agent 的绑定候选探测：本机装了哪些已适配 CLI、各自能用哪些模型。
   // 只读、无状态、超时重发安全；旧 CLI 返回 method-not-found，UI 据此退回手填表单。
   externalAgentProbe: "v4/externalAgent/probe",
+  // 外部 coding agent 的历史会话列表（续接选择菜单的数据源）。
+  // 只读、无状态、超时重发安全；目录不存在返回空列表（不是错误）。
+  externalAgentSessions: "v4/externalAgent/sessions",
   // 当前有效分支的终态 ExitPlanMode 目录；只读、无状态、超时重发安全。
   conversationPlans: "v4/conversation/plans",
   conversationFileChanges: "v4/conversation/fileChanges",

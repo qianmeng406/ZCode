@@ -53,5 +53,29 @@ export const v4ExternalAgentProbeResultSchema = z
   .strict();
 export type V4ExternalAgentProbeResult = z.infer<typeof v4ExternalAgentProbeResultSchema>;
 
+// ── 历史会话列表（续接选择菜单）──
+export const v4ExternalAgentSessionsParamsSchema = z
+  .object({
+    /** 会话 id：扫描落到该会话真正执行的那台机器（远程会话的 CLI 在远端）。 */
+    sessionId: z.string().min(1),
+  })
+  .strict();
+export type V4ExternalAgentSessionsParams = z.infer<typeof v4ExternalAgentSessionsParamsSchema>;
+
+export const v4ExternalAgentSessionsResultSchema = z
+  .object({
+    sessions: z.array(
+      z.object({
+        /** CLI 自报的会话 id（`-r` 续接用它，可能 ≠ 文件名）。 */
+        sessionId: z.string().min(1),
+        title: z.string(),
+        updatedAt: z.number().int(),
+        preview: z.string().optional(),
+      }),
+    ),
+  })
+  .strict();
+export type V4ExternalAgentSessionsResult = z.infer<typeof v4ExternalAgentSessionsResultSchema>;
+
 /** 与 shared 顶层同形（两个定义必须一致；此处只做类型对齐，避免两份漂移）。 */
 export type { ExternalAgentPresetStatus };

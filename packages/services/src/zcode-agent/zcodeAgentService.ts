@@ -386,6 +386,7 @@ import {
   v4ConversationRowsRangeResultSchema,
   v4ConversationPlansResultSchema,
   v4ExternalAgentProbeResultSchema,
+  v4ExternalAgentSessionsResultSchema,
   v4ConversationInputPredictionResultSchema,
   emptyInputPredictionResult,
   v4ConversationWorkflowRunEventsResultSchema,
@@ -7544,6 +7545,16 @@ export function createZCodeAgentService(
         V4_METHODS.externalAgentProbe,
         { sessionId: params.sessionId },
         v4ExternalAgentProbeResultSchema,
+      );
+    },
+
+    // 外部 CLI 的历史会话列表：同 probe 只读查询，落到会话所在那台机器。
+    async externalAgentSessionsV4(params: ZCodeAgentExternalAgentProbeParams) {
+      const client = await getReadOnlyClient(params, "existing-only");
+      return client.request(
+        V4_METHODS.externalAgentSessions,
+        { sessionId: params.sessionId },
+        v4ExternalAgentSessionsResultSchema,
       );
     },
 

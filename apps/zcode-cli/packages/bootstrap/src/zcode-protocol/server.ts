@@ -27,6 +27,7 @@ import {
   parseSessionsIndexTopic,
   parseWorkspaceConfigTopic,
   v4ExternalAgentProbeParamsSchema,
+  v4ExternalAgentSessionsParamsSchema,
 } from "@zcode/shared/zcode-protocol-v4";
 import type {
   ZCodeProtocolError,
@@ -771,6 +772,18 @@ export class ZCodeProtocolAgentServer {
           );
         }
         return await record.app.probeExternalAgents();
+      }
+      // 外部 coding agent 的历史会话列表：只读、无状态；同 probe 落在执行机上。
+      case V4_METHODS.externalAgentSessions: {
+        const params = v4ExternalAgentSessionsParamsSchema.parse(request.params);
+        const record = this.context.sessions.get(params.sessionId);
+        if (!record?.app.listExternalAgentSessions) {
+          throw new ProtocolRequestError(
+            zcodeProtocolErrorCodes.sessionUnavailable,
+            `External agent sessions unavailable for ${params.sessionId}`,
+          );
+        }
+        return { sessions: await record.app.listExternalAgentSessions() };
       }
       // Oracle 审查记录：会话附属持久化（session entry），CLI 侧按 sessionId 隔离。
       case zcodeProtocolMethods.oracleReviewSaveRecord:

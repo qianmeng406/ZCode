@@ -5230,6 +5230,10 @@ const enUS: Record<string, string> = {
   "chat.externalAgent.modelPlaceholder": "Model name (blank = CLI default)",
   "chat.externalAgent.modelMenuLabel": "Model for {agent}",
   "chat.externalAgent.effortMenuLabel": "Reasoning effort",
+  "chat.externalAgent.sessionMenuLabel": "External session to resume",
+  "chat.externalAgent.sessionFresh": "No resume (new session each time)",
+  "chat.externalAgent.sessionLoading": "Loading external sessions…",
+  "chat.externalAgent.sessionEmpty": "No external sessions on this machine yet.",
   "chat.externalAgent.effortDefault": "Use the CLI default effort",
   "chat.externalAgent.bindEffort": "Reasoning effort",
   "chat.planUsage.noPlan":

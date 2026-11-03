@@ -21,6 +21,8 @@ import type {
   V4ConversationPlansResult,
   V4ExternalAgentProbeParams,
   V4ExternalAgentProbeResult,
+  V4ExternalAgentSessionsParams,
+  V4ExternalAgentSessionsResult,
   V4ConversationRowsRangeParams,
   V4ConversationRowsRangeResult,
   V4ConversationWorkflowRunArtifactDataParams,
@@ -75,6 +77,13 @@ export interface ConversationTransport {
    * 只读、无状态；旧 CLI 不支持时抛错，调用方降级为手填表单。
    */
   externalAgentProbe(params: V4ExternalAgentProbeParams): Promise<V4ExternalAgentProbeResult>;
+  /**
+   * v4/externalAgent/sessions：绑定的外部 CLI 的历史会话列表（续接选择菜单）。
+   * 只读、无状态；目录不存在返回空数组，旧 CLI 不支持时抛错（调用方隐藏入口）。
+   */
+  externalAgentSessions(
+    params: V4ExternalAgentSessionsParams,
+  ): Promise<V4ExternalAgentSessionsResult>;
   /** v4/conversation/workflowRunEvents：workflow run 的事件日志分页（cursor = journal sequence）。 */
   workflowRunEvents(
     params: V4ConversationWorkflowRunEventsParams,

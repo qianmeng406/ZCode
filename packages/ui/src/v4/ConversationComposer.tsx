@@ -69,6 +69,7 @@ import type {
   AttachmentRef,
   ConversationSnapshot,
   SessionConfigState,
+  V4ExternalAgentSessionsResult,
 } from "@zcode/shared/zcode-protocol-v4";
 import {
   ArrowUpIcon,
@@ -570,6 +571,13 @@ export interface ConversationComposerProps {
    * 与换模型分开：合法值域随 CLI 不同（claude 无 minimal、codebuddy 有）。
    */
   onChangeExternalAgentEffort?: (effort: string | null) => Promise<void>;
+  /**
+   * 切换续接的外部会话（null = 清除，回到每次委派开新会话）。
+   * 与换模型同构：只改 externalSessionId，不动只读契约。
+   */
+  onChangeExternalAgentSession?: (sessionId: string | null) => Promise<void>;
+  /** 拉取绑定的外部 CLI 的历史会话列表；缺席 = 不显示会话子菜单。 */
+  onLoadExternalAgentSessions?: () => Promise<V4ExternalAgentSessionsResult>;
   /** 本机探测到的外部 agent 列表；null/缺席 = 探测不可用（对话框退回手填）。 */
   externalAgentProbe?: ExternalAgentPresetStatus[] | null;
   /** 是否正在探测（对话框里显示 loading）。 */
@@ -706,6 +714,8 @@ function ConversationComposerImpl({
   onBindExternalAgent,
   onChangeExternalAgentModel,
   onChangeExternalAgentEffort,
+  onChangeExternalAgentSession,
+  onLoadExternalAgentSessions,
   externalAgentProbe,
   externalAgentProbing,
   onReprobeExternalAgents,
@@ -3108,6 +3118,9 @@ function ConversationComposerImpl({
     [snapshot?.externalAgent?.effortLevels],
   );
 
+  // 会话子菜单的数据由徽标在展开时拉取（onOpenSessions 回调），composer 只转发；
+  // 列表落在执行机上（远程会话的 CLI 历史在远端），缺席 = 不显示会话入口。
+  const externalAgentSessionsLoader = onLoadExternalAgentSessions;
   // 左下：模式选择 + CUA 入口 + 当前 session 后台任务入口。followupMode 由 app 设置页同步到 CLI，
   // 不在 composer 暴露局部开关；后台入口只消费同一 snapshot，不维护第二份任务状态。
   const leadingActionsNode = useMemo(
@@ -3132,6 +3145,12 @@ function ConversationComposerImpl({
             onUnbind={onUnbindExternalAgent}
             onChangeModel={onChangeExternalAgentModel}
             onChangeEffort={onChangeExternalAgentEffort}
+            {...(onChangeExternalAgentSession
+              ? { onChangeSession: onChangeExternalAgentSession }
+              : {})}
+            {...(externalAgentSessionsLoader
+              ? { onLoadSessions: externalAgentSessionsLoader }
+              : {})}
             effortOptions={externalAgentEffortOptions}
             modelOptions={externalAgentModelOptions}
           />

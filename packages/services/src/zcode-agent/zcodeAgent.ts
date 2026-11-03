@@ -120,6 +120,7 @@ import type {
   V4ConversationInputPredictionResult,
   V4ConversationPlansResult,
   V4ExternalAgentProbeResult,
+  V4ExternalAgentSessionsResult,
   V4ConversationWorkflowRunEventsResult,
   V4ConversationWorkflowRunArtifactDataResult,
   V4ConversationWorkflowRunArtifactReadResult,
@@ -1040,6 +1041,10 @@ export interface IZCodeAgentService {
   externalAgentProbeV4(
     params: ZCodeAgentExternalAgentProbeParams,
   ): Promise<V4ExternalAgentProbeResult>;
+  /** 外部 CLI 的历史会话列表（续接选择菜单）；与 probe 同族只读查询。 */
+  externalAgentSessionsV4(
+    params: ZCodeAgentExternalAgentProbeParams,
+  ): Promise<V4ExternalAgentSessionsResult>;
   /** 输入预测：只读、无状态；Host 开关关闭 / 无运行时 / 失败一律回空结果，不抛错。 */
   conversationInputPredictionV4(
     params: ZCodeAgentConversationInputPredictionParams,

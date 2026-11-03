@@ -25,6 +25,8 @@ export const externalAgentStateSchema = z.object({
    * 由 CLI 侧按"当前模型"解析后下发：档位是模型能力，UI 不该自己拼一张全局表。
    */
   effortLevels: z.array(z.string()).default([]),
+  /** 当前续接的外部会话 id（缺省 = 每次委派由 CLI 开新会话）。 */
+  externalSessionId: z.string().optional(),
   /** 绑定强制开启了只读主控：UI 据此显示只读徽标并禁用模式切换。 */
   readOnly: z.literal(true),
 });

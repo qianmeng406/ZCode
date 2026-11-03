@@ -288,6 +288,8 @@ export const commandPayloadSchemas = {
       effort: z.string().max(40).optional(),
       env: z.record(z.string(), z.string()).optional(),
       timeoutMs: z.number().int().positive().max(3_600_000).optional(),
+      /** 绑定时指定的外部会话 id（续接从它开始；缺省 = 由 CLI 开新会话）。 */
+      externalSessionId: z.string().max(200).optional(),
     })
     .strict(),
   // 解绑：恢复绑定时被覆盖的 plan 状态。
@@ -298,6 +300,9 @@ export const commandPayloadSchemas = {
   // 切换推理档位。与换模型同构，但独立成命令：两者互不依赖，
   // 且档位是**模型能力**——值域随模型变化，命令只落"当前模型这一档"。
   setExternalAgentEffort: z.object({ effort: z.string().max(40).nullable() }).strict(),
+  // 切换续接的外部会话（null = 清除，回到"每次委派开新会话"）。
+  // 与换模型同构：只改 externalSessionId 字段，不动只读契约、授权与 previous* 快照。
+  setExternalAgentSession: z.object({ sessionId: z.string().max(200).nullable() }).strict(),
   pauseGoal: z.object({}),
   resumeGoal: z.object({}),
   // 删除当前会话目标：幂等清空 target，不携 baseRevision（同 deleteSession 的控制面语义）。
@@ -367,6 +372,7 @@ export const COMMANDS_REQUIRING_BASE_REVISION: ReadonlySet<CommandType> = new Se
   "unbindExternalAgent",
   "setExternalAgentModel",
   "setExternalAgentEffort",
+  "setExternalAgentSession",
   "setFollowupMode",
   "pauseGoal",
   "resumeGoal",

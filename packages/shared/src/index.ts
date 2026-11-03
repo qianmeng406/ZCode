@@ -390,6 +390,7 @@ export * from "./sessionExecutionEnvironment.js";
 export * from "./externalAgentBinding.js";
 export * from "./externalAgentStream.js";
 export * from "./externalAgentCatalog.js";
+export * from "./externalAgentSessions.js";
 export * from "./sessionExecutionWire.js";
 export * from "./sessionExecutionOperations.js";
 export * from "./conversation-share-tool-presentation.js";

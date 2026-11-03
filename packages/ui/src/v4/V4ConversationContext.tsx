@@ -18,6 +18,8 @@ import type {
   V4ConversationFileRewindPreviewResult,
   V4ExternalAgentProbeParams,
   V4ExternalAgentProbeResult,
+  V4ExternalAgentSessionsParams,
+  V4ExternalAgentSessionsResult,
   V4ConversationWorkflowRunArtifactDataParams,
   V4ConversationWorkflowRunArtifactDataResult,
   V4ConversationWorkflowRunArtifactReadParams,
@@ -61,6 +63,10 @@ export interface V4ConversationContextValue {
   ): Promise<V4ConversationFileRewindPreviewResult>;
   /** 外部 coding agent 的绑定候选探测：本机装了哪些已适配 CLI、各自能用哪些模型。 */
   externalAgentProbe(params: V4ExternalAgentProbeParams): Promise<V4ExternalAgentProbeResult>;
+  /** 外部 CLI 的历史会话列表（续接选择菜单）；与 probe 同族只读查询。 */
+  externalAgentSessions(
+    params: V4ExternalAgentSessionsParams,
+  ): Promise<V4ExternalAgentSessionsResult>;
   /** workflow run 事件日志分页（详情页审计面）；只读、无状态、超时重发安全。 */
   workflowRunEvents(
     params: V4ConversationWorkflowRunEventsParams,
@@ -185,6 +191,8 @@ function ReadyV4ConversationProvider({
         transport.fileRewindPreview(params),
       externalAgentProbe: (params: V4ExternalAgentProbeParams) =>
         transport.externalAgentProbe(params),
+      externalAgentSessions: (params: V4ExternalAgentSessionsParams) =>
+        transport.externalAgentSessions(params),
       workflowRunEvents: (params: V4ConversationWorkflowRunEventsParams) =>
         transport.workflowRunEvents(params),
       workflowRunArtifacts: (params: V4ConversationWorkflowRunArtifactsParams) =>
@@ -380,6 +388,8 @@ function ReadyV4PaneConversationProvider({
           lease.transport.fileRewindPreview(params),
         externalAgentProbe: (params: V4ExternalAgentProbeParams) =>
           lease.transport.externalAgentProbe(params),
+        externalAgentSessions: (params: V4ExternalAgentSessionsParams) =>
+          lease.transport.externalAgentSessions(params),
         workflowRunEvents: (params: V4ConversationWorkflowRunEventsParams) =>
           lease.transport.workflowRunEvents(params),
         workflowRunArtifacts: (params: V4ConversationWorkflowRunArtifactsParams) =>
