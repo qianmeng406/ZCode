@@ -308,30 +308,48 @@ export async function listExternalAgentSessions(options: {
   limit?: number;
 }): Promise<ExternalAgentSessionSummary[]> {
   const limit = options.limit ?? 30;
-  const script = [
-    "const fs=require('fs'),path=require('path'),os=require('os');",
-    `const dir=path.join(os.homedir(),'.codebuddy','projects',${JSON.stringify(cwdToProjectDirName(options.cwd))});`,
-    "let files=[];",
-    "try{files=fs.readdirSync(dir).filter(f=>f.endsWith('.jsonl'));}catch{process.exit(0);}",
-    "const stats=files.map(f=>{try{return {f,m:fs.statSync(path.join(dir,f)).mtimeMs};}catch{return null;}}).filter(Boolean);",
-    "stats.sort((a,b)=>b.m-a.m);",
-    "for(const {f,m} of stats.slice(0,60)){",
-    "  let content='';",
-    "  try{content=fs.readFileSync(path.join(dir,f),'utf8');}catch{continue;}",
-    // \x00 分隔：JSONL 正文里不会出现 NUL，宿主侧切分安全。
-    "  process.stdout.write('\u0000FILE\u0000'+f+'\u0000'+m+'\u0000'+content.replace(/\u0000/g,'')+'\u0000END\u0000');",
-    "}",
-  ].join("");
   const read = await probeCommand(
     options.executionPort,
     "node",
-    ["-e", script],
+    ["-e", buildExternalAgentSessionsScript(options.cwd)],
     options.cwd,
     { maxInlineBytes: 8_000_000, maxBufferBytes: 8_000_000 },
   );
   if (!read.ok || !read.stdout.trim()) return [];
+  return parseExternalAgentSessionsProbe(read.stdout).slice(0, limit);
+}
+
+/**
+ * 探测脚本源码。
+ *
+ * 分隔符必须用 `String.fromCharCode(0)` 现算，**不能**把 `\u0000` 写进脚本字面量：
+ * argv 里的字面量 NUL 会让 spawn 直接抛 `ERR_INVALID_ARG_VALUE`（Windows 上尤其
+ * 明显，因为命令行是单字符串），整条探测静默返回空列表——会话列表永远是空的。
+ * 输出流里用 NUL 分隔仍然安全（JSONL 正文不会出现裸 NUL）。
+ */
+export function buildExternalAgentSessionsScript(cwd: string): string {
+  return [
+    "const fs=require('fs'),path=require('path'),os=require('os');",
+    `const dir=path.join(os.homedir(),'.codebuddy','projects',${JSON.stringify(cwdToProjectDirName(cwd))});`,
+    "let files=[];",
+    "try{files=fs.readdirSync(dir).filter(f=>f.endsWith('.jsonl'));}catch{process.exit(0);}",
+    "const stats=files.map(f=>{try{return {f,m:fs.statSync(path.join(dir,f)).mtimeMs};}catch{return null;}}).filter(Boolean);",
+    "stats.sort((a,b)=>b.m-a.m);",
+    "const NUL=String.fromCharCode(0);",
+    "for(const {f,m} of stats.slice(0,60)){",
+    "  let content='';",
+    "  try{content=fs.readFileSync(path.join(dir,f),'utf8');}catch{continue;}",
+    "  process.stdout.write(NUL+'FILE'+NUL+f+NUL+m+NUL+content.split(NUL).join('')+NUL+'END'+NUL);",
+    "}",
+  ].join("");
+}
+
+/** 宿主侧解析探测输出（与 `buildExternalAgentSessionsScript` 的线格式配对）。 */
+export function parseExternalAgentSessionsProbe(
+  stdout: string,
+): ExternalAgentSessionSummary[] {
   const summaries: ExternalAgentSessionSummary[] = [];
-  for (const block of read.stdout.split("\u0000END\u0000")) {
+  for (const block of stdout.split("\u0000END\u0000")) {
     const parts = block.split("\u0000FILE\u0000");
     if (parts.length < 2) continue;
     const rest = parts[1]!.split("\u0000");
@@ -346,7 +364,5 @@ export async function listExternalAgentSessions(options: {
     );
     if (summary) summaries.push(summary);
   }
-  return summaries
-    .sort((left, right) => right.updatedAt - left.updatedAt)
-    .slice(0, limit);
+  return summaries.sort((left, right) => right.updatedAt - left.updatedAt);
 }

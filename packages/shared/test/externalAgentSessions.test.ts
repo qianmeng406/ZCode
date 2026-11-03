@@ -12,6 +12,10 @@ test("cwdToProjectDirName: 盘符冒号丢弃、分隔符换成 - 且去掉首�
   assert.equal(cwdToProjectDirName("c:\\trailing\\"), "c-trailing");
 });
 
+test("cwdToProjectDirName: 盘符大小写归一（CLI 落盘用小写盘符）", () => {
+  assert.equal(cwdToProjectDirName("C:\\Users\\q\\Desktop\\agent"), "c-Users-q-Desktop-agent");
+});
+
 test("扫描：summary 优先于 ai-title，sessionId 取 meta 里的（可能与文件名不同）", () => {
   const summary = scanClaudeFamilySessionFile(
     [

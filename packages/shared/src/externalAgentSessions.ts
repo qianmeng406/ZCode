@@ -32,10 +32,15 @@ export const MAX_EXTERNAL_AGENT_SESSIONS = 30;
 
 /** cwd → CLI 的 projects 目录名：分隔符换成 `-`，Windows 盘符冒号丢弃（`c:\x` → `c-x`）。 */
 export function cwdToProjectDirName(cwd: string): string {
-  return cwd
-    .replace(/:/g, "")
-    .replace(/[\\/]+/g, "-")
-    .replace(/^-+|-+$/g, "");
+  return (
+    cwd
+      // CLI 落盘时盘符是小写（实测 `c:\Users\...` → `c-Users-...`），而 Windows 传进来的
+      // cwd 通常是 `C:\Users\...`。不归一就指向一个不存在的目录，整个会话列表静默为空。
+      .replace(/^([A-Za-z]):/, (_match, drive: string) => `${drive.toLowerCase()}:`)
+      .replace(/:/g, "")
+      .replace(/[\\/]+/g, "-")
+      .replace(/^-+|-+$/g, "")
+  );
 }
 
 /**
