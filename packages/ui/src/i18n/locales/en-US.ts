@@ -5196,6 +5196,7 @@ const enUS: Record<string, string> = {
   "chat.planUsage.providerFallback": "Current provider",
   "chat.planUsage.open": "Details",
   // External agent binding: the session is read-only; the badge is the only way out.
+  "chat.externalAgent.activity.thinking": "Thinking…",
   "chat.externalAgent.activity.running": "Running",
   "chat.externalAgent.activity.completed": "Completed",
   "chat.externalAgent.activity.failed": "Failed",

@@ -4886,6 +4886,7 @@ const zhCN: Record<string, string> = {
   "chat.planUsage.providerFallback": "当前供应商",
   "chat.planUsage.open": "详情",
   // 外部 agent 绑定：会话处于只读主控，徽标是唯一的退出入口。
+  "chat.externalAgent.activity.thinking": "思考中…",
   "chat.externalAgent.activity.running": "运行中",
   "chat.externalAgent.activity.completed": "已完成",
   "chat.externalAgent.activity.failed": "执行失败",

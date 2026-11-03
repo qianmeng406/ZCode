@@ -47,7 +47,10 @@ export function ExternalAgentActivityCard({ activity, onDismiss }: ExternalAgent
   // 结构化条目优先（思考/正文/工具）；只有纯文本 tail 时才退回按行切分。
   const entries = useMemo(() => {
     if (activity.entries && activity.entries.length > 0) {
-      return activity.entries.filter((entry) => entry.text.trim().length > 0);
+      // 空思考条目不丢弃：它是“正在思考”的标记（CLI 不下发思考正文）。
+      return activity.entries.filter(
+        (entry) => entry.text.trim().length > 0 || entry.kind === "reasoning",
+      );
     }
     return (activity.tail ?? "")
       .split(/\r?\n/u)
@@ -160,6 +163,12 @@ export function ExternalAgentActivityCard({ activity, onDismiss }: ExternalAgent
                 >
                   <span className="shrink-0 text-primary">▸</span>
                   <span className="min-w-0 break-all">{entry.text}</span>
+                </div>
+              ) : entry.kind === "reasoning" && !entry.text.trim() ? (
+                // codebuddy 不下发思考正文（事件有、内容空）：只呈现“正在思考”。
+                <div className="flex items-center gap-1.5 pl-2 border-l-2 border-border text-ui-xs italic text-foreground-subtle">
+                  <span className="inline-flex size-1.5 animate-pulse rounded-full bg-foreground-subtle" />
+                  {intl.formatMessage({ id: "chat.externalAgent.activity.thinking" })}
                 </div>
               ) : (
                 <MessageResponse

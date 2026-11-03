@@ -78,7 +78,14 @@ export function createExternalAgentActivityReporter(
   /** 追加条目：相邻同类合并（text/reasoning 的增量），并裁剪过旧内容。 */
   const appendEntries = (incoming: ActivityEntry[]) => {
     for (const entry of incoming) {
-      if (!entry.text) continue;
+      if (!entry.text) {
+        // 空思考 = “已经开始思考但内容被 CLI 抹掉”的标记：只保留一个。
+        if (entry.kind !== "reasoning") continue;
+        const last = entries.at(-1);
+        if (last && last.kind === "reasoning" && !last.text) continue;
+        entries.push({ ...entry });
+        continue;
+      }
       const last = entries.at(-1);
       if (last && last.kind === entry.kind && entry.kind !== "tool") {
         last.text += entry.text;

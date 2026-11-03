@@ -47,9 +47,17 @@ export function createClaudeStreamParser(): ClaudeStreamParser {
 
     // 增量事件：思考与正文都实时到。
     if (record.type === "stream_event" && record.event && typeof record.event === "object") {
-      const event = record.event as { type?: unknown; delta?: unknown };
+      const event = record.event as { type?: unknown; delta?: unknown; content_block?: unknown };
+      // 思考块开始：codebuddy 会发 content_block_start 但后续 delta 内容是空的
+      // （实测 --verbose 也一样）。空文本条目作为“正在思考”的信号给 UI。
+      if (event.type === "content_block_start") {
+        const block = event.content_block as { type?: unknown } | undefined;
+        return block?.type === "thinking" ? [{ kind: "reasoning", text: "" }] : [];
+      }
       if (event.type !== "content_block_delta" || !event.delta || typeof event.delta !== "object")
         return [];
+      // thinking 内容在 codebuddy 里恒为空串（CLI 只下发事件与签名）；
+      // 这里仍按内容产出，非空时才有文本。
       const delta = event.delta as { type?: unknown; thinking?: unknown; text?: unknown };
       if (delta.type === "thinking_delta" && typeof delta.thinking === "string" && delta.thinking) {
         sawThinkingDelta = true;
