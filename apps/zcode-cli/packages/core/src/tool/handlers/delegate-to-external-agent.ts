@@ -64,14 +64,20 @@ const handler: ToolHandler = async (input, context) => {
     cwd: context.workspaceRoot ?? context.workingDirectory,
     abortSignal: context.abortSignal,
     ...(context.traceContext ? { trace: context.traceContext as TraceContext } : {}),
-    onOutput: async (chunk) => {
+    onOutput: (chunk) => {
       // 外部 agent 的输出按工具进度事件回传，用户能实时看到它在做什么。
-      await context.emitEvent?.({
-        type: "tool_call_progress",
-        sessionId: context.sessionId,
-        toolCallId: context.toolCallId,
-        payload: { text: chunk.text, stream: chunk.stream },
-      } as never);
+      //
+      // 刻意不 await：进度只是展示。会话被切走/释放时事件写入可能长时间挂起，
+      // await 会把整个工具卡在"执行中"（外部进程早已退出，用户却只能等超时）。
+      // 进度丢了不影响结果，结果本身走后继的返回值。
+      void Promise.resolve(
+        context.emitEvent?.({
+          type: "tool_call_progress",
+          sessionId: context.sessionId,
+          toolCallId: context.toolCallId,
+          payload: { text: chunk.text, stream: chunk.stream },
+        } as never),
+      ).catch(() => undefined);
     },
   });
 

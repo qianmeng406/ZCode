@@ -78,8 +78,10 @@ export function createOneShotExternalAgentDriver(input: {
       const stdoutView = readStreamOutput(result, "stdout");
       const rawStdout = stdoutView.text;
       const stderr = extractStreamText(result, "stderr");
-      if (stderr.trim()) runInput.onOutput?.({ stream: "stderr", text: stderr });
-      if (rawStdout) runInput.onOutput?.({ stream: "stdout", text: rawStdout });
+      // 进度事件只用于展示：stderr 全量、stdout 只给尾部，避免把整份 JSON
+      // （可能需要几 MB）塞进一条工具进度事件。
+      if (stderr.trim()) runInput.onOutput?.({ stream: "stderr", text: clipProgress(stderr) });
+      if (rawStdout) runInput.onOutput?.({ stream: "stdout", text: clipProgress(rawStdout) });
 
       const parsed = parseExternalAgentResult(binding, rawStdout);
       // 解析不出正文时不能静默返回空串：至少要给出证据（字节数/落盘位置），
@@ -167,4 +169,11 @@ function describeMissingOutput(view: StreamOutputView): string {
   if (view.bytes !== undefined) parts.push(`stdout 共 ${view.bytes} 字节`);
   if (view.artifactPath) parts.push(`原始输出已落盘：${view.artifactPath}`);
   return parts.join("；");
+}
+
+/** 进度事件里最多带这么多字符（尾部，保留最后状态行）。 */
+const PROGRESS_CLIP_CHARS = 8_000;
+
+function clipProgress(text: string): string {
+  return text.length <= PROGRESS_CLIP_CHARS ? text : text.slice(-PROGRESS_CLIP_CHARS);
 }
