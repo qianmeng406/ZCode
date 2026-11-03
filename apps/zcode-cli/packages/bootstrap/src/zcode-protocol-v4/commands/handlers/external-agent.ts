@@ -202,7 +202,7 @@ function fallbackEffortPreset(binding: ExternalAgentBinding): ExternalAgentPrese
  * 逐模型事实；探测不可用时才退回预设的静态兜底表。每条绑定事件的档位候选都走这里，
  * 保证 UI 看到的候选与实际能用的集合一致。
  */
-async function resolveEffortLevelsForBinding(
+export async function resolveEffortLevelsForBinding(
   record: V4SessionRecordView,
   binding: ExternalAgentBinding,
 ): Promise<string[]> {
@@ -218,7 +218,7 @@ async function resolveEffortLevelsForBinding(
 }
 
 /** 发一条 ExternalAgentBindingChanged：payload 只带 UI 需要的事实。 */
-async function publishBindingChanged(
+export async function publishBindingChanged(
   record: V4SessionRecordView,
   binding: ExternalAgentBinding | null,
   effortLevels: string[] = [],

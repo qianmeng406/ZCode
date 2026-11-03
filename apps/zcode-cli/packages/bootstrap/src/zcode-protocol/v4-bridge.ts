@@ -101,6 +101,12 @@ import { HYDRATION_TRACE_ID } from "../zcode-protocol-v4/projection-state.js";
 import { cloneModelSelection, derivedSessionModelSelection } from "./fork-model-selection.js";
 import { resolveWorkspaceRefFromId } from "./mapper.js";
 import { readSessionExternalAgent } from "./session-external-agent.js";
+// bridge 已经通过 V4CommandExecutor 拉进 handlers 注册表，这里直接复用同一组事件
+// 构造工具，保证"绑定命令发出的事件"与"冷恢复补发的事件"永远同形。
+import {
+  publishBindingChanged,
+  resolveEffortLevelsForBinding,
+} from "../zcode-protocol-v4/commands/handlers/external-agent.js";
 import { buildLiveWorkspaceConfigStateV4 } from "./v4-workspace-config.js";
 import {
   hasSessionModelProvider,
@@ -912,11 +918,15 @@ export function createConversationV4Gateway(
   const timerLoggingEnabledFor = (sessionId: string, retryCount: number): boolean =>
     retryCount <= 5 || (retryCount > 50 && (retryCount - 50) % 50 === 0);
   /**
-   * 冷恢复后把「只读主控」重新对齐到 runtime。
+   * 冷恢复后把「只读主控」重新对齐到 runtime 与投影。
    *
-   * 锁是运行期事实（core.internal.externalAgentReadOnly），不会随 session entry 复活。
-   * 少了这一步，重启一次「已绑定 + 只读」的会话就变成「已绑定但可写」——绑定还在、
-   * 委派还能用，但主会话可以自己改文件，整个只读契约静默失效。
+   * 两件事都必须做，缺一不可：
+   * 1. 锁是运行期事实（core.internal.externalAgentReadOnly），不会随 session entry 复活——
+   *    不装锁，重启一次「已绑定 + 只读」就变成「已绑定但可写」，只读契约静默失效。
+   * 2. 投影也不知道绑定——binding 只存在 session entry 里，不是事件。不补发
+   *    ExternalAgentBindingChanged，UI 重启后显示"未绑定 + 完全访问"，但 runtime
+   *    仍然是只读：点绑定被判"已绑定"拒绝、发消息被只读锁拦下（命令已 ACK、turn
+   *    静默死亡）。补发后徽标与协作模式都和真实状态一致。
    *
    * 读绑定失败按未绑定处理（与 readSessionExternalAgent 的既有语义一致）：宁可放开
    * 只读，也不能把一个读不出配置的会话永久锁死。
@@ -929,6 +939,21 @@ export function createConversationV4Gateway(
       sessionStore: context.deps.sessionStore,
     });
     record.app.runtime.setExternalAgentReadOnly(binding !== undefined);
+    if (!binding) return;
+    // 执行状态对齐到只读 plan：持久化的 mode 可能停在 yolo/build（绑定时只改了
+    // 运行期状态，那次进入 plan 事件未必早于崩溃）。带着锁这里只能写"仍是只读"。
+    if (!record.app.runtime.getPlanEnabled()) {
+      await record.app.runtime.setExecutionState(
+        { mode: "plan", planEnabled: true },
+        record.traceContext,
+      );
+    }
+    // 投影补发：用与绑定命令同一条事件，UI 据此恢复徽标、模型与档位候选。
+    await publishBindingChanged(
+      record as never,
+      binding,
+      await resolveEffortLevelsForBinding(record as never, binding),
+    );
   };
   const coreHost: V4CommandCoreHost = {
     // 同一注册表对象引用：view 是旧 record 的结构化窄视图，字段变更双向可见。
