@@ -107,6 +107,7 @@ import {
 import { resolveBuiltInNodeReplMcpServers } from "./built-in-node-repl.js";
 import { resolveZCodeCustomCommandPrompt } from "../custom-command-prompt.js";
 import { createSessionExternalAgentPort } from "../zcode-protocol/external-agent-port-impl.js";
+import { persistSessionExternalAgent } from "../zcode-protocol/session-external-agent.js";
 import { resolveZCodeBuiltinPromptCommandInvocation } from "../builtin-prompt-command.js";
 import { BUILTIN_WORKFLOW_COMMAND_NAME } from "../builtin-workflow-command.js";
 import { collectDisabledPaths } from "../skill-command-overrides.js";
@@ -495,6 +496,17 @@ export async function createZCodeApp(options: ZCodeAppOptions): Promise<ZCodeApp
     const externalAgentPort = createSessionExternalAgentPort({
       executionPort,
       sessionStore,
+      // 续接靠把 CLI 自报的会话 id 写回绑定；写失败只影响"下次是否续接"。
+      updateBinding: async (sessionId, binding) => {
+        await persistSessionExternalAgent({
+          sessionId,
+          sessionStore,
+          binding,
+          ...(logger
+            ? { logger: { warn: (message, context) => logger.warn(message, context) } }
+            : {}),
+        });
+      },
       logger,
     });
     // browser-use 控制端口：仅当宿主（desktop）注入时可用，无本地 fallback（纯 CLI 无浏览器底座）。

@@ -61,6 +61,13 @@ export const externalAgentBindingSchema = z
     effortsByModel: z.record(z.string().max(200), z.string().max(40)).optional(),
     /** 额外环境变量（如 CODEBUDDY_FORCE_LITE_WB_BUNDLE）。 */
     env: z.record(z.string(), z.string()).optional(),
+    /**
+     * 上次委派的外部会话 id（CLI 自报，如 codebuddy 的 session_id）。
+     *
+     * 续接靠它：下次委派带上 `-r <id>`，外部 agent 就能接着上一轮的上下文干活
+     * （"接着刚才的改"）。恢复失败（会话过期/被清理）时 CLI 自己开新会话，不阻塞。
+     */
+    externalSessionId: z.string().max(200).optional(),
     /** 单次委派的超时（ms）；缺省由调用方兜底。 */
     timeoutMs: z.number().int().positive().max(3_600_000).optional(),
     /** 绑定时被覆盖的 plan 状态，解绑时据此恢复。 */
@@ -118,6 +125,7 @@ function resolveEffortArgs(binding: ExternalAgentBinding): string[] {
 export function buildExternalAgentInvocation(
   binding: ExternalAgentBinding,
   prompt: string,
+  options?: { continuation?: "auto" | "fresh" },
 ): { command: string; args: string[]; stdin?: string } {
   if (binding.driver === "claude-family") {
     const base = binding.args.length > 0 ? binding.args : [...CLAUDE_FAMILY_DEFAULT_ARGS];
@@ -131,6 +139,11 @@ export function buildExternalAgentInvocation(
     const permissionMode =
       findExternalAgentPreset(binding.presetId)?.permissionMode ?? binding.permissionMode;
     if (permissionMode) args.push("--permission-mode", permissionMode);
+    // 续接上一轮外部会话：`-r <id>` 让两次委派共享上下文（CLI 自己起不到会话时
+    // 会自动开新的，不阻塞本次任务）。
+    if (options?.continuation !== "fresh" && binding.externalSessionId) {
+      args.push("-r", binding.externalSessionId);
+    }
     if (binding.promptDelivery === "stdin")
       return { command: binding.command, args, stdin: prompt };
     // argv-append / template 在 family 族里都落到末尾追加 prompt。
@@ -199,13 +212,15 @@ export function withModelEffort(
 export function parseExternalAgentResult(
   binding: ExternalAgentBinding,
   stdout: string,
-): { text: string; isError: boolean } {
+): { text: string; isError: boolean; sessionId?: string } {
   if (binding.driver !== "claude-family") return { text: stdout, isError: false };
   try {
     const parsed: unknown = JSON.parse(stdout);
     if (!Array.isArray(parsed)) return { text: stdout, isError: false };
     const result = parsed.find(
-      (entry): entry is { type: string; result?: unknown; is_error?: unknown } =>
+      (
+        entry,
+      ): entry is { type: string; result?: unknown; is_error?: unknown; session_id?: unknown } =>
         !!entry && typeof entry === "object" && (entry as { type?: unknown }).type === "result",
     );
     if (!result) return { text: stdout, isError: false };
@@ -214,7 +229,16 @@ export function parseExternalAgentResult(
     // 有些版本会给出空的 result 但消息数组里有 assistant 正文：退到最后一轮
     // assistant 的 output_text，别把"有回答但没装进 result 字段"当成空回答。
     const text = body.trim().length > 0 ? body : lastAssistantText(parsed);
-    return { text, isError: result.is_error === true };
+    // session_id 是下一轮 `-r` 续接的凭据；CLI 没给就缺席（重开会话）。
+    const sessionId =
+      typeof result.session_id === "string" && result.session_id.length > 0
+        ? result.session_id
+        : undefined;
+    return {
+      text,
+      isError: result.is_error === true,
+      ...(sessionId ? { sessionId } : {}),
+    };
   } catch {
     return { text: stdout, isError: false };
   }

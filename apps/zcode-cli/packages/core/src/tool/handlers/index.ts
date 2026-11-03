@@ -61,6 +61,14 @@ import {
   DELEGATE_TO_EXTERNAL_AGENT_TOOL_NAME,
   delegateToExternalAgentToolEntry,
 } from "./delegate-to-external-agent.js";
+import {
+  START_EXTERNAL_AGENT_TASK_TOOL_NAME,
+  startExternalAgentTaskToolEntry,
+  GET_EXTERNAL_AGENT_TASK_TOOL_NAME,
+  getExternalAgentTaskResultToolEntry,
+  CANCEL_EXTERNAL_AGENT_TASK_TOOL_NAME,
+  cancelExternalAgentTaskToolEntry,
+} from "./external-agent-tasks.js";
 import { createSubmitResultToolEntry, submitResultToolEntry } from "./submit-result.js";
 import { escalateToolEntry } from "./escalate.js";
 import { resolveWorkflowQuestionToolEntry } from "./resolve-workflow-question.js";
@@ -117,6 +125,9 @@ export const builtInTools: ToolEntry[] = [
   sendMessageToolEntry,
   respondToCoordinatorToolEntry,
   delegateToExternalAgentToolEntry,
+  startExternalAgentTaskToolEntry,
+  getExternalAgentTaskResultToolEntry,
+  cancelExternalAgentTaskToolEntry,
   submitResultToolEntry,
   // actor 的升级通道。与 submit_result 完全同构：
   // 端口在场即注册（includeEscalate），`tools:"none"` 下由 workflow_child 的 allowlist
@@ -330,7 +341,7 @@ export function registerBuiltInTools(
     }
     // 委派工具只在真的绑定了外部 agent 的会话里注册（理由见 includeExternalAgent 的说明）。
     if (
-      entry.metadata.name === DELEGATE_TO_EXTERNAL_AGENT_TOOL_NAME &&
+      EXTERNAL_AGENT_TOOL_NAMES.has(entry.metadata.name) &&
       options.includeExternalAgent !== true
     ) {
       continue;
@@ -340,6 +351,14 @@ export function registerBuiltInTools(
     });
   }
 }
+
+/** 绑定外部 agent 后才注册的工具集合（同步委派 + 后台任务三件套）。 */
+const EXTERNAL_AGENT_TOOL_NAMES = new Set<string>([
+  DELEGATE_TO_EXTERNAL_AGENT_TOOL_NAME,
+  START_EXTERNAL_AGENT_TASK_TOOL_NAME,
+  GET_EXTERNAL_AGENT_TASK_TOOL_NAME,
+  CANCEL_EXTERNAL_AGENT_TASK_TOOL_NAME,
+]);
 
 function resolveBuiltInToolEntryForBranch(
   entry: ToolEntry,

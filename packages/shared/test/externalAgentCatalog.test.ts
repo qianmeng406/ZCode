@@ -492,3 +492,37 @@ test("parseExternalAgentResult: 非 JSON / 非数组退回原文，不抛", () =
     isError: false,
   });
 });
+
+test("parseExternalAgentResult: 带回 session_id 供下一轮续接", () => {
+  const binding = externalAgentBindingSchema.parse({
+    label: "CodeBuddy",
+    driver: "claude-family",
+    command: "codebuddy",
+    args: ["-p", "--output-format", "json"],
+    promptDelivery: "argv-append",
+  });
+  const stdout = JSON.stringify([
+    { type: "result", subtype: "success", is_error: false, result: "ok", session_id: "sess-123" },
+  ]);
+  assert.deepEqual(parseExternalAgentResult(binding, stdout), {
+    text: "ok",
+    isError: false,
+    sessionId: "sess-123",
+  });
+});
+
+test("buildExternalAgentInvocation: 有 externalSessionId 时续接，fresh 时不带 -r", () => {
+  const binding = externalAgentBindingSchema.parse({
+    label: "CodeBuddy",
+    driver: "claude-family",
+    command: "codebuddy",
+    args: ["-p", "--output-format", "json"],
+    promptDelivery: "argv-append",
+    externalSessionId: "sess-123",
+  });
+  const continued = buildExternalAgentInvocation(binding, "继续");
+  assert.deepEqual(continued.args.slice(-3), ["-r", "sess-123", "继续"]);
+  const fresh = buildExternalAgentInvocation(binding, "新任务", { continuation: "fresh" });
+  assert.deepEqual(fresh.args.slice(-1), ["新任务"]);
+  assert.ok(!fresh.args.includes("-r"));
+});

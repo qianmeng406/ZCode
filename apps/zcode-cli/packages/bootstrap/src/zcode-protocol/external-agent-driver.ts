@@ -20,12 +20,18 @@ export interface ExternalAgentRunResult {
   exitCode: number;
   isError: boolean;
   durationMs: number;
+  /** 外部会话 id：下一轮 `-r` 续接用。 */
+  externalSessionId?: string;
+  /** 本轮是否带着上一轮的会话续接执行。 */
+  continued: boolean;
 }
 
 export interface ExternalAgentRunInput {
   binding: ExternalAgentBinding;
   prompt: string;
   cwd: string;
+  /** 续接策略：auto（默认，有外部会话就续）/ fresh（强制新会话）。 */
+  continuation?: "auto" | "fresh";
   signal?: AbortSignal;
   /** 输出增量回调（第一期只在结束时给一次全文；PTY 期改为逐块）。 */
   onOutput?: (chunk: { stream: "stdout" | "stderr"; text: string }) => void;
@@ -47,7 +53,8 @@ export function createOneShotExternalAgentDriver(input: {
     kind: "oneshot",
     async run(runInput) {
       const { binding, prompt, cwd } = runInput;
-      const invocation = buildExternalAgentInvocation(binding, prompt);
+      const continuation = runInput.continuation ?? "auto";
+      const invocation = buildExternalAgentInvocation(binding, prompt, { continuation });
       const startedAt = Date.now();
 
       const result = await input.executionPort.run(
@@ -106,6 +113,9 @@ export function createOneShotExternalAgentDriver(input: {
         // （很多 CLI 会把进度写到 stderr）。
         isError: parsed.isError || exitCode !== 0,
         durationMs: Date.now() - startedAt,
+        ...(parsed.sessionId ? { externalSessionId: parsed.sessionId } : {}),
+        // 请求续接且带着 id 才算继续（CLI 起不到旧会话时它自己开新的，语义仍是 fresh）。
+        continued: continuation !== "fresh" && Boolean(binding.externalSessionId),
       };
     },
   };

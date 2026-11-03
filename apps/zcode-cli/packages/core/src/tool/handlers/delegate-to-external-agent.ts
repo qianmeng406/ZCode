@@ -24,6 +24,11 @@ const inputSchema = z
     task: z.string().min(1).max(200_000),
     /** 可选补充：验收标准、约束、相关文件线索。 */
     context: z.string().max(50_000).optional(),
+    /**
+     * 续接策略：auto（默认，有上一轮外部会话就续接）/ fresh（强制新会话）。
+     * 任务与上一轮无关时用 fresh，避免被历史带偏。
+     */
+    continuation: z.enum(["auto", "fresh"]).optional(),
   })
   .strict();
 
@@ -38,8 +43,31 @@ const PROVIDER_OUTPUT_SCHEMA = {
     exitCode: { type: "integer" },
     durationMs: { type: "integer" },
     result: { type: "string" },
+    continued: { type: "boolean" },
+    externalSessionId: { type: "string" },
+    changes: {
+      type: "object",
+      properties: {
+        files: {
+          type: "array",
+          items: {
+            type: "object",
+            properties: {
+              path: { type: "string" },
+              added: { type: "integer" },
+              deleted: { type: "integer" },
+            },
+            required: ["path", "added", "deleted"],
+            additionalProperties: false,
+          },
+        },
+        truncated: { type: "boolean" },
+      },
+      required: ["files", "truncated"],
+      additionalProperties: false,
+    },
   },
-  required: ["agent", "success", "exitCode", "durationMs", "result"],
+  required: ["agent", "success", "exitCode", "durationMs", "result", "continued"],
   additionalProperties: false,
 };
 
@@ -61,6 +89,7 @@ const handler: ToolHandler = async (input, context) => {
     sessionId: context.sessionId,
     task: parsed.task,
     ...(parsed.context ? { context: parsed.context } : {}),
+    ...(parsed.continuation ? { continuation: parsed.continuation } : {}),
     cwd: context.workspaceRoot ?? context.workingDirectory,
     abortSignal: context.abortSignal,
     ...(context.traceContext ? { trace: context.traceContext as TraceContext } : {}),
@@ -95,6 +124,11 @@ const handler: ToolHandler = async (input, context) => {
     exitCode: outcome.exitCode,
     durationMs: outcome.durationMs,
     result: outcome.text,
+    continued: outcome.continued,
+    ...(outcome.externalSessionId ? { externalSessionId: outcome.externalSessionId } : {}),
+    ...(outcome.changes && outcome.changes.files.length > 0
+      ? { changes: outcome.changes }
+      : {}),
   };
 };
 
@@ -110,7 +144,32 @@ function formatModelContent(output: unknown): string {
     ? `外部 agent「${record.agent}」已完成（${record.durationMs}ms，exit ${record.exitCode}）`
     : `外部 agent「${record.agent}」执行失败（${record.durationMs}ms，exit ${record.exitCode}）`;
   const body = (record.result ?? "").trim();
-  return body ? `${header}\n\n${body}` : header;
+  const base = body ? `${header}\n\n${body}` : header;
+  // 变更摘要附在正文后：主 agent 据此判断要不要自己读 diff 复审。
+  const summary = formatChangeSummary(
+    (
+      record as {
+        changes?: {
+          files?: Array<{ path: string; added: number; deleted: number }>;
+          truncated?: boolean;
+        };
+      }
+    ).changes,
+  );
+  return summary ? `${base}\n\n${summary}` : base;
+}
+
+/**
+ * 变更摘要渲染：主 agent 在只读模式下看不到外部 agent 改了什么，这段是它判断
+ * "要不要自己读 diff 复审"的唯一线索。
+ */
+function formatChangeSummary(
+  changes: { files?: Array<{ path: string; added: number; deleted: number }>; truncated?: boolean } | undefined,
+): string {
+  const files = changes?.files ?? [];
+  if (files.length === 0) return "";
+  const lines = files.map((file) => `- ${file.path} +${file.added} -${file.deleted}`);
+  return [`工作区改动（${files.length}${changes?.truncated ? "+" : ""} 个文件）：`, ...lines].join("\n");
 }
 
 export const delegateToExternalAgentToolEntry: ToolEntry = {
@@ -124,6 +183,8 @@ export const delegateToExternalAgentToolEntry: ToolEntry = {
       "Put the complete plan in `task`; the external agent does not see this conversation.",
       "Add `context` for acceptance criteria, constraints, or file hints the executor needs.",
       "The external agent works in its own process. This session stays read-only.",
+      "Delegations continue the previous external session by default; pass continuation=fresh for unrelated work.",
+      "The result includes a workspace change summary when git is available — review the diff yourself if it matters.",
       "Do not use this tool for analysis or exploration — do those yourself with read-only tools.",
     ],
     // 关键：本工具在 plan（只读）模式下必须可用，否则主会话没有任何"出手"通道。
@@ -147,6 +208,11 @@ export const delegateToExternalAgentToolEntry: ToolEntry = {
     properties: {
       task: { type: "string", description: "Complete plan/task for the external agent." },
       context: { type: "string", description: "Optional acceptance criteria or constraints." },
+      continuation: {
+        type: "string",
+        enum: ["auto", "fresh"],
+        description: "auto continues the previous external session; fresh starts a new one.",
+      },
     },
     required: ["task"],
     additionalProperties: false,
@@ -160,6 +226,17 @@ export const delegateToExternalAgentToolEntry: ToolEntry = {
       exitCode: z.number().int(),
       durationMs: z.number().int(),
       result: z.string(),
+      continued: z.boolean(),
+      externalSessionId: z.string().optional(),
+      changes: z
+        .object({
+          files: z.array(
+            z.object({ path: z.string(), added: z.number().int(), deleted: z.number().int() }),
+          ),
+          truncated: z.boolean(),
+          unavailable: z.boolean().optional(),
+        })
+        .optional(),
     })
     .strict(),
   permission: {

@@ -109,6 +109,8 @@ describe("parseExternalAgentResult", () => {
     expect(parseExternalAgentResult(claudeFamily, realOutput)).toEqual({
       text: "2",
       isError: false,
+      // session_id 供下一轮 `-r` 续接。
+      sessionId: "abc",
     });
   });
 
@@ -238,13 +240,102 @@ describe("createExternalAgentPort", () => {
       isError: false,
     });
     // 调用形状：argv 模式 + 末尾追加 prompt。
-    expect(run).toHaveBeenCalledTimes(1);
-    const request = (run.mock.calls[0] as unknown as [Record<string, unknown>])[0];
+    // 端口还会跑 git 汇总变更（cwd 非 git 仓库时也各跑一次），因此按命令过滤。
+    const codebuddyCalls = run.mock.calls.filter(
+      (call) => (call[0] as { command?: { file?: string } }).command?.file === "codebuddy",
+    );
+    expect(codebuddyCalls).toHaveLength(1);
+    const request = (codebuddyCalls[0] as unknown as [Record<string, unknown>])[0];
     expect(request.command).toMatchObject({
       mode: "argv",
       file: "codebuddy",
       args: ["-p", "--output-format", "json", "修 lint"],
     });
     expect(request.cwd).toBe("/tmp");
+  });
+});
+
+describe("外部 agent 续接与后台任务", () => {
+  const stdoutWithSession = (sessionId: string) =>
+    JSON.stringify([{ type: "result", is_error: false, result: "ok", session_id: sessionId }]);
+
+  it("续接：带 -r 执行并写回新的 session id", async () => {
+    const { createExternalAgentPort } =
+      await import("../src/zcode-protocol/external-agent-port-impl.js");
+    const run = vi.fn(async () => ({
+      streams: { stdout: { text: stdoutWithSession("sess-new") }, stderr: { text: "" } },
+      exitCode: 0,
+    }));
+    const updates: Array<{ sessionId: string; externalSessionId?: string }> = [];
+    const port = createExternalAgentPort({
+      executionPort: { run } as never,
+      readBinding: async () => ({ ...claudeFamily, externalSessionId: "sess-old" }),
+      updateBinding: async (sessionId, binding) => {
+        updates.push({ sessionId, externalSessionId: binding.externalSessionId });
+      },
+    });
+    const outcome = await port.delegate({
+      sessionId: "s" as never,
+      task: "继续改",
+      cwd: "/tmp",
+    });
+    expect(outcome).toMatchObject({ kind: "delegated", continued: true });
+    const codebuddyCall = run.mock.calls.find(
+      (call) => (call[0] as { command?: { file?: string } }).command?.file === "codebuddy",
+    )!;
+    expect((codebuddyCall[0] as { command: { args: string[] } }).command.args).toContain("-r");
+    expect(updates).toEqual([{ sessionId: "s", externalSessionId: "sess-new" }]);
+  });
+
+  it("后台任务：start → poll 完成 → 结果可取", async () => {
+    const { createExternalAgentPort } =
+      await import("../src/zcode-protocol/external-agent-port-impl.js");
+    const run = vi.fn(async () => ({
+      streams: { stdout: { text: stdoutWithSession("sess-1") }, stderr: { text: "" } },
+      exitCode: 0,
+    }));
+    const port = createExternalAgentPort({
+      executionPort: { run } as never,
+      readBinding: async () => claudeFamily,
+    });
+    const { taskId } = (await port.start!({
+      sessionId: "s" as never,
+      task: "长任务",
+      cwd: "/tmp",
+    }))!;
+    // start 立即返回；等任务收口后再查（轮询语义：running → completed）。
+    await new Promise((resolve) => setTimeout(resolve, 20));
+    const snapshot = await port.poll!(taskId);
+    expect(snapshot).toMatchObject({ taskId, sessionId: "s", status: "completed" });
+    expect(snapshot?.outcome).toMatchObject({ kind: "delegated", text: "ok" });
+    const list = await port.list!("s");
+    expect(list.map((task) => task.taskId)).toContain(taskId);
+  });
+
+  it("后台任务：取消后状态为 cancelled", async () => {
+    const { createExternalAgentPort } =
+      await import("../src/zcode-protocol/external-agent-port-impl.js");
+    // 永不结束的 run，模拟长任务；abort 后 resolve。
+    const run = vi.fn(
+      () =>
+        new Promise((resolve) => {
+          setTimeout(
+            () =>
+              resolve({
+                streams: { stdout: { text: stdoutWithSession("sess-1") }, stderr: { text: "" } },
+                exitCode: 0,
+              }),
+            50,
+          );
+        }),
+    );
+    const port = createExternalAgentPort({
+      executionPort: { run } as never,
+      readBinding: async () => claudeFamily,
+    });
+    const { taskId } = await port.start!({ sessionId: "s" as never, task: "长任务", cwd: "/tmp" });
+    const snapshot = await port.cancel!(taskId);
+    expect(snapshot).toMatchObject({ taskId, status: "cancelled" });
+    expect(await port.cancel!(taskId)).toBeUndefined();
   });
 });
