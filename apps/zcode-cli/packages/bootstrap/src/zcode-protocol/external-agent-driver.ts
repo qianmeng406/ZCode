@@ -56,6 +56,10 @@ export function createOneShotExternalAgentDriver(input: {
       const continuation = runInput.continuation ?? "auto";
       const invocation = buildExternalAgentInvocation(binding, prompt, { continuation });
       const startedAt = Date.now();
+      // 上一条 tail 快照：用于把累积尾部差分成本次新增输出。
+      const lastTail: Record<"stdout" | "stderr", string> = { stdout: "", stderr: "" };
+      // 是否已经逐段推送过输出：推过就不再补发全文，否则进度里会出现两遍。
+      let streamed = false;
 
       const result = await input.executionPort.run(
         {
@@ -79,11 +83,35 @@ export function createOneShotExternalAgentDriver(input: {
         },
         {
           ...(runInput.signal ? { abortSignal: runInput.signal } : {}),
-          // 实时进度：执行端按 progressIntervalMs 推送 outputPreview（含 fullText），
-          // 直接转给工具进度事件——用户在工具卡里就能看到外部 agent 正在跑什么。
-          onEvent: (event: { type?: string; outputPreview?: unknown }) => {
-            if (event.type !== "progress" || !event.outputPreview) return;
-            runInput.onOutput?.({ stream: "stdout", text: "", preview: event.outputPreview });
+          // 实时进度。两种形状都要接：
+          // - Bash 直写文件路径给 `outputPreview`（已是全文预览）；
+          // - argv 路径只给 `stdoutTail`/`stderrTail`（累积尾部快照）。
+          // 只认前者会让普通进程（codebuddy 就是 argv）一条进度都没有。
+          onEvent: (event: {
+            type?: string;
+            outputPreview?: unknown;
+            stdoutTail?: unknown;
+            stderrTail?: unknown;
+          }) => {
+            if (event.type !== "progress") return;
+            if (event.outputPreview) {
+              runInput.onOutput?.({ stream: "stdout", text: "", preview: event.outputPreview });
+              return;
+            }
+            // 尾部快照是"最后 N 字节"：与上次比前缀，取增量；滚动窗口跳过前缀时
+            // 退化成整段（有重复但不会丢内容）。
+            const emitTail = (stream: "stdout" | "stderr", value: unknown) => {
+              if (typeof value !== "string" || value.length === 0) return;
+              const previous = lastTail[stream];
+              const delta = value.startsWith(previous) ? value.slice(previous.length) : value;
+              lastTail[stream] = value;
+              if (delta) {
+                streamed = true;
+                runInput.onOutput?.({ stream, text: delta });
+              }
+            };
+            emitTail("stdout", event.stdoutTail);
+            emitTail("stderr", event.stderrTail);
           },
         } as never,
       );
@@ -91,10 +119,12 @@ export function createOneShotExternalAgentDriver(input: {
       const stdoutView = readStreamOutput(result, "stdout");
       const rawStdout = stdoutView.text;
       const stderr = extractStreamText(result, "stderr");
-      // 进度事件只用于展示：stderr 全量、stdout 只给尾部，避免把整份 JSON
-      // （可能需要几 MB）塞进一条工具进度事件。
-      if (stderr.trim()) runInput.onOutput?.({ stream: "stderr", text: clipProgress(stderr) });
-      if (rawStdout) runInput.onOutput?.({ stream: "stdout", text: clipProgress(rawStdout) });
+      // 没逐段推过（执行端没给 progress 事件）才补发全文：已推过就不重复，
+      // 否则活动卡的 tail 会出现两遍同样的内容。
+      if (!streamed) {
+        if (stderr.trim()) runInput.onOutput?.({ stream: "stderr", text: clipProgress(stderr) });
+        if (rawStdout) runInput.onOutput?.({ stream: "stdout", text: clipProgress(rawStdout) });
+      }
 
       const parsed = parseExternalAgentResult(binding, rawStdout);
       // 解析不出正文时不能静默返回空串：至少要给出证据（字节数/落盘位置），

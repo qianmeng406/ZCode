@@ -339,3 +339,36 @@ describe("外部 agent 续接与后台任务", () => {
     expect(await port.cancel!(taskId)).toBeUndefined();
   });
 });
+
+describe("外部 agent 实时输出", () => {
+  it("argv 路径的 stdoutTail 快照差分成本次新增输出", async () => {
+    const { createOneShotExternalAgentDriver } =
+      await import("../src/zcode-protocol/external-agent-driver.js");
+    const chunks: string[] = [];
+    const run = async (
+      _request: unknown,
+      options?: { onEvent?: (event: unknown) => void },
+    ) => {
+      // 模拟执行端的累积尾部快照。
+      options?.onEvent?.({ type: "progress", stdoutTail: "line1\n" });
+      options?.onEvent?.({ type: "progress", stdoutTail: "line1\nline2\n" });
+      options?.onEvent?.({ type: "progress", stdoutTail: "line1\nline2\nline3\n" });
+      return {
+        streams: { stdout: { text: "line1\nline2\nline3\n" }, stderr: { text: "" } },
+        exitCode: 0,
+      };
+    };
+    const driver = createOneShotExternalAgentDriver({
+      executionPort: { run } as never,
+    });
+    await driver.run({
+      binding: claudeFamily,
+      prompt: "x",
+      cwd: "/tmp",
+      onOutput: (chunk) => {
+        if (chunk.text) chunks.push(chunk.text);
+      },
+    });
+    expect(chunks.join("")).toBe("line1\nline2\nline3\n");
+  });
+});
