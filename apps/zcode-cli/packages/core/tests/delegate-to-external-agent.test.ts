@@ -126,3 +126,77 @@ describe("DelegateToExternalAgent handler", () => {
     ).toContain("执行失败");
   });
 });
+
+describe("DelegateToExternalAgent 有界等待", () => {
+  const handler = delegateToExternalAgentToolEntry.handler;
+
+  function makeContext(port: unknown) {
+    return {
+      toolCallId: "call-1",
+      sessionId: "sess-1",
+      traceId: "trace-1",
+      abortSignal: new AbortController().signal,
+      workingDirectory: "/tmp/ws",
+      workspaceRoot: "/tmp/ws",
+      externalAgentPort: port,
+      emitEvent: vi.fn(async () => undefined),
+    } as never;
+  }
+
+  const completed = {
+    kind: "delegated" as const,
+    label: "codebuddy",
+    text: "已改完",
+    exitCode: 0,
+    isError: false,
+    durationMs: 800,
+    continued: true,
+  };
+
+  it("start + poll 等到的结果与同步 delegate 同形", async () => {
+    const delegate = vi.fn();
+    const port = {
+      delegate,
+      start: async () => ({ taskId: "task-9" }),
+      poll: async () => ({
+        taskId: "task-9",
+        sessionId: "sess-1",
+        status: "completed" as const,
+        durationMs: 800,
+        outcome: completed,
+      }),
+    };
+    const output = (await handler({ task: "计划" }, makeContext(port))) as Record<string, unknown>;
+    expect(output).toMatchObject({ agent: "codebuddy", success: true, result: "已改完" });
+    // 走了后台路径就不再重复跑一次同步委派。
+    expect(delegate).not.toHaveBeenCalled();
+  });
+
+  it("等待超时返回 running + taskId，不把 turn 卡死", async () => {
+    const port = {
+      delegate: vi.fn(),
+      start: async () => ({ taskId: "task-10" }),
+      poll: async () => ({
+        taskId: "task-10",
+        sessionId: "sess-1",
+        status: "running" as const,
+        durationMs: 0,
+      }),
+    };
+    const output = (await handler(
+      { task: "计划", waitMinutes: 0 },
+      makeContext(port),
+    )) as Record<string, unknown>;
+    expect(output).toMatchObject({ running: true, taskId: "task-10" });
+    expect(
+      delegateToExternalAgentToolEntry.runtimeOutputSchema.safeParse(output).success,
+    ).toBe(true);
+  });
+
+  it("running 形态的模型可见内容明确告诉模型去轮询而不是重试", () => {
+    const format = delegateToExternalAgentToolEntry.formatModelContent!;
+    const text = format({ agent: "codebuddy", running: true, taskId: "task-10", durationMs: 5000 });
+    expect(text).toContain("GetExternalAgentTaskResult");
+    expect(text).toContain("task-10");
+  });
+});

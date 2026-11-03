@@ -1,6 +1,7 @@
 import { describe, expect, it, vi } from "vitest";
 import type { ExternalAgentActivity } from "@zcode/shared/zcode-protocol-v4";
 import {
+  clearExternalAgentActivity,
   getExternalAgentActivity,
   publishExternalAgentActivity,
   subscribeExternalAgentActivity,
@@ -53,11 +54,30 @@ describe("externalAgentActivityStore", () => {
     expect(getExternalAgentActivity("s-empty")).toBeNull();
   });
 
-  it("清除已有活动（解绑/新会话）时通知并把快照置空", () => {
-    publishExternalAgentActivity("s-clear", activity({ taskId: "run" }));
+  it("完成后快照给 null 不清掉已完成记录（冷恢复/重订阅的过渡帧）", () => {
+    const settled = activity({ taskId: "done", status: "completed" });
+    publishExternalAgentActivity("s-keep", activity({ taskId: "done" }));
+    publishExternalAgentActivity("s-keep", settled);
+    const listener = vi.fn();
+    const unsubscribe = subscribeExternalAgentActivity("s-keep", listener);
+    publishExternalAgentActivity("s-keep", null);
+    expect(getExternalAgentActivity("s-keep")).toBe(settled);
+    expect(listener).not.toHaveBeenCalled();
+    unsubscribe();
+  });
+
+  it("新任务开始时替换上一条完成记录", () => {
+    publishExternalAgentActivity("s-next", activity({ taskId: "old", status: "completed" }));
+    const next = activity({ taskId: "new" });
+    publishExternalAgentActivity("s-next", next);
+    expect(getExternalAgentActivity("s-next")).toBe(next);
+  });
+
+  it("显式清除（解绑）仍然生效", () => {
+    publishExternalAgentActivity("s-clear", activity({ taskId: "run", status: "completed" }));
     const listener = vi.fn();
     const unsubscribe = subscribeExternalAgentActivity("s-clear", listener);
-    publishExternalAgentActivity("s-clear", null);
+    clearExternalAgentActivity("s-clear");
     expect(getExternalAgentActivity("s-clear")).toBeNull();
     expect(listener).toHaveBeenCalledTimes(1);
     unsubscribe();

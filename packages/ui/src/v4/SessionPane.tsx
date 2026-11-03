@@ -10,7 +10,10 @@ import {
 } from "@/lib/remoteWorkspaceServiceError.js";
 import { buildConversationShareItems } from "@/v4/conversationShareItems.js";
 import { ExternalAgentActivityCardSlot } from "@/v4/composer/ExternalAgentActivityCardSlot.js";
-import { publishExternalAgentActivity } from "@/v4/externalAgent/externalAgentActivityStore.js";
+import {
+  publishExternalAgentActivity,
+  clearExternalAgentActivity,
+} from "@/v4/externalAgent/externalAgentActivityStore.js";
 import { resolveSelectionSideInheritedModel } from "@/lib/selectionSideInheritedModel.js";
 import { useStartPlanRecommendation } from "@/hooks/useStartPlanRecommendation.js";
 import type { SessionCreateSource } from "@zcode/shared";
@@ -5125,6 +5128,8 @@ export function SessionPane({
     if (ack.status !== "accepted" && ack.status !== "noop") {
       throw new Error(ack.reasonCode ?? ack.status);
     }
+    // 解绑是显式清除：完成态的执行记录不再属于"绑定中"的会话。
+    clearExternalAgentActivity(sessionId);
   }, [dispatchCommand, sessionId]);
 
   // 外部 agent 的本地探测状态。探测跑在 CLI 侧（远程会话在远端），结果按会话缓存。
@@ -6683,7 +6688,7 @@ export function SessionPane({
       {/* 外部 agent 状态卡：放在输入框上方常驻——工具行会提前结算，这张卡才是
           用户在委派执行期间稳定可见的状态；过程在右侧面板（「查看过程」）。 */}
       <ExternalAgentActivityCardSlot
-        activity={snapshot?.externalAgentActivity ?? null}
+        sessionId={effectiveSessionId}
         {...(onOpenExternalAgentPanel && effectiveSessionId
           ? {
               onOpenPanel: () =>

@@ -22,8 +22,7 @@ interface ActivityEntry {
 
 export interface ExternalAgentActivityReporter {
   /** 绑定读到时调用：卡片立即出现（running，0ms）。 */
-  started(info: { label: string; model?: string }): void;
-  /** 执行中的输出：节流更新 tail。 */
+  started(info: { label: string; model?: string }): void;  /** 执行中的输出：节流更新 tail。 */
   progress(chunk: {
     text?: string;
     preview?: unknown;
@@ -150,4 +149,46 @@ export function createExternalAgentActivityReporter(
       emit(null, true);
     },
   };
+}
+
+/**
+ * 直接写一条活动状态（不带条目累积）。
+ *
+ * 用途：后台任务由别的工具（GetExternalAgentTaskResult / CancelExternalAgentTask）
+ * 观察到终态时，把卡片从 running 收口到 completed/failed/cancelled。
+ * 发起委派的那个工具上下文早已返回，不能再用它的 reporter；这里按任务快照
+ * 重建一份最小状态即可（tail 用最终正文尾部，够卡片展示"跑完了"）。
+ */
+export function publishExternalAgentTaskStatus(
+  context: Parameters<ToolHandler>[1],
+  input: {
+    taskId: string;
+    agentLabel: string;
+    status: "completed" | "failed" | "cancelled";
+    durationMs: number;
+    text?: string;
+  },
+): void {
+  if (!context.emitEvent) return;
+  const text = input.text?.trim();
+  const activity: NonNullable<ExternalAgentActivityPayload["activity"]> = {
+    taskId: input.taskId,
+    agentLabel: input.agentLabel,
+    status: input.status,
+    startedAt: Date.now() - input.durationMs,
+    elapsedMs: input.durationMs,
+    ...(text ? { tail: text.slice(-TAIL_CHARS) } : {}),
+  };
+  void Promise.resolve(
+    context.emitEvent({
+      id: crypto.randomUUID(),
+      sessionId: context.sessionId,
+      turnId: context.turnId,
+      type: SessionEventType.ExternalAgentActivityChanged,
+      timestamp: new Date(),
+      traceId: context.traceId,
+      sequenceNumber: 0,
+      payload: { activity } satisfies ExternalAgentActivityPayload,
+    } as never),
+  ).catch(() => undefined);
 }

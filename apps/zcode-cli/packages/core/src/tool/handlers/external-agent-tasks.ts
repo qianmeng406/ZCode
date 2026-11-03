@@ -9,10 +9,14 @@
 // - 取结果是幂等的：完成前后都可以查，完成后重复查结果不变；
 // - 取消尽力而为：取消后立即返回 cancelled 快照，进程由 ExecutionPort 终止。
 import { CoreErrorType, createCoreError } from "@zcode/contracts";
+import type { ExternalAgentTaskSnapshot } from "@zcode/contracts";
 import { z } from "zod";
 import type { ToolEntry, ToolHandler } from "../types.js";
 import { createExternalAgentProgressEmitter } from "./external-agent-progress.js";
-import { createExternalAgentActivityReporter } from "./external-agent-activity.js";
+import {
+  createExternalAgentActivityReporter,
+  publishExternalAgentTaskStatus,
+} from "./external-agent-activity.js";
 
 export const START_EXTERNAL_AGENT_TASK_TOOL_NAME = "StartExternalAgentTask";
 export const GET_EXTERNAL_AGENT_TASK_TOOL_NAME = "GetExternalAgentTaskResult";
@@ -109,6 +113,9 @@ const pollHandler: ToolHandler = async (input, context) => {
         recoverable: true,
       });
     }
+    // 轮询观察到终态时顺便把活动卡收口：发起委派的工具早已返回，
+    // 它的 reporter 不再有机会把状态从 running 推进到 completed。
+    syncActivityFromSnapshot(context, snapshot);
     return snapshot;
   }
   const list = (await port.list?.(String(context.sessionId))) ?? [];
@@ -138,8 +145,25 @@ const cancelHandler: ToolHandler = async (input, context) => {
       { context: { toolCallId: context.toolCallId }, recoverable: true },
     );
   }
+  syncActivityFromSnapshot(context, snapshot);
   return snapshot;
 };
+
+/** 任务终态 → 活动卡终态（幂等；running 快照不写）。 */
+function syncActivityFromSnapshot(
+  context: Parameters<ToolHandler>[1],
+  snapshot: ExternalAgentTaskSnapshot,
+): void {
+  if (snapshot.status === "running") return;
+  const outcome = snapshot.outcome;
+  publishExternalAgentTaskStatus(context, {
+    taskId: snapshot.taskId,
+    agentLabel: outcome?.kind === "delegated" ? outcome.label : "外部 agent",
+    status: snapshot.status,
+    durationMs: snapshot.durationMs,
+    ...(outcome?.kind === "delegated" ? { text: outcome.text } : {}),
+  });
+}
 
 const COMMON_METADATA = {
   // 只读主控下必须可用：这是主会话唯一的"出手"通道。
