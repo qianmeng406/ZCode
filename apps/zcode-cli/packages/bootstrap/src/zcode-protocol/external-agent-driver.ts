@@ -8,6 +8,7 @@
 import type { ExecutionPort } from "@zcode/contracts";
 import {
   buildExternalAgentInvocation,
+  formatClaudeFamilyStreamLine,
   parseExternalAgentResult,
   type ExternalAgentBinding,
 } from "@zcode/shared";
@@ -60,6 +61,29 @@ export function createOneShotExternalAgentDriver(input: {
       const lastTail: Record<"stdout" | "stderr", string> = { stdout: "", stderr: "" };
       // 是否已经逐段推送过输出：推过就不再补发全文，否则进度里会出现两遍。
       let streamed = false;
+      // claude-family 是 stream-json：只把**完整行**解析成人话推给活动卡，
+      // 半行 JSON 留到下次；非 JSONL 驱动原样转发。
+      let lineBuffer = "";
+      const emitRaw = (stream: "stdout" | "stderr", text: string) => {
+        if (stream === "stderr") {
+          streamed = true;
+          runInput.onOutput?.({ stream, text });
+          return;
+        }
+        if (binding.driver !== "claude-family") {
+          streamed = true;
+          runInput.onOutput?.({ stream, text });
+          return;
+        }
+        lineBuffer += text;
+        const lines = lineBuffer.split(/\r?\n/u);
+        lineBuffer = lines.pop() ?? "";
+        const readable = lines.flatMap((line) => formatClaudeFamilyStreamLine(line));
+        if (readable.length > 0) {
+          streamed = true;
+          runInput.onOutput?.({ stream, text: `${readable.join("\n")}\n` });
+        }
+      };
 
       const result = await input.executionPort.run(
         {
@@ -105,10 +129,7 @@ export function createOneShotExternalAgentDriver(input: {
               const previous = lastTail[stream];
               const delta = value.startsWith(previous) ? value.slice(previous.length) : value;
               lastTail[stream] = value;
-              if (delta) {
-                streamed = true;
-                runInput.onOutput?.({ stream, text: delta });
-              }
+              if (delta) emitRaw(stream, delta);
             };
             emitTail("stdout", event.stdoutTail);
             emitTail("stderr", event.stderrTail);

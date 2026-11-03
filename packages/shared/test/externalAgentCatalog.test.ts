@@ -45,9 +45,9 @@ test("codex 预设用 codex-exec 族与 exec 子命令", () => {
   assert.equal(codex.modelFlag, "-m");
 });
 
-test("claude-family 预设都是 -p + json 输出 + 末尾追加 prompt", () => {
+test("claude-family 预设都是 -p + stream-json 输出 + 末尾追加 prompt", () => {
   for (const preset of EXTERNAL_AGENT_PRESETS.filter((p) => p.driver === "claude-family")) {
-    assert.deepEqual(preset.args, ["-p", "--output-format", "json"]);
+    assert.deepEqual(preset.args, ["-p", "--output-format", "stream-json"]);
     assert.equal(preset.promptDelivery, "argv-append");
   }
 });
@@ -79,7 +79,7 @@ test("模型注入: claude-family 用 --model，插在 prompt 之前、permissio
   assert.deepEqual(invocation.args, [
     "-p",
     "--output-format",
-    "json",
+    "stream-json",
     "--model",
     "hy3",
     "--permission-mode",
@@ -201,7 +201,7 @@ test("档位注入: claude-family 取**当前模型**记着的那一档", () => 
   assert.deepEqual(buildExternalAgentInvocation(bound, "干活").args, [
     "-p",
     "--output-format",
-    "json",
+    "stream-json",
     "--model",
     "hy3",
     "--effort",
@@ -263,7 +263,7 @@ test("模型与档位同时给时顺序稳定（model → effort → permissionM
   assert.deepEqual(buildExternalAgentInvocation(bound, "干活").args, [
     "-p",
     "--output-format",
-    "json",
+    "stream-json",
     "--model",
     "hy3",
     "--effort",

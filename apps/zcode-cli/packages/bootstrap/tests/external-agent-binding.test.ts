@@ -18,10 +18,10 @@ const claudeFamily: ExternalAgentBinding = {
 };
 
 describe("buildExternalAgentInvocation", () => {
-  it("claude-family 默认用 -p + --output-format json，prompt 追加在末尾", () => {
+  it("claude-family 默认用 -p + --output-format stream-json，prompt 追加在末尾", () => {
     expect(buildExternalAgentInvocation(claudeFamily, "修一下 lint")).toEqual({
       command: "codebuddy",
-      args: ["-p", "--output-format", "json", "修一下 lint"],
+      args: ["-p", "--output-format", "stream-json", "修一下 lint"],
     });
   });
 
@@ -33,7 +33,7 @@ describe("buildExternalAgentInvocation", () => {
     expect(invocation.args).toEqual([
       "-p",
       "--output-format",
-      "json",
+      "stream-json",
       "--permission-mode",
       "plan",
       "分析一下",
@@ -45,7 +45,7 @@ describe("buildExternalAgentInvocation", () => {
       { ...claudeFamily, promptDelivery: "stdin" },
       "长计划正文",
     );
-    expect(invocation.args).toEqual(["-p", "--output-format", "json"]);
+    expect(invocation.args).toEqual(["-p", "--output-format", "stream-json"]);
     expect(invocation.stdin).toBe("长计划正文");
   });
 
@@ -249,7 +249,7 @@ describe("createExternalAgentPort", () => {
     expect(request.command).toMatchObject({
       mode: "argv",
       file: "codebuddy",
-      args: ["-p", "--output-format", "json", "修 lint"],
+      args: ["-p", "--output-format", "stream-json", "修 lint"],
     });
     expect(request.cwd).toBe("/tmp");
   });
@@ -370,5 +370,27 @@ describe("外部 agent 实时输出", () => {
       },
     });
     expect(chunks.join("")).toBe("line1\nline2\nline3\n");
+  });
+});
+
+describe("stream-json 活动文本", () => {
+  it("assistant 的 tool_use / text 被压成人类可读行", async () => {
+    const { formatClaudeFamilyStreamLine } = await import("@zcode/shared");
+    const toolLine = JSON.stringify({
+      type: "assistant",
+      message: {
+        role: "assistant",
+        content: [{ type: "tool_use", name: "Bash", input: { command: "ls src" } }],
+      },
+    });
+    const textLine = JSON.stringify({
+      type: "assistant",
+      message: { role: "assistant", content: [{ type: "text", text: "正在检查目录结构" }] },
+    });
+    expect(formatClaudeFamilyStreamLine(toolLine)).toEqual(["→ Bash: ls src"]);
+    expect(formatClaudeFamilyStreamLine(textLine)).toEqual(["正在检查目录结构"]);
+    // system / user / 半行 JSON 都不产出内容
+    expect(formatClaudeFamilyStreamLine(JSON.stringify({ type: "system" }))).toEqual([]);
+    expect(formatClaudeFamilyStreamLine('{"type": "assis')).toEqual([]);
   });
 });

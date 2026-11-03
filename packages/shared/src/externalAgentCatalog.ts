@@ -169,7 +169,8 @@ export const EXTERNAL_AGENT_PRESETS: readonly ExternalAgentPreset[] = [
     description: "Anthropic 官方 CLI，参数与 codebuddy 同构。",
     driver: "claude-family",
     command: "claude",
-    args: ["-p", "--output-format", "json"],
+    // stream-json：逐事件输出，活动卡才能实时展示"正在跑什么命令"。
+    args: ["-p", "--output-format", "stream-json"],
     promptDelivery: "argv-append",
     permissionMode: "bypassPermissions",
     modelFlag: "--model",
@@ -185,7 +186,8 @@ export const EXTERNAL_AGENT_PRESETS: readonly ExternalAgentPreset[] = [
     description: "腾讯 CodeBuddy CLI（WorkBuddy 桌面版内置同一 CLI）。",
     driver: "claude-family",
     command: "codebuddy",
-    args: ["-p", "--output-format", "json"],
+    // stream-json：逐事件输出，活动卡才能实时展示"正在跑什么命令"。
+    args: ["-p", "--output-format", "stream-json"],
     promptDelivery: "argv-append",
     permissionMode: "bypassPermissions",
     modelFlag: "--model",

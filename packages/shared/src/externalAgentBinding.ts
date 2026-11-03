@@ -79,7 +79,8 @@ export const externalAgentBindingSchema = z
 
 export type ExternalAgentBinding = z.infer<typeof externalAgentBindingSchema>;
 
-const CLAUDE_FAMILY_DEFAULT_ARGS = ["-p", "--output-format", "json"] as const;
+// stream-json：逐事件输出（每行一个 JSON），活动卡才能实时展示"正在跑什么命令"。
+const CLAUDE_FAMILY_DEFAULT_ARGS = ["-p", "--output-format", "stream-json"] as const;
 const CODEX_EXEC_DEFAULT_ARGS = ["exec"] as const;
 
 /**
@@ -128,7 +129,15 @@ export function buildExternalAgentInvocation(
   options?: { continuation?: "auto" | "fresh" },
 ): { command: string; args: string[]; stdin?: string } {
   if (binding.driver === "claude-family") {
-    const base = binding.args.length > 0 ? binding.args : [...CLAUDE_FAMILY_DEFAULT_ARGS];
+    // 预设的 argv 跟随代码：老绑定落库的 `--output-format json` 不会覆盖新版
+    // stream-json，否则活动卡拿不到逐事件输出（用户还得重新绑定才生效）。
+    const presetArgs = findExternalAgentPreset(binding.presetId)?.args;
+    const base =
+      presetArgs && presetArgs.length > 0
+        ? [...presetArgs]
+        : binding.args.length > 0
+          ? [...binding.args]
+          : [...CLAUDE_FAMILY_DEFAULT_ARGS];
     const args = [...base];
     const modelFlag = resolveModelFlag(binding);
     if (binding.model && modelFlag) args.push(modelFlag, binding.model);
@@ -214,6 +223,9 @@ export function parseExternalAgentResult(
   stdout: string,
 ): { text: string; isError: boolean; sessionId?: string } {
   if (binding.driver !== "claude-family") return { text: stdout, isError: false };
+  // stream-json：每行一个事件，最后一条 type=result 才是最终结果。
+  const streamResult = parseStreamJsonResult(stdout);
+  if (streamResult) return streamResult;
   try {
     const parsed: unknown = JSON.parse(stdout);
     if (!Array.isArray(parsed)) return { text: stdout, isError: false };
@@ -242,6 +254,99 @@ export function parseExternalAgentResult(
   } catch {
     return { text: stdout, isError: false };
   }
+}
+
+/**
+ * 解析 stream-json（JSONL）的最后一条 result 事件。
+ *
+ * 返回 undefined 表示"不像 JSONL"：调用方回退到旧的整体 JSON 数组解析，
+ * 老绑定（args 里还是 `--output-format json`）仍然可用。
+ */
+function parseStreamJsonResult(
+  stdout: string,
+): { text: string; isError: boolean; sessionId?: string } | undefined {
+  const lines = stdout.split(/\r?\n/u).filter((line) => line.trim().startsWith("{"));
+  if (lines.length === 0) return undefined;
+  let last: { result?: unknown; is_error?: unknown; session_id?: unknown } | null = null;
+  for (const line of lines) {
+    try {
+      const entry = JSON.parse(line) as {
+        type?: unknown;
+        result?: unknown;
+        is_error?: unknown;
+        session_id?: unknown;
+      };
+      if (entry?.type === "result") last = entry;
+    } catch {
+      // 半个事件（进程被杀 / 输出截断）：跳过。
+    }
+  }
+  if (!last) return undefined;
+  const sessionId =
+    typeof last.session_id === "string" && last.session_id.length > 0 ? last.session_id : undefined;
+  return {
+    text: typeof last.result === "string" ? last.result : "",
+    isError: last.is_error === true,
+    ...(sessionId ? { sessionId } : {}),
+  };
+}
+
+/**
+ * 把 claude-family 的 `stream-json` 一行解析成人类可读的活动文本。
+ *
+ * 为什么要这层：codebuddy 的 stdout 是结构化事件（assistant 的 tool_use/text、
+ * user 的 tool_result、result），直接展示原始 JSON 用户看不懂。活动卡只关心
+ * "它现在在做什么"，所以这里把它压成一行行自然语言：
+ *   → Bash: ls src
+ *   正在检查目录结构
+ *
+ * 返回空数组表示这一行没有值得展示的内容（system/user/result 等）。
+ */
+export function formatClaudeFamilyStreamLine(line: string): string[] {
+  const trimmed = line.trim();
+  if (!trimmed) return [];
+  let entry: unknown;
+  try {
+    entry = JSON.parse(trimmed);
+  } catch {
+    return [];
+  }
+  if (!entry || typeof entry !== "object") return [];
+  const record = entry as { type?: unknown; message?: unknown };
+  if (record.type !== "assistant" || !record.message || typeof record.message !== "object") {
+    return [];
+  }
+  const content = (record.message as { content?: unknown }).content;
+  if (!Array.isArray(content)) return [];
+  const lines: string[] = [];
+  for (const part of content) {
+    if (!part || typeof part !== "object") continue;
+    const item = part as { type?: unknown; text?: unknown; name?: unknown; input?: unknown };
+    if (item.type === "text" && typeof item.text === "string" && item.text.trim()) {
+      lines.push(item.text.trim());
+      continue;
+    }
+    if (item.type !== "tool_use" || typeof item.name !== "string") continue;
+    lines.push(`→ ${describeToolUse(item.name, item.input)}`);
+  }
+  return lines;
+}
+
+/** 工具调用的单行描述：取最有信息量的那个入参。 */
+function describeToolUse(name: string, input: unknown): string {
+  const args = (input && typeof input === "object" ? input : {}) as Record<string, unknown>;
+  const readString = (key: string): string | undefined =>
+    typeof args[key] === "string" && (args[key] as string).trim()
+      ? (args[key] as string).trim()
+      : undefined;
+  const detail =
+    readString("command") ??
+    readString("file_path") ??
+    readString("path") ??
+    readString("pattern") ??
+    readString("query");
+  if (!detail) return name;
+  return `${name}: ${detail.length > 160 ? `${detail.slice(0, 160)}…` : detail}`;
 }
 
 /** 取消息数组里最后一条 assistant 的文本（兜底，可能为空）。 */

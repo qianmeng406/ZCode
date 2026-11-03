@@ -68,12 +68,11 @@ export function ExternalAgentActivityCard({ activity, onDismiss }: ExternalAgent
   return (
     <div
       data-testid="external-agent-activity"
-      className={cn(
-        "mb-2 w-full overflow-hidden rounded-xl border bg-surface/80 backdrop-blur",
-        running ? "border-primary/40" : "border-border",
-      )}
+      // 与输入框同宽、同一套表面语言（rounded-xl + border + bg-surface），
+      // 不再用半透明模糊：那是浮层语汇，嵌在对话流里会显得脏。
+      className="mb-2 w-full overflow-hidden rounded-xl border border-border bg-surface"
     >
-      <div className="flex items-center gap-2 px-3 py-2">
+      <div className="flex min-w-0 items-center gap-2 px-4 py-2.5">
         <span className="relative flex size-2.5 shrink-0 items-center justify-center">
           {running ? (
             <>
@@ -90,8 +89,19 @@ export function ExternalAgentActivityCard({ activity, onDismiss }: ExternalAgent
         </span>
         <BotIcon className="size-4 shrink-0 text-foreground-subtle" />
         <span className="truncate text-ui-base font-medium">{activity.agentLabel}</span>
-        <span className="shrink-0 text-ui-sm text-foreground-subtle">{statusLabel}</span>
-        <span className="ml-auto shrink-0 font-mono text-ui-sm text-foreground-subtle tabular-nums">
+        <span
+          className={cn(
+            "shrink-0 rounded-md px-1.5 py-0.5 text-ui-xs",
+            running
+              ? "bg-primary/10 text-primary"
+              : activity.status === "failed"
+                ? "bg-danger/10 text-danger"
+                : "bg-surface-raised text-foreground-subtle",
+          )}
+        >
+          {statusLabel}
+        </span>
+        <span className="ml-auto shrink-0 font-mono text-ui-xs text-foreground-subtle tabular-nums">
           {formatElapsed(elapsedMs)}
         </span>
         <button
@@ -120,19 +130,21 @@ export function ExternalAgentActivityCard({ activity, onDismiss }: ExternalAgent
         ) : null}
       </div>
       {visibleLines.length > 0 || activity.error ? (
-        <div className="border-t border-border/60 bg-panel/60 px-3 py-2">
+        <div className="border-t border-border/60 bg-panel/40 px-4 py-2.5">
           {hiddenCount > 0 ? (
-            <div className="mb-1 text-ui-xs text-foreground-subtle">
+            <div className="mb-1.5 text-ui-xs text-foreground-subtle">
               {intl.formatMessage(
                 { id: "chat.externalAgent.activity.hiddenLines" },
                 { count: hiddenCount },
               )}
             </div>
           ) : null}
-          <pre className="max-h-48 overflow-auto whitespace-pre-wrap break-words font-mono text-ui-xs leading-relaxed text-foreground-subtle">
+          <pre className="max-h-44 overflow-auto whitespace-pre-wrap break-words font-mono text-ui-xs leading-relaxed text-foreground-subtle">
             {visibleLines.join("\n")}
           </pre>
-          {activity.error ? <p className="mt-1 text-ui-xs text-danger">{activity.error}</p> : null}
+          {activity.error ? (
+            <p className="mt-1.5 text-ui-xs text-danger">{activity.error}</p>
+          ) : null}
         </div>
       ) : null}
     </div>
