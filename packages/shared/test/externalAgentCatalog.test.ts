@@ -8,6 +8,7 @@ import {
   parseServerModelCache,
   resolveEffortLevels,
 } from "../src/externalAgentCatalog.js";
+import { createClaudeStreamParser } from "../src/externalAgentStream.js";
 import {
   buildExternalAgentInvocation,
   externalAgentBindingSchema,
@@ -47,7 +48,12 @@ test("codex 预设用 codex-exec 族与 exec 子命令", () => {
 
 test("claude-family 预设都是 -p + stream-json 输出 + 末尾追加 prompt", () => {
   for (const preset of EXTERNAL_AGENT_PRESETS.filter((p) => p.driver === "claude-family")) {
-    assert.deepEqual(preset.args, ["-p", "--output-format", "stream-json"]);
+    assert.deepEqual(preset.args, [
+      "-p",
+      "--output-format",
+      "stream-json",
+      "--include-partial-messages",
+    ]);
     assert.equal(preset.promptDelivery, "argv-append");
   }
 });
@@ -525,4 +531,36 @@ test("buildExternalAgentInvocation: 有 externalSessionId 时续接，fresh 时�
   const fresh = buildExternalAgentInvocation(binding, "新任务", { continuation: "fresh" });
   assert.deepEqual(fresh.args.slice(-1), ["新任务"]);
   assert.ok(!fresh.args.includes("-r"));
+});
+
+test("stream 解析器：思考/正文增量先去重，完整消息只补工具与未流式内容", () => {
+  const parser = createClaudeStreamParser();
+  const delta = (type: string, payload: Record<string, string>) =>
+    JSON.stringify({
+      type: "stream_event",
+      event: { type: "content_block_delta", delta: { type, ...payload } },
+    });
+  // 思考与正文各自增量到达。
+  assert.deepEqual(parser.push(`${delta("thinking_delta", { thinking: "先看目录" })}\n`), [
+    { kind: "reasoning", text: "先看目录" },
+  ]);
+  assert.deepEqual(parser.push(`${delta("text_delta", { text: "好的，" })}\n`), [
+    { kind: "text", text: "好的，" },
+  ]);
+  // 完整消息里同一段正文/思考不再重复，只产出 tool_use。
+  const full = JSON.stringify({
+    type: "assistant",
+    message: {
+      role: "assistant",
+      content: [
+        { type: "thinking", thinking: "先看目录" },
+        { type: "text", text: "好的，我看看" },
+        { type: "tool_use", name: "Bash", input: { command: "ls src" } },
+      ],
+    },
+  });
+  assert.deepEqual(parser.push(`${full}\n`), [{ kind: "tool", text: "Bash: ls src" }]);
+  // 半行留缓冲，flush 时再尝试。
+  assert.deepEqual(parser.push('{"type":"stream_event"'), []);
+  assert.deepEqual(parser.flush(), []);
 });

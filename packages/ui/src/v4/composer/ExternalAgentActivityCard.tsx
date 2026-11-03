@@ -10,6 +10,7 @@ import { useEffect, useMemo, useState } from "react";
 import { BotIcon, CheckCircle2Icon, ChevronDownIcon, CircleSlashIcon, XIcon } from "lucide-react";
 import { cn } from "@/components/lib/utils.js";
 import { useZCodeIntl } from "@/i18n/IntlProvider.js";
+import { MessageResponse } from "@/components/ai-elements/message.js";
 import type { ExternalAgentActivity } from "@zcode/shared/zcode-protocol-v4";
 
 export interface ExternalAgentActivityCardProps {
@@ -18,8 +19,8 @@ export interface ExternalAgentActivityCardProps {
   onDismiss?: (taskId: string) => void;
 }
 
-const COLLAPSED_LINES = 3;
-const EXPANDED_LINES = 14;
+const COLLAPSED_ENTRIES = 4;
+const EXPANDED_ENTRIES = 200;
 
 function formatElapsed(ms: number): string {
   const totalSeconds = Math.max(0, Math.floor(ms / 1000));
@@ -43,16 +44,19 @@ export function ExternalAgentActivityCard({ activity, onDismiss }: ExternalAgent
   const elapsedMs = running
     ? Math.max(activity.elapsedMs, now - activity.startedAt)
     : activity.elapsedMs;
-  const lines = useMemo(
-    () =>
-      (activity.tail ?? "")
-        .split(/\r?\n/u)
-        .map((line) => line.replace(/\s+$/u, ""))
-        .filter((line, index, all) => line.length > 0 || index < all.length - 1),
-    [activity.tail],
-  );
-  const visibleLines = lines.slice(-(expanded ? EXPANDED_LINES : COLLAPSED_LINES));
-  const hiddenCount = Math.max(0, lines.length - visibleLines.length);
+  // 结构化条目优先（思考/正文/工具）；只有纯文本 tail 时才退回按行切分。
+  const entries = useMemo(() => {
+    if (activity.entries && activity.entries.length > 0) {
+      return activity.entries.filter((entry) => entry.text.trim().length > 0);
+    }
+    return (activity.tail ?? "")
+      .split(/\r?\n/u)
+      .map((line) => line.replace(/\s+$/u, ""))
+      .filter((line) => line.length > 0)
+      .map((line) => ({ kind: "text" as const, text: line }));
+  }, [activity.entries, activity.tail]);
+  const visibleEntries = entries.slice(-(expanded ? EXPANDED_ENTRIES : COLLAPSED_ENTRIES));
+  const hiddenCount = Math.max(0, entries.length - visibleEntries.length);
 
   const statusLabel = intl.formatMessage({
     id:
@@ -129,7 +133,7 @@ export function ExternalAgentActivityCard({ activity, onDismiss }: ExternalAgent
           </button>
         ) : null}
       </div>
-      {visibleLines.length > 0 || activity.error ? (
+      {visibleEntries.length > 0 || activity.error ? (
         <div className="border-t border-border/60 bg-panel/40 px-4 py-2.5">
           {hiddenCount > 0 ? (
             <div className="mb-1.5 text-ui-xs text-foreground-subtle">
@@ -139,9 +143,39 @@ export function ExternalAgentActivityCard({ activity, onDismiss }: ExternalAgent
               )}
             </div>
           ) : null}
-          <pre className="max-h-44 overflow-auto whitespace-pre-wrap break-words font-mono text-ui-xs leading-relaxed text-foreground-subtle">
-            {visibleLines.join("\n")}
-          </pre>
+          {/* 与对话正文同一套渲染：正文走 MessageResponse（markdown/代码块），
+              思考走弱化样式，工具调用是单行等宽记录。容器固定高度内滚动，
+              展开后也只加高不撑爆输入区。 */}
+          <div
+            className={cn(
+              "flex flex-col gap-1.5 overflow-y-auto pr-1",
+              expanded ? "max-h-[min(60vh,520px)]" : "max-h-48",
+            )}
+          >
+            {visibleEntries.map((entry, index) =>
+              entry.kind === "tool" ? (
+                <div
+                  key={`${index}-${entry.text.slice(0, 24)}`}
+                  className="flex min-w-0 items-start gap-1.5 font-mono text-ui-xs text-foreground-subtle"
+                >
+                  <span className="shrink-0 text-primary">▸</span>
+                  <span className="min-w-0 break-all">{entry.text}</span>
+                </div>
+              ) : (
+                <MessageResponse
+                  key={`${index}-${entry.kind}`}
+                  className={cn(
+                    "text-ui-sm leading-relaxed",
+                    entry.kind === "reasoning"
+                      ? "border-l-2 border-border pl-2 text-ui-xs italic text-foreground-subtle"
+                      : "text-foreground",
+                  )}
+                >
+                  {entry.text}
+                </MessageResponse>
+              ),
+            )}
+          </div>
           {activity.error ? (
             <p className="mt-1.5 text-ui-xs text-danger">{activity.error}</p>
           ) : null}

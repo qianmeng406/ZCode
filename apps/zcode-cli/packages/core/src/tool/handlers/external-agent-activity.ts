@@ -12,12 +12,23 @@ import type { ToolHandler } from "../types.js";
 
 const TAIL_CHARS = 2_000;
 const THROTTLE_MS = 300;
+const MAX_ENTRIES = 400;
+const MAX_ENTRY_CHARS = 24_000;
+
+interface ActivityEntry {
+  kind: "reasoning" | "text" | "tool";
+  text: string;
+}
 
 export interface ExternalAgentActivityReporter {
   /** 绑定读到时调用：卡片立即出现（running，0ms）。 */
   started(info: { label: string; model?: string }): void;
   /** 执行中的输出：节流更新 tail。 */
-  progress(chunk: { text?: string; preview?: unknown }): void;
+  progress(chunk: {
+    text?: string;
+    preview?: unknown;
+    entries?: ActivityEntry[];
+  }): void;
   /** 收口：success/失败/取消，`terminated` 表示被取消。 */
   settled(outcome: { label?: string; isError?: boolean; durationMs?: number; text?: string }): void;
   /** 主动清空（例如 unbind 或会话切换）。 */
@@ -40,6 +51,8 @@ export function createExternalAgentActivityReporter(
   const startedAt = options.startedAt ?? Date.now();
   let agentLabel = options.agentLabel;
   let tail = "";
+  let entries: ActivityEntry[] = [];
+  let entriesChars = 0;
   let lastEmitAt = 0;
   let finished = false;
 
@@ -62,6 +75,26 @@ export function createExternalAgentActivityReporter(
     ).catch(() => undefined);
   };
 
+  /** 追加条目：相邻同类合并（text/reasoning 的增量），并裁剪过旧内容。 */
+  const appendEntries = (incoming: ActivityEntry[]) => {
+    for (const entry of incoming) {
+      if (!entry.text) continue;
+      const last = entries.at(-1);
+      if (last && last.kind === entry.kind && entry.kind !== "tool") {
+        last.text += entry.text;
+        entriesChars += entry.text.length;
+      } else {
+        entries.push({ ...entry });
+        entriesChars += entry.text.length;
+      }
+    }
+    while (entries.length > MAX_ENTRIES || entriesChars > MAX_ENTRY_CHARS) {
+      const dropped = entries.shift();
+      if (!dropped) break;
+      entriesChars -= dropped.text.length;
+    }
+  };
+
   const snapshot = (
     status: "running" | "completed" | "failed" | "cancelled",
     extra?: { error?: string },
@@ -72,6 +105,7 @@ export function createExternalAgentActivityReporter(
     startedAt,
     elapsedMs: Date.now() - startedAt,
     ...(tail ? { tail } : {}),
+    ...(entries.length > 0 ? { entries: entries.map((entry) => ({ ...entry })) } : {}),
     ...(extra?.error ? { error: extra.error } : {}),
   });
 
@@ -82,6 +116,11 @@ export function createExternalAgentActivityReporter(
     },
     progress(chunk) {
       if (finished) return;
+      if (chunk.entries?.length) {
+        appendEntries(chunk.entries);
+        emit(snapshot("running"));
+        return;
+      }
       const text = chunk.text || previewText(chunk.preview);
       if (text) tail = (tail + text).slice(-TAIL_CHARS);
       if (!text) return;

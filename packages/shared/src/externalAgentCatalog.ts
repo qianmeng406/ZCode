@@ -170,7 +170,7 @@ export const EXTERNAL_AGENT_PRESETS: readonly ExternalAgentPreset[] = [
     driver: "claude-family",
     command: "claude",
     // stream-json：逐事件输出，活动卡才能实时展示"正在跑什么命令"。
-    args: ["-p", "--output-format", "stream-json"],
+    args: ["-p", "--output-format", "stream-json", "--include-partial-messages"],
     promptDelivery: "argv-append",
     permissionMode: "bypassPermissions",
     modelFlag: "--model",
@@ -187,7 +187,7 @@ export const EXTERNAL_AGENT_PRESETS: readonly ExternalAgentPreset[] = [
     driver: "claude-family",
     command: "codebuddy",
     // stream-json：逐事件输出，活动卡才能实时展示"正在跑什么命令"。
-    args: ["-p", "--output-format", "stream-json"],
+    args: ["-p", "--output-format", "stream-json", "--include-partial-messages"],
     promptDelivery: "argv-append",
     permissionMode: "bypassPermissions",
     modelFlag: "--model",

@@ -8,7 +8,7 @@
 import type { ExecutionPort } from "@zcode/contracts";
 import {
   buildExternalAgentInvocation,
-  formatClaudeFamilyStreamLine,
+  createClaudeStreamParser,
   parseExternalAgentResult,
   type ExternalAgentBinding,
 } from "@zcode/shared";
@@ -35,7 +35,12 @@ export interface ExternalAgentRunInput {
   continuation?: "auto" | "fresh";
   signal?: AbortSignal;
   /** 输出增量回调（第一期只在结束时给一次全文；PTY 期改为逐块）。 */
-  onOutput?: (chunk: { stream: "stdout" | "stderr"; text: string; preview?: unknown }) => void;
+  onOutput?: (chunk: {
+    stream: "stdout" | "stderr";
+    text: string;
+    preview?: unknown;
+    entries?: Array<{ kind: "reasoning" | "text" | "tool"; text: string }>;
+  }) => void;
 }
 
 export interface ExternalAgentDriver {
@@ -61,9 +66,9 @@ export function createOneShotExternalAgentDriver(input: {
       const lastTail: Record<"stdout" | "stderr", string> = { stdout: "", stderr: "" };
       // 是否已经逐段推送过输出：推过就不再补发全文，否则进度里会出现两遍。
       let streamed = false;
-      // claude-family 是 stream-json：只把**完整行**解析成人话推给活动卡，
-      // 半行 JSON 留到下次；非 JSONL 驱动原样转发。
-      let lineBuffer = "";
+      // claude-family 是 stream-json：逐行解析成结构化条目（思考/正文/工具），
+      // 半行 JSON 留在解析器缓冲里；非 JSONL 驱动原样转发。
+      const streamParser = createClaudeStreamParser();
       const emitRaw = (stream: "stdout" | "stderr", text: string) => {
         if (stream === "stderr") {
           streamed = true;
@@ -75,13 +80,10 @@ export function createOneShotExternalAgentDriver(input: {
           runInput.onOutput?.({ stream, text });
           return;
         }
-        lineBuffer += text;
-        const lines = lineBuffer.split(/\r?\n/u);
-        lineBuffer = lines.pop() ?? "";
-        const readable = lines.flatMap((line) => formatClaudeFamilyStreamLine(line));
-        if (readable.length > 0) {
+        const entries = streamParser.push(text);
+        if (entries.length > 0) {
           streamed = true;
-          runInput.onOutput?.({ stream, text: `${readable.join("\n")}\n` });
+          runInput.onOutput?.({ stream, text: "", entries });
         }
       };
 
@@ -136,6 +138,10 @@ export function createOneShotExternalAgentDriver(input: {
           },
         } as never,
       );
+
+      // 结束时把解析器缓冲里的半行也尝试产出（进程刚好在行中间退出）。
+      const flushed = streamParser.flush();
+      if (flushed.length > 0) runInput.onOutput?.({ stream: "stdout", text: "", entries: flushed });
 
       const stdoutView = readStreamOutput(result, "stdout");
       const rawStdout = stdoutView.text;

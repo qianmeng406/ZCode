@@ -44,8 +44,12 @@ export const externalAgentActivitySchema = z.object({
   startedAt: z.number().int(),
   /** 已运行时长（结束时是总时长）。 */
   elapsedMs: z.number().int().nonnegative(),
-  /** 最近输出尾部（纯文本，UI 做行级渲染）。 */
+  /** 最近输出尾部（纯文本兜底）。 */
   tail: z.string().optional(),
+  /** 结构化活动条目（思考/正文/工具）。 */
+  entries: z
+    .array(z.object({ kind: z.enum(["reasoning", "text", "tool"]), text: z.string() }).strict())
+    .optional(),
   /** 失败/取消原因摘要。 */
   error: z.string().optional(),
 });
