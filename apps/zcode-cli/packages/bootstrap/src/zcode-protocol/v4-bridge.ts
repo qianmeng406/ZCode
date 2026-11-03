@@ -939,7 +939,31 @@ export function createConversationV4Gateway(
       sessionStore: context.deps.sessionStore,
     });
     record.app.runtime.setExternalAgentReadOnly(binding !== undefined);
-    if (!binding) return;
+    // 活动卡是运行期事实：上次崩溃/关闭时可能停着一条 running。冷恢复先清空，
+    // 否则 UI 会永远显示"运行中"，而进程早就不在了。
+    const clearActivity = async (): Promise<void> => {
+      await record.app.runtime.appendEvent(
+        {
+          id: createEventId(),
+          sessionId: sessionId as SessionId,
+          type: SessionEventType.ExternalAgentActivityChanged,
+          timestamp: new Date(),
+          traceId: record.traceContext.traceId,
+          sequenceNumber: 0,
+          payload: { activity: null },
+        },
+        record.traceContext,
+      );
+    };
+    if (!binding) {
+      // 关键补发：事件日志里可能还留着旧的 binding 事件（另一个实例清掉了 entry，
+      // 或解绑事件没落盘）。投影以事件为准——不补发 null，UI 会一直挂着徽标、模式
+      // 显示为主控，而命令面读 entry 判定"未绑定"，切模式只会 noop，用户看到的是
+      // "切了没反应 / 切换失败"。这里让投影与 entry 对齐。
+      await clearActivity();
+      await publishBindingChanged(record as never, null);
+      return;
+    }
     // 执行状态对齐到只读 plan：持久化的 mode 可能停在 yolo/build（绑定时只改了
     // 运行期状态，那次进入 plan 事件未必早于崩溃）。带着锁这里只能写"仍是只读"。
     if (!record.app.runtime.getPlanEnabled()) {
@@ -948,20 +972,7 @@ export function createConversationV4Gateway(
         record.traceContext,
       );
     }
-    // 活动卡是运行期事实：上次崩溃/关闭时可能停着一条 running。冷恢复先清空，
-    // 否则 UI 会永远显示"运行中"，而进程早就不在了。
-    await record.app.runtime.appendEvent(
-      {
-        id: createEventId(),
-        sessionId: sessionId as SessionId,
-        type: SessionEventType.ExternalAgentActivityChanged,
-        timestamp: new Date(),
-        traceId: record.traceContext.traceId,
-        sequenceNumber: 0,
-        payload: { activity: null },
-      },
-      record.traceContext,
-    );
+    await clearActivity();
     // 投影补发：用与绑定命令同一条事件，UI 据此恢复徽标、模型与档位候选。
     await publishBindingChanged(
       record as never,

@@ -274,21 +274,28 @@ function ExternalAgentReadOnlyBadgeImpl({
                 value={binding.externalSessionId ?? ""}
                 onValueChange={handleChangeSession}
               >
-                {/* 空串 = "不续接"：每次委派让 CLI 开新会话。 */}
+                {/* 空串 = "不续接"：每次委派让 CLI 开新会话。固定在上方，不随列表滚动。 */}
                 <DropdownMenuRadioItem value="">
                   <PlusIcon className="mr-1.5 inline size-3.5" />
                   {intl.formatMessage({ id: "chat.externalAgent.sessionFresh" })}
                 </DropdownMenuRadioItem>
-                {sessions?.map((session) => (
-                  <DropdownMenuRadioItem key={session.sessionId} value={session.sessionId}>
-                    <span className="flex min-w-0 flex-col">
-                      <span className="min-w-0 truncate">{session.title}</span>
-                      <span className="text-ui-xs text-foreground-subtle tabular-nums">
-                        {formatSessionTime(session.updatedAt)} · {session.sessionId.slice(0, 8)}
+                {/* 会话可能有几十条：只让列表自己滚，避免把模型/档位/解绑一起卷走。
+                    overscroll-contain 防止滚到头后带动外层菜单。 */}
+                <div
+                  className="max-h-56 overflow-y-auto overscroll-contain"
+                  data-testid="external-agent-sessions-scroll"
+                >
+                  {sessions?.map((session) => (
+                    <DropdownMenuRadioItem key={session.sessionId} value={session.sessionId}>
+                      <span className="flex min-w-0 flex-col">
+                        <span className="min-w-0 truncate">{session.title}</span>
+                        <span className="text-ui-xs text-foreground-subtle tabular-nums">
+                          {formatSessionTime(session.updatedAt)} · {session.sessionId.slice(0, 8)}
+                        </span>
                       </span>
-                    </span>
-                  </DropdownMenuRadioItem>
-                ))}
+                    </DropdownMenuRadioItem>
+                  ))}
+                </div>
               </DropdownMenuRadioGroup>
             )}
           </>

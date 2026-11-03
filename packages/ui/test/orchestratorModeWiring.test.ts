@@ -47,6 +47,11 @@ const LINKS: Array<{ file: string; pattern: RegExp; why: string }> = [
     why: "已绑定不重弹绑定窗；未绑定才弹",
   },
   {
+    file: "src/v4/composer/ExternalAgentReadOnlyBadge.tsx",
+    pattern: /data-testid="external-agent-sessions-scroll"/,
+    why: "会话列表单独滚动，避免把模型/档位/解绑一起卷走",
+  },
+  {
     file: "src/v4/SessionPane.tsx",
     pattern: /dispatchCommand\(\s*"switchCollaborationMode"/,
     why: "已绑定时切走主控 → 单条命令完成自动解绑与切模式",
