@@ -5173,8 +5173,8 @@ export function SessionPane({
   const externalAgentProbeWorkspaceRef = useRef<string | null>(null);
 
   const runExternalAgentProbe = useCallback(
-    async (options: { force?: boolean } = {}) => {
-      if (!sessionId) return;
+    async (options: { force?: boolean } = {}): Promise<boolean> => {
+      if (!sessionId) return false;
       setExternalAgentProbing(true);
       try {
         const snapshot = await loadExternalAgentProbe(
@@ -5185,9 +5185,14 @@ export function SessionPane({
           },
           options,
         );
-        if (snapshot) setExternalAgentProbe(snapshot.result.agents);
+        if (snapshot) {
+          setExternalAgentProbe(snapshot.result.agents);
+          return true;
+        }
+        return false;
       } catch {
         // 探测失败不改写已有结果：一次瞬时错误不该把"已装"变成"未装"。
+        return false;
       } finally {
         setExternalAgentProbing(false);
       }
@@ -5205,7 +5210,23 @@ export function SessionPane({
     if (externalAgentProbeWorkspaceRef.current === sessionId) return;
     externalAgentProbeWorkspaceRef.current = sessionId;
     setExternalAgentProbe(null);
-    void runExternalAgentProbe();
+    // 冷恢复竞态：UI 已经拿到 sessionId，CLI 侧可能还没登记这个会话，探测会
+    // unavailable。只试一次的话模型/档位菜单会永久缺失（用户只能解绑重绑），
+    // 所以这里退避重试几次；组件/会话切换即取消。
+    let cancelled = false;
+    let attempt = 0;
+    let retryTimer: ReturnType<typeof setTimeout> | undefined;
+    const attemptProbe = async (): Promise<void> => {
+      attempt += 1;
+      const ok = await runExternalAgentProbe();
+      if (cancelled || ok || attempt >= 4) return;
+      retryTimer = setTimeout(() => void attemptProbe(), 1_200 * attempt);
+    };
+    void attemptProbe();
+    return () => {
+      cancelled = true;
+      if (retryTimer) clearTimeout(retryTimer);
+    };
   }, [sessionId, runExternalAgentProbe]);
 
   // 换模型：只改 model 字段，不解绑（解绑会重新快照权限，见 setExternalAgentModel 的注释）。
