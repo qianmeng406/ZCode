@@ -13,6 +13,7 @@
 import { CoreErrorType, createCoreError, type TraceContext } from "@zcode/contracts";
 import { z } from "zod";
 import type { ToolEntry, ToolHandler } from "../types.js";
+import { createExternalAgentProgressEmitter } from "./external-agent-progress.js";
 
 export const DELEGATE_TO_EXTERNAL_AGENT_TOOL_NAME = "DelegateToExternalAgent";
 
@@ -93,21 +94,8 @@ const handler: ToolHandler = async (input, context) => {
     cwd: context.workspaceRoot ?? context.workingDirectory,
     abortSignal: context.abortSignal,
     ...(context.traceContext ? { trace: context.traceContext as TraceContext } : {}),
-    onOutput: (chunk) => {
-      // 外部 agent 的输出按工具进度事件回传，用户能实时看到它在做什么。
-      //
-      // 刻意不 await：进度只是展示。会话被切走/释放时事件写入可能长时间挂起，
-      // await 会把整个工具卡在"执行中"（外部进程早已退出，用户却只能等超时）。
-      // 进度丢了不影响结果，结果本身走后继的返回值。
-      void Promise.resolve(
-        context.emitEvent?.({
-          type: "tool_call_progress",
-          sessionId: context.sessionId,
-          toolCallId: context.toolCallId,
-          payload: { text: chunk.text, stream: chunk.stream },
-        } as never),
-      ).catch(() => undefined);
-    },
+    // 外部 agent 的实时输出 → 工具进度事件（与 Bash 同形，UI 直接渲染）。
+    onOutput: createExternalAgentProgressEmitter(context, DELEGATE_TO_EXTERNAL_AGENT_TOOL_NAME),
   });
 
   if (outcome.kind === "unbound") {

@@ -34,7 +34,7 @@ export interface ExternalAgentRunInput {
   continuation?: "auto" | "fresh";
   signal?: AbortSignal;
   /** 输出增量回调（第一期只在结束时给一次全文；PTY 期改为逐块）。 */
-  onOutput?: (chunk: { stream: "stdout" | "stderr"; text: string }) => void;
+  onOutput?: (chunk: { stream: "stdout" | "stderr"; text: string; preview?: unknown }) => void;
 }
 
 export interface ExternalAgentDriver {
@@ -79,6 +79,12 @@ export function createOneShotExternalAgentDriver(input: {
         },
         {
           ...(runInput.signal ? { abortSignal: runInput.signal } : {}),
+          // 实时进度：执行端按 progressIntervalMs 推送 outputPreview（含 fullText），
+          // 直接转给工具进度事件——用户在工具卡里就能看到外部 agent 正在跑什么。
+          onEvent: (event: { type?: string; outputPreview?: unknown }) => {
+            if (event.type !== "progress" || !event.outputPreview) return;
+            runInput.onOutput?.({ stream: "stdout", text: "", preview: event.outputPreview });
+          },
         } as never,
       );
 

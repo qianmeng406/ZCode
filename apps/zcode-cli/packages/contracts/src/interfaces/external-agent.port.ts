@@ -16,8 +16,17 @@ export interface ExternalAgentDelegateInput {
   cwd: string;
   abortSignal?: AbortSignal;
   trace?: TraceContext;
-  /** 输出增量回调：bootstrap 用它把外部进程输出转成工具进度事件。 */
-  onOutput?: (chunk: { stream: "stdout" | "stderr"; text: string }) => void | Promise<void>;
+  /**
+   * 输出回调：bootstrap 用它把外部进程输出转成工具进度事件。
+   *
+   * `preview` 是执行端给出的**实时**输出预览（含 fullText），进度事件直接透传它，
+   * 用户就能在工具卡里看到外部 agent 正在做什么，而不用等主 agent 轮询。
+   */
+  onOutput?: (chunk: {
+    stream: "stdout" | "stderr";
+    text: string;
+    preview?: unknown;
+  }) => void | Promise<void>;
   /**
    * 是否续接上一次委派的外部会话。
    *

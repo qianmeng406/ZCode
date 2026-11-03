@@ -10,7 +10,20 @@ import {
   type ToolCallStartedPayload,
 } from "@zcode/contracts";
 
-/** 进度只能更新已运行的 Bash，不创建行、不把终态或后台任务复活。 */
+/**
+ * 允许实时输出预览的工具（与 Bash 同一套渲染）。
+ *
+ * 外部 agent 的委派可能跑几分钟，用户必须能在工具卡里看到它正在做什么——
+ * 只靠主 agent 轮询等于没有进度。名字在这里写死而不是从 core 引：bootstrap
+ * 不依赖 core 的工具注册表，跨层引用会把两边的发布节奏绑死。
+ */
+const LIVE_OUTPUT_TOOL_NAMES = new Set([
+  "Bash",
+  "DelegateToExternalAgent",
+  "StartExternalAgentTask",
+]);
+
+/** 进度只能更新已运行的工具行，不创建行、不把终态或后台任务复活。 */
 export function projectToolActivity(
   event: SessionEvent,
   row: ToolCallRow | undefined,
@@ -30,7 +43,8 @@ export function projectToolActivity(
       },
     ];
   }
-  if (row.toolName !== "Bash" || row.status !== "running" || row.backgrounded) return [];
+  if (!LIVE_OUTPUT_TOOL_NAMES.has(row.toolName) || row.status !== "running" || row.backgrounded)
+    return [];
   const parsed = executionOutputPreviewSchema.safeParse(
     (event.payload as ToolCallProgressPayload).outputPreview,
   );

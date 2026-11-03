@@ -78,6 +78,15 @@ export function resolveToolCallRenderer(context: ToolCallBlockRenderContext) {
   if (toolName === "ToolSearch" || toolName === "LocalToolSearch") {
     return ToolSearchToolCallBlock;
   }
+  // 外部 coding agent 的委派：复用执行卡——它的输出是流式的（同 Bash），
+  // 用户要在卡片里看到外部 agent 正在跑什么，而不是干等一个「执行中」。
+  if (
+    toolName === "DelegateToExternalAgent" ||
+    toolName === "StartExternalAgentTask" ||
+    toolName === "GetExternalAgentTaskResult"
+  ) {
+    return ExecuteToolCallBlock;
+  }
 
   // 可复用工作流的两个工具按**工具名**先分流，刻意排在 family 之前。两个理由：
   // 它们今天不在 shared 的已知工具表里（identity 回 unknown，会掉进 raw JSON 兜底卡）；

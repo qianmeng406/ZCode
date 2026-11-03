@@ -11,6 +11,7 @@
 import { CoreErrorType, createCoreError } from "@zcode/contracts";
 import { z } from "zod";
 import type { ToolEntry, ToolHandler } from "../types.js";
+import { createExternalAgentProgressEmitter } from "./external-agent-progress.js";
 
 export const START_EXTERNAL_AGENT_TASK_TOOL_NAME = "StartExternalAgentTask";
 export const GET_EXTERNAL_AGENT_TASK_TOOL_NAME = "GetExternalAgentTaskResult";
@@ -63,17 +64,8 @@ const startHandler: ToolHandler = async (input, context) => {
     cwd: context.workspaceRoot ?? context.workingDirectory,
     abortSignal: context.abortSignal,
     ...(context.traceContext ? { trace: context.traceContext } : {}),
-    onOutput: (chunk) => {
-      // 与同步委派一致：进度只是展示，不阻塞任务本身。
-      void Promise.resolve(
-        context.emitEvent?.({
-          type: "tool_call_progress",
-          sessionId: context.sessionId,
-          toolCallId: context.toolCallId,
-          payload: { text: chunk.text, stream: chunk.stream },
-        } as never),
-      ).catch(() => undefined);
-    },
+    // 与同步委派共用进度发射器：后台任务同样要能看到实时输出。
+    onOutput: createExternalAgentProgressEmitter(context, START_EXTERNAL_AGENT_TASK_TOOL_NAME),
   });
   return { taskId, status: "running" as const };
 };
