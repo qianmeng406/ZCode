@@ -9,6 +9,7 @@ import {
   getRemoteConnectionFailureCode,
 } from "@/lib/remoteWorkspaceServiceError.js";
 import { buildConversationShareItems } from "@/v4/conversationShareItems.js";
+import { ExternalAgentActivityCardSlot } from "@/v4/composer/ExternalAgentActivityCardSlot.js";
 import { resolveSelectionSideInheritedModel } from "@/lib/selectionSideInheritedModel.js";
 import { useStartPlanRecommendation } from "@/hooks/useStartPlanRecommendation.js";
 import type { SessionCreateSource } from "@zcode/shared";
@@ -6639,6 +6640,12 @@ export function SessionPane({
           modelSelectionView={modelSelectionView}
         />
       ) : null}
+      {/* 外部 agent 活动卡：放在输入框上方常驻——工具行会提前结算，这张卡才是
+          用户在委派执行期间唯一稳定的进度视图。 */}
+      <ExternalAgentActivityCardSlot
+        activity={snapshot?.externalAgentActivity ?? null}
+        className="mx-4 mt-2"
+      />
       {composerNode}
       <SessionExecutionEnvironmentDialog
         open={executionEnvironmentOpen}

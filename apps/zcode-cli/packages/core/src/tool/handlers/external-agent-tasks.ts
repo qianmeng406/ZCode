@@ -12,6 +12,7 @@ import { CoreErrorType, createCoreError } from "@zcode/contracts";
 import { z } from "zod";
 import type { ToolEntry, ToolHandler } from "../types.js";
 import { createExternalAgentProgressEmitter } from "./external-agent-progress.js";
+import { createExternalAgentActivityReporter } from "./external-agent-activity.js";
 
 export const START_EXTERNAL_AGENT_TASK_TOOL_NAME = "StartExternalAgentTask";
 export const GET_EXTERNAL_AGENT_TASK_TOOL_NAME = "GetExternalAgentTaskResult";
@@ -56,6 +57,12 @@ const startHandler: ToolHandler = async (input, context) => {
       { context: { toolCallId: context.toolCallId }, recoverable: false },
     );
   }
+  // 后台任务的活动卡：工具行会立刻结算，这张卡负责整个执行期的可见性。
+  const activity = createExternalAgentActivityReporter(context, { agentLabel: "外部 agent" });
+  const emitProgress = createExternalAgentProgressEmitter(
+    context,
+    START_EXTERNAL_AGENT_TASK_TOOL_NAME,
+  );
   const { taskId } = await port.start({
     sessionId: context.sessionId,
     task: parsed.task,
@@ -64,8 +71,23 @@ const startHandler: ToolHandler = async (input, context) => {
     cwd: context.workspaceRoot ?? context.workingDirectory,
     abortSignal: context.abortSignal,
     ...(context.traceContext ? { trace: context.traceContext } : {}),
+    onStart: (info) => activity.started(info),
     // 与同步委派共用进度发射器：后台任务同样要能看到实时输出。
-    onOutput: createExternalAgentProgressEmitter(context, START_EXTERNAL_AGENT_TASK_TOOL_NAME),
+    onOutput: (chunk) => {
+      emitProgress(chunk);
+      activity.progress(chunk);
+    },
+    onSettled: (settled) =>
+      activity.settled({
+        ...(settled.kind === "delegated"
+          ? {
+              label: settled.label,
+              isError: settled.isError,
+              durationMs: settled.durationMs,
+              text: settled.text,
+            }
+          : {}),
+      }),
   });
   return { taskId, status: "running" as const };
 };

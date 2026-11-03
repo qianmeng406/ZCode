@@ -948,6 +948,20 @@ export function createConversationV4Gateway(
         record.traceContext,
       );
     }
+    // 活动卡是运行期事实：上次崩溃/关闭时可能停着一条 running。冷恢复先清空，
+    // 否则 UI 会永远显示"运行中"，而进程早就不在了。
+    await record.app.runtime.appendEvent(
+      {
+        id: createEventId(),
+        sessionId: sessionId as SessionId,
+        type: SessionEventType.ExternalAgentActivityChanged,
+        timestamp: new Date(),
+        traceId: record.traceContext.traceId,
+        sequenceNumber: 0,
+        payload: { activity: null },
+      },
+      record.traceContext,
+    );
     // 投影补发：用与绑定命令同一条事件，UI 据此恢复徽标、模型与档位候选。
     await publishBindingChanged(
       record as never,

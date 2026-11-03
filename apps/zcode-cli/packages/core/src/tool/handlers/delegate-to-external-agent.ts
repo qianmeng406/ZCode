@@ -14,6 +14,7 @@ import { CoreErrorType, createCoreError, type TraceContext } from "@zcode/contra
 import { z } from "zod";
 import type { ToolEntry, ToolHandler } from "../types.js";
 import { createExternalAgentProgressEmitter } from "./external-agent-progress.js";
+import { createExternalAgentActivityReporter } from "./external-agent-activity.js";
 
 export const DELEGATE_TO_EXTERNAL_AGENT_TOOL_NAME = "DelegateToExternalAgent";
 
@@ -86,6 +87,13 @@ const handler: ToolHandler = async (input, context) => {
     );
   }
 
+  // 活动卡：用户在只读会话里始终能看到"codebuddy 现在在做什么"。
+  const activity = createExternalAgentActivityReporter(context, { agentLabel: "外部 agent" });
+  const emitProgress = createExternalAgentProgressEmitter(
+    context,
+    DELEGATE_TO_EXTERNAL_AGENT_TOOL_NAME,
+  );
+
   const outcome = await port.delegate({
     sessionId: context.sessionId,
     task: parsed.task,
@@ -94,8 +102,23 @@ const handler: ToolHandler = async (input, context) => {
     cwd: context.workspaceRoot ?? context.workingDirectory,
     abortSignal: context.abortSignal,
     ...(context.traceContext ? { trace: context.traceContext as TraceContext } : {}),
-    // 外部 agent 的实时输出 → 工具进度事件（与 Bash 同形，UI 直接渲染）。
-    onOutput: createExternalAgentProgressEmitter(context, DELEGATE_TO_EXTERNAL_AGENT_TOOL_NAME),
+    onStart: (info) => activity.started(info),
+    // 外部 agent 的实时输出 → 工具进度事件（与 Bash 同形）+ 活动卡。
+    onOutput: (chunk) => {
+      emitProgress(chunk);
+      activity.progress(chunk);
+    },
+    onSettled: (settled) =>
+      activity.settled({
+        ...(settled.kind === "delegated"
+          ? {
+              label: settled.label,
+              isError: settled.isError,
+              durationMs: settled.durationMs,
+              text: settled.text,
+            }
+          : {}),
+      }),
   });
 
   if (outcome.kind === "unbound") {

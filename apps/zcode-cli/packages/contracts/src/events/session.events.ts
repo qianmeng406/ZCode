@@ -147,6 +147,9 @@ export const SessionEventType = {
   // 命名刻意带 dynamic_：legacy `Workflow` 工具的 script run 事件（workflow_started /
   // workflow_completed，script-workflow-runtime.ts）是另一套日志，同名会真的混淆。
   DynamicWorkflowRunProgress: "dynamic_workflow_run_progress",
+  // 外部 coding agent 的实时活动（独立于工具行）：绑定会话里用户要能一直看到
+  // "codebuddy 现在在干什么"，而不是靠展开某个已完成工具卡或让主 agent 轮询。
+  ExternalAgentActivityChanged: "external_agent_activity_changed",
   PermissionRequested: "permission_requested",
   PermissionResolved: "permission_resolved",
   PermissionDenied: "permission_denied",
@@ -1211,6 +1214,28 @@ export type ExternalAgentBindingChangedPayload = {
   readOnly: true;
 } | null;
 
+/**
+ * 外部 agent 的活动快照（null = 没有任务/已清空）。
+ *
+ * tail 是最近输出的纯文本尾部（不做结构化解析）：卡片只负责"让人看见它活着"。
+ */
+export type ExternalAgentActivityPayload = {
+  activity: {
+    taskId: string;
+    /** 绑定的展示名（如 "CodeBuddy"）。 */
+    agentLabel: string;
+    status: "running" | "completed" | "failed" | "cancelled";
+    /** 开始时间（epoch ms），UI 据此本地计时。 */
+    startedAt: number;
+    /** 已运行时长（结束时是总时长）。 */
+    elapsedMs: number;
+    /** 最近输出尾部。 */
+    tail?: string;
+    /** 失败/取消原因摘要。 */
+    error?: string;
+  } | null;
+};
+
 export type PermissionDecision = "allow" | "deny" | "escalate" | "modify";
 
 export type TargetChangedAction =
@@ -1430,6 +1455,7 @@ export type SessionEventPayload =
   | WorkspaceHookAdmissionUpdatedPayload
   | WorkspaceMcpAdmissionUpdatedPayload
   | ExternalAgentBindingChangedPayload
+  | ExternalAgentActivityPayload
   | HookRunLifecyclePayload
   | CompactLifecyclePayload
   | MicrocompactBoundaryEventPayload

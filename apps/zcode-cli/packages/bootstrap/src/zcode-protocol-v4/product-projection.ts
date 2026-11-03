@@ -55,6 +55,7 @@ import type {
   WorkspaceHookAdmissionUpdatedPayload,
   WorkspaceMcpAdmissionUpdatedPayload,
   ExternalAgentBindingChangedPayload,
+  ExternalAgentActivityPayload,
   WorkspaceHookReviewRequestedPayload,
   WorkspaceHookReviewSettledPayload,
   WorkspaceHookReviewSupersededPayload,
@@ -1586,6 +1587,8 @@ export class ProductProjection {
       }
       case SessionEventType.ExternalAgentBindingChanged:
         return this.onExternalAgentBindingChanged(event);
+      case SessionEventType.ExternalAgentActivityChanged:
+        return this.onExternalAgentActivityChanged(event);
       case SessionEventType.HookRunStarted:
       case SessionEventType.HookRunProgress:
       case SessionEventType.HookRunCompleted:
@@ -3762,6 +3765,17 @@ export class ProductProjection {
         }
       : null;
     return [{ op: "state.updated", patch: { externalAgent } }];
+  }
+
+  /**
+   * 外部 agent 的活动变化。
+   *
+   * 独立于工具行：工具行会立即结算，活动要一直活到外部进程结束。payload 为 null
+   * 时写回 null（字段级整体替换，缺字段会让客户端保留旧卡）。
+   */
+  private onExternalAgentActivityChanged(event: SessionEvent): ConversationDelta[] {
+    const payload = event.payload as ExternalAgentActivityPayload;
+    return [{ op: "state.updated", patch: { externalAgentActivity: payload.activity } }];
   }
 
   private onUserInputAutoResolutionUpdated(event: SessionEvent): ConversationDelta[] {

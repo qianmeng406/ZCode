@@ -11,7 +11,7 @@ import { z } from "zod";
 import { streamablePathSchema } from "./core.js";
 import { conversationRowSchema } from "./rows.js";
 import { sharedContextImportStateSchema } from "./shared-context-import.js";
-import { externalAgentStateSchema } from "./external-agent.js";
+import { externalAgentActivitySchema, externalAgentStateSchema } from "./external-agent.js";
 import {
   backgroundWorkSummarySchema,
   commandStateSummarySchema,
@@ -67,6 +67,8 @@ export const statePatchSchema = z.object({
   // Additive：会话外部 agent 绑定。null = 已解绑——必须显式写 null，
   // 缺键在键级整体替换语义下等于「没改过」，客户端会留着旧徽标。
   externalAgent: externalAgentStateSchema.nullable().optional(),
+  /** 外部 agent 的实时活动（独立卡片；null/缺席 = 没有任务）。 */
+  externalAgentActivity: externalAgentActivitySchema.nullable().optional(),
 });
 export type StatePatch = z.infer<typeof statePatchSchema>;
 

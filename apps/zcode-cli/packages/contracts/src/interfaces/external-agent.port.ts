@@ -35,6 +35,14 @@ export interface ExternalAgentDelegateInput {
    * - `fresh`：强制开新会话（任务与上文无关时用，避免被历史干扰）。
    */
   continuation?: "auto" | "fresh";
+  /**
+   * 绑定读取完成、进程即将启动：回调带上展示名与模型。
+   *
+   * 让 UI 的活动卡在**第一帧**就知道"谁在跑"，而不是等任务结束才拿到 label。
+   */
+  onStart?: (info: { label: string; model?: string }) => void;
+  /** 任务收口（成功/失败/取消）：回调给出最终 outcome，供活动卡落终态。 */
+  onSettled?: (outcome: ExternalAgentDelegateOutcome) => void;
 }
 
 /** 委派落盘后工作区的改动概况（git 可用时提供）。 */

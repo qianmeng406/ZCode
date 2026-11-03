@@ -29,3 +29,24 @@ export const externalAgentStateSchema = z.object({
   readOnly: z.literal(true),
 });
 export type ExternalAgentState = z.infer<typeof externalAgentStateSchema>;
+
+/**
+ * 外部 agent 的实时活动（独立卡片的数据源）。
+ *
+ * 与工具行解耦：后台任务启动后工具行立即结算，而外部 agent 可能还要跑十几分钟。
+ * 这张卡只回答三个问题：谁在跑、跑了多久、最近在干什么。
+ */
+export const externalAgentActivitySchema = z.object({
+  taskId: z.string().min(1),
+  agentLabel: z.string().min(1),
+  status: z.enum(["running", "completed", "failed", "cancelled"]),
+  /** 开始时间（epoch ms）：UI 本地计时，避免每秒一条事件。 */
+  startedAt: z.number().int(),
+  /** 已运行时长（结束时是总时长）。 */
+  elapsedMs: z.number().int().nonnegative(),
+  /** 最近输出尾部（纯文本，UI 做行级渲染）。 */
+  tail: z.string().optional(),
+  /** 失败/取消原因摘要。 */
+  error: z.string().optional(),
+});
+export type ExternalAgentActivity = z.infer<typeof externalAgentActivitySchema>;

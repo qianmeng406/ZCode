@@ -1,0 +1,140 @@
+// 外部 coding agent 的活动卡。
+//
+// 为什么独立成卡而不是塞进工具行：后台任务的工具行几百毫秒就结算，而外部 agent
+// 可能还要跑十几分钟。用户需要一张**一直可见**的卡回答三件事：谁在跑、跑多久、
+// 最近在做什么。
+//
+// 数据来自会话状态（snapshot.externalAgentActivity），不是工具行——
+// 这样切会话/工具行结算都不影响它；结束态保留在时间线里当执行记录。
+import { useEffect, useMemo, useState } from "react";
+import { BotIcon, CheckCircle2Icon, ChevronDownIcon, CircleSlashIcon, XIcon } from "lucide-react";
+import { cn } from "@/components/lib/utils.js";
+import { useZCodeIntl } from "@/i18n/IntlProvider.js";
+import type { ExternalAgentActivity } from "@zcode/shared/zcode-protocol-v4";
+
+export interface ExternalAgentActivityCardProps {
+  activity: ExternalAgentActivity;
+  /** 用户手动关闭（只影响本地展示）。 */
+  onDismiss?: (taskId: string) => void;
+}
+
+const COLLAPSED_LINES = 3;
+const EXPANDED_LINES = 14;
+
+function formatElapsed(ms: number): string {
+  const totalSeconds = Math.max(0, Math.floor(ms / 1000));
+  const minutes = Math.floor(totalSeconds / 60);
+  const seconds = totalSeconds % 60;
+  return minutes > 0 ? `${minutes}:${String(seconds).padStart(2, "0")}` : `${seconds}s`;
+}
+
+export function ExternalAgentActivityCard({ activity, onDismiss }: ExternalAgentActivityCardProps) {
+  const { intl } = useZCodeIntl();
+  const [expanded, setExpanded] = useState(false);
+  const running = activity.status === "running";
+  // 本地秒表：避免服务端每秒发一条事件，只在 running 时走。
+  const [now, setNow] = useState(() => Date.now());
+  useEffect(() => {
+    if (!running) return;
+    const timer = setInterval(() => setNow(Date.now()), 1000);
+    return () => clearInterval(timer);
+  }, [running]);
+
+  const elapsedMs = running
+    ? Math.max(activity.elapsedMs, now - activity.startedAt)
+    : activity.elapsedMs;
+  const lines = useMemo(
+    () =>
+      (activity.tail ?? "")
+        .split(/\r?\n/u)
+        .map((line) => line.replace(/\s+$/u, ""))
+        .filter((line, index, all) => line.length > 0 || index < all.length - 1),
+    [activity.tail],
+  );
+  const visibleLines = lines.slice(-(expanded ? EXPANDED_LINES : COLLAPSED_LINES));
+  const hiddenCount = Math.max(0, lines.length - visibleLines.length);
+
+  const statusLabel = intl.formatMessage({
+    id:
+      activity.status === "running"
+        ? "chat.externalAgent.activity.running"
+        : activity.status === "completed"
+          ? "chat.externalAgent.activity.completed"
+          : activity.status === "failed"
+            ? "chat.externalAgent.activity.failed"
+            : "chat.externalAgent.activity.cancelled",
+  });
+
+  return (
+    <div
+      data-testid="external-agent-activity"
+      className={cn(
+        "mb-2 w-full overflow-hidden rounded-xl border bg-surface/80 backdrop-blur",
+        running ? "border-primary/40" : "border-border",
+      )}
+    >
+      <div className="flex items-center gap-2 px-3 py-2">
+        <span className="relative flex size-2.5 shrink-0 items-center justify-center">
+          {running ? (
+            <>
+              <span className="absolute inline-flex size-2.5 animate-ping rounded-full bg-primary/50" />
+              <span className="relative inline-flex size-1.5 rounded-full bg-primary" />
+            </>
+          ) : activity.status === "completed" ? (
+            <CheckCircle2Icon className="size-3.5 text-foreground-subtle" />
+          ) : activity.status === "failed" ? (
+            <XIcon className="size-3.5 text-danger" />
+          ) : (
+            <CircleSlashIcon className="size-3.5 text-foreground-subtle" />
+          )}
+        </span>
+        <BotIcon className="size-4 shrink-0 text-foreground-subtle" />
+        <span className="truncate text-ui-base font-medium">{activity.agentLabel}</span>
+        <span className="shrink-0 text-ui-sm text-foreground-subtle">{statusLabel}</span>
+        <span className="ml-auto shrink-0 font-mono text-ui-sm text-foreground-subtle tabular-nums">
+          {formatElapsed(elapsedMs)}
+        </span>
+        <button
+          type="button"
+          aria-label={intl.formatMessage({
+            id: expanded
+              ? "chat.externalAgent.activity.collapse"
+              : "chat.externalAgent.activity.expand",
+          })}
+          className="shrink-0 rounded p-0.5 text-foreground-subtle hover:bg-surface-hover"
+          onClick={() => setExpanded((value) => !value)}
+        >
+          <ChevronDownIcon
+            className={cn("size-4 transition-transform", expanded && "rotate-180")}
+          />
+        </button>
+        {onDismiss ? (
+          <button
+            type="button"
+            aria-label={intl.formatMessage({ id: "chat.externalAgent.activity.dismiss" })}
+            className="shrink-0 rounded p-0.5 text-foreground-subtle hover:bg-surface-hover"
+            onClick={() => onDismiss(activity.taskId)}
+          >
+            <XIcon className="size-4" />
+          </button>
+        ) : null}
+      </div>
+      {visibleLines.length > 0 || activity.error ? (
+        <div className="border-t border-border/60 bg-panel/60 px-3 py-2">
+          {hiddenCount > 0 ? (
+            <div className="mb-1 text-ui-xs text-foreground-subtle">
+              {intl.formatMessage(
+                { id: "chat.externalAgent.activity.hiddenLines" },
+                { count: hiddenCount },
+              )}
+            </div>
+          ) : null}
+          <pre className="max-h-48 overflow-auto whitespace-pre-wrap break-words font-mono text-ui-xs leading-relaxed text-foreground-subtle">
+            {visibleLines.join("\n")}
+          </pre>
+          {activity.error ? <p className="mt-1 text-ui-xs text-danger">{activity.error}</p> : null}
+        </div>
+      ) : null}
+    </div>
+  );
+}

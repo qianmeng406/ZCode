@@ -95,6 +95,11 @@ export function createExternalAgentPort(
     const sessionId = String(input.sessionId);
     const binding = await options.readBinding(sessionId).catch(() => undefined);
     if (!binding) return { kind: "unbound" };
+    // 活动卡第一帧就要有"谁在跑"：在进程启动前把 label/模型交出去。
+    input.onStart?.({
+      label: binding.label,
+      ...(binding.model ? { model: binding.model } : {}),
+    });
 
     const result = await driver.run({
       binding,
@@ -132,7 +137,7 @@ export function createExternalAgentPort(
       cwd: input.cwd,
     }).catch(() => undefined);
 
-    return {
+    const outcome: ExternalAgentDelegateOutcome = {
       kind: "delegated",
       label: binding.label,
       text: result.text,
@@ -143,6 +148,9 @@ export function createExternalAgentPort(
       continued: result.continued,
       ...(changes ? { changes } : {}),
     };
+    // 收口回调给活动卡落终态（同步委派与后台任务共用这条路径）。
+    input.onSettled?.(outcome);
+    return outcome;
   };
 
   return {
@@ -178,6 +186,8 @@ export function createExternalAgentPort(
             durationMs: Date.now() - task.startedAt,
             continued: false,
           };
+          // 失败/取消同样要落终态：活动卡不能永远停在 running。
+          input.onSettled?.(task.outcome);
           task.settledAt = Date.now();
           pruneTasks();
           return task.outcome;
