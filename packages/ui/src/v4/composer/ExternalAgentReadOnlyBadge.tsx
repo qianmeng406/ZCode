@@ -245,40 +245,48 @@ function ExternalAgentReadOnlyBadgeImpl({
                 { agent: binding.label },
               )}
             </DropdownMenuLabel>
-            {modelEfforts?.map(({ model, levels }) => {
-              const isCurrent = (binding.model ?? "") === model;
-              return (
-                <DropdownMenuSub key={model || "__default__"}>
-                  <DropdownMenuSubTrigger disabled={disabled || switching}>
-                    <span className="flex min-w-0 flex-col">
-                      <span className={cn("min-w-0 truncate", isCurrent && "text-foreground")}>
-                        {model || intl.formatMessage({ id: "chat.externalAgent.modelDefault" })}
+            {/* 模型可能有十几二十条：与续接会话同样单独滚动，标题固定在上方。 */}
+            <div
+              className="max-h-56 overflow-y-auto overscroll-contain"
+              data-testid="external-agent-models-scroll"
+            >
+              {modelEfforts?.map(({ model, levels }) => {
+                const isCurrent = (binding.model ?? "") === model;
+                return (
+                  <DropdownMenuSub key={model || "__default__"}>
+                    <DropdownMenuSubTrigger disabled={disabled || switching}>
+                      <span className="flex min-w-0 flex-col">
+                        <span className={cn("min-w-0 truncate", isCurrent && "text-foreground")}>
+                          {model || intl.formatMessage({ id: "chat.externalAgent.modelDefault" })}
+                        </span>
+                        {isCurrent && binding.effort ? (
+                          <span className="text-ui-xs text-foreground-subtle">
+                            {binding.effort}
+                          </span>
+                        ) : null}
                       </span>
-                      {isCurrent && binding.effort ? (
-                        <span className="text-ui-xs text-foreground-subtle">{binding.effort}</span>
-                      ) : null}
-                    </span>
-                  </DropdownMenuSubTrigger>
-                  <DropdownMenuSubContent>
-                    <DropdownMenuRadioGroup
-                      value={isCurrent ? (binding.effort ?? "") : ""}
-                      onValueChange={(value) =>
-                        handleChangeModelEffort(model || null, value === "" ? null : value)
-                      }
-                    >
-                      <DropdownMenuRadioItem value="">
-                        {intl.formatMessage({ id: "chat.externalAgent.effortDefault" })}
-                      </DropdownMenuRadioItem>
-                      {levels.map((level) => (
-                        <DropdownMenuRadioItem key={level} value={level}>
-                          {level}
+                    </DropdownMenuSubTrigger>
+                    <DropdownMenuSubContent>
+                      <DropdownMenuRadioGroup
+                        value={isCurrent ? (binding.effort ?? "") : ""}
+                        onValueChange={(value) =>
+                          handleChangeModelEffort(model || null, value === "" ? null : value)
+                        }
+                      >
+                        <DropdownMenuRadioItem value="">
+                          {intl.formatMessage({ id: "chat.externalAgent.effortDefault" })}
                         </DropdownMenuRadioItem>
-                      ))}
-                    </DropdownMenuRadioGroup>
-                  </DropdownMenuSubContent>
-                </DropdownMenuSub>
-              );
-            })}
+                        {levels.map((level) => (
+                          <DropdownMenuRadioItem key={level} value={level}>
+                            {level}
+                          </DropdownMenuRadioItem>
+                        ))}
+                      </DropdownMenuRadioGroup>
+                    </DropdownMenuSubContent>
+                  </DropdownMenuSub>
+                );
+              })}
+            </div>
           </>
         ) : hasModelMenu ? (
           <>
@@ -289,16 +297,21 @@ function ExternalAgentReadOnlyBadgeImpl({
               )}
             </DropdownMenuLabel>
             {/* RadioGroup 的空串 = "CLI 默认模型"，与绑定表单里那个占位选项同义。 */}
-            <DropdownMenuRadioGroup value={binding.model ?? ""} onValueChange={handleChangeModel}>
-              <DropdownMenuRadioItem value="">
-                {intl.formatMessage({ id: "chat.externalAgent.modelDefault" })}
-              </DropdownMenuRadioItem>
-              {modelOptions?.map((model) => (
-                <DropdownMenuRadioItem key={model} value={model}>
-                  {model}
+            <div
+              className="max-h-56 overflow-y-auto overscroll-contain"
+              data-testid="external-agent-models-scroll"
+            >
+              <DropdownMenuRadioGroup value={binding.model ?? ""} onValueChange={handleChangeModel}>
+                <DropdownMenuRadioItem value="">
+                  {intl.formatMessage({ id: "chat.externalAgent.modelDefault" })}
                 </DropdownMenuRadioItem>
-              ))}
-            </DropdownMenuRadioGroup>
+                {modelOptions?.map((model) => (
+                  <DropdownMenuRadioItem key={model} value={model}>
+                    {model}
+                  </DropdownMenuRadioItem>
+                ))}
+              </DropdownMenuRadioGroup>
+            </div>
           </>
         ) : null}
         {(hasModelEfforts || hasModelMenu) && hasEffortMenu && !hasModelEfforts ? (

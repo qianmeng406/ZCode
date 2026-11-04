@@ -48,6 +48,11 @@ const LINKS: Array<{ file: string; pattern: RegExp; why: string }> = [
   },
   {
     file: "src/v4/composer/ExternalAgentReadOnlyBadge.tsx",
+    pattern: /data-testid="external-agent-models-scroll"/,
+    why: "模型列表单独滚动，避免长列表把菜单撑出屏幕",
+  },
+  {
+    file: "src/v4/composer/ExternalAgentReadOnlyBadge.tsx",
     pattern: /modelEfforts\?\.map\(\(\{ model, levels \}\)/,
     why: "模型列表与各自的档位绑定成两级子菜单",
   },
