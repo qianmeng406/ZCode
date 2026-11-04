@@ -76,7 +76,6 @@ import {
   ArrowUpIcon,
   ClipboardPenLineIcon,
   InfoIcon,
-  LockIcon,
   RotateCcwIcon,
   ScanSearchIcon,
   ShieldCheckIcon,
@@ -3165,8 +3164,9 @@ function ConversationComposerImpl({
           orchestratorAvailable={Boolean(sessionId)}
           onSelectOrchestrator={handleSelectOrchestrator}
         />
-        {/* 外部 agent 绑定：主控模式下模式菜单勾在主控上，切走即自动解绑；
-            徽标紧邻它并自带解绑出口（解绑恢复绑定前的模式，语义不同）。 */}
+        {/* 外部 agent 绑定：入口只有模式菜单里的"主控模式"（未绑定选它 → 弹绑定窗，
+            取消则什么都不变）；已绑定时这一格由只读徽标占据，自带解绑出口
+            （解绑恢复绑定前的模式，语义不同）。 */}
         {snapshot?.externalAgent ? (
           <ExternalAgentReadOnlyBadge
             binding={snapshot.externalAgent}
@@ -3189,20 +3189,6 @@ function ConversationComposerImpl({
             effortOptions={externalAgentEffortOptions}
             modelOptions={externalAgentModelOptions}
           />
-        ) : sessionId && onBindExternalAgent ? (
-          // 未绑定时才给入口：已绑定的会话里这一格由只读徽标占据，
-          // 两个按钮并排会让"绑定"看起来像"再绑一个"。
-          <Button
-            type="button"
-            variant="ghost"
-            size="sm"
-            data-testid="v4-composer-external-agent-bind"
-            className="h-7 gap-1 rounded-lg px-2 text-ui-base text-foreground-subtle hover:text-foreground-subtle"
-            onClick={() => setBindDialogOpen(true)}
-          >
-            <LockIcon className="size-4" />
-            <span className="inline">{intl.formatMessage({ id: "chat.externalAgent.bind" })}</span>
-          </Button>
         ) : null}
         {sessionId && snapshot?.workspaceHookAdmission ? (
           <WorkspaceHookPendingIndicator

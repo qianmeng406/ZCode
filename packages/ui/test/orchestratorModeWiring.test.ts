@@ -99,4 +99,12 @@ describe("orchestrator mode wiring", () => {
     );
     expect(catalog).not.toContain("orchestrator");
   });
+
+  it("独立的「绑定外部 agent」按钮已删除（绑定入口只有主控模式）", () => {
+    // 主控模式成为一等入口后，composer 左下再放一个绑定按钮会让人以为能"再绑一个"
+    // （2026-11-05 用户反馈）。绑定弹窗只从 handleSelectOrchestrator 进。
+    const composer = readSurface("src/v4/ConversationComposer.tsx");
+    expect(composer).not.toContain('data-testid="v4-composer-external-agent-bind"');
+    expect(composer).toMatch(/onSelectOrchestrator=\{handleSelectOrchestrator\}/);
+  });
 });
