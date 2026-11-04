@@ -73,12 +73,13 @@ export function ExternalAgentActivitySidePane({
         : activity.elapsedMs;
 
   // 结构化条目优先；只有纯文本 tail 时退回按行切分。空思考条目是"正在思考"的
-  // 标记（CLI 不下发思考正文），必须保留。
+  // 标记（CLI 不下发思考正文），运行中必须保留；结束后它只会变成一句假的
+  // "正在思考"，所以完成态直接丢掉。
   const entries = useMemo<ActivityEntry[]>(() => {
     if (!activity) return [];
     if (activity.entries && activity.entries.length > 0) {
       return activity.entries.filter(
-        (entry) => entry.text.trim().length > 0 || entry.kind === "reasoning",
+        (entry) => entry.text.trim().length > 0 || (entry.kind === "reasoning" && running),
       );
     }
     return (activity.tail ?? "")
@@ -86,7 +87,7 @@ export function ExternalAgentActivitySidePane({
       .map((line) => line.replace(/\s+$/u, ""))
       .filter((line) => line.length > 0)
       .map((line) => ({ kind: "text" as const, text: line }));
-  }, [activity]);
+  }, [activity, running]);
 
   // 贴底跟随：只在用户本来就在底部时生效；运行中每来一条增量跟一次。
   const viewportRef = useRef<HTMLDivElement | null>(null);
@@ -127,24 +128,28 @@ export function ExternalAgentActivitySidePane({
       data-testid="external-agent-activity-panel"
     >
       <div className="flex min-w-0 shrink-0 items-center gap-2 border-b border-border/50 px-3 py-2">
-        <span className="relative flex size-2.5 shrink-0 items-center justify-center">
-          {running ? (
-            <>
-              <span className="absolute inline-flex size-2.5 animate-ping rounded-full bg-primary/50" />
-              <span className="relative inline-flex size-1.5 rounded-full bg-primary" />
-            </>
-          ) : activity?.status === "completed" ? (
-            <CheckCircle2Icon className="size-3.5 text-foreground-subtle" />
-          ) : activity?.status === "failed" ? (
-            <XIcon className="size-3.5 text-danger" />
-          ) : activity ? (
-            <CircleSlashIcon className="size-3.5 text-foreground-subtle" />
-          ) : (
-            <BotIcon className="size-3.5 text-foreground-subtle" />
-          )}
+        {/* 头像 + 状态角标：状态不再是并排的第二个图标，窄面板下省一格宽度。 */}
+        <span className="relative flex size-6 shrink-0 items-center justify-center rounded-md bg-surface-raised">
+          <BotIcon className="size-3.5 text-foreground-subtle" />
+          <span className="absolute -right-1 -bottom-1 flex size-3.5 items-center justify-center rounded-full bg-background">
+            {running ? (
+              <>
+                <span className="absolute inline-flex size-3 animate-ping rounded-full bg-primary/40" />
+                <span className="relative inline-flex size-1.5 rounded-full bg-primary" />
+              </>
+            ) : activity?.status === "completed" ? (
+              <CheckCircle2Icon className="size-3 text-foreground-subtle" />
+            ) : activity?.status === "failed" ? (
+              <XIcon className="size-3 text-danger" />
+            ) : activity ? (
+              <CircleSlashIcon className="size-3 text-foreground-subtle" />
+            ) : null}
+          </span>
         </span>
-        <BotIcon className="size-4 shrink-0 text-foreground-subtle" />
-        <span className="min-w-0 truncate text-ui-base font-medium text-foreground">
+        <span
+          className="min-w-0 shrink truncate text-ui-base font-medium text-foreground"
+          title={activity?.agentLabel}
+        >
           {activity?.agentLabel ?? intl.formatMessage({ id: "sidePane.externalAgentActivity" })}
         </span>
         {statusLabel ? (
@@ -159,6 +164,14 @@ export function ExternalAgentActivitySidePane({
             )}
           >
             {statusLabel}
+          </span>
+        ) : null}
+        {activity?.model ? (
+          <span
+            className="min-w-0 truncate font-mono text-ui-xs text-foreground-subtle"
+            title={activity.model}
+          >
+            {activity.model}
           </span>
         ) : null}
         <span className="min-w-0 flex-1" />
@@ -184,7 +197,7 @@ export function ExternalAgentActivitySidePane({
             {intl.formatMessage({ id: "chat.externalAgent.activity.empty" })}
           </p>
         ) : (
-          <div className="flex flex-col gap-2" data-testid="external-agent-activity-panel-trace">
+          <div className="flex flex-col gap-3" data-testid="external-agent-activity-panel-trace">
             {entries.map((entry, index) => {
               const streaming = running && index === entries.length - 1;
               if (entry.kind === "tool") {
@@ -245,6 +258,12 @@ export function ExternalAgentActivitySidePane({
             {activity.error ? (
               <p className="whitespace-pre-wrap break-words text-ui-sm text-danger">
                 {activity.error}
+              </p>
+            ) : null}
+            {/* 只有空思考标记被过滤掉时才会走到这里：给一句说明，别留空面板。 */}
+            {!running && entries.length === 0 && !activity.error ? (
+              <p className="text-ui-sm text-foreground-subtle">
+                {intl.formatMessage({ id: "chat.externalAgent.activity.noTrace" })}
               </p>
             ) : null}
           </div>

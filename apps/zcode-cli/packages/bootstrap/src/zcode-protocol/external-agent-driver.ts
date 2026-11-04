@@ -71,6 +71,17 @@ export function createOneShotExternalAgentDriver(input: {
       // claude-family 是 stream-json：逐行解析成结构化条目（思考/正文/工具），
       // 半行 JSON 留在解析器缓冲里；非 JSONL 驱动原样转发。
       const streamParser = createClaudeStreamParser();
+      // 结构化条目里出现正文 = 正文已经进过活动卡；末尾的 result 不能再补一遍。
+      // （codebuddy 的 result 就是 assistant 正文的全文，重复追加会让面板里同一段
+      // 话出现两遍——实测反馈。）
+      const emitEntries = (
+        entries: Array<{ kind: "reasoning" | "text" | "tool"; text: string }>,
+      ) => {
+        if (entries.length === 0) return;
+        streamed = true;
+        if (entries.some((entry) => entry.kind === "text")) streamedText = true;
+        runInput.onOutput?.({ stream: "stdout", text: "", entries });
+      };
       const emitRaw = (stream: "stdout" | "stderr", text: string) => {
         if (stream === "stderr") {
           streamed = true;
@@ -82,11 +93,7 @@ export function createOneShotExternalAgentDriver(input: {
           runInput.onOutput?.({ stream, text });
           return;
         }
-        const entries = streamParser.push(text);
-        if (entries.length > 0) {
-          streamed = true;
-          runInput.onOutput?.({ stream, text: "", entries });
-        }
+        emitEntries(streamParser.push(text));
       };
 
       const result = await input.executionPort.run(
@@ -143,7 +150,7 @@ export function createOneShotExternalAgentDriver(input: {
 
       // 结束时把解析器缓冲里的半行也尝试产出（进程刚好在行中间退出）。
       const flushed = streamParser.flush();
-      if (flushed.length > 0) runInput.onOutput?.({ stream: "stdout", text: "", entries: flushed });
+      if (flushed.length > 0) emitEntries(flushed);
 
       const stdoutView = readStreamOutput(result, "stdout");
       const rawStdout = stdoutView.text;
@@ -159,7 +166,11 @@ export function createOneShotExternalAgentDriver(input: {
       // 没流式到正文时（模型只回了 result，或没开 partial）：把最终回答作为一条正文条目，
       // 否则活动卡只有工具调用、看不到它的结论。
       if (!streamedText && parsed.text.trim()) {
-        runInput.onOutput?.({ stream: "stdout", text: "", entries: [{ kind: "text", text: parsed.text }] });
+        runInput.onOutput?.({
+          stream: "stdout",
+          text: "",
+          entries: [{ kind: "text", text: parsed.text }],
+        });
       }
       // 解析不出正文时不能静默返回空串：至少要给出证据（字节数/落盘位置），
       // 否则上层只能看到「已完成」，无从判断是 CLI 没输出还是我们没读到。

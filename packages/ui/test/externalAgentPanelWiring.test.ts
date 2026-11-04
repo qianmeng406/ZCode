@@ -60,6 +60,21 @@ const LINKS: Array<{ file: string; pattern: RegExp; why: string }> = [
     pattern: /data-testid="external-agent-activity-open"/,
     why: "状态卡渲染「查看过程」入口",
   },
+  {
+    file: "src/app-shell/ExternalAgentActivitySidePane.tsx",
+    pattern: /activity\?\.model/,
+    why: "面板头部展示本次委派使用的模型（started 帧透传）",
+  },
+  {
+    file: "src/app-shell/ExternalAgentActivitySidePane.tsx",
+    pattern: /entry\.kind === "reasoning" && running/,
+    why: "完成态丢掉空思考标记，避免把「正在思考」留到结束后",
+  },
+  {
+    file: "src/app-shell/ExternalAgentActivitySidePane.tsx",
+    pattern: /chat\.externalAgent\.activity\.noTrace/,
+    why: "过程全被过滤时给一句说明，不留空白面板",
+  },
 ];
 
 function readSurface(relativePath: string): string {

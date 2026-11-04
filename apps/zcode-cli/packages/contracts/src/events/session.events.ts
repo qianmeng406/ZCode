@@ -1220,12 +1220,15 @@ export type ExternalAgentBindingChangedPayload = {
  * 外部 agent 的活动快照（null = 没有任务/已清空）。
  *
  * tail 是最近输出的纯文本尾部（不做结构化解析）：卡片只负责"让人看见它活着"。
+ * entries 是结构化过程（思考/正文/工具），供过程面板复用会话渲染器。
  */
 export type ExternalAgentActivityPayload = {
   activity: {
     taskId: string;
     /** 绑定的展示名（如 "CodeBuddy"）。 */
     agentLabel: string;
+    /** 本次委派使用的模型（缺省 = CLI 默认模型）。 */
+    model?: string;
     status: "running" | "completed" | "failed" | "cancelled";
     /** 开始时间（epoch ms），UI 据此本地计时。 */
     startedAt: number;
@@ -1233,6 +1236,8 @@ export type ExternalAgentActivityPayload = {
     elapsedMs: number;
     /** 最近输出尾部。 */
     tail?: string;
+    /** 结构化过程条目：思考/正文/工具。 */
+    entries?: Array<{ kind: "reasoning" | "text" | "tool"; text: string }>;
     /** 失败/取消原因摘要。 */
     error?: string;
   } | null;

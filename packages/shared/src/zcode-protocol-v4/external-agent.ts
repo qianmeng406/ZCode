@@ -41,6 +41,8 @@ export type ExternalAgentState = z.infer<typeof externalAgentStateSchema>;
 export const externalAgentActivitySchema = z.object({
   taskId: z.string().min(1),
   agentLabel: z.string().min(1),
+  /** 本次委派使用的模型；缺省表示 CLI 默认模型。 */
+  model: z.string().optional(),
   status: z.enum(["running", "completed", "failed", "cancelled"]),
   /** 开始时间（epoch ms）：UI 本地计时，避免每秒一条事件。 */
   startedAt: z.number().int(),

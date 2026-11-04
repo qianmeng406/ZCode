@@ -22,12 +22,9 @@ interface ActivityEntry {
 
 export interface ExternalAgentActivityReporter {
   /** 绑定读到时调用：卡片立即出现（running，0ms）。 */
-  started(info: { label: string; model?: string }): void;  /** 执行中的输出：节流更新 tail。 */
-  progress(chunk: {
-    text?: string;
-    preview?: unknown;
-    entries?: ActivityEntry[];
-  }): void;
+  started(info: { label: string; model?: string }): void;
+  /** 执行中的输出：节流更新 tail。 */
+  progress(chunk: { text?: string; preview?: unknown; entries?: ActivityEntry[] }): void;
   /** 收口：success/失败/取消，`terminated` 表示被取消。 */
   settled(outcome: { label?: string; isError?: boolean; durationMs?: number; text?: string }): void;
   /** 主动清空（例如 unbind 或会话切换）。 */
@@ -49,6 +46,7 @@ export function createExternalAgentActivityReporter(
   const taskId = String(context.toolCallId);
   const startedAt = options.startedAt ?? Date.now();
   let agentLabel = options.agentLabel;
+  let model: string | undefined;
   let tail = "";
   let entries: ActivityEntry[] = [];
   let entriesChars = 0;
@@ -107,6 +105,7 @@ export function createExternalAgentActivityReporter(
   ): ExternalAgentActivityPayload["activity"] => ({
     taskId,
     agentLabel,
+    ...(model ? { model } : {}),
     status,
     startedAt,
     elapsedMs: Date.now() - startedAt,
@@ -118,6 +117,7 @@ export function createExternalAgentActivityReporter(
   return {
     started(info) {
       agentLabel = info.label || agentLabel;
+      if (info.model) model = info.model;
       emit(snapshot("running"), true);
     },
     progress(chunk) {

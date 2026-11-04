@@ -345,10 +345,7 @@ describe("外部 agent 实时输出", () => {
     const { createOneShotExternalAgentDriver } =
       await import("../src/zcode-protocol/external-agent-driver.js");
     const chunks: string[] = [];
-    const run = async (
-      _request: unknown,
-      options?: { onEvent?: (event: unknown) => void },
-    ) => {
+    const run = async (_request: unknown, options?: { onEvent?: (event: unknown) => void }) => {
       // 模拟执行端的累积尾部快照。
       options?.onEvent?.({ type: "progress", stdoutTail: "line1\n" });
       options?.onEvent?.({ type: "progress", stdoutTail: "line1\nline2\n" });
@@ -370,6 +367,53 @@ describe("外部 agent 实时输出", () => {
       },
     });
     expect(chunks.join("")).toBe("line1\nline2\nline3\n");
+  });
+
+  it("流式正文之后不再补发 result 全文（过程面板不出现两遍）", async () => {
+    // 回归：codebuddy 的 result 事件就是 assistant 正文的全文。正文已经以
+    // text_delta 逐段进过活动卡时，末尾再补一遍会让同一段话出现两次。
+    const { createOneShotExternalAgentDriver } =
+      await import("../src/zcode-protocol/external-agent-driver.js");
+    const answer = "上一个任务是连通性测试：回复 OK 加当前工作目录，且不修改任何文件。";
+    const deltaLine = JSON.stringify({
+      type: "stream_event",
+      event: {
+        type: "content_block_delta",
+        delta: { type: "text_delta", text: answer },
+      },
+    });
+    const resultLine = JSON.stringify({
+      type: "result",
+      result: answer,
+      is_error: false,
+    });
+    const stdout = `${deltaLine}\n${resultLine}\n`;
+    const entries: Array<{ kind: string; text: string }> = [];
+    const run = async (_request: unknown, options?: { onEvent?: (event: unknown) => void }) => {
+      options?.onEvent?.({ type: "progress", stdoutTail: `${deltaLine}\n` });
+      options?.onEvent?.({ type: "progress", stdoutTail: stdout });
+      return {
+        streams: { stdout: { text: stdout }, stderr: { text: "" } },
+        exitCode: 0,
+      };
+    };
+    const driver = createOneShotExternalAgentDriver({
+      executionPort: { run } as never,
+    });
+    await driver.run({
+      binding: claudeFamily,
+      prompt: "x",
+      cwd: "/tmp",
+      onOutput: (chunk) => {
+        entries.push(...(chunk.entries ?? []));
+      },
+    });
+    expect(
+      entries
+        .filter((entry) => entry.kind === "text")
+        .map((entry) => entry.text)
+        .join(""),
+    ).toBe(answer);
   });
 });
 
