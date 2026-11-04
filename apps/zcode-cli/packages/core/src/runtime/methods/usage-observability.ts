@@ -208,11 +208,16 @@ export async function recordToolUsageFromEvent(
   const usageStore = usageStoreFor(runtime);
   if (!usageStore) return;
 
-  const payload = event.payload as Record<string, unknown>;
-  const toolCallId = stringValue(payload.toolCallId);
+  // 事件载荷允许为 null（例如 ExternalAgentBindingChanged(null) 表示解绑）。
+  // 这里对所有事件都会跑，先挡掉空载荷，否则 resume/命令路径会在 appendEvent 里
+  // 抛 "Cannot read properties of null (reading 'toolCallId')"。
+  const payload = event.payload;
+  if (!payload || typeof payload !== "object") return;
+  const record = payload as Record<string, unknown>;
+  const toolCallId = stringValue(record.toolCallId);
   if (!toolCallId) return;
 
-  const toolName = stringValue(payload.toolName) ?? "unknown";
+  const toolName = stringValue(record.toolName) ?? "unknown";
   const metadata = runtime.registry.get(toolName)?.metadata;
   const startedAt = event.timestamp.getTime();
   const base = {
@@ -246,7 +251,7 @@ export async function recordToolUsageFromEvent(
       return;
     }
     if (event.type === SessionEventType.PermissionResolved) {
-      const decision = stringValue(payload.decision);
+      const decision = stringValue(record.decision);
       await usageStore.upsertToolUsage({
         ...base,
         status: "running",
@@ -264,7 +269,7 @@ export async function recordToolUsageFromEvent(
     }
     if (event.type === SessionEventType.ToolCallStarted) {
       const payloadStartedAt =
-        payload.startedAt instanceof Date ? payload.startedAt.getTime() : startedAt;
+        record.startedAt instanceof Date ? record.startedAt.getTime() : startedAt;
       await usageStore.upsertToolUsage({
         ...base,
         startedAt: payloadStartedAt,
@@ -273,9 +278,9 @@ export async function recordToolUsageFromEvent(
       return;
     }
     if (event.type === SessionEventType.ToolCallProgress) {
-      const outputBytes = numberValue(payload.outputBytes);
-      const stdoutBytes = numberValue(payload.stdoutBytes);
-      const stderrBytes = numberValue(payload.stderrBytes);
+      const outputBytes = numberValue(record.outputBytes);
+      const stdoutBytes = numberValue(record.stdoutBytes);
+      const stderrBytes = numberValue(record.stderrBytes);
       await usageStore.upsertToolUsage({
         ...base,
         status: "running",
@@ -290,7 +295,7 @@ export async function recordToolUsageFromEvent(
       return;
     }
     if (event.type === SessionEventType.ToolCallResult) {
-      const result = payload.result as Record<string, unknown> | undefined;
+      const result = record.result as Record<string, unknown> | undefined;
       const performance = result?.perf as Record<string, unknown> | undefined;
       const detail = performance?.detail as Record<string, unknown> | undefined;
       const command =
@@ -301,7 +306,7 @@ export async function recordToolUsageFromEvent(
         ...base,
         status: "completed",
         completedAt: event.timestamp.getTime(),
-        durationMs: numberValue(payload.duration),
+        durationMs: numberValue(record.duration),
         exitCode: numberValue(command?.exitCode),
         outputBytes: numberValue(result?.returnedBytes ?? result?.originalBytes),
         truncated: result?.truncated === true,
@@ -309,7 +314,7 @@ export async function recordToolUsageFromEvent(
       return;
     }
     if (event.type === SessionEventType.ToolCallError) {
-      const error = payload.error as Record<string, unknown> | undefined;
+      const error = record.error as Record<string, unknown> | undefined;
       const errorType = stringValue(error?.type) ?? CoreErrorType.ToolExecutionFailed;
       await usageStore.upsertToolUsage({
         ...base,
