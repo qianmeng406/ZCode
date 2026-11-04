@@ -54,6 +54,8 @@ export const externalAgentActivitySchema = z.object({
   entries: z
     .array(z.object({ kind: z.enum(["reasoning", "text", "tool"]), text: z.string() }).strict())
     .optional(),
+  /** 因超出条目上限被裁掉的更早条目数；UI 据此提示「更早过程已折叠」。 */
+  trimmedEntries: z.number().int().nonnegative().optional(),
   /** 失败/取消原因摘要。 */
   error: z.string().optional(),
 });

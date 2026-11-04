@@ -13,7 +13,9 @@ import type { ToolHandler } from "../types.js";
 const TAIL_CHARS = 2_000;
 const THROTTLE_MS = 300;
 const MAX_ENTRIES = 400;
-const MAX_ENTRY_CHARS = 24_000;
+// 条目总字符上限：1 分钟以上的委派很容易超过小上限，从最老开始丢会让面板
+// "内容不全"。48k 字符 ≈ 1.6 万汉字，单条事件仍远小于 IPC/落库的舒适区。
+const MAX_ENTRY_CHARS = 48_000;
 
 interface ActivityEntry {
   kind: "reasoning" | "text" | "tool";
@@ -52,6 +54,9 @@ export function createExternalAgentActivityReporter(
   let entriesChars = 0;
   let lastEmitAt = 0;
   let finished = false;
+  // 因超出上限被裁掉的条目数：面板用它在顶部提示「更早过程已折叠」，
+  // 否则长任务的开头被静默裁掉，用户只会觉得"内容不全"。
+  let trimmedEntries = 0;
 
   const emit = (activity: ExternalAgentActivityPayload["activity"], force = false): void => {
     if (!context.emitEvent) return;
@@ -96,6 +101,30 @@ export function createExternalAgentActivityReporter(
       const dropped = entries.shift();
       if (!dropped) break;
       entriesChars -= dropped.text.length;
+      trimmedEntries += 1;
+    }
+  };
+
+  /**
+   * 用 CLI 的最终正文把最后一块流式正文补完整。
+   *
+   * 流式 text_delta 一遇到 tool_use 就断开，最后一块正文可能停在半句话/半个
+   * markdown 结构上；driver 解析出的 result 才是完整正文。只在前者恰好是后者
+   * 的前缀延伸时替换（等长或被包含都不动），绝不无脑追加——那是正文出现两遍
+   * 的老坑。result 解析失败时 driver 会退回 raw stdout（JSONL），那不是正文，
+   * 不能拿去替换。
+   */
+  const reconcileFinalText = (finalText: string | undefined): void => {
+    const text = finalText?.trim();
+    if (!text || text.startsWith("{")) return;
+    const last = entries.findLast((entry) => entry.kind === "text" && entry.text.trim());
+    if (!last) return;
+    const streamed = last.text.trim();
+    if (text === streamed) return;
+    if (text.length > streamed.length && text.startsWith(streamed)) {
+      entriesChars -= last.text.length;
+      last.text = text;
+      entriesChars += text.length;
     }
   };
 
@@ -111,6 +140,7 @@ export function createExternalAgentActivityReporter(
     elapsedMs: Date.now() - startedAt,
     ...(tail ? { tail } : {}),
     ...(entries.length > 0 ? { entries: entries.map((entry) => ({ ...entry })) } : {}),
+    ...(trimmedEntries > 0 ? { trimmedEntries } : {}),
     ...(extra?.error ? { error: extra.error } : {}),
   });
 
@@ -136,6 +166,7 @@ export function createExternalAgentActivityReporter(
       if (finished) return;
       finished = true;
       if (outcome.label) agentLabel = outcome.label;
+      reconcileFinalText(outcome.text);
       // 取消与失败要分开：卡片上"已取消"是用户主动的结果，不是错误。
       const cancelled = context.abortSignal?.aborted === true;
       const status = cancelled ? "cancelled" : outcome.isError ? "failed" : "completed";

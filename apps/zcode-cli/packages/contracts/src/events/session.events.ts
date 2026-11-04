@@ -1238,6 +1238,8 @@ export type ExternalAgentActivityPayload = {
     tail?: string;
     /** 结构化过程条目：思考/正文/工具。 */
     entries?: Array<{ kind: "reasoning" | "text" | "tool"; text: string }>;
+    /** 因超出条目上限被裁掉的更早条目数（面板顶部提示用）。 */
+    trimmedEntries?: number;
     /** 失败/取消原因摘要。 */
     error?: string;
   } | null;

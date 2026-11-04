@@ -49,4 +49,67 @@ describe("createExternalAgentActivityReporter", () => {
     };
     expect(event.payload.activity).not.toHaveProperty("model");
   });
+
+  it("收口时用 result 全文补完最后一块流式正文（不追加重复）", () => {
+    const { context, emitEvent } = makeContext();
+    const reporter = createExternalAgentActivityReporter(context, { agentLabel: "外部 agent" });
+    reporter.started({ label: "CodeBuddy" });
+
+    // 流式正文被工具调用打断，最后一块停在半截 markdown。
+    reporter.progress({ entries: [{ kind: "text", text: "正常运行，并且当前命中，说明从未" }] });
+    reporter.settled({
+      isError: false,
+      durationMs: 1_000,
+      text: "正常运行，并且当前命中，说明从未:3001 指向项目目录。\n\n| a | b |\n|---|---|\n| 1 | 2 |",
+    });
+
+    const event = emitEvent.mock.calls.at(-1)?.[0] as unknown as {
+      payload: { activity: { entries: Array<{ kind: string; text: string }>; status: string } };
+    };
+    const textEntries = event.payload.activity.entries.filter((entry) => entry.kind === "text");
+    expect(textEntries).toHaveLength(1);
+    expect(textEntries[0]?.text).toContain("| a | b |");
+    expect(textEntries[0]?.text.startsWith("正常运行")).toBe(true);
+  });
+
+  it("result 解析失败退回 raw stdout（JSONL）时不拿它替换正文", () => {
+    const { context, emitEvent } = makeContext();
+    const reporter = createExternalAgentActivityReporter(context, { agentLabel: "外部 agent" });
+    reporter.started({ label: "CodeBuddy" });
+
+    const streamed = "已完成的结论正文";
+    reporter.progress({ entries: [{ kind: "text", text: streamed }] });
+    reporter.settled({
+      isError: false,
+      durationMs: 1_000,
+      text: '{"type":"stream_event","event":{}}\n{"type":"result"}',
+    });
+
+    const event = emitEvent.mock.calls.at(-1)?.[0] as unknown as {
+      payload: { activity: { entries: Array<{ kind: string; text: string }> } };
+    };
+    expect(event.payload.activity.entries.filter((entry) => entry.kind === "text")).toHaveLength(1);
+    const textEntry = event.payload.activity.entries.find((entry) => entry.kind === "text");
+    expect(textEntry?.text).toBe(streamed);
+  });
+
+  it("超出条目上限时记录 trimmedEntries，快照带上裁剪计数", () => {
+    const { context, emitEvent } = makeContext();
+    const reporter = createExternalAgentActivityReporter(context, { agentLabel: "外部 agent" });
+    reporter.started({ label: "CodeBuddy" });
+
+    const big = "x".repeat(30_000);
+    reporter.progress({ entries: [{ kind: "text", text: big }] });
+    reporter.progress({ entries: [{ kind: "tool", text: "Bash: ls" }] });
+    reporter.progress({ entries: [{ kind: "text", text: big }] });
+    // settled 是强制 emit：绕开 300ms 节流，读到的就是最终快照。
+    reporter.settled({ isError: false, durationMs: 1 });
+
+    const event = emitEvent.mock.calls.at(-1)?.[0] as unknown as {
+      payload: { activity: { entries: unknown[]; trimmedEntries?: number } };
+    };
+    // 30k + 8 + 30k > 48k：第一条被裁，剩下工具行 + 第二段。
+    expect(event.payload.activity.trimmedEntries).toBe(1);
+    expect(event.payload.activity.entries).toHaveLength(2);
+  });
 });

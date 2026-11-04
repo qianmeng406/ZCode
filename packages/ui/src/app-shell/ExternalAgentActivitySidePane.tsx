@@ -198,6 +198,18 @@ export function ExternalAgentActivitySidePane({
           </p>
         ) : (
           <div className="flex flex-col gap-3" data-testid="external-agent-activity-panel-trace">
+            {/* 长任务会超出条目上限、从最老开始裁：必须说清楚，否则用户只觉得内容不全。 */}
+            {activity.trimmedEntries ? (
+              <p
+                className="text-ui-xs text-foreground-subtle"
+                data-testid="external-agent-activity-panel-trimmed"
+              >
+                {intl.formatMessage(
+                  { id: "chat.externalAgent.activity.hiddenLines" },
+                  { count: activity.trimmedEntries },
+                )}
+              </p>
+            ) : null}
             {entries.map((entry, index) => {
               const streaming = running && index === entries.length - 1;
               if (entry.kind === "tool") {
