@@ -3774,10 +3774,29 @@ export class ProductProjection {
    *
    * 独立于工具行：工具行会立即结算，活动要一直活到外部进程结束。payload 为 null
    * 时写回 null（字段级整体替换，缺字段会让客户端保留旧卡）。
+   *
+   * 瘦快照不覆盖富记录（2026-11-05 实测）：GetExternalAgentTaskResult /
+   * CancelExternalAgentTask 观察到终态时会回写一份「只有 tail」的快照（发它的
+   * 工具上下文拿不到 reporter 攒下的 entries/model，taskId 也不同）。如果
+   * reporter 已经正常收口过，这份瘦快照只会把过程面板从结构化渲染打回 raw
+   * tail 按行显示——所以已有完成态富记录时直接忽略它；previous 还在 running
+   * 才说明 reporter 的收口丢了，瘦快照是唯一终态来源，照常写入。
    */
   private onExternalAgentActivityChanged(event: SessionEvent): ConversationDelta[] {
     const payload = event.payload as ExternalAgentActivityPayload;
-    return [{ op: "state.updated", patch: { externalAgentActivity: payload.activity } }];
+    const activity = payload.activity;
+    const previous = this.snapshot.externalAgentActivity;
+    if (
+      activity &&
+      activity.status !== "running" &&
+      !activity.entries?.length &&
+      previous &&
+      previous.status !== "running" &&
+      (previous.entries?.length || previous.model)
+    ) {
+      return [];
+    }
+    return [{ op: "state.updated", patch: { externalAgentActivity: activity } }];
   }
 
   private onUserInputAutoResolutionUpdated(event: SessionEvent): ConversationDelta[] {
