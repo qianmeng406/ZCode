@@ -25,8 +25,13 @@ interface ActivityEntry {
 export interface ExternalAgentActivityReporter {
   /** 绑定读到时调用：卡片立即出现（running，0ms）。 */
   started(info: { label: string; model?: string }): void;
-  /** 执行中的输出：节流更新 tail。 */
-  progress(chunk: { text?: string; preview?: unknown; entries?: ActivityEntry[] }): void;
+  /** 执行中的输出：节流更新 tail。`replaceEntries` 是收口权威重建，整体替换。 */
+  progress(chunk: {
+    text?: string;
+    preview?: unknown;
+    entries?: ActivityEntry[];
+    replaceEntries?: ActivityEntry[];
+  }): void;
   /** 收口：success/失败/取消，`terminated` 表示被取消。 */
   settled(outcome: { label?: string; isError?: boolean; durationMs?: number; text?: string }): void;
   /** 主动清空（例如 unbind 或会话切换）。 */
@@ -77,6 +82,16 @@ export function createExternalAgentActivityReporter(
     ).catch(() => undefined);
   };
 
+  /** 超出上限时从最老开始裁；裁掉多少要在面板上说明（trimmedEntries）。 */
+  const trimEntries = () => {
+    while (entries.length > MAX_ENTRIES || entriesChars > MAX_ENTRY_CHARS) {
+      const dropped = entries.shift();
+      if (!dropped) break;
+      entriesChars -= dropped.text.length;
+      trimmedEntries += 1;
+    }
+  };
+
   /** 追加条目：相邻同类合并（text/reasoning 的增量），并裁剪过旧内容。 */
   const appendEntries = (incoming: ActivityEntry[]) => {
     for (const entry of incoming) {
@@ -97,12 +112,7 @@ export function createExternalAgentActivityReporter(
         entriesChars += entry.text.length;
       }
     }
-    while (entries.length > MAX_ENTRIES || entriesChars > MAX_ENTRY_CHARS) {
-      const dropped = entries.shift();
-      if (!dropped) break;
-      entriesChars -= dropped.text.length;
-      trimmedEntries += 1;
-    }
+    trimEntries();
   };
 
   /**
@@ -152,6 +162,16 @@ export function createExternalAgentActivityReporter(
     },
     progress(chunk) {
       if (finished) return;
+      if (chunk.replaceEntries) {
+        // 收口权威重建：来自全量 stdout 的重解析，整体替换执行中靠尾窗差分
+        // 拼出来的条目（那些可能重复/丢段）。替换后重新计裁剪数。
+        entries = chunk.replaceEntries.map((entry) => ({ ...entry }));
+        entriesChars = entries.reduce((sum, entry) => sum + entry.text.length, 0);
+        trimmedEntries = 0;
+        trimEntries();
+        emit(snapshot("running"), true);
+        return;
+      }
       if (chunk.entries?.length) {
         appendEntries(chunk.entries);
         emit(snapshot("running"));

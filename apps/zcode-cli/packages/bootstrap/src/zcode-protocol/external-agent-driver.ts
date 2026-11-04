@@ -6,9 +6,11 @@
 // 接口刻意按「可长驻」设计（submit 返回 runId + 完成信号），第二期换成 PTY 实现时
 // 调用方无需改动 —— 只是 run 的生命周期变长、output 变成可持续订阅。
 import type { ExecutionPort } from "@zcode/contracts";
+import { readFileSync, statSync } from "node:fs";
 import {
   buildExternalAgentInvocation,
   createClaudeStreamParser,
+  parseClaudeFamilyStreamActivities,
   parseExternalAgentResult,
   type ExternalAgentBinding,
 } from "@zcode/shared";
@@ -40,6 +42,8 @@ export interface ExternalAgentRunInput {
     text: string;
     preview?: unknown;
     entries?: Array<{ kind: "reasoning" | "text" | "tool"; text: string }>;
+    /** true = entries 是收口后的权威重建，接收方应整体替换已累积的条目。 */
+    replace?: boolean;
   }) => void;
 }
 
@@ -155,6 +159,25 @@ export function createOneShotExternalAgentDriver(input: {
       const stdoutView = readStreamOutput(result, "stdout");
       const rawStdout = stdoutView.text;
       const stderr = extractStreamText(result, "stderr");
+
+      // 权威重建（claude-family）：执行中的条目来自滚动尾窗差分，行会被窗口
+      // 切断、内容会重复/丢段。进程结束后 stdout artifact 里有全量字节，用它
+      // 整体重解析并把活动条目整体替换掉——最终面板必须完整且有序。
+      // 解析结果为空（非 JSONL 等）时保持原样，不破坏已有条目。
+      if (binding.driver === "claude-family") {
+        const authoritative = parseClaudeFamilyStreamActivities(readFullStdout(stdoutView));
+        if (authoritative.length > 0) {
+          streamed = true;
+          if (authoritative.some((entry) => entry.kind === "text")) streamedText = true;
+          runInput.onOutput?.({
+            stream: "stdout",
+            text: "",
+            entries: authoritative,
+            replace: true,
+          });
+        }
+      }
+
       // 没逐段推过（执行端没给 progress 事件）才补发全文：已推过就不重复，
       // 否则活动卡的 tail 会出现两遍同样的内容。
       if (!streamed) {
@@ -206,6 +229,31 @@ interface StreamOutputView {
   text: string;
   bytes?: number;
   artifactPath?: string;
+}
+
+/** 收口重解析的读取上限；driver 的 outputLimit.maxPersistedBytes 与它一致。 */
+const MAX_REPARSE_BYTES = 32_000_000;
+
+/**
+ * 收口重解析用的全量 stdout：优先落盘 artifact（inline 超限时 text 只是
+ * 截断视图），其次内存 text。读失败退回内存视图，绝不抛错——
+ * 重解析是锦上添花，不能把收口流程拖失败。
+ */
+function readFullStdout(view: StreamOutputView): string {
+  if (view.artifactPath) {
+    try {
+      const stat = statSync(view.artifactPath);
+      if (stat.isFile() && stat.size > 0) {
+        if (stat.size <= MAX_REPARSE_BYTES) return readFileSync(view.artifactPath, "utf8");
+        // 超上限：取尾部（结尾的 result 事件最关键），起始半行解析器会跳过。
+        const buffer = readFileSync(view.artifactPath);
+        return buffer.subarray(buffer.byteLength - MAX_REPARSE_BYTES).toString("utf8");
+      }
+    } catch {
+      // artifact 缺席/不可读：退回内存视图（readStreamOutput 已把 tail 并进 text）。
+    }
+  }
+  return view.text;
 }
 
 /**

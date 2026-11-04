@@ -371,26 +371,25 @@ describe("外部 agent 实时输出", () => {
 
   it("流式正文之后不再补发 result 全文（过程面板不出现两遍）", async () => {
     // 回归：codebuddy 的 result 事件就是 assistant 正文的全文。正文已经以
-    // text_delta 逐段进过活动卡时，末尾再补一遍会让同一段话出现两次。
+    // 正文以完整 assistant 消息进过活动卡时，末尾再补一遍 result 会让同一段
+    // 话出现两次（2026-11-04 的正文重复回归）。
     const { createOneShotExternalAgentDriver } =
       await import("../src/zcode-protocol/external-agent-driver.js");
     const answer = "上一个任务是连通性测试：回复 OK 加当前工作目录，且不修改任何文件。";
-    const deltaLine = JSON.stringify({
-      type: "stream_event",
-      event: {
-        type: "content_block_delta",
-        delta: { type: "text_delta", text: answer },
-      },
+    const assistantLine = JSON.stringify({
+      type: "assistant",
+      message: { role: "assistant", content: [{ type: "text", text: answer }] },
     });
     const resultLine = JSON.stringify({
       type: "result",
       result: answer,
       is_error: false,
     });
-    const stdout = `${deltaLine}\n${resultLine}\n`;
-    const entries: Array<{ kind: string; text: string }> = [];
+    const stdout = `${assistantLine}\n${resultLine}\n`;
+    // 模拟 reporter 的语义：replace 整体替换，否则追加。
+    let current: Array<{ kind: string; text: string }> = [];
     const run = async (_request: unknown, options?: { onEvent?: (event: unknown) => void }) => {
-      options?.onEvent?.({ type: "progress", stdoutTail: `${deltaLine}\n` });
+      options?.onEvent?.({ type: "progress", stdoutTail: `${assistantLine}\n` });
       options?.onEvent?.({ type: "progress", stdoutTail: stdout });
       return {
         streams: { stdout: { text: stdout }, stderr: { text: "" } },
@@ -405,15 +404,83 @@ describe("外部 agent 实时输出", () => {
       prompt: "x",
       cwd: "/tmp",
       onOutput: (chunk) => {
-        entries.push(...(chunk.entries ?? []));
+        if (!chunk.entries?.length) return;
+        current = chunk.replace ? [...chunk.entries] : [...current, ...chunk.entries];
       },
     });
     expect(
-      entries
+      current
         .filter((entry) => entry.kind === "text")
         .map((entry) => entry.text)
         .join(""),
     ).toBe(answer);
+  });
+
+  it("收口时用 stdout artifact 全量重解析并整体替换条目（replace）", async () => {
+    // 执行中的条目来自滚动尾窗差分，行会被窗口切断、内容会重复/丢段；
+    // 进程结束后 artifact 里有全量字节，收口必须以它为准。
+    const { createOneShotExternalAgentDriver } =
+      await import("../src/zcode-protocol/external-agent-driver.js");
+    const { mkdtempSync, writeFileSync, rmSync } = await import("node:fs");
+    const { tmpdir } = await import("node:os");
+    const { join } = await import("node:path");
+    const dir = mkdtempSync(join(tmpdir(), "ext-agent-driver-"));
+    try {
+      const full = [
+        JSON.stringify({
+          type: "assistant",
+          message: { role: "assistant", content: [{ type: "text", text: "第一段" }] },
+        }),
+        JSON.stringify({
+          type: "assistant",
+          message: {
+            role: "assistant",
+            content: [{ type: "tool_use", name: "Bash", input: { command: "ls src" } }],
+          },
+        }),
+        JSON.stringify({ type: "result", result: "第一段", is_error: false }),
+        "",
+      ].join("\n");
+      const artifactPath = join(dir, "stdout.log");
+      writeFileSync(artifactPath, full, "utf8");
+
+      const chunks: Array<{
+        entries?: Array<{ kind: string; text: string }>;
+        replace?: boolean;
+      }> = [];
+      const run = async (_request: unknown, options?: { onEvent?: (event: unknown) => void }) => {
+        // 模拟尾窗：第一段只到半行（被窗口切断），执行中解析不出来。
+        options?.onEvent?.({ type: "progress", stdoutTail: `${full.slice(0, 40)}` });
+        return {
+          streams: {
+            stdout: { text: "", artifactPath },
+            stderr: { text: "" },
+          },
+          exitCode: 0,
+        };
+      };
+      const driver = createOneShotExternalAgentDriver({
+        executionPort: { run } as never,
+      });
+      await driver.run({
+        binding: claudeFamily,
+        prompt: "x",
+        cwd: "/tmp",
+        onOutput: (chunk) => {
+          if (chunk.entries?.length)
+            chunks.push({ entries: chunk.entries, replace: chunk.replace });
+        },
+      });
+
+      const replace = chunks.find((chunk) => chunk.replace);
+      expect(replace).toBeDefined();
+      expect(replace?.entries).toEqual([
+        { kind: "text", text: "第一段" },
+        { kind: "tool", text: "Bash: ls src" },
+      ]);
+    } finally {
+      rmSync(dir, { recursive: true, force: true });
+    }
   });
 });
 

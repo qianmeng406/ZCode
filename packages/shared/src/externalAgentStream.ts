@@ -1,14 +1,13 @@
-// claude-family `stream-json` 的增量解析：产出结构化活动条目。
+// claude-family `stream-json` 的解析：产出结构化活动条目。
 //
-// 为什么需要状态：codebuddy 的 stream-json 有两种粒度混在一起——
-// - `stream_event` 里的 content_block_delta（思考/正文的增量，实时）；
-// - `assistant` 完整消息（包括 tool_use；正文/思考也已经以 delta 到过）。
-//
-// 所以这里的纪律是：
-// 1. delta 一律先到先用（活动卡要即时感）；
-// 2. 完整消息里的 text/thinking 只在**没收到过对应 delta** 时才补发，避免重复；
-// 3. tool_use 只在完整消息里出现，正常产出；
-// 4. 半行 JSON 留在缓冲里等下一次。
+// 为什么正文/思考只取完整消息（2026-11-05）：执行端给驱动层的实时进度是
+// 「最后 N 字节」的滚动尾窗快照，输出一快窗口就滑动，前缀差分既会重复又会
+// 丢段——用 delta 拼出来的正文是乱序碎片（实测把最终回答拼成"不同段落接龙"）。
+// 而 stream-json 每轮模型输出都会跟一条**完整** `assistant` 消息，text/thinking/
+// tool_use 都在其中且顺序可靠。所以：
+// 1. delta 一律不产出条目（只保留"思考开始"的空标记给 UI 做"正在思考"）；
+// 2. 正文/思考/工具一律以完整消息为准；
+// 3. 半行 JSON 留在缓冲里等下一次。
 import { z } from "zod";
 
 export const externalAgentActivityEntrySchema = z
@@ -26,12 +25,23 @@ export interface ClaudeStreamParser {
   flush(): ExternalAgentActivityEntry[];
 }
 
+/**
+ * 对**完整**的 stream-json 输出做一次性解析（收口时的权威重建）。
+ *
+ * 执行中的实时进度是滚动尾窗快照，行会被窗口切断、内容会重复/丢失；
+ * 进程结束后 stdout artifact 里有全量字节，用它整体重解析出的条目
+ * 才是完整且有序的。driver 在收口时用这份结果替换活动条目。
+ */
+export function parseClaudeFamilyStreamActivities(stdout: string): ExternalAgentActivityEntry[] {
+  const parser = createClaudeStreamParser();
+  const entries = parser.push(stdout);
+  return [...entries, ...parser.flush()];
+}
+
 const MAX_TOOL_DETAIL = 160;
 
 export function createClaudeStreamParser(): ClaudeStreamParser {
   let buffer = "";
-  let sawTextDelta = false;
-  let sawThinkingDelta = false;
 
   const parseLine = (rawLine: string): ExternalAgentActivityEntry[] => {
     const line = rawLine.trim();
@@ -45,29 +55,13 @@ export function createClaudeStreamParser(): ClaudeStreamParser {
     if (!entry || typeof entry !== "object") return [];
     const record = entry as { type?: unknown; event?: unknown; message?: unknown };
 
-    // 增量事件：思考与正文都实时到。
+    // 增量事件不产出正文/思考条目（滚动尾窗差分不可靠，见文件头）；
+    // 只保留「思考块开始」作为「正在思考」的信号给 UI。
     if (record.type === "stream_event" && record.event && typeof record.event === "object") {
-      const event = record.event as { type?: unknown; delta?: unknown; content_block?: unknown };
-      // 思考块开始：codebuddy 会发 content_block_start 但后续 delta 内容是空的
-      // （实测 --verbose 也一样）。空文本条目作为“正在思考”的信号给 UI。
-      if (event.type === "content_block_start") {
-        const block = event.content_block as { type?: unknown } | undefined;
-        return block?.type === "thinking" ? [{ kind: "reasoning", text: "" }] : [];
-      }
-      if (event.type !== "content_block_delta" || !event.delta || typeof event.delta !== "object")
-        return [];
-      // thinking 内容在 codebuddy 里恒为空串（CLI 只下发事件与签名）；
-      // 这里仍按内容产出，非空时才有文本。
-      const delta = event.delta as { type?: unknown; thinking?: unknown; text?: unknown };
-      if (delta.type === "thinking_delta" && typeof delta.thinking === "string" && delta.thinking) {
-        sawThinkingDelta = true;
-        return [{ kind: "reasoning", text: delta.thinking }];
-      }
-      if (delta.type === "text_delta" && typeof delta.text === "string" && delta.text) {
-        sawTextDelta = true;
-        return [{ kind: "text", text: delta.text }];
-      }
-      return [];
+      const event = record.event as { type?: unknown; content_block?: unknown };
+      if (event.type !== "content_block_start") return [];
+      const block = event.content_block as { type?: unknown } | undefined;
+      return block?.type === "thinking" ? [{ kind: "reasoning", text: "" }] : [];
     }
 
     if (record.type !== "assistant" || !record.message || typeof record.message !== "object") {
@@ -86,11 +80,11 @@ export function createClaudeStreamParser(): ClaudeStreamParser {
         input?: unknown;
       };
       if (item.type === "thinking" && typeof item.thinking === "string" && item.thinking.trim()) {
-        if (!sawThinkingDelta) entries.push({ kind: "reasoning", text: item.thinking.trim() });
+        entries.push({ kind: "reasoning", text: item.thinking.trim() });
         continue;
       }
       if (item.type === "text" && typeof item.text === "string" && item.text.trim()) {
-        if (!sawTextDelta) entries.push({ kind: "text", text: item.text });
+        entries.push({ kind: "text", text: item.text });
         continue;
       }
       if (item.type !== "tool_use" || typeof item.name !== "string") continue;

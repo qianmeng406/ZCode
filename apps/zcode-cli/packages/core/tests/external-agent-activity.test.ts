@@ -112,4 +112,41 @@ describe("createExternalAgentActivityReporter", () => {
     expect(event.payload.activity.trimmedEntries).toBe(1);
     expect(event.payload.activity.entries).toHaveLength(2);
   });
+
+  it("replaceEntries 整体替换执行中条目并清零裁剪计数", () => {
+    const { context, emitEvent } = makeContext();
+    const reporter = createExternalAgentActivityReporter(context, { agentLabel: "外部 agent" });
+    reporter.started({ label: "CodeBuddy" });
+
+    const big = "x".repeat(30_000);
+    reporter.progress({ entries: [{ kind: "text", text: big }] });
+    reporter.progress({ entries: [{ kind: "text", text: big }] });
+
+    // 收口权威重建：全量 stdout 重解析出的条目整体替换，裁剪计数清零。
+    // （replace 是强制 emit，绕开 300ms 节流，直接读它。）
+    reporter.progress({
+      replaceEntries: [
+        { kind: "text", text: "第一段" },
+        { kind: "tool", text: "Bash: ls src" },
+        { kind: "text", text: "完整结论" },
+      ],
+    });
+
+    const event = emitEvent.mock.calls.at(-1)?.[0] as unknown as {
+      payload: {
+        activity: {
+          entries: Array<{ kind: string; text: string }>;
+          trimmedEntries?: number;
+          status: string;
+        };
+      };
+    };
+    expect(event.payload.activity.trimmedEntries).toBeUndefined();
+    expect(event.payload.activity.status).toBe("running");
+    expect(event.payload.activity.entries.map((entry) => entry.text)).toEqual([
+      "第一段",
+      "Bash: ls src",
+      "完整结论",
+    ]);
+  });
 });
