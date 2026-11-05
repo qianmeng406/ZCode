@@ -1,5 +1,8 @@
 import { describe, expect, it, vi } from "vitest";
-import { createExternalAgentActivityReporter } from "../src/tool/handlers/external-agent-activity.js";
+import {
+  createExternalAgentActivityReporter,
+  publishExternalAgentTaskStatus,
+} from "../src/tool/handlers/external-agent-activity.js";
 
 /**
  * 活动快照是过程面板/状态卡的唯一数据源：这里钉住"开始帧带模型"，
@@ -209,5 +212,34 @@ describe("createExternalAgentActivityReporter", () => {
     } finally {
       vi.useRealTimers();
     }
+  });
+});
+
+describe("publishExternalAgentTaskStatus", () => {
+  it("有最终正文时以结构化 text 条目下发（面板按 markdown 渲染，不是 raw tail）", () => {
+    const { context, emitEvent } = makeContext();
+    publishExternalAgentTaskStatus(context, {
+      taskId: "ext_1",
+      agentLabel: "CodeBuddy",
+      status: "completed",
+      durationMs: 72_900,
+      text: "# 报告\n\n结论先说：可用。",
+    });
+
+    expect(emitEvent).toHaveBeenCalledTimes(1);
+    const event = emitEvent.mock.calls[0]?.[0] as unknown as {
+      payload: {
+        activity: {
+          status: string;
+          entries?: Array<{ kind: string; text: string }>;
+          tail?: string;
+        };
+      };
+    };
+    expect(event.payload.activity.status).toBe("completed");
+    expect(event.payload.activity.entries).toEqual([
+      { kind: "text", text: "# 报告\n\n结论先说：可用。" },
+    ]);
+    expect(event.payload.activity.tail).toContain("结论先说");
   });
 });

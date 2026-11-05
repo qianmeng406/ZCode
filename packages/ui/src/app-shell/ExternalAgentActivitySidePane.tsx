@@ -7,7 +7,15 @@
 // 数据源是模块级 store（见 v4/externalAgent/externalAgentActivityStore.ts）：
 // 面板挂在 App 壳层，拿不到 SessionPane 的 projection lease；store 由 SessionPane
 // 每帧推进来，因此切 tab / 面板隐藏期间记录仍然连续。
-import { useCallback, useEffect, useMemo, useRef, useState, useSyncExternalStore } from "react";
+import {
+  memo,
+  useCallback,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+  useSyncExternalStore,
+} from "react";
 import { BotIcon, CheckCircle2Icon, CircleSlashIcon, XIcon } from "lucide-react";
 import { Button } from "@/components/ui/button.js";
 import { cn } from "@/components/lib/utils.js";
@@ -40,6 +48,69 @@ function formatElapsed(ms: number): string {
   const seconds = totalSeconds % 60;
   return minutes > 0 ? `${minutes}:${String(seconds).padStart(2, "0")}` : `${seconds}s`;
 }
+
+// 过程行按"只渲染变化"组织（借 herdr surface_reuse 的思路）：增量帧只改最后
+// 一两条，前面的条目对象在投影合并时保持同一引用，memo 后不再重渲染。
+// 正文尤其重要——GenUiMessageResponse 每次渲染都会重新解析 markdown。
+
+const TraceToolRow = memo(function TraceToolRow({
+  toolId,
+  text,
+  workspacePath,
+}: {
+  toolId: string;
+  text: string;
+  workspacePath?: string;
+}) {
+  return <ExternalAgentToolRow toolId={toolId} text={text} workspacePath={workspacePath} />;
+});
+
+const TraceReasoning = memo(function TraceReasoning({
+  text,
+  streaming,
+}: {
+  text: string;
+  streaming: boolean;
+}) {
+  return (
+    <Reasoning className="w-full" isStreaming={streaming}>
+      <ReasoningTrigger streamingText={text} />
+      <ReasoningContent>{text}</ReasoningContent>
+    </Reasoning>
+  );
+});
+
+const TraceText = memo(function TraceText({
+  text,
+  streaming,
+  messageKey,
+  workspacePath,
+  sessionId,
+  workspaceIdentity,
+  remoteSessionId,
+}: {
+  text: string;
+  streaming: boolean;
+  messageKey: string;
+  workspacePath: string;
+  sessionId: string;
+  workspaceIdentity?: string;
+  remoteSessionId?: string;
+}) {
+  return (
+    <GenUiMessageResponse
+      completed={!streaming}
+      messageKey={messageKey}
+      streaming={streaming}
+      workspacePath={workspacePath}
+      sessionId={sessionId}
+      {...(workspaceIdentity ? { workspaceIdentity } : {})}
+      {...(remoteSessionId ? { workspaceRemoteSessionId: remoteSessionId } : {})}
+    >
+      {text}
+    </GenUiMessageResponse>
+  );
+});
 
 export function ExternalAgentActivitySidePane({
   tab,
@@ -234,7 +305,7 @@ export function ExternalAgentActivitySidePane({
                 if (entry.kind === "tool") {
                   return (
                     <div key={`t-${index}`} data-testid="external-agent-activity-panel-tool">
-                      <ExternalAgentToolRow
+                      <TraceToolRow
                         toolId={`external-agent-tool-${index}`}
                         text={entry.text}
                         workspacePath={tab.workspacePath}
@@ -260,31 +331,24 @@ export function ExternalAgentActivitySidePane({
                   }
                   return (
                     <div key={`r-${index}`} data-testid="external-agent-activity-panel-reasoning">
-                      <Reasoning className="w-full" isStreaming={streaming}>
-                        <ReasoningTrigger streamingText={entry.text} />
-                        <ReasoningContent>{entry.text}</ReasoningContent>
-                      </Reasoning>
+                      <TraceReasoning text={entry.text} streaming={streaming} />
                     </div>
                   );
                 }
                 return (
                   <div key={`x-${index}`} data-testid="external-agent-activity-panel-text">
                     {/* 会话正文同一个渲染器：markdown/代码块/gen-ui 引用都按对话里的样子排。 */}
-                    <GenUiMessageResponse
-                      completed={!streaming}
-                      messageKey={`external-agent:${index}`}
+                    <TraceText
+                      text={entry.text}
                       streaming={streaming}
+                      messageKey={`external-agent:${index}`}
                       workspacePath={tab.workspacePath}
                       sessionId={tab.sessionId}
                       {...(tab.workspaceIdentity
                         ? { workspaceIdentity: tab.workspaceIdentity }
                         : {})}
-                      {...(tab.remoteSessionId
-                        ? { workspaceRemoteSessionId: tab.remoteSessionId }
-                        : {})}
-                    >
-                      {entry.text}
-                    </GenUiMessageResponse>
+                      {...(tab.remoteSessionId ? { remoteSessionId: tab.remoteSessionId } : {})}
+                    />
                   </div>
                 );
               })}

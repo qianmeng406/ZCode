@@ -3776,10 +3776,10 @@ export class ProductProjection {
    * 时写回 null（字段级整体替换，缺字段会让客户端保留旧卡）。
    *
    * 瘦快照不覆盖富记录（2026-11-05 实测）：GetExternalAgentTaskResult /
-   * CancelExternalAgentTask 观察到终态时会回写一份「只有 tail」的快照（发它的
-   * 工具上下文拿不到 reporter 攒下的 entries/model，taskId 也不同）。如果
-   * reporter 已经正常收口过，这份瘦快照只会把过程面板从结构化渲染打回 raw
-   * tail 按行显示——所以已有完成态富记录时直接忽略它；previous 还在 running
+   * CancelExternalAgentTask 观察到终态时会回写一份「只有 tail / 最多一条正文」的
+   * 快照（发它的工具上下文拿不到 reporter 攒下的 entries/model，taskId 也不同）。
+   * 如果 reporter 已经正常收口过，这份瘦快照只会把过程面板从结构化渲染打回
+   * raw tail 按行显示——所以已有完成态富记录时直接忽略它；previous 还在 running
    * 才说明 reporter 的收口丢了，瘦快照是唯一终态来源，照常写入。
    *
    * 增量帧合并（2026-11-05）：执行中 reporter 只发 `baseRevision + entriesFrom +
@@ -3791,13 +3791,18 @@ export class ProductProjection {
     const payload = event.payload as ExternalAgentActivityPayload;
     const incoming = payload.activity;
     const previous = this.snapshot.externalAgentActivity;
+    const incomingEntryCount = incoming?.entries?.length ?? 0;
+    const previousEntryCount = previous?.entries?.length ?? 0;
+    // 「更瘦」= 没有模型、条目数不超过已记录的。轮询回写（一条正文）也属于瘦快照，
+    // 不能拿它覆盖 reporter 攒下的完整过程。
+    const thinner = !incoming?.model && incomingEntryCount <= previousEntryCount;
     if (
       incoming &&
       incoming.status !== "running" &&
-      !incoming.entries?.length &&
+      thinner &&
       previous &&
       previous.status !== "running" &&
-      (previous.entries?.length || previous.model)
+      (previousEntryCount > 0 || previous.model)
     ) {
       return [];
     }

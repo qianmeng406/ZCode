@@ -59,6 +59,16 @@ describe("external agent activity projection", () => {
     expect(h.current()).toEqual(richSettled);
   });
 
+  it("轮询回写带着一条最终正文时仍算瘦快照，不覆盖完整过程", () => {
+    const h = harness();
+    h.apply(richSettled);
+    h.apply({
+      ...thinSettled,
+      entries: [{ kind: "text", text: "最终正文" }],
+    });
+    expect(h.current()).toEqual(richSettled);
+  });
+
   it("previous 还在 running 时瘦快照照常写入（reporter 收口丢失的兜底）", () => {
     const h = harness();
     h.apply({ ...richSettled, status: "running", elapsedMs: 10_000 });

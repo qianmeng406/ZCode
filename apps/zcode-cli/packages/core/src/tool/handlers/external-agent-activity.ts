@@ -263,7 +263,11 @@ export function createExternalAgentActivityReporter(
  * 用途：后台任务由别的工具（GetExternalAgentTaskResult / CancelExternalAgentTask）
  * 观察到终态时，把卡片从 running 收口到 completed/failed/cancelled。
  * 发起委派的那个工具上下文早已返回，不能再用它的 reporter；这里按任务快照
- * 重建一份最小状态即可（tail 用最终正文尾部，够卡片展示"跑完了"）。
+ * 重建一份最小状态即可。
+ *
+ * 有最终正文时**以结构化 text 条目下发**（而不是只塞 tail）：面板对条目走
+ * markdown 渲染，tail 只用于没有结构的原始输出兜底。仍然只发一条，投影侧的
+ * "瘦快照不覆盖富记录"守卫照旧生效（条目数不超过 previous 才视为瘦）。
  */
 export function publishExternalAgentTaskStatus(
   context: Parameters<ToolHandler>[1],
@@ -283,7 +287,12 @@ export function publishExternalAgentTaskStatus(
     status: input.status,
     startedAt: Date.now() - input.durationMs,
     elapsedMs: input.durationMs,
-    ...(text ? { tail: text.slice(-TAIL_CHARS) } : {}),
+    ...(text
+      ? {
+          tail: text.slice(-TAIL_CHARS),
+          entries: [{ kind: "text" as const, text }],
+        }
+      : {}),
   };
   void Promise.resolve(
     context.emitEvent({
