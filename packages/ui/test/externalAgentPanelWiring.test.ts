@@ -42,7 +42,7 @@ const LINKS: Array<{ file: string; pattern: RegExp; why: string }> = [
   },
   {
     file: "src/v4/SessionPane.tsx",
-    pattern: /publishExternalAgentActivity\(sessionId, externalAgentActivity,/,
+    pattern: /publishExternalAgentActivity\(\s*sessionId,/,
     why: "SessionPane 把投影里的活动写进模块级 store（面板的数据源）",
   },
   {
@@ -113,8 +113,8 @@ const LINKS: Array<{ file: string; pattern: RegExp; why: string }> = [
   },
   {
     file: "src/v4/SessionPane.tsx",
-    pattern: /publishExternalAgentActivity\(sessionId, externalAgentActivity, \{ replayed \}\)/,
-    why: "挂载/切回后的第一帧活动标记为 replayed——否则区分不出「看着跑完」和「回来才发现跑完」",
+    pattern: /replayed,\s*cleared: externalAgentActivitySnapshot === null/,
+    why: "第一帧活动标记 replayed/cleared——区分「看着跑完」「回来才发现跑完」「服务端明确清空」",
   },
   {
     file: "src/v4/SessionPane.tsx",

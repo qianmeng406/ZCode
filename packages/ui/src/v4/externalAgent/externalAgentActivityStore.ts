@@ -12,7 +12,8 @@
 // 因此：
 // - `running` 记录可以被同 taskId 的新 running 帧更新，也可以被新 taskId 的 running 替换；
 // - `settled`（completed/failed/cancelled）记录只在「新任务开始」或「显式清除」时消失；
-// - null 永远不写（"从未有过记录"的会话也不会因此落一条空记录）。
+// - 快照里的 null 默认不写（那多半是这次快照没带这个字段）——只有调用方明确
+//   标记 `cleared`（服务端补发的清空事件）才生效，而且只清卡住的 `running`。
 //
 // **注意力语义（2026-11-05，借 herdr 的 seen/Done）**：除了记录本身，store 还维护
 // 两件 UI 需要的事实：
@@ -72,19 +73,25 @@ function write(sessionId: string, next: ExternalAgentActivityState): void {
  * `replayed`：这一帧是（重新）订阅后补发的第一帧，可能早就生成了。调用方
  * （SessionPane）在每次挂载/切回会话后对第一帧置 true——只有这样才能区分
  * "用户看着它跑完"和"用户切回来时才看到它已经跑完"。
+ *
+ * `cleared`：这一帧的 null 是**服务端明确说的"没有活动"**（冷恢复会补发一条
+ * `activity: null` 清掉崩溃/关闭时残留的运行态），而不是"快照没带这个字段"。
+ * 显式清空只清一条卡住的 `running`：完成态记录仍然保留（用户还要看上次结果），
+ * 字段缺席的过渡帧一律不动。
  */
 export function publishExternalAgentActivity(
   sessionId: string,
   activity: ExternalAgentActivity | null,
-  options: { replayed?: boolean } = {},
+  options: { replayed?: boolean; cleared?: boolean } = {},
 ): void {
   if (!sessionId) return;
   const previous = states.get(sessionId);
   const previousActivity = previous?.activity ?? null;
   if (previousActivity === activity) return;
   if (activity === null) {
-    // 空值永远不写：完成态记录不能被"快照没带这个字段"清掉，
-    // 清空只有 `clearExternalAgentActivity` 一条路。
+    // 字段缺席（扩展帧/旧服务端）→ 不动；显式清空 → 只处理卡住的 running。
+    if (!options.cleared || previousActivity?.status !== "running") return;
+    write(sessionId, EMPTY_STATE);
     return;
   }
 

@@ -76,6 +76,27 @@ describe("externalAgentActivityStore", () => {
     expect(getExternalAgentActivity("s-next")).toBe(next);
   });
 
+  it("显式清空（cleared）只清掉卡住的 running，完成态记录保留", () => {
+    // 冷恢复会补发一条 activity: null：进程没了，卡片不能永远显示"运行中"。
+    publishExternalAgentActivity("s-stale", activity({ taskId: "stale" }));
+    publishExternalAgentActivity("s-stale", null, { cleared: true });
+    expect(getExternalAgentActivity("s-stale")).toBeNull();
+    expect(getExternalAgentActivityState("s-stale").lastChangedAt).toBeNull();
+
+    // 完成态是「上次执行结果」，清运行期事实不该把它一起抹掉。
+    const done = activity({ taskId: "done", status: "completed" });
+    publishExternalAgentActivity("s-stale-done", done);
+    publishExternalAgentActivity("s-stale-done", null, { cleared: true });
+    expect(getExternalAgentActivity("s-stale-done")).toBe(done);
+  });
+
+  it("没有 cleared 标记的 null 一律不动记录（过渡帧/旧服务端）", () => {
+    const running = activity({ taskId: "live" });
+    publishExternalAgentActivity("s-absent", running);
+    publishExternalAgentActivity("s-absent", null);
+    expect(getExternalAgentActivity("s-absent")).toBe(running);
+  });
+
   it("显式清除（解绑）仍然生效", () => {
     publishExternalAgentActivity("s-clear", activity({ taskId: "run", status: "completed" }));
     const listener = vi.fn();
