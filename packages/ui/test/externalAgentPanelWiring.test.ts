@@ -42,7 +42,7 @@ const LINKS: Array<{ file: string; pattern: RegExp; why: string }> = [
   },
   {
     file: "src/v4/SessionPane.tsx",
-    pattern: /publishExternalAgentActivity\(sessionId, externalAgentActivity\)/,
+    pattern: /publishExternalAgentActivity\(sessionId, externalAgentActivity,/,
     why: "SessionPane 把投影里的活动写进模块级 store（面板的数据源）",
   },
   {
@@ -103,8 +103,18 @@ const LINKS: Array<{ file: string; pattern: RegExp; why: string }> = [
   },
   {
     file: "src/v4/composer/ExternalAgentActivityCardSlot.tsx",
-    pattern: /markExternalAgentActivitySeen\(sessionId, activity\.taskId\)/,
-    why: "卡片可见即已看；未读只留给「切走了」的场景",
+    pattern: /state\.unreadTaskId !== activity\.taskId \|\| !state\.unreadLive/,
+    why: "只有实时看着跑完才自动销未读；切走期间完成（replayed）要留给用户显式查看",
+  },
+  {
+    file: "src/v4/composer/ExternalAgentActivityCardSlot.tsx",
+    pattern: /markExternalAgentActivitySeen\(sessionId, taskId\)/,
+    why: "关掉卡片是显式「我看到了」，同样销未读",
+  },
+  {
+    file: "src/v4/SessionPane.tsx",
+    pattern: /publishExternalAgentActivity\(sessionId, externalAgentActivity, \{ replayed \}\)/,
+    why: "挂载/切回后的第一帧活动标记为 replayed——否则区分不出「看着跑完」和「回来才发现跑完」",
   },
   {
     file: "src/v4/SessionPane.tsx",

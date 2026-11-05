@@ -829,10 +829,19 @@ export function SessionPane({
   const snapshot = state.snapshot;
   // 执行过程面板挂在 App 壳层，拿不到这里的 projection lease：把活动记录推进模块级
   // store，面板只订阅它。投影里没有 patch 时引用不变，因此这里不会每帧通知。
-  const externalAgentActivity = snapshot?.externalAgentActivity ?? null;
+  // 切会话的过渡帧里 `snapshot` 可能还是上一个会话的（runtimeReady 同样要校验
+  // sessionId）：不校验会把 A 的活动写成 B 的活动，凭空在 B 里弹一张卡。
+  const externalAgentActivity =
+    snapshot && snapshot.sessionId === sessionId ? (snapshot.externalAgentActivity ?? null) : null;
+  // 挂载/切回会话后的第一帧活动可能是"补发"的（离开期间投影租约已释放，
+  // store 收不到后台帧）。用这个 ref 区分「看着它跑完」和「切回来才发现已经
+  // 跑完」：后者不能自动销未读，否则提示在返回的一瞬间就没了。
+  const externalAgentActivityFirstFrameRef = useRef<string | null>(null);
   useEffect(() => {
     if (!sessionId) return;
-    publishExternalAgentActivity(sessionId, externalAgentActivity);
+    const replayed = externalAgentActivityFirstFrameRef.current !== sessionId;
+    if (externalAgentActivity) externalAgentActivityFirstFrameRef.current = sessionId;
+    publishExternalAgentActivity(sessionId, externalAgentActivity, { replayed });
   }, [sessionId, externalAgentActivity]);
   // 「冻结历史 + 尾轮」分区（spec：docs/ui/chat-virtual-scroll.md「每帧派生成本」）：
   // 下面随 snapshot 每帧执行的行扫描都按 history 引用缓存历史段，只扫尾轮。

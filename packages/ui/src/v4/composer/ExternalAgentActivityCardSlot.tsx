@@ -9,11 +9,13 @@
 // - 同一 taskId 被用户关掉后不再自己弹回来（新任务 = 新 taskId，会重新出现）；
 // - 没有活动（null）时不占任何高度，布局不抖。
 //
-// 注意力：只有"看着它从 running 变成终态"才算看到了。切走期间完成的任务，
-// 回到会话时才第一次见到终态帧（离开期间没有订阅），此时要保留未读点——
-// 否则"跑完没"这件事在返回的一瞬间就被悄悄销掉，用户永远看不到提示。
-// 打开过程面板是显式动作，那里会无条件销未读。
-import { useCallback, useEffect, useRef, useState, useSyncExternalStore } from "react";
+// 注意力：未读只在"真的看过了"时销——
+// - 卡片可见且这条未读来自**实时帧**（用户在看着它跑完）；
+// - 用户关掉卡片（显式动作）。
+// 切走期间完成的任务，返回时同样是 running→终态，但那一帧是重挂载补发的
+// （`replayed`，见 store）：此时不能自动销，否则「跑完没」的提示在返回的
+// 一瞬间就消失，用户永远看不到。打开过程面板也会销未读。
+import { useCallback, useEffect, useState, useSyncExternalStore } from "react";
 import { cn } from "@/components/lib/utils.js";
 import { ExternalAgentActivityCard } from "@/v4/composer/ExternalAgentActivityCard.js";
 import {
@@ -56,16 +58,21 @@ export function ExternalAgentActivityCardSlot({
     }
   }, [activity, dismissedTaskId]);
 
-  // 看得见的终态转换 = 已看：同一 taskId 从 running 变 completed/failed/cancelled。
-  const previousRef = useRef<typeof activity>(null);
+  // 只在"实时看着它跑完"时自动销未读；replayed 帧（切走期间完成）留着。
   useEffect(() => {
-    const previous = previousRef.current;
-    previousRef.current = activity;
     if (!sessionId || !visible || !activity || activity.status === "running") return;
-    // 首次挂载就已经是终态（完成发生在切走期间）→ 保留未读，返回时还能看到提示。
-    if (previous?.status !== "running" || previous.taskId !== activity.taskId) return;
+    if (state.unreadTaskId !== activity.taskId || !state.unreadLive) return;
     markExternalAgentActivitySeen(sessionId, activity.taskId);
-  }, [sessionId, visible, activity]);
+  }, [sessionId, visible, activity, state]);
+
+  // 关掉卡片是显式动作：等同于"我看到了"。
+  const handleDismiss = useCallback(
+    (taskId: string) => {
+      setDismissedTaskId(taskId);
+      if (sessionId) markExternalAgentActivitySeen(sessionId, taskId);
+    },
+    [sessionId],
+  );
 
   if (!activity || activity.taskId === dismissedTaskId) return null;
   return (
@@ -73,7 +80,7 @@ export function ExternalAgentActivityCardSlot({
       <ExternalAgentActivityCard
         activity={activity}
         lastChangedAt={state.lastChangedAt}
-        onDismiss={setDismissedTaskId}
+        onDismiss={handleDismiss}
         {...(onOpenPanel ? { onOpen: onOpenPanel } : {})}
       />
     </div>

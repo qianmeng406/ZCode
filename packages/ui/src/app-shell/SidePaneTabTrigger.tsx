@@ -283,8 +283,8 @@ function isDiffPreviewTab(tab: WorkspaceSidePaneTab): boolean {
  * 外部 Agent 过程 tab 的未读点（借 herdr 的 seen/Done）。
  *
  * 只在"用户切走、任务在后台完成"时有意义：tab 属于 workspace、跟 session 走，
- * 所以人不在那个会话时它还在 tab 条上。打开面板是无条件销未读；卡片只在
- * "看着它从 running 变终态"时销（见 ExternalAgentActivityCardSlot）。
+ * 所以人不在那个会话时它还在 tab 条上。打开面板无条件销未读；卡片只在
+ * 实时看着跑完（非 replayed）时销，见 ExternalAgentActivityCardSlot。
  */
 function ExternalAgentUnreadDot({ sessionId }: { sessionId: string }) {
   const { intl } = useZCodeIntl();

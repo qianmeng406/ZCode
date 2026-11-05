@@ -12,14 +12,15 @@
 // 因此：
 // - `running` 记录可以被同 taskId 的新 running 帧更新，也可以被新 taskId 的 running 替换；
 // - `settled`（completed/failed/cancelled）记录只在「新任务开始」或「显式清除」时消失；
-// - null 只对"从未有过记录"的会话是 no-op。
+// - null 永远不写（"从未有过记录"的会话也不会因此落一条空记录）。
 //
 // **注意力语义（2026-11-05，借 herdr 的 seen/Done）**：除了记录本身，store 还维护
 // 两件 UI 需要的事实：
 // - `lastChangedAt`：最近一次帧到达的时间。运行中长时间不变 = 没有新输出（卡住/在
 //   等一个很长的工具），卡片与面板据此显示「已 N 分钟无新输出」，而不是让用户去猜。
-// - `unreadTaskId`：从 running 变成终态的那一次转换记一条未读。打开过程面板，
-//   或者"看着它从 running 变成终态"，才算已读（切走期间完成的任务要留提示）。
+// - `unreadTaskId`：从 running 变成终态的那一次转换记一条未读。两个"已读"入口：
+//   打开过程面板、关闭状态卡；另外"看着它跑完"（终态帧是实时到达的、不是重挂载
+//   时补发的）也算已读——见下面的 `replayed` 参数。
 //   不做持久化（与 herdr 一致：重启归零，重启后的历史由会话记录承载）。
 import type { ExternalAgentActivity } from "@zcode/shared/zcode-protocol-v4";
 
@@ -32,12 +33,20 @@ export interface ExternalAgentActivityState {
   lastChangedAt: number | null;
   /** 已完成但用户还没看过的任务 id。 */
   unreadTaskId: string | null;
+  /**
+   * 这条未读是**实时帧**记下来的，还是重挂载时补发的一帧（`replayed`）。
+   *
+   * 只有实时的才算"用户看着它跑完"，卡片可以据此自动销未读；重挂载补发的
+   * 意味着完成发生在用户切走期间——必须留到用户真正打开面板/关掉卡片。
+   */
+  unreadLive: boolean;
 }
 
 const EMPTY_STATE: ExternalAgentActivityState = {
   activity: null,
   lastChangedAt: null,
   unreadTaskId: null,
+  unreadLive: false,
 };
 
 const states = new Map<string, ExternalAgentActivityState>();
@@ -59,10 +68,15 @@ function write(sessionId: string, next: ExternalAgentActivityState): void {
  *
  * 空值（null/undefined）**不会清掉一条已完成的记录**：那是快照缺字段，不是撤销。
  * 要清空请用 `clearExternalAgentActivity`（解绑、会话删除等显式动作）。
+ *
+ * `replayed`：这一帧是（重新）订阅后补发的第一帧，可能早就生成了。调用方
+ * （SessionPane）在每次挂载/切回会话后对第一帧置 true——只有这样才能区分
+ * "用户看着它跑完"和"用户切回来时才看到它已经跑完"。
  */
 export function publishExternalAgentActivity(
   sessionId: string,
   activity: ExternalAgentActivity | null,
+  options: { replayed?: boolean } = {},
 ): void {
   if (!sessionId) return;
   const previous = states.get(sessionId);
@@ -91,8 +105,9 @@ export function publishExternalAgentActivity(
 
   write(sessionId, {
     activity,
-    lastChangedAt: activity ? Date.now() : null,
+    lastChangedAt: Date.now(),
     unreadTaskId,
+    unreadLive: settledNow ? options.replayed !== true : (previous?.unreadLive ?? false),
   });
 }
 

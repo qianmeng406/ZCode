@@ -151,12 +151,28 @@ describe("externalAgentActivityStore 注意力（seen / 无输出）", () => {
     }
   });
 
+  it("replayed 终态帧（切走期间完成）的未读不标记为实时，等用户显式查看", () => {
+    publishExternalAgentActivity("s-replay", activity({ taskId: "job" }));
+    // 切回会话后补发的第一帧：任务其实早就结束了。
+    publishExternalAgentActivity("s-replay", activity({ taskId: "job", status: "completed" }), {
+      replayed: true,
+    });
+    expect(isExternalAgentActivityUnread("s-replay")).toBe(true);
+    expect(getExternalAgentActivityState("s-replay").unreadLive).toBe(false);
+
+    // 实时帧记的未读才允许卡片自动销。
+    publishExternalAgentActivity("s-live", activity({ taskId: "job" }));
+    publishExternalAgentActivity("s-live", activity({ taskId: "job", status: "completed" }));
+    expect(getExternalAgentActivityState("s-live").unreadLive).toBe(true);
+  });
+
   it("空 sessionId 直接返回同一份空状态（useSyncExternalStore 不会死循环）", () => {
     expect(getExternalAgentActivityState(null)).toBe(getExternalAgentActivityState(undefined));
     expect(getExternalAgentActivityState("")).toEqual({
       activity: null,
       lastChangedAt: null,
       unreadTaskId: null,
+      unreadLive: false,
     });
   });
 });
