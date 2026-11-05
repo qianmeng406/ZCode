@@ -44,6 +44,8 @@ export interface ExternalAgentRunInput {
     entries?: Array<{ kind: "reasoning" | "text" | "tool"; text: string }>;
     /** true = entries 是收口后的权威重建，接收方应整体替换已累积的条目。 */
     replace?: boolean;
+    /** 源输出被截断（artifact 超出重解析上限，只读了结尾）：必须透传到活动快照。 */
+    sourceTruncated?: boolean;
   }) => void;
 }
 
@@ -162,8 +164,16 @@ export function createOneShotExternalAgentDriver(input: {
       // 全量 stdout：inline 视图只保留**前** maxInlineBytes，result 事件在末尾，
       // 用截断视图解析必然失败（真实事故：6.5MB 输出的委派把 1MB JSONL 当结果
       // 回传给主 agent，再被工具预算二次截断）。
-      const fullStdout =
-        binding.driver === "claude-family" ? readFullStdout(stdoutView) : rawStdout;
+      const fullStdoutView =
+        binding.driver === "claude-family"
+          ? readFullStdout(stdoutView)
+          : { text: rawStdout, truncated: false };
+      const fullStdout = fullStdoutView.text;
+      // 源输出被截断（artifact > 重解析上限）：必须让面板知道「更早的过程没解析」，
+      // 否则用户只会看到一份从中间开始的记录，却以为任务本身丢了内容。
+      if (fullStdoutView.truncated) {
+        runInput.onOutput?.({ stream: "stdout", text: "", sourceTruncated: true });
+      }
 
       // 权威重建（claude-family）：执行中的条目来自滚动尾窗差分，行会被窗口
       // 切断、内容会重复/丢段。进程结束后 stdout artifact 里有全量字节，用它
@@ -239,7 +249,7 @@ export function createOneShotExternalAgentDriver(input: {
   };
 }
 
-interface StreamOutputView {
+export interface StreamOutputView {
   text: string;
   bytes?: number;
   artifactPath?: string;
@@ -252,22 +262,33 @@ const MAX_REPARSE_BYTES = 32_000_000;
  * 收口重解析用的全量 stdout：优先落盘 artifact（inline 超限时 text 只是
  * 截断视图），其次内存 text。读失败退回内存视图，绝不抛错——
  * 重解析是锦上添花，不能把收口流程拖失败。
+ *
+ * `truncated` 表示源数据本身不全（artifact 超上限只读了尾部）：
+ * 上层据此在面板上提示「更早的过程缺失」，而不是静默当作完整记录。
  */
-function readFullStdout(view: StreamOutputView): string {
+export function readFullStdout(
+  view: StreamOutputView,
+  maxBytes: number = MAX_REPARSE_BYTES,
+): { text: string; truncated: boolean } {
   if (view.artifactPath) {
     try {
       const stat = statSync(view.artifactPath);
       if (stat.isFile() && stat.size > 0) {
-        if (stat.size <= MAX_REPARSE_BYTES) return readFileSync(view.artifactPath, "utf8");
+        if (stat.size <= maxBytes) {
+          return { text: readFileSync(view.artifactPath, "utf8"), truncated: false };
+        }
         // 超上限：取尾部（结尾的 result 事件最关键），起始半行解析器会跳过。
         const buffer = readFileSync(view.artifactPath);
-        return buffer.subarray(buffer.byteLength - MAX_REPARSE_BYTES).toString("utf8");
+        return {
+          text: buffer.subarray(Math.max(0, buffer.byteLength - maxBytes)).toString("utf8"),
+          truncated: true,
+        };
       }
     } catch {
       // artifact 缺席/不可读：退回内存视图（readStreamOutput 已把 tail 并进 text）。
     }
   }
-  return view.text;
+  return { text: view.text, truncated: false };
 }
 
 /**

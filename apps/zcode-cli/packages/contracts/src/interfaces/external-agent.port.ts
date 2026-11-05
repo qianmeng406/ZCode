@@ -26,6 +26,12 @@ export interface ExternalAgentDelegateInput {
     stream: "stdout" | "stderr";
     text: string;
     preview?: unknown;
+    /** 结构化过程条目（claude-family stream-json 解析结果）；活动卡按它们渲染。 */
+    entries?: Array<{ kind: "reasoning" | "text" | "tool"; text: string }>;
+    /** true = entries 是收口后的权威重建，接收方应整体替换已累积条目。 */
+    replace?: boolean;
+    /** 源输出被截断（artifact 超出重解析上限，只读了结尾）。 */
+    sourceTruncated?: boolean;
   }) => void | Promise<void>;
   /**
    * 是否续接上一次委派的外部会话。

@@ -156,6 +156,30 @@ describe("createExternalAgentActivityReporter", () => {
     ]);
   });
 
+  it("源输出被截断时快照带 sourceTruncated（与 trimmedEntries 是两件事）", () => {
+    const { context, emitEvent } = makeContext();
+    const reporter = createExternalAgentActivityReporter(context, { agentLabel: "外部 agent" });
+    reporter.started({ label: "CodeBuddy" });
+
+    // driver 读到 artifact 超过重解析上限：只解析了结尾，源数据本身不全。
+    reporter.progress({ sourceTruncated: true });
+    reporter.progress({ entries: [{ kind: "text", text: "尾部结论" }] });
+    reporter.settled({ isError: false, durationMs: 5_000 });
+
+    const event = emitEvent.mock.calls.at(-1)?.[0] as unknown as {
+      payload: {
+        activity: {
+          sourceTruncated?: boolean;
+          trimmedEntries?: number;
+          entries: Array<{ kind: string; text: string }>;
+        };
+      };
+    };
+    expect(event.payload.activity.sourceTruncated).toBe(true);
+    expect(event.payload.activity.trimmedEntries).toBeUndefined();
+    expect(event.payload.activity.entries.map((entry) => entry.text)).toEqual(["尾部结论"]);
+  });
+
   it("执行中发增量帧：baseRevision + entriesFrom，合并改写的最后一条会被重发", () => {
     vi.useFakeTimers();
     try {

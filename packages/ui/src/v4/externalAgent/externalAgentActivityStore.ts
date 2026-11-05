@@ -13,15 +13,45 @@
 // - `running` 记录可以被同 taskId 的新 running 帧更新，也可以被新 taskId 的 running 替换；
 // - `settled`（completed/failed/cancelled）记录只在「新任务开始」或「显式清除」时消失；
 // - null 只对"从未有过记录"的会话是 no-op。
+//
+// **注意力语义（2026-11-05，借 herdr 的 seen/Done）**：除了记录本身，store 还维护
+// 两件 UI 需要的事实：
+// - `lastChangedAt`：最近一次帧到达的时间。运行中长时间不变 = 没有新输出（卡住/在
+//   等一个很长的工具），卡片与面板据此显示「已 N 分钟无新输出」，而不是让用户去猜。
+// - `unreadTaskId`：从 running 变成终态的那一次转换记一条未读。打开过程面板，
+//   或者"看着它从 running 变成终态"，才算已读（切走期间完成的任务要留提示）。
+//   不做持久化（与 herdr 一致：重启归零，重启后的历史由会话记录承载）。
 import type { ExternalAgentActivity } from "@zcode/shared/zcode-protocol-v4";
 
-const activities = new Map<string, ExternalAgentActivity | null>();
+/** 运行中多久没有新输出就提示"可能卡住"：60s 足够长，正常委派不会误报。 */
+export const EXTERNAL_AGENT_IDLE_HINT_MS = 60_000;
+
+export interface ExternalAgentActivityState {
+  activity: ExternalAgentActivity | null;
+  /** 最近一次活动变化的时间（epoch ms）；没有记录时为 null。 */
+  lastChangedAt: number | null;
+  /** 已完成但用户还没看过的任务 id。 */
+  unreadTaskId: string | null;
+}
+
+const EMPTY_STATE: ExternalAgentActivityState = {
+  activity: null,
+  lastChangedAt: null,
+  unreadTaskId: null,
+};
+
+const states = new Map<string, ExternalAgentActivityState>();
 const listeners = new Map<string, Set<() => void>>();
 
 function notify(sessionId: string): void {
   const target = listeners.get(sessionId);
   if (!target) return;
   for (const listener of target) listener();
+}
+
+function write(sessionId: string, next: ExternalAgentActivityState): void {
+  states.set(sessionId, next);
+  notify(sessionId);
 }
 
 /**
@@ -35,27 +65,71 @@ export function publishExternalAgentActivity(
   activity: ExternalAgentActivity | null,
 ): void {
   if (!sessionId) return;
-  const previous = activities.get(sessionId) ?? null;
-  if (previous === activity) return;
+  const previous = states.get(sessionId);
+  const previousActivity = previous?.activity ?? null;
+  if (previousActivity === activity) return;
   if (activity === null) {
-    // 完成态记录抗空值：投影换快照/冷恢复都会带一帧 null，不能把它当成一次清除。
-    if (previous !== null) return;
-    if (!activities.has(sessionId)) return;
+    // 空值永远不写：完成态记录不能被"快照没带这个字段"清掉，
+    // 清空只有 `clearExternalAgentActivity` 一条路。
+    return;
   }
-  activities.set(sessionId, activity);
-  notify(sessionId);
+
+  // running → 终态只发生一次：这是唯一产生未读的转换。
+  const settledNow =
+    previousActivity !== null &&
+    previousActivity.status === "running" &&
+    activity.status !== "running";
+  const unreadTaskId = settledNow
+    ? activity.taskId
+    : activity.status === "running"
+      ? // 同一任务的迟到 running 帧（异步投递可能乱序）不能销掉刚记的未读；
+        // 换成新任务才是"上一条的未读已失去意义"。
+        previous?.unreadTaskId === activity.taskId
+        ? previous.unreadTaskId
+        : null
+      : (previous?.unreadTaskId ?? null);
+
+  write(sessionId, {
+    activity,
+    lastChangedAt: activity ? Date.now() : null,
+    unreadTaskId,
+  });
+}
+
+/** 用户看到了这条结果（卡片可见 / 面板打开）：清掉未读点。 */
+export function markExternalAgentActivitySeen(sessionId: string, taskId?: string): void {
+  if (!sessionId) return;
+  const previous = states.get(sessionId);
+  if (!previous?.unreadTaskId) return;
+  if (taskId && previous.unreadTaskId !== taskId) return;
+  write(sessionId, { ...previous, unreadTaskId: null });
 }
 
 /** 显式清空（解绑、会话被删除）：这是唯一能让完成态记录消失的入口。 */
 export function clearExternalAgentActivity(sessionId: string): void {
   if (!sessionId) return;
-  if (!activities.has(sessionId)) return;
-  activities.set(sessionId, null);
-  notify(sessionId);
+  if (!states.has(sessionId)) return;
+  write(sessionId, EMPTY_STATE);
 }
 
 export function getExternalAgentActivity(sessionId: string): ExternalAgentActivity | null {
-  return activities.get(sessionId) ?? null;
+  return states.get(sessionId)?.activity ?? null;
+}
+
+/**
+ * 完整状态（活动 + 注意力事实）。返回的对象在状态变化前保持同一引用，
+ * 可以直接交给 `useSyncExternalStore`（空 session 复用同一个常量，不会触发死循环）。
+ */
+export function getExternalAgentActivityState(
+  sessionId: string | null | undefined,
+): ExternalAgentActivityState {
+  if (!sessionId) return EMPTY_STATE;
+  return states.get(sessionId) ?? EMPTY_STATE;
+}
+
+/** 侧栏 tab 的未读点：只返回布尔原语，避免每个 tab 订阅整份快照。 */
+export function isExternalAgentActivityUnread(sessionId: string): boolean {
+  return Boolean(states.get(sessionId)?.unreadTaskId);
 }
 
 export function subscribeExternalAgentActivity(

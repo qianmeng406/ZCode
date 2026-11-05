@@ -6762,6 +6762,9 @@ export function SessionPane({
           用户在委派执行期间稳定可见的状态；过程在右侧面板（「查看过程」）。 */}
       <ExternalAgentActivityCardSlot
         sessionId={effectiveSessionId}
+        // 隐藏的 forceMount 宿主（后台分屏 / 未激活的侧栏 tab）不算"看到了"：
+        // 否则用户切回来时未读提示已经被悄悄销掉。
+        visible={presentationVisible !== false}
         {...(onOpenExternalAgentPanel && effectiveSessionId
           ? {
               onOpenPanel: () =>

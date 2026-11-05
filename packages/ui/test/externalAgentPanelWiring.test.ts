@@ -80,6 +80,42 @@ const LINKS: Array<{ file: string; pattern: RegExp; why: string }> = [
     pattern: /data-testid="external-agent-activity-panel-unseen"/,
     why: "上滚期间用「N 条新过程」胶囊提示，点击回到底部（不抢滚动位置）",
   },
+  // ── 注意力 / 数据完整性（2026-11-05，借 herdr 的 seen + 可解释状态）──
+  {
+    file: "src/app-shell/ExternalAgentActivitySidePane.tsx",
+    pattern: /markExternalAgentActivitySeen\(sessionId, activity\.taskId\)/,
+    why: "面板打开即视为已看：清掉侧栏 tab / 卡片上的未读点",
+  },
+  {
+    file: "src/app-shell/ExternalAgentActivitySidePane.tsx",
+    pattern: /data-testid="external-agent-activity-panel-idle"/,
+    why: "运行中长时间无新输出要提示「已 N 分钟无新输出」，不让用户去猜是否卡住",
+  },
+  {
+    file: "src/app-shell/ExternalAgentActivitySidePane.tsx",
+    pattern: /data-testid="external-agent-activity-panel-source-truncated"/,
+    why: "源输出被截断（artifact 超上限）必须显式提示，不能静默当作完整记录",
+  },
+  {
+    file: "src/v4/composer/ExternalAgentActivityCard.tsx",
+    pattern: /data-testid="external-agent-activity-idle"/,
+    why: "状态卡同样提示无输出分钟数（用户不进面板也能看到）",
+  },
+  {
+    file: "src/v4/composer/ExternalAgentActivityCardSlot.tsx",
+    pattern: /markExternalAgentActivitySeen\(sessionId, activity\.taskId\)/,
+    why: "卡片可见即已看；未读只留给「切走了」的场景",
+  },
+  {
+    file: "src/v4/SessionPane.tsx",
+    pattern: /visible=\{presentationVisible !== false\}/,
+    why: "隐藏的 forceMount 宿主不能销未读，否则切回来提示已被悄悄清掉",
+  },
+  {
+    file: "src/app-shell/SidePaneTabTrigger.tsx",
+    pattern: /data-testid="external-agent-activity-tab-unread"/,
+    why: "人不在那个会话时，靠侧栏 tab 上的未读点知道任务完成了",
+  },
 ];
 
 function readSurface(relativePath: string): string {

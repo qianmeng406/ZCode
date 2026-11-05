@@ -4900,6 +4900,12 @@ const zhCN: Record<string, string> = {
   "chat.externalAgent.activity.empty": "还没有外部 Agent 的执行记录。",
   "chat.externalAgent.activity.noTrace": "本次执行没有可展示的过程。",
   "chat.externalAgent.activity.newEntries": "有 {count} 条新过程",
+  "chat.externalAgent.activity.idle": "已 {minutes} 分钟无新输出",
+  "chat.externalAgent.activity.idleTitle":
+    "外部 Agent 仍在运行，但已经 {minutes} 分钟没有新输出。它可能卡住了，也可能在等一个很长的工具调用。",
+  "chat.externalAgent.activity.sourceTruncated":
+    "原始输出过大，只解析了结尾部分，更早的过程可能缺失。",
+  "chat.externalAgent.activity.unread": "外部 Agent 执行已结束",
   "chat.externalAgent.readOnly": "主控 · {agent}",
   "chat.externalAgent.unbind": "解绑 {agent}",
   "chat.externalAgent.readOnlyHint":

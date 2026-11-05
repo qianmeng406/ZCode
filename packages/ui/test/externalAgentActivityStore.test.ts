@@ -3,6 +3,9 @@ import type { ExternalAgentActivity } from "@zcode/shared/zcode-protocol-v4";
 import {
   clearExternalAgentActivity,
   getExternalAgentActivity,
+  getExternalAgentActivityState,
+  isExternalAgentActivityUnread,
+  markExternalAgentActivitySeen,
   publishExternalAgentActivity,
   subscribeExternalAgentActivity,
 } from "@/v4/externalAgent/externalAgentActivityStore.js";
@@ -81,5 +84,79 @@ describe("externalAgentActivityStore", () => {
     expect(getExternalAgentActivity("s-clear")).toBeNull();
     expect(listener).toHaveBeenCalledTimes(1);
     unsubscribe();
+  });
+});
+
+describe("externalAgentActivityStore 注意力（seen / 无输出）", () => {
+  it("running → 终态记一条未读；看到后才清掉", () => {
+    publishExternalAgentActivity("s-unread", activity({ taskId: "job" }));
+    publishExternalAgentActivity("s-unread", activity({ taskId: "job", status: "completed" }));
+    expect(isExternalAgentActivityUnread("s-unread")).toBe(true);
+
+    // taskId 对不上不清：完成的是别的任务。
+    markExternalAgentActivitySeen("s-unread", "other-job");
+    expect(isExternalAgentActivityUnread("s-unread")).toBe(true);
+
+    markExternalAgentActivitySeen("s-unread", "job");
+    expect(isExternalAgentActivityUnread("s-unread")).toBe(false);
+  });
+
+  it("冷恢复直接拿到终态帧不产生未读（历史任务不该刷未读点）", () => {
+    publishExternalAgentActivity(
+      "s-cold",
+      activity({ taskId: "old", status: "completed", elapsedMs: 60_000 }),
+    );
+    expect(isExternalAgentActivityUnread("s-cold")).toBe(false);
+  });
+
+  it("新任务开始清掉上一条的未读", () => {
+    publishExternalAgentActivity("s-next-unread", activity({ taskId: "first" }));
+    publishExternalAgentActivity(
+      "s-next-unread",
+      activity({ taskId: "first", status: "completed" }),
+    );
+    expect(isExternalAgentActivityUnread("s-next-unread")).toBe(true);
+    publishExternalAgentActivity("s-next-unread", activity({ taskId: "second" }));
+    expect(isExternalAgentActivityUnread("s-next-unread")).toBe(false);
+  });
+
+  it("同一任务的迟到 running 帧不清未读（异步投递可能乱序）", () => {
+    publishExternalAgentActivity("s-late", activity({ taskId: "job" }));
+    publishExternalAgentActivity("s-late", activity({ taskId: "job", status: "completed" }));
+    expect(isExternalAgentActivityUnread("s-late")).toBe(true);
+    // 一个早于收口、但晚到的进度帧：任务已经结束，不能再把它当成"又开始跑了"。
+    publishExternalAgentActivity("s-late", activity({ taskId: "job" }));
+    expect(isExternalAgentActivityUnread("s-late")).toBe(true);
+  });
+
+  it("lastChangedAt 随新帧刷新，显式清除归零", () => {
+    vi.useFakeTimers();
+    try {
+      vi.setSystemTime(10_000);
+      publishExternalAgentActivity("s-idle", activity({ taskId: "run" }));
+      expect(getExternalAgentActivityState("s-idle").lastChangedAt).toBe(10_000);
+
+      // 引用不变 = 没有新输出：时间不刷新（面板据此显示「已 N 分钟无新输出」）。
+      publishExternalAgentActivity("s-idle", getExternalAgentActivity("s-idle")!);
+      vi.setSystemTime(70_000);
+      expect(getExternalAgentActivityState("s-idle").lastChangedAt).toBe(10_000);
+
+      publishExternalAgentActivity("s-idle", activity({ taskId: "run", elapsedMs: 61_000 }));
+      expect(getExternalAgentActivityState("s-idle").lastChangedAt).toBe(70_000);
+
+      clearExternalAgentActivity("s-idle");
+      expect(getExternalAgentActivityState("s-idle").lastChangedAt).toBeNull();
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it("空 sessionId 直接返回同一份空状态（useSyncExternalStore 不会死循环）", () => {
+    expect(getExternalAgentActivityState(null)).toBe(getExternalAgentActivityState(undefined));
+    expect(getExternalAgentActivityState("")).toEqual({
+      activity: null,
+      lastChangedAt: null,
+      unreadTaskId: null,
+    });
   });
 });

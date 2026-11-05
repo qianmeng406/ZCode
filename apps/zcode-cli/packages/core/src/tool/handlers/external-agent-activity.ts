@@ -34,6 +34,8 @@ export interface ExternalAgentActivityReporter {
     preview?: unknown;
     entries?: ActivityEntry[];
     replaceEntries?: ActivityEntry[];
+    /** 源输出被截断（artifact 超重解析上限）：粘性标记，之后每帧都带上。 */
+    sourceTruncated?: boolean;
   }): void;
   /** 收口：success/失败/取消，`terminated` 表示被取消。 */
   settled(outcome: { label?: string; isError?: boolean; durationMs?: number; text?: string }): void;
@@ -65,6 +67,9 @@ export function createExternalAgentActivityReporter(
   // 因超出上限被裁掉的条目数：面板用它在顶部提示「更早过程已折叠」，
   // 否则长任务的开头被静默裁掉，用户只会觉得"内容不全"。
   let trimmedEntries = 0;
+  // 源输出被截断（artifact > 32MB）：与 trimmedEntries 不同，这是源数据不全，
+  // 面板要区分「我们折叠了」和「本来就没解析到」。
+  let sourceTruncated = false;
 
   // 增量帧状态：上一次成功 emit 的版本、条目数与最后一条正文（合并会改写它）。
   let revision = 0;
@@ -103,6 +108,7 @@ export function createExternalAgentActivityReporter(
       elapsedMs: now - startedAt,
       ...(tail ? { tail } : {}),
       ...(trimmedEntries > 0 ? { trimmedEntries } : {}),
+      ...(sourceTruncated ? { sourceTruncated: true } : {}),
       revision,
       ...(canDelta
         ? {
@@ -217,6 +223,20 @@ export function createExternalAgentActivityReporter(
     },
     progress(chunk) {
       if (finished) return;
+      if (chunk.sourceTruncated) {
+        sourceTruncated = true;
+        // 只有标记、没有内容：也要发一帧，否则这条提示要等下一次输出才生效
+        // （最后一帧可能就是收口帧，但中途静默时用户不该等）。
+        if (
+          !chunk.entries?.length &&
+          !chunk.replaceEntries?.length &&
+          !chunk.text &&
+          !previewText(chunk.preview)
+        ) {
+          emit("running");
+          return;
+        }
+      }
       if (chunk.replaceEntries) {
         // 收口权威重建：来自全量 stdout 的重解析，整体替换执行中靠尾窗差分
         // 拼出来的条目（那些可能重复/丢段）。替换后重新计裁剪数。

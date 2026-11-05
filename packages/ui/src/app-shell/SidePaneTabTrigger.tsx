@@ -1,5 +1,5 @@
 /* oxlint-disable eslint(max-lines) -- 侧栏 Tab trigger 集中维护拖拽、上下文菜单与各类图标；本次只增加 Browser 驻留态测试属性，不为行数拆散既有交互。 */
-import { useRef, type CSSProperties } from "react";
+import { useCallback, useRef, useSyncExternalStore, type CSSProperties } from "react";
 import { useSortable } from "@dnd-kit/sortable";
 import { CSS } from "@dnd-kit/utilities";
 import {
@@ -42,6 +42,11 @@ import { Button } from "@/components/ui/button.js";
 import { BrowserUseTabIcon } from "@/app-shell/BrowserUseTabIcon.js";
 import { BrowserTabFavicon } from "@/app-shell/BrowserTabFavicon.js";
 import { SidePaneTabTitleTooltip } from "@/app-shell/SidePaneTabTitleTooltip.js";
+import { useZCodeIntl } from "@/i18n/IntlProvider.js";
+import {
+  isExternalAgentActivityUnread,
+  subscribeExternalAgentActivity,
+} from "@/v4/externalAgent/externalAgentActivityStore.js";
 
 // tab 默认按 156px 等宽排列；空间不足时以相同 grow/shrink 参数平均收缩到 60px，
 // 之后由外层滚动容器承接溢出，避免标题长度改变每个 tab 的宽度。
@@ -255,6 +260,9 @@ function SidePaneTabItemContent({
       <span data-side-pane-tab-title="" className="shrink-0 whitespace-nowrap">
         {title}
       </span>
+      {tab.type === "external-agent-activity" ? (
+        <ExternalAgentUnreadDot sessionId={tab.sessionId} />
+      ) : null}
       {isDiffPreviewTab(tab) ? (
         <span className="ml-0.5 shrink-0 rounded-full border border-border bg-surface px-1 py-0 text-ui-xs leading-3 text-foreground-subtle">
           {diffBadgeLabel}
@@ -268,6 +276,34 @@ function isDiffPreviewTab(tab: WorkspaceSidePaneTab): boolean {
   return (
     tab.type === "code-viewer" &&
     (tab.source.type === "patch" || tab.source.type === "multi-file-diff")
+  );
+}
+
+/**
+ * 外部 Agent 过程 tab 的未读点（借 herdr 的 seen/Done）。
+ *
+ * 只在"用户切走、任务在后台完成"时有意义：tab 属于 workspace、跟 session 走，
+ * 所以人不在那个会话时它还在 tab 条上。打开面板是无条件销未读；卡片只在
+ * "看着它从 running 变终态"时销（见 ExternalAgentActivityCardSlot）。
+ */
+function ExternalAgentUnreadDot({ sessionId }: { sessionId: string }) {
+  const { intl } = useZCodeIntl();
+  const subscribe = useCallback(
+    (listener: () => void) => subscribeExternalAgentActivity(sessionId, listener),
+    [sessionId],
+  );
+  const getSnapshot = useCallback(() => isExternalAgentActivityUnread(sessionId), [sessionId]);
+  // 布尔原语：useSyncExternalStore 用 Object.is 比较，不需要额外缓存对象。
+  const unread = useSyncExternalStore(subscribe, getSnapshot, getSnapshot);
+  if (!unread) return null;
+  const label = intl.formatMessage({ id: "chat.externalAgent.activity.unread" });
+  return (
+    <span
+      data-testid="external-agent-activity-tab-unread"
+      aria-label={label}
+      title={label}
+      className="size-1.5 shrink-0 rounded-full bg-primary"
+    />
   );
 }
 

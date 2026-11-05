@@ -369,6 +369,39 @@ describe("外部 agent 实时输出", () => {
     expect(chunks.join("")).toBe("line1\nline2\nline3\n");
   });
 
+  it("artifact 超过重解析上限：只读尾部并标记 truncated", async () => {
+    // 静默截断是最坏的一种"内容不全"：面板看起来完整，其实前面全丢了。
+    // 这里钉住读取层的返回值，让 driver 能把标记透传成活动快照的 sourceTruncated。
+    const { readFullStdout } = await import("../src/zcode-protocol/external-agent-driver.js");
+    const { mkdtempSync, writeFileSync, rmSync } = await import("node:fs");
+    const { tmpdir } = await import("node:os");
+    const { join } = await import("node:path");
+    const dir = mkdtempSync(join(tmpdir(), "ext-agent-truncate-"));
+    try {
+      const artifactPath = join(dir, "stdout.log");
+      writeFileSync(artifactPath, "0123456789", "utf8");
+
+      expect(readFullStdout({ text: "", artifactPath }, 4)).toEqual({
+        text: "6789",
+        truncated: true,
+      });
+      // 未超限：全文，不标记。
+      expect(readFullStdout({ text: "", artifactPath }, 100)).toEqual({
+        text: "0123456789",
+        truncated: false,
+      });
+      // artifact 不可读：退回内存视图，不抛错。
+      expect(readFullStdout({ text: "memory", artifactPath: join(dir, "missing.log") }, 4)).toEqual(
+        {
+          text: "memory",
+          truncated: false,
+        },
+      );
+    } finally {
+      rmSync(dir, { recursive: true, force: true });
+    }
+  });
+
   it("流式正文之后不再补发 result 全文（过程面板不出现两遍）", async () => {
     // 回归：codebuddy 的 result 事件就是 assistant 正文的全文。正文已经以
     // 正文以完整 assistant 消息进过活动卡时，末尾再补一遍 result 会让同一段

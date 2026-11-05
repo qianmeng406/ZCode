@@ -1310,6 +1310,7 @@ export function AnimatedSidePanePanel({
                         ) : tab.type === "external-agent-activity" ? (
                           <ExternalAgentActivitySidePane
                             tab={tab}
+                            visible={isVisible && tab.id === contentActiveTabId}
                             onClose={() => onCloseTab(tab.id)}
                           />
                         ) : tab.type === "selection-side-chat" ? (

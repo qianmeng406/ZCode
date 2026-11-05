@@ -11,9 +11,15 @@ import { BotIcon, CheckCircle2Icon, ChevronRightIcon, CircleSlashIcon, XIcon } f
 import { cn } from "@/components/lib/utils.js";
 import { useZCodeIntl } from "@/i18n/IntlProvider.js";
 import type { ExternalAgentActivity } from "@zcode/shared/zcode-protocol-v4";
+import { EXTERNAL_AGENT_IDLE_HINT_MS } from "@/v4/externalAgent/externalAgentActivityStore.js";
 
 export interface ExternalAgentActivityCardProps {
   activity: ExternalAgentActivity;
+  /**
+   * 最近一次有输出/状态变化的时间（store 记录）。运行中长时间不变时卡片提示
+   * 「已 N 分钟无输出」——委派可能跑十几分钟，用户需要区分"在思考"和"卡住了"。
+   */
+  lastChangedAt?: number | null;
   /** 用户手动关闭（只影响本地展示）。 */
   onDismiss?: (taskId: string) => void;
   /** 打开右侧过程面板；未接线的宿主（子会话只读视图等）不提供入口。 */
@@ -29,6 +35,7 @@ function formatElapsed(ms: number): string {
 
 export function ExternalAgentActivityCard({
   activity,
+  lastChangedAt,
   onDismiss,
   onOpen,
 }: ExternalAgentActivityCardProps) {
@@ -45,6 +52,16 @@ export function ExternalAgentActivityCard({
   const elapsedMs = running
     ? Math.max(activity.elapsedMs, now - activity.startedAt)
     : activity.elapsedMs;
+
+  // 无新输出的分钟数：阈值以下不显示，恢复输出后 lastChangedAt 更新，提示自动消失。
+  const idleForMs = running && lastChangedAt ? Math.max(0, now - lastChangedAt) : 0;
+  const idleLabel =
+    idleForMs >= EXTERNAL_AGENT_IDLE_HINT_MS
+      ? intl.formatMessage(
+          { id: "chat.externalAgent.activity.idle" },
+          { minutes: Math.max(1, Math.floor(idleForMs / 60_000)) },
+        )
+      : null;
 
   const statusLabel = intl.formatMessage({
     id:
@@ -92,6 +109,18 @@ export function ExternalAgentActivityCard({
         >
           {statusLabel}
         </span>
+        {idleLabel ? (
+          <span
+            data-testid="external-agent-activity-idle"
+            className="min-w-0 truncate text-ui-xs text-foreground-subtle"
+            title={intl.formatMessage(
+              { id: "chat.externalAgent.activity.idleTitle" },
+              { minutes: Math.max(1, Math.floor(idleForMs / 60_000)) },
+            )}
+          >
+            {idleLabel}
+          </span>
+        ) : null}
         <span className="ml-auto shrink-0 font-mono text-ui-xs text-foreground-subtle tabular-nums">
           {formatElapsed(elapsedMs)}
         </span>

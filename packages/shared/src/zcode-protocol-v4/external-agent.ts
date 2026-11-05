@@ -62,6 +62,11 @@ export const externalAgentActivitySchema = z.object({
   entriesFrom: z.number().int().nonnegative().optional(),
   /** 因超出条目上限被裁掉的更早条目数；UI 据此提示「更早过程已折叠」。 */
   trimmedEntries: z.number().int().nonnegative().optional(),
+  /**
+   * 源输出本身被截断（stdout artifact 超过重解析上限，只读了结尾）：
+   * 与 `trimmedEntries`（我们主动裁展示窗口）是两件事，UI 要提示「更早的过程缺失」。
+   */
+  sourceTruncated: z.boolean().optional(),
   /** 失败/取消原因摘要。 */
   error: z.string().optional(),
 });

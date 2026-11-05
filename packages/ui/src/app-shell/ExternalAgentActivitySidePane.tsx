@@ -29,7 +29,9 @@ import { GenUiMessageResponse } from "@/gen-ui/index.js";
 import { useZCodeIntl } from "@/i18n/IntlProvider.js";
 import type { ExternalAgentActivitySidePaneTab } from "@/lib/workspaceSidePane.js";
 import {
-  getExternalAgentActivity,
+  EXTERNAL_AGENT_IDLE_HINT_MS,
+  getExternalAgentActivityState,
+  markExternalAgentActivitySeen,
   subscribeExternalAgentActivity,
 } from "@/v4/externalAgent/externalAgentActivityStore.js";
 import { ExternalAgentToolRow } from "@/v4/externalAgent/ExternalAgentToolRow.js";
@@ -114,9 +116,12 @@ const TraceText = memo(function TraceText({
 
 export function ExternalAgentActivitySidePane({
   tab,
+  visible = true,
   onClose,
 }: {
   tab: ExternalAgentActivitySidePaneTab;
+  /** 面板真的在屏幕上（侧栏开着且本 tab 是激活项）。隐藏的 forceMount tab 传 false。 */
+  visible?: boolean;
   onClose: () => void;
 }) {
   const { intl } = useZCodeIntl();
@@ -125,8 +130,9 @@ export function ExternalAgentActivitySidePane({
     (listener: () => void) => subscribeExternalAgentActivity(sessionId, listener),
     [sessionId],
   );
-  const getSnapshot = useCallback(() => getExternalAgentActivity(sessionId), [sessionId]);
-  const activity = useSyncExternalStore(subscribe, getSnapshot, getSnapshot);
+  const getSnapshot = useCallback(() => getExternalAgentActivityState(sessionId), [sessionId]);
+  const state = useSyncExternalStore(subscribe, getSnapshot, getSnapshot);
+  const activity = state.activity;
 
   const running = activity?.status === "running";
   // 本地秒表：服务端只在事件到达时更新 elapsedMs，运行中由 UI 自己跳秒。
@@ -142,6 +148,23 @@ export function ExternalAgentActivitySidePane({
       : running
         ? Math.max(activity.elapsedMs, now - activity.startedAt)
         : activity.elapsedMs;
+
+  // 面板开着 = 用户在看这条结果：清掉侧栏 tab / 卡片上的未读点。
+  // 不能用 mount 判断：侧栏 tab 是 forceMount 的，隐藏的 tab 也一直挂着。
+  useEffect(() => {
+    if (!visible || !activity || activity.status === "running") return;
+    markExternalAgentActivitySeen(sessionId, activity.taskId);
+  }, [sessionId, visible, activity]);
+
+  // 「已 N 分钟无新输出」：委派可能跑十几分钟，用户需要区分"在思考"和"卡住"。
+  const idleForMs = running && state.lastChangedAt ? Math.max(0, now - state.lastChangedAt) : 0;
+  const idleLabel =
+    idleForMs >= EXTERNAL_AGENT_IDLE_HINT_MS
+      ? intl.formatMessage(
+          { id: "chat.externalAgent.activity.idle" },
+          { minutes: Math.max(1, Math.floor(idleForMs / 60_000)) },
+        )
+      : null;
 
   // 结构化条目优先；只有纯文本 tail 时退回按行切分。空思考条目是"正在思考"的
   // 标记（CLI 不下发思考正文），运行中必须保留；结束后它只会变成一句假的
@@ -255,6 +278,18 @@ export function ExternalAgentActivitySidePane({
             {statusLabel}
           </span>
         ) : null}
+        {idleLabel ? (
+          <span
+            data-testid="external-agent-activity-panel-idle"
+            className="min-w-0 shrink truncate text-ui-xs text-foreground-subtle"
+            title={intl.formatMessage(
+              { id: "chat.externalAgent.activity.idleTitle" },
+              { minutes: Math.max(1, Math.floor(idleForMs / 60_000)) },
+            )}
+          >
+            {idleLabel}
+          </span>
+        ) : null}
         {activity?.model ? (
           <span
             className="min-w-0 truncate font-mono text-ui-xs text-foreground-subtle"
@@ -298,6 +333,16 @@ export function ExternalAgentActivitySidePane({
                     { id: "chat.externalAgent.activity.hiddenLines" },
                     { count: activity.trimmedEntries },
                   )}
+                </p>
+              ) : null}
+              {/* 源输出本身被截断（artifact 超上限）：与我们主动折叠展示窗口是两件事，
+                  必须区分，否则用户以为任务只跑出了后半段。 */}
+              {activity.sourceTruncated ? (
+                <p
+                  className="text-ui-xs text-foreground-subtle"
+                  data-testid="external-agent-activity-panel-source-truncated"
+                >
+                  {intl.formatMessage({ id: "chat.externalAgent.activity.sourceTruncated" })}
                 </p>
               ) : null}
               {entries.map((entry, index) => {

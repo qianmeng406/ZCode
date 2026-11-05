@@ -1,0 +1,101 @@
+{
+  "description": "外部 Agent 活动帧的冻结夹具（线上契约）。四种形状各一帧：全量首帧、增量追加、增量合并改写尾部、收口全量帧。含裁剪/源截断标记，确保「我们说过的字段」不会在重构中被悄悄丢掉。纪律（借 herdr）：冻结帧不得为了通过测试而修改——协议要变就新增一帧，并保留旧帧继续可解析。",
+  "taskId": "ext_task-1",
+  "agentLabel": "CodeBuddy",
+  "startedAt": 1700000000000,
+  "frames": [
+    {
+      "name": "full-start",
+      "expect": { "entries": ["A"], "status": "running", "revision": 1 },
+      "activity": {
+        "taskId": "ext_task-1",
+        "agentLabel": "CodeBuddy",
+        "model": "deepseek-v4.1-flash",
+        "status": "running",
+        "startedAt": 1700000000000,
+        "elapsedMs": 0,
+        "revision": 1,
+        "entries": [{ "kind": "text", "text": "A" }]
+      }
+    },
+    {
+      "name": "delta-append",
+      "expect": { "entries": ["A", "Bash: ls"], "status": "running", "revision": 2 },
+      "activity": {
+        "taskId": "ext_task-1",
+        "agentLabel": "CodeBuddy",
+        "model": "deepseek-v4.1-flash",
+        "status": "running",
+        "startedAt": 1700000000000,
+        "elapsedMs": 300,
+        "revision": 2,
+        "baseRevision": 1,
+        "entriesFrom": 1,
+        "entries": [{ "kind": "tool", "text": "Bash: ls" }]
+      }
+    },
+    {
+      "name": "delta-merge-tail",
+      "expect": { "entries": ["AB", "Bash: ls"], "status": "running", "revision": 3 },
+      "activity": {
+        "taskId": "ext_task-1",
+        "agentLabel": "CodeBuddy",
+        "model": "deepseek-v4.1-flash",
+        "status": "running",
+        "startedAt": 1700000000000,
+        "elapsedMs": 600,
+        "revision": 3,
+        "baseRevision": 2,
+        "entriesFrom": 0,
+        "entries": [
+          { "kind": "text", "text": "AB" },
+          { "kind": "tool", "text": "Bash: ls" }
+        ]
+      }
+    },
+    {
+      "name": "trimmed-and-source-truncated",
+      "expect": {
+        "entries": ["AB"],
+        "status": "running",
+        "revision": 4,
+        "trimmedEntries": 1,
+        "sourceTruncated": true
+      },
+      "activity": {
+        "taskId": "ext_task-1",
+        "agentLabel": "CodeBuddy",
+        "model": "deepseek-v4.1-flash",
+        "status": "running",
+        "startedAt": 1700000000000,
+        "elapsedMs": 1200,
+        "revision": 4,
+        "trimmedEntries": 1,
+        "sourceTruncated": true,
+        "entries": [{ "kind": "text", "text": "AB" }]
+      }
+    },
+    {
+      "name": "settled-full",
+      "expect": {
+        "entries": ["AB"],
+        "status": "completed",
+        "revision": 5,
+        "trimmedEntries": 1,
+        "sourceTruncated": true
+      },
+      "activity": {
+        "taskId": "ext_task-1",
+        "agentLabel": "CodeBuddy",
+        "model": "deepseek-v4.1-flash",
+        "status": "completed",
+        "startedAt": 1700000000000,
+        "elapsedMs": 61000,
+        "revision": 5,
+        "trimmedEntries": 1,
+        "sourceTruncated": true,
+        "entries": [{ "kind": "text", "text": "AB" }]
+      }
+    }
+  ]
+}

@@ -5210,6 +5210,12 @@ const enUS: Record<string, string> = {
   "chat.externalAgent.activity.empty": "No external agent activity yet.",
   "chat.externalAgent.activity.noTrace": "No trace captured for this run.",
   "chat.externalAgent.activity.newEntries": "{count} new updates",
+  "chat.externalAgent.activity.idle": "No output for {minutes}m",
+  "chat.externalAgent.activity.idleTitle":
+    "The external agent is still running but hasn't produced output for {minutes} minutes. It may be stuck, or waiting on a long-running tool call.",
+  "chat.externalAgent.activity.sourceTruncated":
+    "Raw output was too large; only its tail was parsed, so earlier steps may be missing.",
+  "chat.externalAgent.activity.unread": "External agent run finished",
   "chat.externalAgent.readOnly": "Orchestrator · {agent}",
   "chat.externalAgent.unbind": "Unbind {agent}",
   "chat.externalAgent.readOnlyHint":

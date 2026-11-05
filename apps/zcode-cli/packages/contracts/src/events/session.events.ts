@@ -1249,6 +1249,11 @@ export type ExternalAgentActivityPayload = {
     entriesFrom?: number;
     /** 因超出条目上限被裁掉的更早条目数（面板顶部提示用）。 */
     trimmedEntries?: number;
+    /**
+     * 源输出本身被截断（artifact 超出重解析上限，只解析了结尾部分）。
+     * 与 `trimmedEntries` 不同：那是我们主动裁展示窗口，这是源数据不全。
+     */
+    sourceTruncated?: boolean;
     /** 失败/取消原因摘要。 */
     error?: string;
   } | null;
