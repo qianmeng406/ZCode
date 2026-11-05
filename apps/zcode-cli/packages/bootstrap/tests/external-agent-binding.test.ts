@@ -462,7 +462,7 @@ describe("外部 agent 实时输出", () => {
       const driver = createOneShotExternalAgentDriver({
         executionPort: { run } as never,
       });
-      await driver.run({
+      const result = await driver.run({
         binding: claudeFamily,
         prompt: "x",
         cwd: "/tmp",
@@ -478,9 +478,81 @@ describe("外部 agent 实时输出", () => {
         { kind: "text", text: "第一段" },
         { kind: "tool", text: "Bash: ls src" },
       ]);
+      // 结果也要从全量 artifact 解析：inline 视图为空时不能再退回原始流。
+      expect(result.text).toBe("第一段");
     } finally {
       rmSync(dir, { recursive: true, force: true });
     }
+  });
+
+  it("inline 视图只截到前 1MB 时，结果从 artifact 全量解析（不把 JSONL 回传给主 agent）", async () => {
+    // 真实事故（2026-11-05）：6.5MB 输出的委派，inline 只保留前 1MB，
+    // result 事件在末尾 → 解析失败 → outcome.text 变成 1MB 原始 JSONL，
+    // 再被工具预算二次截断，主 agent 只能去翻 codebuddy 会话文件。
+    const { createOneShotExternalAgentDriver } =
+      await import("../src/zcode-protocol/external-agent-driver.js");
+    const { mkdtempSync, writeFileSync, rmSync } = await import("node:fs");
+    const { tmpdir } = await import("node:os");
+    const { join } = await import("node:path");
+    const dir = mkdtempSync(join(tmpdir(), "ext-agent-driver-"));
+    try {
+      const report = "完整报告：" + "结论".repeat(2_000);
+      const noise = Array.from({ length: 50 }, (_, index) =>
+        JSON.stringify({
+          type: "assistant",
+          message: {
+            role: "assistant",
+            content: [{ type: "text", text: `过程 ${index}` }],
+          },
+        }),
+      );
+      const full = [
+        ...noise,
+        JSON.stringify({ type: "result", result: report, is_error: false }),
+        "",
+      ].join("\n");
+      const artifactPath = join(dir, "stdout.log");
+      writeFileSync(artifactPath, full, "utf8");
+
+      const run = async () => ({
+        streams: {
+          // inline 视图只给前 200 字节（模拟被 maxInlineBytes 截断），没有 result 行。
+          stdout: { text: full.slice(0, 200), artifactPath },
+          stderr: { text: "" },
+        },
+        exitCode: 0,
+      });
+      const driver = createOneShotExternalAgentDriver({
+        executionPort: { run } as never,
+      });
+      const result = await driver.run({ binding: claudeFamily, prompt: "x", cwd: "/tmp" });
+
+      expect(result.text).toBe(report);
+      expect(result.text.startsWith('{"type"')).toBe(false);
+    } finally {
+      rmSync(dir, { recursive: true, force: true });
+    }
+  });
+
+  it("解析不到 result 且 stdout 是 JSONL 时，返回可操作说明而不是原始流", async () => {
+    const { createOneShotExternalAgentDriver } =
+      await import("../src/zcode-protocol/external-agent-driver.js");
+    const stdout = [
+      JSON.stringify({ type: "system", subtype: "init" }),
+      JSON.stringify({ type: "assistant", message: { role: "assistant", content: [] } }),
+      "",
+    ].join("\n");
+    const run = async () => ({
+      streams: { stdout: { text: stdout, bytes: stdout.length }, stderr: { text: "" } },
+      exitCode: 0,
+    });
+    const driver = createOneShotExternalAgentDriver({
+      executionPort: { run } as never,
+    });
+    const result = await driver.run({ binding: claudeFamily, prompt: "x", cwd: "/tmp" });
+
+    expect(result.text.startsWith("（外部 agent 执行结束")).toBe(true);
+    expect(result.text).not.toContain('"type":"system"');
   });
 });
 

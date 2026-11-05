@@ -4,7 +4,7 @@ import {
   executionOutputPreviewSchema,
 } from "@zcode/shared/zcode-protocol-v4";
 import { ExecuteOutput } from "@/ToolCallBlocks/renderers/ExecuteOutput.js";
-import { SquareTerminalIcon } from "lucide-react";
+import { BotIcon, SquareTerminalIcon } from "lucide-react";
 import { useCallback, useMemo } from "react";
 import { useZCodeIntl } from "@/i18n/IntlProvider.js";
 import { ToolSnapshotFieldNotice } from "@/ToolCallBlocks/ToolSnapshotFieldNotice.js";
@@ -288,6 +288,17 @@ export function ExecuteToolCallBlock(context: ToolCallBlockRenderContext) {
     toolCall.toolName === "DelegateToExternalAgent" ||
     toolCall.toolName === "StartExternalAgentTask" ||
     toolCall.toolName === "GetExternalAgentTaskResult";
+  // 这三件套复用执行卡是刻意的（流式输出同 Bash），但它们不是终端命令：
+  // 「终端 + 裸工具名」会让人以为在跑 shell，给独立图标与动作标题。
+  const externalAgentTitleId =
+    toolCall.toolName === "DelegateToExternalAgent"
+      ? "chat.toolCall.externalAgent.delegate"
+      : toolCall.toolName === "StartExternalAgentTask"
+        ? "chat.toolCall.externalAgent.start"
+        : "chat.toolCall.externalAgent.result";
+  const externalAgentKindLabel = isExternalAgentTool
+    ? intl.formatMessage({ id: "chat.toolCall.kind.externalAgent" })
+    : undefined;
   const contentParts = getExecuteContentParts(toolCall.input);
   const outputText = extractExecuteResultText(toolCall.output);
   const rawOutputText = isPlainRecord(toolCall.raw)
@@ -366,7 +377,13 @@ export function ExecuteToolCallBlock(context: ToolCallBlockRenderContext) {
     <>
       <ToolLayout
         toolId={toolCall.toolId}
-        icon={EXECUTE_TOOL_ICON}
+        icon={
+          isExternalAgentTool ? (
+            <BotIcon className="size-4 shrink-0 text-foreground-subtle" />
+          ) : (
+            EXECUTE_TOOL_ICON
+          )
+        }
         showIcon={context.showIcon !== false}
         canToggle={!isOfficeMode && (context.canToggle ?? true)}
         forceOpen={!isOfficeMode && (context.forceOpen ?? false)}
@@ -378,18 +395,22 @@ export function ExecuteToolCallBlock(context: ToolCallBlockRenderContext) {
                   ? "chat.toolCall.execute.running"
                   : "chat.toolCall.execute.conciseCompleted",
               })
-            : context.kindLabelOverride) ??
+            : (context.kindLabelOverride ?? externalAgentKindLabel)) ??
           intl.formatMessage({
             id: isRunning ? "chat.toolCall.execute.running" : "chat.toolCall.kind.terminal",
           })
         }
         sourceLabel={context.sourceLabel}
         primaryText={
-          isOfficeMode || secondaryText
+          isOfficeMode
             ? null
-            : (toolCall.title ??
-              toolCall.kind ??
-              intl.formatMessage({ id: "chat.toolCall.execute.execute" }))
+            : isExternalAgentTool
+              ? intl.formatMessage({ id: externalAgentTitleId })
+              : secondaryText
+                ? null
+                : (toolCall.title ??
+                  toolCall.kind ??
+                  intl.formatMessage({ id: "chat.toolCall.execute.execute" }))
         }
         secondaryText={isOfficeMode ? undefined : secondaryTextNode}
         statusLabel={statusLabel}

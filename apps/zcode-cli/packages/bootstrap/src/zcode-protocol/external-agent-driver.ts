@@ -159,13 +159,18 @@ export function createOneShotExternalAgentDriver(input: {
       const stdoutView = readStreamOutput(result, "stdout");
       const rawStdout = stdoutView.text;
       const stderr = extractStreamText(result, "stderr");
+      // 全量 stdout：inline 视图只保留**前** maxInlineBytes，result 事件在末尾，
+      // 用截断视图解析必然失败（真实事故：6.5MB 输出的委派把 1MB JSONL 当结果
+      // 回传给主 agent，再被工具预算二次截断）。
+      const fullStdout =
+        binding.driver === "claude-family" ? readFullStdout(stdoutView) : rawStdout;
 
       // 权威重建（claude-family）：执行中的条目来自滚动尾窗差分，行会被窗口
       // 切断、内容会重复/丢段。进程结束后 stdout artifact 里有全量字节，用它
       // 整体重解析并把活动条目整体替换掉——最终面板必须完整且有序。
       // 解析结果为空（非 JSONL 等）时保持原样，不破坏已有条目。
       if (binding.driver === "claude-family") {
-        const authoritative = parseClaudeFamilyStreamActivities(readFullStdout(stdoutView));
+        const authoritative = parseClaudeFamilyStreamActivities(fullStdout);
         if (authoritative.length > 0) {
           streamed = true;
           if (authoritative.some((entry) => entry.kind === "text")) streamedText = true;
@@ -185,10 +190,17 @@ export function createOneShotExternalAgentDriver(input: {
         if (rawStdout) runInput.onOutput?.({ stream: "stdout", text: clipProgress(rawStdout) });
       }
 
-      const parsed = parseExternalAgentResult(binding, rawStdout);
+      // 结果必须从全量 stdout 解析（artifact 优先），不能拿 inline 截断视图。
+      const parsed = parseExternalAgentResult(binding, fullStdout);
+      const parsedText = parsed.text.trim();
+      // 解析不到 result 时 parseExternalAgentResult 会把原始 stdout 当正文返回；
+      // claude-family 的 JSONL 不是正文——既不能进活动条目，也不能当委派结果。
+      const hasResultText =
+        parsedText.length > 0 &&
+        !(binding.driver === "claude-family" && looksLikeStreamJson(parsedText));
       // 没流式到正文时（模型只回了 result，或没开 partial）：把最终回答作为一条正文条目，
       // 否则活动卡只有工具调用、看不到它的结论。
-      if (!streamedText && parsed.text.trim()) {
+      if (!streamedText && hasResultText) {
         runInput.onOutput?.({
           stream: "stdout",
           text: "",
@@ -197,11 +209,13 @@ export function createOneShotExternalAgentDriver(input: {
       }
       // 解析不出正文时不能静默返回空串：至少要给出证据（字节数/落盘位置），
       // 否则上层只能看到「已完成」，无从判断是 CLI 没输出还是我们没读到。
-      const text = parsed.text.trim()
+      const text = hasResultText
         ? parsed.text
-        : rawStdout.trim()
-          ? rawStdout
-          : describeMissingOutput(stdoutView);
+        : binding.driver === "claude-family" && looksLikeStreamJson(fullStdout)
+          ? describeMissingOutput(stdoutView)
+          : rawStdout.trim()
+            ? rawStdout
+            : describeMissingOutput(stdoutView);
       const exitCode =
         typeof (result as { exitCode?: number }).exitCode === "number"
           ? (result as { exitCode: number }).exitCode
@@ -308,6 +322,12 @@ function describeMissingOutput(view: StreamOutputView): string {
   if (view.bytes !== undefined) parts.push(`stdout 共 ${view.bytes} 字节`);
   if (view.artifactPath) parts.push(`原始输出已落盘：${view.artifactPath}`);
   return parts.join("；");
+}
+
+/** 是否像 claude-family 的 stream-json（首行就是 {"type":...} 事件）。 */
+function looksLikeStreamJson(text: string): boolean {
+  const head = text.trimStart().slice(0, 200);
+  return head.startsWith("{") && head.includes('"type"');
 }
 
 /** 进度事件里最多带这么多字符（尾部，保留最后状态行）。 */
