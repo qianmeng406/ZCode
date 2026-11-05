@@ -4899,6 +4899,7 @@ const zhCN: Record<string, string> = {
   "chat.externalAgent.activity.viewProcess": "查看过程",
   "chat.externalAgent.activity.empty": "还没有外部 Agent 的执行记录。",
   "chat.externalAgent.activity.noTrace": "本次执行没有可展示的过程。",
+  "chat.externalAgent.activity.newEntries": "有 {count} 条新过程",
   "chat.externalAgent.readOnly": "主控 · {agent}",
   "chat.externalAgent.unbind": "解绑 {agent}",
   "chat.externalAgent.readOnlyHint":

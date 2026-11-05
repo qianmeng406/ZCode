@@ -50,10 +50,16 @@ export const externalAgentActivitySchema = z.object({
   elapsedMs: z.number().int().nonnegative(),
   /** 最近输出尾部（纯文本兜底）。 */
   tail: z.string().optional(),
-  /** 结构化活动条目（思考/正文/工具）。 */
+  /** 结构化活动条目（思考/正文/工具）。增量帧里是 entriesFrom 之后的片段。 */
   entries: z
     .array(z.object({ kind: z.enum(["reasoning", "text", "tool"]), text: z.string() }).strict())
     .optional(),
+  /** 本帧版本号；缺省 = 旧格式全量帧。 */
+  revision: z.number().int().nonnegative().optional(),
+  /** 增量帧基于的 revision；缺省 = 全量帧。 */
+  baseRevision: z.number().int().nonnegative().optional(),
+  /** 增量帧：从第几条 entries 开始替换（之前由接收方保留）。 */
+  entriesFrom: z.number().int().nonnegative().optional(),
   /** 因超出条目上限被裁掉的更早条目数；UI 据此提示「更早过程已折叠」。 */
   trimmedEntries: z.number().int().nonnegative().optional(),
   /** 失败/取消原因摘要。 */

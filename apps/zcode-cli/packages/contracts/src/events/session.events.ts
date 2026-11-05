@@ -1236,8 +1236,17 @@ export type ExternalAgentActivityPayload = {
     elapsedMs: number;
     /** 最近输出尾部。 */
     tail?: string;
-    /** 结构化过程条目：思考/正文/工具。 */
+    /** 结构化过程条目：思考/正文/工具。增量帧里是 entriesFrom 之后的片段。 */
     entries?: Array<{ kind: "reasoning" | "text" | "tool"; text: string }>;
+    /**
+     * 本帧版本号：每次 emit 递增。接收方用它判断增量帧能否接上。
+     * 缺省 = 旧格式（全量帧）。
+     */
+    revision?: number;
+    /** 增量帧：本帧基于哪个 revision。缺省 = 全量帧（entries 应整体替换）。 */
+    baseRevision?: number;
+    /** 增量帧：从第几条 entries 开始替换（之前的部分由接收方保留）。 */
+    entriesFrom?: number;
     /** 因超出条目上限被裁掉的更早条目数（面板顶部提示用）。 */
     trimmedEntries?: number;
     /** 失败/取消原因摘要。 */

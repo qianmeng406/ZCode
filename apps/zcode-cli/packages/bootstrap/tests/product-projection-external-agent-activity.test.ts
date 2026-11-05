@@ -93,4 +93,73 @@ describe("external agent activity projection", () => {
     h.apply({ ...richSettled, status: "running", elapsedMs: 0 });
     expect(h.current()?.status).toBe("running");
   });
+
+  it("增量帧按 entriesFrom 拼回条目（合并改写的最后一条也会覆盖）", () => {
+    const h = harness();
+    h.apply({
+      ...richSettled,
+      status: "running",
+      entries: [{ kind: "text", text: "A" }],
+      revision: 1,
+    });
+    // 追加一条工具行。
+    h.apply({
+      taskId: "call-1",
+      agentLabel: "CodeBuddy",
+      status: "running",
+      startedAt: richSettled.startedAt,
+      elapsedMs: 2_000,
+      revision: 2,
+      baseRevision: 1,
+      entriesFrom: 1,
+      entries: [{ kind: "tool", text: "Bash: ls" }],
+    });
+    expect(h.current()?.entries?.map((entry) => entry.text)).toEqual(["A", "Bash: ls"]);
+    // 正文合并进首条：entriesFrom 回退到 0，片段必须带上 entriesFrom 之后的全部条目。
+    h.apply({
+      taskId: "call-1",
+      agentLabel: "CodeBuddy",
+      status: "running",
+      startedAt: richSettled.startedAt,
+      elapsedMs: 3_000,
+      revision: 3,
+      baseRevision: 2,
+      entriesFrom: 0,
+      entries: [
+        { kind: "text", text: "AB" },
+        { kind: "tool", text: "Bash: ls" },
+      ],
+    });
+    expect(h.current()?.entries?.map((entry) => entry.text)).toEqual(["AB", "Bash: ls"]);
+    expect(h.current()?.revision).toBe(3);
+  });
+
+  it("baseRevision 对不上时退化成追加，不丢已有过程", () => {
+    const h = harness();
+    h.apply({
+      ...richSettled,
+      status: "running",
+      entries: [{ kind: "text", text: "A" }],
+      revision: 5,
+    });
+    h.apply({
+      taskId: "call-1",
+      agentLabel: "CodeBuddy",
+      status: "running",
+      startedAt: richSettled.startedAt,
+      elapsedMs: 2_000,
+      revision: 6,
+      baseRevision: 4,
+      entriesFrom: 0,
+      entries: [{ kind: "text", text: "B" }],
+    });
+    expect(h.current()?.entries?.map((entry) => entry.text)).toEqual(["A", "B"]);
+  });
+
+  it("无 baseRevision 的旧格式帧仍然整体替换", () => {
+    const h = harness();
+    h.apply({ ...richSettled, status: "running", entries: [{ kind: "text", text: "A" }] });
+    h.apply({ ...richSettled, status: "running", entries: [{ kind: "text", text: "B" }] });
+    expect(h.current()?.entries?.map((entry) => entry.text)).toEqual(["B"]);
+  });
 });

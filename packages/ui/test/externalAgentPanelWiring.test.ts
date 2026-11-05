@@ -75,6 +75,11 @@ const LINKS: Array<{ file: string; pattern: RegExp; why: string }> = [
     pattern: /chat\.externalAgent\.activity\.noTrace/,
     why: "过程全被过滤时给一句说明，不留空白面板",
   },
+  {
+    file: "src/app-shell/ExternalAgentActivitySidePane.tsx",
+    pattern: /data-testid="external-agent-activity-panel-unseen"/,
+    why: "上滚期间用「N 条新过程」胶囊提示，点击回到底部（不抢滚动位置）",
+  },
 ];
 
 function readSurface(relativePath: string): string {

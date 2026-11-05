@@ -92,22 +92,40 @@ export function ExternalAgentActivitySidePane({
   // 贴底跟随：只在用户本来就在底部时生效；运行中每来一条增量跟一次。
   const viewportRef = useRef<HTMLDivElement | null>(null);
   const followBottomRef = useRef(true);
+  const seenEntryCountRef = useRef(0);
+  // 用户上滚后新增的过程条数：给一个「回到底部」的胶囊，而不是静默追加
+  // （左侧过程动辄几十行，滚动位置被顶走比丢内容更让人迷惑）。
+  const [unseenCount, setUnseenCount] = useState(0);
   useEffect(() => {
     const viewport = viewportRef.current;
     if (!viewport) return undefined;
     const onScroll = () => {
       const distanceToBottom = viewport.scrollHeight - viewport.scrollTop - viewport.clientHeight;
       followBottomRef.current = distanceToBottom <= FOLLOW_BOTTOM_THRESHOLD_PX;
+      if (followBottomRef.current) setUnseenCount((count) => (count === 0 ? count : 0));
     };
     viewport.addEventListener("scroll", onScroll, { passive: true });
     return () => viewport.removeEventListener("scroll", onScroll);
   }, []);
   const entryCount = entries.length;
   useEffect(() => {
+    const previous = seenEntryCountRef.current;
+    seenEntryCountRef.current = entryCount;
+    if (entryCount > previous && !followBottomRef.current) {
+      setUnseenCount((count) => count + (entryCount - previous));
+    }
+  }, [entryCount]);
+  useEffect(() => {
     const viewport = viewportRef.current;
     if (!viewport || !running || !followBottomRef.current) return;
     viewport.scrollTop = viewport.scrollHeight;
   }, [entryCount, running]);
+  const scrollToBottom = useCallback(() => {
+    const viewport = viewportRef.current;
+    if (viewport) viewport.scrollTop = viewport.scrollHeight;
+    followBottomRef.current = true;
+    setUnseenCount(0);
+  }, []);
 
   const statusLabel = activity
     ? intl.formatMessage({
@@ -191,96 +209,114 @@ export function ExternalAgentActivitySidePane({
           <XIcon className="size-3.5" />
         </Button>
       </div>
-      <ScrollFadeViewport ref={viewportRef} className="px-3 py-3">
-        {activity === null ? (
-          <p className="text-ui-sm text-foreground-subtle">
-            {intl.formatMessage({ id: "chat.externalAgent.activity.empty" })}
-          </p>
-        ) : (
-          <div className="flex flex-col gap-3" data-testid="external-agent-activity-panel-trace">
-            {/* 长任务会超出条目上限、从最老开始裁：必须说清楚，否则用户只觉得内容不全。 */}
-            {activity.trimmedEntries ? (
-              <p
-                className="text-ui-xs text-foreground-subtle"
-                data-testid="external-agent-activity-panel-trimmed"
-              >
-                {intl.formatMessage(
-                  { id: "chat.externalAgent.activity.hiddenLines" },
-                  { count: activity.trimmedEntries },
-                )}
-              </p>
-            ) : null}
-            {entries.map((entry, index) => {
-              const streaming = running && index === entries.length - 1;
-              if (entry.kind === "tool") {
-                return (
-                  <div key={`t-${index}`} data-testid="external-agent-activity-panel-tool">
-                    <ExternalAgentToolRow
-                      toolId={`external-agent-tool-${index}`}
-                      text={entry.text}
-                      workspacePath={tab.workspacePath}
-                    />
-                  </div>
-                );
-              }
-              if (entry.kind === "reasoning") {
-                // CLI 只下发"思考开始"与空内容：呈现"正在思考"而不是空块。
-                if (!entry.text.trim()) {
+      <div className="relative flex min-h-0 flex-1 flex-col">
+        <ScrollFadeViewport ref={viewportRef} className="px-3 py-3">
+          {activity === null ? (
+            <p className="text-ui-sm text-foreground-subtle">
+              {intl.formatMessage({ id: "chat.externalAgent.activity.empty" })}
+            </p>
+          ) : (
+            <div className="flex flex-col gap-3" data-testid="external-agent-activity-panel-trace">
+              {/* 长任务会超出条目上限、从最老开始裁：必须说清楚，否则用户只觉得内容不全。 */}
+              {activity.trimmedEntries ? (
+                <p
+                  className="text-ui-xs text-foreground-subtle"
+                  data-testid="external-agent-activity-panel-trimmed"
+                >
+                  {intl.formatMessage(
+                    { id: "chat.externalAgent.activity.hiddenLines" },
+                    { count: activity.trimmedEntries },
+                  )}
+                </p>
+              ) : null}
+              {entries.map((entry, index) => {
+                const streaming = running && index === entries.length - 1;
+                if (entry.kind === "tool") {
                   return (
-                    <div
-                      key={`r-${index}`}
-                      className="flex items-center gap-1.5 border-l-2 border-border pl-2 text-ui-xs italic text-foreground-subtle"
-                      data-testid="external-agent-activity-panel-thinking"
-                    >
-                      {running ? (
-                        <span className="inline-flex size-1.5 animate-pulse rounded-full bg-foreground-subtle" />
-                      ) : null}
-                      {intl.formatMessage({ id: "chat.externalAgent.activity.thinking" })}
+                    <div key={`t-${index}`} data-testid="external-agent-activity-panel-tool">
+                      <ExternalAgentToolRow
+                        toolId={`external-agent-tool-${index}`}
+                        text={entry.text}
+                        workspacePath={tab.workspacePath}
+                      />
+                    </div>
+                  );
+                }
+                if (entry.kind === "reasoning") {
+                  // CLI 只下发"思考开始"与空内容：呈现"正在思考"而不是空块。
+                  if (!entry.text.trim()) {
+                    return (
+                      <div
+                        key={`r-${index}`}
+                        className="flex items-center gap-1.5 border-l-2 border-border pl-2 text-ui-xs italic text-foreground-subtle"
+                        data-testid="external-agent-activity-panel-thinking"
+                      >
+                        {running ? (
+                          <span className="inline-flex size-1.5 animate-pulse rounded-full bg-foreground-subtle" />
+                        ) : null}
+                        {intl.formatMessage({ id: "chat.externalAgent.activity.thinking" })}
+                      </div>
+                    );
+                  }
+                  return (
+                    <div key={`r-${index}`} data-testid="external-agent-activity-panel-reasoning">
+                      <Reasoning className="w-full" isStreaming={streaming}>
+                        <ReasoningTrigger streamingText={entry.text} />
+                        <ReasoningContent>{entry.text}</ReasoningContent>
+                      </Reasoning>
                     </div>
                   );
                 }
                 return (
-                  <div key={`r-${index}`} data-testid="external-agent-activity-panel-reasoning">
-                    <Reasoning className="w-full" isStreaming={streaming}>
-                      <ReasoningTrigger streamingText={entry.text} />
-                      <ReasoningContent>{entry.text}</ReasoningContent>
-                    </Reasoning>
+                  <div key={`x-${index}`} data-testid="external-agent-activity-panel-text">
+                    {/* 会话正文同一个渲染器：markdown/代码块/gen-ui 引用都按对话里的样子排。 */}
+                    <GenUiMessageResponse
+                      completed={!streaming}
+                      messageKey={`external-agent:${index}`}
+                      streaming={streaming}
+                      workspacePath={tab.workspacePath}
+                      sessionId={tab.sessionId}
+                      {...(tab.workspaceIdentity
+                        ? { workspaceIdentity: tab.workspaceIdentity }
+                        : {})}
+                      {...(tab.remoteSessionId
+                        ? { workspaceRemoteSessionId: tab.remoteSessionId }
+                        : {})}
+                    >
+                      {entry.text}
+                    </GenUiMessageResponse>
                   </div>
                 );
-              }
-              return (
-                <div key={`x-${index}`} data-testid="external-agent-activity-panel-text">
-                  {/* 会话正文同一个渲染器：markdown/代码块/gen-ui 引用都按对话里的样子排。 */}
-                  <GenUiMessageResponse
-                    completed={!streaming}
-                    messageKey={`external-agent:${index}`}
-                    streaming={streaming}
-                    workspacePath={tab.workspacePath}
-                    sessionId={tab.sessionId}
-                    {...(tab.workspaceIdentity ? { workspaceIdentity: tab.workspaceIdentity } : {})}
-                    {...(tab.remoteSessionId
-                      ? { workspaceRemoteSessionId: tab.remoteSessionId }
-                      : {})}
-                  >
-                    {entry.text}
-                  </GenUiMessageResponse>
-                </div>
-              );
-            })}
-            {activity.error ? (
-              <p className="whitespace-pre-wrap break-words text-ui-sm text-danger">
-                {activity.error}
-              </p>
-            ) : null}
-            {/* 只有空思考标记被过滤掉时才会走到这里：给一句说明，别留空面板。 */}
-            {!running && entries.length === 0 && !activity.error ? (
-              <p className="text-ui-sm text-foreground-subtle">
-                {intl.formatMessage({ id: "chat.externalAgent.activity.noTrace" })}
-              </p>
-            ) : null}
-          </div>
-        )}
-      </ScrollFadeViewport>
+              })}
+              {activity.error ? (
+                <p className="whitespace-pre-wrap break-words text-ui-sm text-danger">
+                  {activity.error}
+                </p>
+              ) : null}
+              {/* 只有空思考标记被过滤掉时才会走到这里：给一句说明，别留空面板。 */}
+              {!running && entries.length === 0 && !activity.error ? (
+                <p className="text-ui-sm text-foreground-subtle">
+                  {intl.formatMessage({ id: "chat.externalAgent.activity.noTrace" })}
+                </p>
+              ) : null}
+            </div>
+          )}
+        </ScrollFadeViewport>
+        {/* 上滚期间新过程只计数不抢滚动位置；点胶囊回到底部。 */}
+        {unseenCount > 0 ? (
+          <button
+            type="button"
+            data-testid="external-agent-activity-panel-unseen"
+            className="absolute bottom-3 left-1/2 z-10 flex -translate-x-1/2 items-center gap-1 rounded-full border border-border bg-surface-raised px-3 py-1 text-ui-xs text-foreground shadow-sm hover:bg-surface-hover"
+            onClick={scrollToBottom}
+          >
+            {intl.formatMessage(
+              { id: "chat.externalAgent.activity.newEntries" },
+              { count: unseenCount },
+            )}
+          </button>
+        ) : null}
+      </div>
     </div>
   );
 }

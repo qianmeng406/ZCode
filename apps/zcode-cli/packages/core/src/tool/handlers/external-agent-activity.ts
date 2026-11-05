@@ -4,7 +4,10 @@
 // 分钟。用户要的是一张**一直可见**的卡：「谁在跑 / 跑了多久 / 最近在做什么」。
 //
 // 设计要点：
-// - 一条事件 = 一份完整快照（不是增量）：投影直接 `state.updated` 替换，客户端不做拼接；
+// - **全量首帧 + 增量帧**（2026-11-05）：首帧/收口/裁剪时发完整快照，执行中只发
+//   `baseRevision + entriesFrom + entries 片段`。原先每 300ms 发整份快照，一次长
+//   委派会往事件流里塞十几 MB 重复内容，还得靠 24k 字符上限裁剪历史；增量帧让
+//   上限只约束"当前展示窗口"，历史随 stdout artifact 一起落盘。
 // - 开始/结束各发一次，执行中按节流发（300ms），避免事件风暴；
 // - 发送永不阻塞执行（进度丢了不影响任务本身）。
 import { SessionEventType, type ExternalAgentActivityPayload } from "@zcode/contracts";
@@ -12,10 +15,10 @@ import type { ToolHandler } from "../types.js";
 
 const TAIL_CHARS = 2_000;
 const THROTTLE_MS = 300;
-const MAX_ENTRIES = 400;
-// 条目总字符上限：1 分钟以上的委派很容易超过小上限，从最老开始丢会让面板
-// "内容不全"。48k 字符 ≈ 1.6 万汉字，单条事件仍远小于 IPC/落库的舒适区。
-const MAX_ENTRY_CHARS = 48_000;
+// 上限只约束"当前累积的展示窗口"：增量帧下每个事件只带新增片段，事件流大小
+// 与真实输出成正比，不再需要小上限来压快照体积。
+const MAX_ENTRIES = 1_000;
+const MAX_ENTRY_CHARS = 200_000;
 
 interface ActivityEntry {
   kind: "reasoning" | "text" | "tool";
@@ -63,11 +66,61 @@ export function createExternalAgentActivityReporter(
   // 否则长任务的开头被静默裁掉，用户只会觉得"内容不全"。
   let trimmedEntries = 0;
 
-  const emit = (activity: ExternalAgentActivityPayload["activity"], force = false): void => {
+  // 增量帧状态：上一次成功 emit 的版本、条目数与最后一条正文（合并会改写它）。
+  let revision = 0;
+  let emittedRevision = 0;
+  let emittedEntryCount = 0;
+  let emittedTrimmed = 0;
+  let emittedLastText: string | undefined;
+
+  const emit = (
+    status: "running" | "completed" | "failed" | "cancelled",
+    opts: { error?: string; force?: boolean; full?: boolean } = {},
+  ): void => {
     if (!context.emitEvent) return;
     const now = Date.now();
-    if (!force && now - lastEmitAt < THROTTLE_MS) return;
+    if (!opts.force && now - lastEmitAt < THROTTLE_MS) return;
     lastEmitAt = now;
+    revision += 1;
+    // 能发增量帧的条件：已有基线、没裁剪过（裁剪会让索引失效）、没被要求全量。
+    const canDelta =
+      !opts.full &&
+      emittedRevision > 0 &&
+      emittedTrimmed === trimmedEntries &&
+      entries.length >= emittedEntryCount;
+    let entriesFrom = emittedEntryCount;
+    // 相邻同类正文会合并进上一条：把被改写的最后一条一起重发，否则接收方
+    // 永远停在旧文本上（文本增量帧最容易踩的坑）。
+    if (canDelta && entriesFrom > 0 && entries[entriesFrom - 1]?.text !== emittedLastText) {
+      entriesFrom -= 1;
+    }
+    const activity: NonNullable<ExternalAgentActivityPayload["activity"]> = {
+      taskId,
+      agentLabel,
+      ...(model ? { model } : {}),
+      status,
+      startedAt,
+      elapsedMs: now - startedAt,
+      ...(tail ? { tail } : {}),
+      ...(trimmedEntries > 0 ? { trimmedEntries } : {}),
+      revision,
+      ...(canDelta
+        ? {
+            baseRevision: emittedRevision,
+            entriesFrom,
+            ...(entries.length > entriesFrom
+              ? { entries: entries.slice(entriesFrom).map((entry) => ({ ...entry })) }
+              : {}),
+          }
+        : {
+            ...(entries.length > 0 ? { entries: entries.map((entry) => ({ ...entry })) } : {}),
+          }),
+      ...(opts.error ? { error: opts.error } : {}),
+    };
+    emittedRevision = revision;
+    emittedEntryCount = entries.length;
+    emittedTrimmed = trimmedEntries;
+    emittedLastText = entries.at(-1)?.text;
     void Promise.resolve(
       context.emitEvent({
         id: crypto.randomUUID(),
@@ -138,27 +191,29 @@ export function createExternalAgentActivityReporter(
     }
   };
 
-  const snapshot = (
-    status: "running" | "completed" | "failed" | "cancelled",
-    extra?: { error?: string },
-  ): ExternalAgentActivityPayload["activity"] => ({
-    taskId,
-    agentLabel,
-    ...(model ? { model } : {}),
-    status,
-    startedAt,
-    elapsedMs: Date.now() - startedAt,
-    ...(tail ? { tail } : {}),
-    ...(entries.length > 0 ? { entries: entries.map((entry) => ({ ...entry })) } : {}),
-    ...(trimmedEntries > 0 ? { trimmedEntries } : {}),
-    ...(extra?.error ? { error: extra.error } : {}),
-  });
+  /** 显式清空（解绑/切换会话）：payload.activity = null。 */
+  const emitCleared = (): void => {
+    if (!context.emitEvent) return;
+    lastEmitAt = Date.now();
+    void Promise.resolve(
+      context.emitEvent({
+        id: crypto.randomUUID(),
+        sessionId: context.sessionId,
+        turnId: context.turnId,
+        type: SessionEventType.ExternalAgentActivityChanged,
+        timestamp: new Date(),
+        traceId: context.traceId,
+        sequenceNumber: 0,
+        payload: { activity: null } satisfies ExternalAgentActivityPayload,
+      } as never),
+    ).catch(() => undefined);
+  };
 
   return {
     started(info) {
       agentLabel = info.label || agentLabel;
       if (info.model) model = info.model;
-      emit(snapshot("running"), true);
+      emit("running", { force: true, full: true });
     },
     progress(chunk) {
       if (finished) return;
@@ -169,18 +224,18 @@ export function createExternalAgentActivityReporter(
         entriesChars = entries.reduce((sum, entry) => sum + entry.text.length, 0);
         trimmedEntries = 0;
         trimEntries();
-        emit(snapshot("running"), true);
+        emit("running", { force: true, full: true });
         return;
       }
       if (chunk.entries?.length) {
         appendEntries(chunk.entries);
-        emit(snapshot("running"));
+        emit("running");
         return;
       }
       const text = chunk.text || previewText(chunk.preview);
       if (text) tail = (tail + text).slice(-TAIL_CHARS);
       if (!text) return;
-      emit(snapshot("running"));
+      emit("running");
     },
     settled(outcome) {
       if (finished) return;
@@ -192,12 +247,12 @@ export function createExternalAgentActivityReporter(
       const status = cancelled ? "cancelled" : outcome.isError ? "failed" : "completed";
       const error =
         !cancelled && outcome.isError && !tail ? outcome.text?.slice(0, 300) : undefined;
-      emit(snapshot(status, error ? { error } : undefined), true);
+      // 终态发全量帧：即使执行中有增量帧丢失/被节流，客户端也能一次收敛。
+      emit(status, { force: true, full: true, ...(error ? { error } : {}) });
     },
     clear() {
-      if (!context.emitEvent) return;
       finished = true;
-      emit(null, true);
+      emitCleared();
     },
   };
 }

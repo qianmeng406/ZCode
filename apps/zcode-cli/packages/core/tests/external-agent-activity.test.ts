@@ -98,7 +98,7 @@ describe("createExternalAgentActivityReporter", () => {
     const reporter = createExternalAgentActivityReporter(context, { agentLabel: "外部 agent" });
     reporter.started({ label: "CodeBuddy" });
 
-    const big = "x".repeat(30_000);
+    const big = "x".repeat(120_000);
     reporter.progress({ entries: [{ kind: "text", text: big }] });
     reporter.progress({ entries: [{ kind: "tool", text: "Bash: ls" }] });
     reporter.progress({ entries: [{ kind: "text", text: big }] });
@@ -108,7 +108,7 @@ describe("createExternalAgentActivityReporter", () => {
     const event = emitEvent.mock.calls.at(-1)?.[0] as unknown as {
       payload: { activity: { entries: unknown[]; trimmedEntries?: number } };
     };
-    // 30k + 8 + 30k > 48k：第一条被裁，剩下工具行 + 第二段。
+    // 120k + 8 + 120k > 200k：第一条被裁，剩下工具行 + 第二段。
     expect(event.payload.activity.trimmedEntries).toBe(1);
     expect(event.payload.activity.entries).toHaveLength(2);
   });
@@ -138,15 +138,76 @@ describe("createExternalAgentActivityReporter", () => {
           entries: Array<{ kind: string; text: string }>;
           trimmedEntries?: number;
           status: string;
+          baseRevision?: number;
         };
       };
     };
     expect(event.payload.activity.trimmedEntries).toBeUndefined();
     expect(event.payload.activity.status).toBe("running");
+    // 权威重建必须全量：增量帧没法表达"全部换掉"。
+    expect(event.payload.activity.baseRevision).toBeUndefined();
     expect(event.payload.activity.entries.map((entry) => entry.text)).toEqual([
       "第一段",
       "Bash: ls src",
       "完整结论",
     ]);
+  });
+
+  it("执行中发增量帧：baseRevision + entriesFrom，合并改写的最后一条会被重发", () => {
+    vi.useFakeTimers();
+    try {
+      const { context, emitEvent } = makeContext();
+      const reporter = createExternalAgentActivityReporter(context, { agentLabel: "外部 agent" });
+      type Frame = {
+        revision?: number;
+        baseRevision?: number;
+        entriesFrom?: number;
+        entries?: Array<{ kind: string; text: string }>;
+        status: string;
+      };
+      const frame = (index: number) =>
+        (emitEvent.mock.calls[index]?.[0] as unknown as { payload: { activity: Frame } }).payload
+          .activity;
+
+      reporter.started({ label: "CodeBuddy" });
+      vi.advanceTimersByTime(350);
+      reporter.progress({ entries: [{ kind: "text", text: "A" }] });
+      vi.advanceTimersByTime(350);
+      // 相邻同类正文合并进上一条 → 必须从第 0 条重发，否则接收方停在 "A"。
+      reporter.progress({ entries: [{ kind: "text", text: "B" }] });
+      vi.advanceTimersByTime(350);
+      reporter.progress({ entries: [{ kind: "tool", text: "Bash: ls" }] });
+
+      expect(frame(0)).toMatchObject({ status: "running", revision: 1 });
+      expect(frame(0).baseRevision).toBeUndefined();
+      expect(frame(1)).toMatchObject({
+        revision: 2,
+        baseRevision: 1,
+        entriesFrom: 0,
+        entries: [{ kind: "text", text: "A" }],
+      });
+      expect(frame(2)).toMatchObject({
+        revision: 3,
+        baseRevision: 2,
+        entriesFrom: 0,
+        entries: [{ kind: "text", text: "AB" }],
+      });
+      // 新工具行是追加：entriesFrom = 已发条目数，只带新增那一条。
+      expect(frame(3)).toMatchObject({
+        revision: 4,
+        baseRevision: 3,
+        entriesFrom: 1,
+        entries: [{ kind: "tool", text: "Bash: ls" }],
+      });
+
+      // 收口一定发全量帧：丢过增量也能一次收敛。
+      reporter.settled({ isError: false, durationMs: 1_000 });
+      const final = frame(4);
+      expect(final.status).toBe("completed");
+      expect(final.baseRevision).toBeUndefined();
+      expect(final.entries?.map((entry) => entry.text)).toEqual(["AB", "Bash: ls"]);
+    } finally {
+      vi.useRealTimers();
+    }
   });
 });

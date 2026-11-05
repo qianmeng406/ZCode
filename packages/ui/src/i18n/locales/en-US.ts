@@ -5209,6 +5209,7 @@ const enUS: Record<string, string> = {
   "chat.externalAgent.activity.viewProcess": "View activity",
   "chat.externalAgent.activity.empty": "No external agent activity yet.",
   "chat.externalAgent.activity.noTrace": "No trace captured for this run.",
+  "chat.externalAgent.activity.newEntries": "{count} new updates",
   "chat.externalAgent.readOnly": "Orchestrator · {agent}",
   "chat.externalAgent.unbind": "Unbind {agent}",
   "chat.externalAgent.readOnlyHint":

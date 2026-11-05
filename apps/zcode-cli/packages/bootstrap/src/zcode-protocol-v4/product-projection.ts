@@ -3781,21 +3781,30 @@ export class ProductProjection {
    * reporter 已经正常收口过，这份瘦快照只会把过程面板从结构化渲染打回 raw
    * tail 按行显示——所以已有完成态富记录时直接忽略它；previous 还在 running
    * 才说明 reporter 的收口丢了，瘦快照是唯一终态来源，照常写入。
+   *
+   * 增量帧合并（2026-11-05）：执行中 reporter 只发 `baseRevision + entriesFrom +
+   * entries 片段`，这里把片段拼回 previous 的条目；版本对不上（事件被截断/冷恢复
+   * 从半截开始）时退化成"追加"，宁可多一段也不要整段丢失。全量帧（无 baseRevision）
+   * 仍然整体替换。
    */
   private onExternalAgentActivityChanged(event: SessionEvent): ConversationDelta[] {
     const payload = event.payload as ExternalAgentActivityPayload;
-    const activity = payload.activity;
+    const incoming = payload.activity;
     const previous = this.snapshot.externalAgentActivity;
     if (
-      activity &&
-      activity.status !== "running" &&
-      !activity.entries?.length &&
+      incoming &&
+      incoming.status !== "running" &&
+      !incoming.entries?.length &&
       previous &&
       previous.status !== "running" &&
       (previous.entries?.length || previous.model)
     ) {
       return [];
     }
+    const activity =
+      incoming && incoming.baseRevision !== undefined && incoming.taskId === previous?.taskId
+        ? mergeActivityDelta(previous ?? undefined, incoming)
+        : incoming;
     return [{ op: "state.updated", patch: { externalAgentActivity: activity } }];
   }
 
@@ -6212,6 +6221,31 @@ function createExitPlanModeApprovalQuestion(reason: string): UserInputQuestionPa
       },
     ],
   };
+}
+
+/**
+ * 把活动增量帧拼回上一条记录。
+ *
+ * reporter 执行中只发 `baseRevision + entriesFrom + entries 片段`：正常情况用
+ * 片段的起点替换尾部；版本对不上（事件流被截断、冷恢复从半截开始）时退化成
+ * "全部追加"——宁可多一段，也不要整段过程凭空消失。
+ */
+function mergeActivityDelta(
+  previous: NonNullable<ExternalAgentActivityPayload["activity"]>,
+  incoming: NonNullable<ExternalAgentActivityPayload["activity"]>,
+): NonNullable<ExternalAgentActivityPayload["activity"]> {
+  const previousEntries = previous.entries ?? [];
+  const aligned = (previous.revision ?? 0) === incoming.baseRevision;
+  const from = aligned
+    ? Math.max(0, Math.min(incoming.entriesFrom ?? previousEntries.length, previousEntries.length))
+    : previousEntries.length;
+  const merged: NonNullable<ExternalAgentActivityPayload["activity"]> = {
+    ...incoming,
+    entries: [...previousEntries.slice(0, from), ...(incoming.entries ?? [])],
+  };
+  delete merged.baseRevision;
+  delete merged.entriesFrom;
+  return merged;
 }
 
 function readAskUserQuestionPayloadQuestions(input: unknown): UserInputQuestionPayload[] {
