@@ -187,6 +187,16 @@ describe("externalAgentActivityStore 注意力（seen / 无输出）", () => {
     expect(getExternalAgentActivityState("s-live").unreadLive).toBe(true);
   });
 
+  it("历史摘要（冷恢复补发的上次执行）不产生未读，也不清掉已有未读", () => {
+    publishExternalAgentActivity("s-hist", activity({ taskId: "real" }));
+    publishExternalAgentActivity(
+      "s-hist",
+      activity({ taskId: "history_1", status: "completed", historical: true }),
+    );
+    expect(isExternalAgentActivityUnread("s-hist")).toBe(false);
+    expect(getExternalAgentActivity("s-hist")?.historical).toBe(true);
+  });
+
   it("空 sessionId 直接返回同一份空状态（useSyncExternalStore 不会死循环）", () => {
     expect(getExternalAgentActivityState(null)).toBe(getExternalAgentActivityState(undefined));
     expect(getExternalAgentActivityState("")).toEqual({

@@ -312,6 +312,78 @@ describe("外部 agent 续接与后台任务", () => {
     expect(list.map((task) => task.taskId)).toContain(taskId);
   });
 
+  it("收口后落一份执行摘要（标签/模型/状态/耗时/结论尾部）", async () => {
+    // 摘要是"重启后过程面板还能回忆起上次跑了什么"的唯一来源。
+    const { createExternalAgentPort } =
+      await import("../src/zcode-protocol/external-agent-port-impl.js");
+    const answer = "改完了：3 个文件，测试通过。";
+    const run = async () => ({
+      streams: {
+        stdout: { text: JSON.stringify([{ type: "result", is_error: false, result: answer }]) },
+        stderr: { text: "" },
+      },
+      exitCode: 0,
+    });
+    const saved: Array<{ sessionId: string; summary: Record<string, unknown> }> = [];
+    const port = createExternalAgentPort({
+      executionPort: { run } as never,
+      readBinding: async () => ({ ...claudeFamily, model: "glm-4.6" }),
+      saveRunSummary: async (sessionId, summary) => {
+        saved.push({ sessionId, summary });
+      },
+    });
+    await port.delegate({ sessionId: "s" as never, task: "改 lint", cwd: "/tmp" });
+
+    expect(saved).toHaveLength(1);
+    expect(saved[0]).toMatchObject({
+      sessionId: "s",
+      summary: {
+        agentLabel: "codebuddy",
+        model: "glm-4.6",
+        status: "completed",
+        tail: answer,
+      },
+    });
+    expect(typeof saved[0]?.summary.finishedAt).toBe("number");
+    expect(typeof saved[0]?.summary.durationMs).toBe("number");
+  });
+
+  it("执行摘要可读写；写空即清除（解绑/换绑不留旧结果）", async () => {
+    const { persistSessionExternalAgentRun, readSessionExternalAgentRun } =
+      await import("../src/zcode-protocol/session-external-agent.js");
+    const entries: Array<{ data: unknown }> = [];
+    const sessionStore = {
+      saveSessionEntry: async (entry: { data: unknown }) => {
+        entries.push(entry);
+      },
+      sessionEntries: async () => entries.slice(-1),
+    };
+    const summary = {
+      agentLabel: "codebuddy",
+      status: "completed" as const,
+      finishedAt: 1_700_000_000_000,
+      durationMs: 61_000,
+      tail: "结论",
+    };
+    await persistSessionExternalAgentRun({
+      sessionId: "s",
+      sessionStore: sessionStore as never,
+      summary,
+    });
+    expect(
+      await readSessionExternalAgentRun({ sessionId: "s", sessionStore: sessionStore as never }),
+    ).toMatchObject({ status: "completed", durationMs: 61_000, tail: "结论" });
+
+    await persistSessionExternalAgentRun({
+      sessionId: "s",
+      sessionStore: sessionStore as never,
+      summary: undefined,
+    });
+    expect(
+      await readSessionExternalAgentRun({ sessionId: "s", sessionStore: sessionStore as never }),
+    ).toBeUndefined();
+  });
+
   it("后台任务：取消后状态为 cancelled", async () => {
     const { createExternalAgentPort } =
       await import("../src/zcode-protocol/external-agent-port-impl.js");

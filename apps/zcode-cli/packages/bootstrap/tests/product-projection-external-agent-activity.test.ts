@@ -172,4 +172,39 @@ describe("external agent activity projection", () => {
     h.apply({ ...richSettled, status: "running", entries: [{ kind: "text", text: "B" }] });
     expect(h.current()?.entries?.map((entry) => entry.text)).toEqual(["B"]);
   });
+
+  // ── 冷恢复补发的「上次执行」摘要 ──
+  const historical: ExternalAgentActivity = {
+    taskId: "history_1700000000000",
+    agentLabel: "CodeBuddy",
+    model: "deepseek-v4.1-flash",
+    status: "completed",
+    startedAt: 1_699_999_000_000,
+    elapsedMs: 61_000,
+    historical: true,
+    tail: "上次的结论",
+    entries: [{ kind: "text", text: "上次的结论" }],
+  };
+
+  it("历史摘要不覆盖同一 UI 进程里更完整的已完成记录", () => {
+    const h = harness();
+    h.apply(richSettled);
+    h.apply(historical);
+    // 刚看完的过程比"上次执行"的摘要有价值，不能被它顶掉。
+    expect(h.current()).toEqual(richSettled);
+  });
+
+  it("没有既有记录时历史摘要照常写入（重启后的回显）", () => {
+    const h = harness();
+    h.apply(historical);
+    expect(h.current()).toEqual(historical);
+  });
+
+  it("历史摘要可以顶掉卡住的 running（进程已经没了）", () => {
+    const h = harness();
+    h.apply({ ...richSettled, status: "running", elapsedMs: 10_000 });
+    h.apply(historical);
+    expect(h.current()?.historical).toBe(true);
+    expect(h.current()?.status).toBe("completed");
+  });
 });

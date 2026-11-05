@@ -4907,6 +4907,8 @@ const zhCN: Record<string, string> = {
   "chat.externalAgent.activity.sourceTruncated":
     "原始输出过大，本次只解析了其中一部分，更早的过程可能缺失。",
   "chat.externalAgent.activity.unread": "外部 Agent 执行已结束",
+  "chat.externalAgent.activity.historical": "上次执行",
+  "chat.externalAgent.activity.historicalHint": "这是上次执行的摘要，完整过程不在本机保留。",
   "chat.externalAgent.readOnly": "主控 · {agent}",
   "chat.externalAgent.unbind": "解绑 {agent}",
   "chat.externalAgent.readOnlyHint":

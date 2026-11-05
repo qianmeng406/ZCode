@@ -5217,6 +5217,9 @@ const enUS: Record<string, string> = {
   "chat.externalAgent.activity.sourceTruncated":
     "Raw output was too large; only part of it was parsed, so earlier steps may be missing.",
   "chat.externalAgent.activity.unread": "External agent run finished",
+  "chat.externalAgent.activity.historical": "Last run",
+  "chat.externalAgent.activity.historicalHint":
+    "Summary of the previous run; the full trace isn't kept on this device.",
   "chat.externalAgent.readOnly": "Orchestrator · {agent}",
   "chat.externalAgent.unbind": "Unbind {agent}",
   "chat.externalAgent.readOnlyHint":

@@ -126,6 +126,17 @@ const LINKS: Array<{ file: string; pattern: RegExp; why: string }> = [
     pattern: /data-testid="external-agent-activity-tab-unread"/,
     why: "人不在那个会话时，靠侧栏 tab 上的未读点知道任务完成了",
   },
+  // ── 冷恢复的「上次执行」摘要（2026-11-05）──
+  {
+    file: "src/v4/composer/ExternalAgentActivityCardSlot.tsx",
+    pattern: /activity\.historical \|\| activity\.taskId === dismissedTaskId/,
+    why: "历史摘要不弹卡片（每次开会话顶一张旧卡太吵），只在过程面板回显",
+  },
+  {
+    file: "src/app-shell/ExternalAgentActivitySidePane.tsx",
+    pattern: /data-testid="external-agent-activity-panel-historical"/,
+    why: "面板必须标出「上次执行」，否则用户以为刚跑过",
+  },
 ];
 
 function readSurface(relativePath: string): string {

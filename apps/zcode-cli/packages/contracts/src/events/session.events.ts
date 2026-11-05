@@ -1254,6 +1254,11 @@ export type ExternalAgentActivityPayload = {
      * 与 `trimmedEntries` 不同：那是我们主动裁展示窗口，这是源数据不全。
      */
     sourceTruncated?: boolean;
+    /**
+     * 冷恢复时从持久化摘要重建的「上次执行」（不是实时运行）。
+     * 卡片不显示，过程面板以"上次执行"样式展示。
+     */
+    historical?: boolean;
     /** 失败/取消原因摘要。 */
     error?: string;
   } | null;

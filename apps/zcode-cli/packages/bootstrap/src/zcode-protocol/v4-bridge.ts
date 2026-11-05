@@ -100,7 +100,7 @@ import type {
 import { HYDRATION_TRACE_ID } from "../zcode-protocol-v4/projection-state.js";
 import { cloneModelSelection, derivedSessionModelSelection } from "./fork-model-selection.js";
 import { resolveWorkspaceRefFromId } from "./mapper.js";
-import { readSessionExternalAgent } from "./session-external-agent.js";
+import { readSessionExternalAgent, readSessionExternalAgentRun } from "./session-external-agent.js";
 // bridge 已经通过 V4CommandExecutor 拉进 handlers 注册表，这里直接复用同一组事件
 // 构造工具，保证"绑定命令发出的事件"与"冷恢复补发的事件"永远同形。
 import {
@@ -955,6 +955,45 @@ export function createConversationV4Gateway(
         record.traceContext,
       );
     };
+    /**
+     * 冷恢复时补发「上次执行」摘要（历史态，不是运行态）。
+     *
+     * 运行期活动清空后，过程面板就成了一张白纸——用户重启后完全想不起上次跑了
+     * 什么。摘要条目是持久化的（收口时写），这里把它还原成一条 `historical` 活动：
+     * 卡片不显示、不参与未读，面板以"上次执行"展示。
+     */
+    const publishHistoricalActivity = async (): Promise<void> => {
+      const summary = await readSessionExternalAgentRun({
+        sessionId,
+        sessionStore: context.deps.sessionStore,
+      });
+      if (!summary) return;
+      await record.app.runtime.appendEvent(
+        {
+          id: createEventId(),
+          sessionId: sessionId as SessionId,
+          type: SessionEventType.ExternalAgentActivityChanged,
+          timestamp: new Date(),
+          traceId: record.traceContext.traceId,
+          sequenceNumber: 0,
+          payload: {
+            activity: {
+              taskId: `history_${summary.finishedAt}`,
+              agentLabel: summary.agentLabel,
+              ...(summary.model ? { model: summary.model } : {}),
+              status: summary.status,
+              startedAt: summary.finishedAt - summary.durationMs,
+              elapsedMs: summary.durationMs,
+              historical: true,
+              ...(summary.tail
+                ? { tail: summary.tail, entries: [{ kind: "text" as const, text: summary.tail }] }
+                : {}),
+            },
+          },
+        },
+        record.traceContext,
+      );
+    };
     if (!binding) {
       // 关键补发：事件日志里可能还留着旧的 binding 事件（另一个实例清掉了 entry，
       // 或解绑事件没落盘）。投影以事件为准——不补发 null，UI 会一直挂着徽标、模式
@@ -973,6 +1012,8 @@ export function createConversationV4Gateway(
       );
     }
     await clearActivity();
+    // 清掉运行态之后补一条历史摘要：面板不再是白纸，但也不会假装还在运行。
+    await publishHistoricalActivity();
     // 投影补发：用与绑定命令同一条事件，UI 据此恢复徽标、模型与档位候选。
     await publishBindingChanged(
       record as never,

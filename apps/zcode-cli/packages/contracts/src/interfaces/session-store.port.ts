@@ -845,6 +845,13 @@ export const SESSION_ENTRY_SESSION_FEATURES = "runtime/session_features" as cons
  * 只保存驱动所需的静态配置；进程句柄/输出缓冲是运行态，绝不入持久化。
  */
 export const SESSION_ENTRY_EXTERNAL_AGENT = "runtime/external_agent" as const;
+/**
+ * 上一次外部 agent 执行的结构化摘要（标签/模型/状态/耗时/结论尾部）。
+ *
+ * 与 `runtime/external_agent` 分开存：绑定是配置，摘要是历史事实；解绑时绑定被
+ * 清掉，摘要也跟着清（它属于"本会话绑定期间的执行"）。
+ */
+export const SESSION_ENTRY_EXTERNAL_AGENT_RUN = "runtime/external_agent_run" as const;
 
 export const SESSION_ENTRY_TYPES = [
   SESSION_ENTRY_TARGET_COMPLETION_VERIFICATION,
@@ -858,6 +865,7 @@ export const SESSION_ENTRY_TYPES = [
   SESSION_ENTRY_EXECUTION_ENVIRONMENT,
   SESSION_ENTRY_SESSION_FEATURES,
   SESSION_ENTRY_EXTERNAL_AGENT,
+  SESSION_ENTRY_EXTERNAL_AGENT_RUN,
 ] as const;
 
 export type SessionEntryType = (typeof SESSION_ENTRY_TYPES)[number];

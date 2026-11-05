@@ -3795,7 +3795,12 @@ export class ProductProjection {
     const previousEntryCount = previous?.entries?.length ?? 0;
     // 「更瘦」= 没有模型、条目数不超过已记录的。轮询回写（一条正文）也属于瘦快照，
     // 不能拿它覆盖 reporter 攒下的完整过程。
-    const thinner = !incoming?.model && incomingEntryCount <= previousEntryCount;
+    //
+    // 历史摘要（冷恢复补发的 `historical`）永远算瘦：它是"上次执行"的回忆，
+    // 不能顶掉同一个 UI 进程里还留着的完整过程记录（那是真的刚跑完）。
+    const thinner =
+      incoming?.historical === true ||
+      (!incoming?.model && incomingEntryCount <= previousEntryCount);
     if (
       incoming &&
       incoming.status !== "running" &&

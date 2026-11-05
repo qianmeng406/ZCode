@@ -110,9 +110,13 @@ describe("v4 原生 bindExternalAgent", () => {
     );
 
     const saved = [...sessionStore.entries.values()];
-    expect(saved).toHaveLength(1);
-    expect(saved[0]!.type).toBe("runtime/external_agent");
-    expect(saved[0]!.data).toMatchObject({
+    // 两条 entry：绑定本身 + 清空"上次执行"摘要（换绑不能串上一个 agent 的结果）。
+    expect(saved.map((entry) => entry.type).sort()).toEqual([
+      "runtime/external_agent",
+      "runtime/external_agent_run",
+    ]);
+    const bindingEntry = saved.find((entry) => entry.type === "runtime/external_agent")!;
+    expect(bindingEntry.data).toMatchObject({
       label: "codebuddy",
       driver: "claude-family",
       command: "codebuddy",
@@ -122,6 +126,7 @@ describe("v4 原生 bindExternalAgent", () => {
       previousPlanEnabled: false,
       previousMode: "yolo",
     });
+    expect(saved.find((entry) => entry.type === "runtime/external_agent_run")!.data).toEqual({});
     expect(app.calls).toEqual(["lock", "state:plan"]);
     expect(app.runtime.setExecutionState).toHaveBeenCalledWith(
       { mode: "plan", planEnabled: true },
@@ -211,9 +216,7 @@ describe("v4 原生 setExternalAgentModel", () => {
     const sessionStore = makeSessionStore();
     const app = makeApp({ planEnabled: false, mode: "yolo" });
     const executor = new V4CommandExecutor(makeHost(makeRecord(app, sessionStore), sessionStore));
-    await executor.execute(
-      envelope("bindExternalAgent", { ...BINDING_PAYLOAD, model: "hy3" }),
-    );
+    await executor.execute(envelope("bindExternalAgent", { ...BINDING_PAYLOAD, model: "hy3" }));
     const before = [...sessionStore.entries.values()][0]!.data as Record<string, unknown>;
     expect(before.model).toBe("hy3");
     app.runtime.setExecutionState.mockClear();
@@ -237,9 +240,7 @@ describe("v4 原生 setExternalAgentModel", () => {
     const sessionStore = makeSessionStore();
     const app = makeApp();
     const executor = new V4CommandExecutor(makeHost(makeRecord(app, sessionStore), sessionStore));
-    await executor.execute(
-      envelope("bindExternalAgent", { ...BINDING_PAYLOAD, model: "hy3" }),
-    );
+    await executor.execute(envelope("bindExternalAgent", { ...BINDING_PAYLOAD, model: "hy3" }));
     await executor.execute(envelope("setExternalAgentModel", { model: null }));
     const after = [...sessionStore.entries.values()][0]!.data as Record<string, unknown>;
     expect(after.model).toBeUndefined();
@@ -249,9 +250,7 @@ describe("v4 原生 setExternalAgentModel", () => {
     const sessionStore = makeSessionStore();
     const app = makeApp();
     const executor = new V4CommandExecutor(makeHost(makeRecord(app, sessionStore), sessionStore));
-    await executor.execute(
-      envelope("bindExternalAgent", { ...BINDING_PAYLOAD, model: "hy3" }),
-    );
+    await executor.execute(envelope("bindExternalAgent", { ...BINDING_PAYLOAD, model: "hy3" }));
     await expect(
       executor.execute(envelope("setExternalAgentModel", { model: "hy3" })),
     ).rejects.toBeInstanceOf(V4CommandNoopError);
@@ -305,7 +304,6 @@ describe("v4 原生 setExternalAgentModel", () => {
     expect(after.effortsByModel).toMatchObject({ hy3: "max" });
   });
 });
-
 
 describe("v4 原生 setExternalAgentEffort（档位按模型记）", () => {
   it("写入当前模型的档位槽，不动模型本身与权限快照", async () => {

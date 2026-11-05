@@ -27,6 +27,7 @@ import { requireRecord } from "../record-access.js";
 import type { V4CommandCoreHost, V4SessionRecordView } from "../types.js";
 import {
   persistSessionExternalAgent,
+  persistSessionExternalAgentRun,
   readSessionExternalAgent,
 } from "../../../zcode-protocol/session-external-agent.js";
 
@@ -106,6 +107,13 @@ async function bindExternalAgent(
     binding,
     logger: warningLogger(host),
   });
+  // 换/新绑定时清掉上一次执行的摘要：那是上一个 agent 的结果，挂在新绑定下会串台。
+  await persistSessionExternalAgentRun({
+    sessionId: record.app.sessionId,
+    sessionStore,
+    summary: undefined,
+    logger: warningLogger(host),
+  });
 
   // 绑定即只读。先上锁、再切状态：execution-state 的唯一写入口会拒绝一切
   // "放出只读"的写入，这次进入 plan 本身是放行的（next 仍是只读）。
@@ -117,7 +125,11 @@ async function bindExternalAgent(
     );
   }
 
-  await publishBindingChanged(record, binding, await resolveEffortLevelsForBinding(record, binding));
+  await publishBindingChanged(
+    record,
+    binding,
+    await resolveEffortLevelsForBinding(record, binding),
+  );
   return undefined;
 }
 
@@ -186,6 +198,13 @@ export async function clearExternalAgentBinding(
     binding: undefined,
     logger: warningLogger(host),
   });
+  // 摘要属于"绑定期间的执行"：解绑/切走主控后不该再在面板里出现。
+  await persistSessionExternalAgentRun({
+    sessionId: record.app.sessionId,
+    sessionStore,
+    summary: undefined,
+    logger: warningLogger(host),
+  });
   record.app.runtime.setExternalAgentReadOnly(false);
   await publishBindingChanged(record, null);
   return binding;
@@ -212,7 +231,9 @@ function fallbackEffortPreset(binding: ExternalAgentBinding): ExternalAgentPrese
     effortDelivery: binding.driver === "codex-exec" ? "config" : "flag",
     // claude-family 的 --effort 合法值集合（实测）；generic-template 为空 = 不提供档位。
     effortLevelsByModel:
-      binding.driver === "generic-template" ? {} : { "": ["low", "medium", "high", "xhigh", "max"] },
+      binding.driver === "generic-template"
+        ? {}
+        : { "": ["low", "medium", "high", "xhigh", "max"] },
   };
 }
 
@@ -280,7 +301,10 @@ export async function publishBindingChanged(
 async function requireBoundExternalAgent(
   host: V4CommandCoreHost,
   record: V4SessionRecordView,
-): Promise<{ binding: ExternalAgentBinding; sessionStore: ReturnType<typeof requireSessionStore> }> {
+): Promise<{
+  binding: ExternalAgentBinding;
+  sessionStore: ReturnType<typeof requireSessionStore>;
+}> {
   const sessionStore = requireSessionStore(host);
   const binding = await readSessionExternalAgent({
     sessionId: record.app.sessionId,

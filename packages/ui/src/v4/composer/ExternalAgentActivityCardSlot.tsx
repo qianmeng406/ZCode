@@ -74,7 +74,9 @@ export function ExternalAgentActivityCardSlot({
     [sessionId],
   );
 
-  if (!activity || activity.taskId === dismissedTaskId) return null;
+  // 历史摘要（冷恢复补发的「上次执行」）不弹卡片：每次开会话都顶一张旧卡太吵，
+  // 它只在过程面板里回显。
+  if (!activity || activity.historical || activity.taskId === dismissedTaskId) return null;
   return (
     <div className={cn("flex w-full justify-center", className)}>
       <ExternalAgentActivityCard

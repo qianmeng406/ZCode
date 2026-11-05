@@ -278,6 +278,15 @@ export function ExternalAgentActivitySidePane({
             {statusLabel}
           </span>
         ) : null}
+        {/* 冷恢复补发的摘要：明确标出"不是这次跑的"，否则用户会以为刚执行过。 */}
+        {activity?.historical ? (
+          <span
+            data-testid="external-agent-activity-panel-historical"
+            className="shrink-0 rounded-sm bg-input px-1.5 py-0.5 text-ui-xs text-foreground-subtle"
+          >
+            {intl.formatMessage({ id: "chat.externalAgent.activity.historical" })}
+          </span>
+        ) : null}
         {idleLabel ? (
           <span
             data-testid="external-agent-activity-panel-idle"
@@ -323,6 +332,15 @@ export function ExternalAgentActivitySidePane({
             </p>
           ) : (
             <div className="flex flex-col gap-3" data-testid="external-agent-activity-panel-trace">
+              {/* 历史摘要只有结尾一段正文，别让用户以为过程被"裁掉"了。 */}
+              {activity.historical ? (
+                <p
+                  className="text-ui-xs text-foreground-subtle"
+                  data-testid="external-agent-activity-panel-historical-hint"
+                >
+                  {intl.formatMessage({ id: "chat.externalAgent.activity.historicalHint" })}
+                </p>
+              ) : null}
               {/* 长任务会超出条目上限、从最老开始裁：必须说清楚，否则用户只觉得内容不全。 */}
               {activity.trimmedEntries ? (
                 <p

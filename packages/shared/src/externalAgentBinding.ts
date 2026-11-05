@@ -79,6 +79,31 @@ export const externalAgentBindingSchema = z
 
 export type ExternalAgentBinding = z.infer<typeof externalAgentBindingSchema>;
 
+// ============================================================
+// 上一次执行的结构化摘要（持久化；冷恢复后回显"上次执行"）
+// ============================================================
+// 活动快照本身是运行期事实（进程没了就不该显示"运行中"），但"上次跑到什么结果"
+// 对用户仍有价值：重启后打开过程面板，至少能看到上次是谁跑的、成没成、多久、
+// 结论尾部。只存摘要，不存过程条目——过程属于那一次运行，重放它反而误导。
+export const EXTERNAL_AGENT_RUN_STATUSES = ["completed", "failed", "cancelled"] as const;
+export type ExternalAgentRunStatus = (typeof EXTERNAL_AGENT_RUN_STATUSES)[number];
+
+export const externalAgentRunSummarySchema = z
+  .object({
+    agentLabel: z.string().min(1).max(80),
+    /** 本次委派使用的模型（缺省 = CLI 默认模型）。 */
+    model: z.string().max(200).optional(),
+    status: z.enum(EXTERNAL_AGENT_RUN_STATUSES),
+    /** 收口时间（epoch ms）。 */
+    finishedAt: z.number().int(),
+    durationMs: z.number().int().nonnegative(),
+    /** 最终正文尾部；只用于回显，不参与解析。 */
+    tail: z.string().max(4_000).optional(),
+  })
+  .strict();
+
+export type ExternalAgentRunSummary = z.infer<typeof externalAgentRunSummarySchema>;
+
 // stream-json：逐事件输出（每行一个 JSON），活动卡才能实时展示"正在跑什么命令"。
 const CLAUDE_FAMILY_DEFAULT_ARGS = ["-p", "--output-format", "stream-json"] as const;
 const CODEX_EXEC_DEFAULT_ARGS = ["exec"] as const;

@@ -67,6 +67,11 @@ export const externalAgentActivitySchema = z.object({
    * 与 `trimmedEntries`（我们主动裁展示窗口）是两件事，UI 要提示「更早的过程缺失」。
    */
   sourceTruncated: z.boolean().optional(),
+  /**
+   * 这不是一次实时的执行，而是冷恢复时从持久化摘要重建的「上次执行」。
+   * 卡片不显示它（避免每次开会话都弹一张旧卡），过程面板以"上次执行"样式展示。
+   */
+  historical: z.boolean().optional(),
   /** 失败/取消原因摘要。 */
   error: z.string().optional(),
 });

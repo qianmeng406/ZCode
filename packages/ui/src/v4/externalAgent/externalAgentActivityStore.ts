@@ -96,10 +96,12 @@ export function publishExternalAgentActivity(
   }
 
   // running → 终态只发生一次：这是唯一产生未读的转换。
+  // 历史摘要（冷恢复补发的「上次执行」）不是一次实时完成，绝不刷未读点。
   const settledNow =
     previousActivity !== null &&
     previousActivity.status === "running" &&
-    activity.status !== "running";
+    activity.status !== "running" &&
+    activity.historical !== true;
   const unreadTaskId = settledNow
     ? activity.taskId
     : activity.status === "running"

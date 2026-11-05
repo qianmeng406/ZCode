@@ -17,8 +17,15 @@ import type {
   ExternalAgentPort,
   ExternalAgentTaskSnapshot,
 } from "@zcode/contracts";
-import type { ExternalAgentBinding } from "@zcode/shared";
-import { readSessionExternalAgent } from "./session-external-agent.js";
+import type {
+  ExternalAgentBinding,
+  ExternalAgentRunStatus,
+  ExternalAgentRunSummary,
+} from "@zcode/shared";
+import {
+  readSessionExternalAgent,
+  persistSessionExternalAgentRun,
+} from "./session-external-agent.js";
 import { createOneShotExternalAgentDriver } from "./external-agent-driver.js";
 import { summarizeWorkspaceChanges } from "./external-agent-changes.js";
 
@@ -28,6 +35,11 @@ export interface CreateExternalAgentPortOptions {
   readBinding: (sessionId: string) => Promise<ExternalAgentBinding | undefined>;
   /** 写回绑定（续接 id 落库）；缺席则不持久化，续接退化为每次新会话。 */
   updateBinding?: (sessionId: string, binding: ExternalAgentBinding) => Promise<void>;
+  /**
+   * 收口后持久化"上次执行"摘要（重启后过程面板还能回显）。
+   * 缺席则不持久化：摘要只是可选的"记忆力"，不能影响执行路径。
+   */
+  saveRunSummary?: (sessionId: string, summary: ExternalAgentRunSummary) => Promise<void>;
   logger?: { warn(message: string, context?: Record<string, unknown>): void };
 }
 
@@ -109,7 +121,7 @@ export function createExternalAgentPort(
       }),
       cwd: input.cwd,
       continuation: input.continuation ?? "auto",
-      ...(signal ?? input.abortSignal ? { signal: signal ?? input.abortSignal! } : {}),
+      ...((signal ?? input.abortSignal) ? { signal: signal ?? input.abortSignal! } : {}),
       ...(input.onOutput ? { onOutput: input.onOutput } : {}),
     });
 
@@ -150,6 +162,27 @@ export function createExternalAgentPort(
     };
     // 收口回调给活动卡落终态（同步委派与后台任务共用这条路径）。
     input.onSettled?.(outcome);
+    // 摘要落库：活动快照是运行期事实，重启就没了；这份摘要让过程面板在冷恢复后
+    // 还能回显"上次是谁跑的、成没成、多久、结论尾部"。写失败不影响结果。
+    if (options.saveRunSummary) {
+      const status: ExternalAgentRunStatus =
+        signal?.aborted === true || input.abortSignal?.aborted === true
+          ? "cancelled"
+          : result.isError
+            ? "failed"
+            : "completed";
+      const tail = result.text.trim();
+      await options
+        .saveRunSummary(sessionId, {
+          agentLabel: binding.label,
+          ...(binding.model ? { model: binding.model } : {}),
+          status,
+          finishedAt: Date.now(),
+          durationMs: result.durationMs,
+          ...(tail ? { tail: tail.slice(-2_000) } : {}),
+        })
+        .catch(() => undefined);
+    }
     return outcome;
   };
 
@@ -236,6 +269,12 @@ export function createSessionExternalAgentPort(options: {
         sessionStore: options.sessionStore,
       }),
     updateBinding: options.updateBinding,
+    saveRunSummary: (sessionId, summary) =>
+      persistSessionExternalAgentRun({
+        sessionId,
+        sessionStore: options.sessionStore,
+        summary,
+      }),
     ...(options.logger ? { logger: options.logger } : {}),
   });
 }
