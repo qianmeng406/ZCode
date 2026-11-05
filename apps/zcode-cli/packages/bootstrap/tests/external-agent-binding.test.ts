@@ -397,6 +397,23 @@ describe("外部 agent 实时输出", () => {
           truncated: false,
         },
       );
+      // 执行端自己报告的截断：没有 artifact 可回落时就是源数据不全。
+      expect(readFullStdout({ text: "prefix", truncated: true })).toEqual({
+        text: "prefix",
+        truncated: true,
+      });
+      // 有完整 artifact 时 inline 截断不影响（全量读得到）。
+      expect(readFullStdout({ text: "prefix", artifactPath, truncated: true }, 100)).toEqual({
+        text: "0123456789",
+        truncated: false,
+      });
+      // artifact 自己也被持久化上限截过：更早的字节真的没了。
+      expect(
+        readFullStdout({ text: "prefix", artifactPath, artifactTruncated: true }, 100),
+      ).toEqual({
+        text: "0123456789",
+        truncated: true,
+      });
     } finally {
       rmSync(dir, { recursive: true, force: true });
     }

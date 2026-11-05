@@ -167,7 +167,8 @@ export function createOneShotExternalAgentDriver(input: {
       const fullStdoutView =
         binding.driver === "claude-family"
           ? readFullStdout(stdoutView)
-          : { text: rawStdout, truncated: false };
+          : // 其它 driver 不落 artifact 兜底解析，就直接沿用执行端报告的截断事实。
+            { text: rawStdout, truncated: stdoutView.truncated === true };
       const fullStdout = fullStdoutView.text;
       // 源输出被截断（artifact > 重解析上限）：必须让面板知道「更早的过程没解析」，
       // 否则用户只会看到一份从中间开始的记录，却以为任务本身丢了内容。
@@ -253,6 +254,10 @@ export interface StreamOutputView {
   text: string;
   bytes?: number;
   artifactPath?: string;
+  /** 执行端自己报告的"inline 文本被截断"（输出超过 maxInlineBytes）。 */
+  truncated?: boolean;
+  /** 落盘 artifact 自身也被持久化上限截断（更早的字节根本没落盘）。 */
+  artifactTruncated?: boolean;
 }
 
 /** 收口重解析的读取上限；driver 的 outputLimit.maxPersistedBytes 与它一致。 */
@@ -263,8 +268,9 @@ const MAX_REPARSE_BYTES = 32_000_000;
  * 截断视图），其次内存 text。读失败退回内存视图，绝不抛错——
  * 重解析是锦上添花，不能把收口流程拖失败。
  *
- * `truncated` 表示源数据本身不全（artifact 超上限只读了尾部）：
- * 上层据此在面板上提示「更早的过程缺失」，而不是静默当作完整记录。
+ * `truncated` 表示源数据本身不全（artifact 超上限只读了尾部，或 inline 视图
+ * 被截断且没有 artifact 可回落）：上层据此在面板上提示「更早的过程缺失」，
+ * 而不是静默当作完整记录。
  */
 export function readFullStdout(
   view: StreamOutputView,
@@ -275,7 +281,12 @@ export function readFullStdout(
       const stat = statSync(view.artifactPath);
       if (stat.isFile() && stat.size > 0) {
         if (stat.size <= maxBytes) {
-          return { text: readFileSync(view.artifactPath, "utf8"), truncated: false };
+          // 读到了完整 artifact：即便 inline 视图被截断也不算源数据不全，
+          // 但 artifact 自己若被持久化上限截过，更早的字节就是真的没了。
+          return {
+            text: readFileSync(view.artifactPath, "utf8"),
+            truncated: view.artifactTruncated === true,
+          };
         }
         // 超上限：取尾部（结尾的 result 事件最关键），起始半行解析器会跳过。
         const buffer = readFileSync(view.artifactPath);
@@ -288,7 +299,7 @@ export function readFullStdout(
       // artifact 缺席/不可读：退回内存视图（readStreamOutput 已把 tail 并进 text）。
     }
   }
-  return { text: view.text, truncated: false };
+  return { text: view.text, truncated: view.truncated === true };
 }
 
 /**
@@ -330,6 +341,10 @@ function readStreamEntry(entry: unknown): StreamOutputView | undefined {
     text: text.length > 0 ? text : tail,
     ...(typeof record.bytes === "number" ? { bytes: record.bytes } : {}),
     ...(typeof record.artifactPath === "string" ? { artifactPath: record.artifactPath } : {}),
+    // 执行端本来就报告了截断事实（ExecutionStreamResult.truncated/artifactTruncated），
+    // 以前在这里被丢掉，导致非 claude-family 的截断完全静默。
+    ...(record.truncated === true ? { truncated: true } : {}),
+    ...(record.artifactTruncated === true ? { artifactTruncated: true } : {}),
   };
 }
 

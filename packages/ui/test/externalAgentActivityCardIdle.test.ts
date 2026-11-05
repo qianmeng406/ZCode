@@ -8,10 +8,18 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 vi.mock("@/i18n/IntlProvider.js", () => ({
   useZCodeIntl: () => ({
     intl: {
-      formatMessage: (descriptor: { id: string }, values?: { minutes?: number }): string =>
-        descriptor.id === "chat.externalAgent.activity.idle"
-          ? `已 ${values?.minutes} 分钟无新输出`
-          : descriptor.id,
+      formatMessage: (
+        descriptor: { id: string },
+        values?: { minutes?: number; step?: string },
+      ): string => {
+        if (descriptor.id === "chat.externalAgent.activity.idle") {
+          return `已 ${values?.minutes} 分钟无新输出`;
+        }
+        if (descriptor.id === "chat.externalAgent.activity.idleStep") {
+          return `最后一步：${values?.step}`;
+        }
+        return descriptor.id;
+      },
     },
   }),
 }));
@@ -56,6 +64,40 @@ describe("ExternalAgentActivityCard 无输出提示", () => {
     vi.setSystemTime(NOW);
     renderCard({ activity: activity(), lastChangedAt: NOW - 59_000 });
     expect(screen.queryByTestId("external-agent-activity-idle")).toBeNull();
+  });
+
+  it("最后一格是工具调用时带上「最后一步」，让卡住提示可行动", () => {
+    vi.useFakeTimers();
+    vi.setSystemTime(NOW);
+    renderCard({
+      activity: activity({
+        entries: [
+          { kind: "text", text: "先看看测试怎么跑的" },
+          { kind: "tool", text: "Bash: npm test" },
+        ],
+      }),
+      lastChangedAt: NOW - 3 * MINUTE,
+    });
+    expect(screen.getByTestId("external-agent-activity-idle").textContent).toBe(
+      "已 3 分钟无新输出 · 最后一步：Bash: npm test",
+    );
+  });
+
+  it("最后一格是正文时不猜「最后一步」（停在半句正文没有诊断价值）", () => {
+    vi.useFakeTimers();
+    vi.setSystemTime(NOW);
+    renderCard({
+      activity: activity({
+        entries: [
+          { kind: "tool", text: "Bash: ls" },
+          { kind: "text", text: "下面是结论" },
+        ],
+      }),
+      lastChangedAt: NOW - 2 * MINUTE,
+    });
+    expect(screen.getByTestId("external-agent-activity-idle").textContent).toBe(
+      "已 2 分钟无新输出",
+    );
   });
 
   it("已结束的任务不提示（提示只描述运行中的沉默）", () => {

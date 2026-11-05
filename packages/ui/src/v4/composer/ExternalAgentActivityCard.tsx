@@ -6,7 +6,7 @@
 //
 // 数据来自会话状态（snapshot.externalAgentActivity），不是工具行——
 // 工具行几百毫秒就结算，而外部 agent 可能还要跑十几分钟。
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { BotIcon, CheckCircle2Icon, ChevronRightIcon, CircleSlashIcon, XIcon } from "lucide-react";
 import { cn } from "@/components/lib/utils.js";
 import { useZCodeIntl } from "@/i18n/IntlProvider.js";
@@ -62,6 +62,26 @@ export function ExternalAgentActivityCard({
           { minutes: Math.max(1, Math.floor(idleForMs / 60_000)) },
         )
       : null;
+  // 卡住提示要可行动：带上最后一步是什么（工具行形如 "Bash: npm test"）。
+  // 只取工具行——正文/思考停在半句上没有诊断价值。
+  const idleStep = useMemo(() => {
+    const entries = activity.entries ?? [];
+    for (let index = entries.length - 1; index >= 0; index -= 1) {
+      const entry = entries[index];
+      if (!entry?.text.trim()) continue;
+      return entry.kind === "tool"
+        ? (entry.text.trim().split(/\r?\n/u)[0] ?? "").slice(0, 80)
+        : null;
+    }
+    return null;
+  }, [activity.entries]);
+  const idleText =
+    idleLabel && idleStep
+      ? `${idleLabel} · ${intl.formatMessage(
+          { id: "chat.externalAgent.activity.idleStep" },
+          { step: idleStep },
+        )}`
+      : idleLabel;
 
   const statusLabel = intl.formatMessage({
     id:
@@ -109,7 +129,7 @@ export function ExternalAgentActivityCard({
         >
           {statusLabel}
         </span>
-        {idleLabel ? (
+        {idleText ? (
           <span
             data-testid="external-agent-activity-idle"
             className="min-w-0 truncate text-ui-xs text-foreground-subtle"
@@ -118,7 +138,7 @@ export function ExternalAgentActivityCard({
               { minutes: Math.max(1, Math.floor(idleForMs / 60_000)) },
             )}
           >
-            {idleLabel}
+            {idleText}
           </span>
         ) : null}
         <span className="ml-auto shrink-0 font-mono text-ui-xs text-foreground-subtle tabular-nums">

@@ -257,12 +257,14 @@ function SidePaneTabItemContent({
       <span className="flex size-4 shrink-0 items-center justify-center">
         <SidePaneTabIcon tab={tab} />
       </span>
-      <span data-side-pane-tab-title="" className="shrink-0 whitespace-nowrap">
-        {title}
-      </span>
+      {/* 未读点放在标题前：标题是 shrink-0 的，点排在标题后会被窄 tab 的
+          overflow-hidden 裁掉（多 tab 挤到 60px 时完全看不见）。 */}
       {tab.type === "external-agent-activity" ? (
         <ExternalAgentUnreadDot sessionId={tab.sessionId} />
       ) : null}
+      <span data-side-pane-tab-title="" className="shrink-0 whitespace-nowrap">
+        {title}
+      </span>
       {isDiffPreviewTab(tab) ? (
         <span className="ml-0.5 shrink-0 rounded-full border border-border bg-surface px-1 py-0 text-ui-xs leading-3 text-foreground-subtle">
           {diffBadgeLabel}
