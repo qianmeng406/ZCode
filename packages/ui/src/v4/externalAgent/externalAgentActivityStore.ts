@@ -28,8 +28,38 @@ import type { ExternalAgentActivity } from "@zcode/shared/zcode-protocol-v4";
 /** 运行中多久没有新输出就提示"可能卡住"：60s 足够长，正常委派不会误报。 */
 export const EXTERNAL_AGENT_IDLE_HINT_MS = 60_000;
 
+/** 面板保留多少次执行：外部 CLI 会话是续接的，过程应像子智能体一样累积。 */
+const MAX_RUNS = 5;
+/** 历史过程的总字数上限：超出从最老的一次开始丢（当前这次永远保留）。 */
+const MAX_RUNS_CHARS = 400_000;
+
+/**
+ * 面板要渲染的一次执行：主 agent 发的任务正文 + 这一次的过程条目。
+ *
+ * 与 `activity` 的关系：`activity` 是"当前/最近一次"的完整快照（卡片、未读、
+ * 卡住判定都用它）；`runs` 是最近几次的累积视图，只给过程面板做会话式回放。
+ */
+export interface ExternalAgentRunView {
+  taskId: string;
+  /** 主 agent 发给外部 CLI 的任务正文（面板渲染成一条用户消息）。 */
+  prompt?: string;
+  status: ExternalAgentActivity["status"];
+  startedAt: number;
+  elapsedMs: number;
+  entries: NonNullable<ExternalAgentActivity["entries"]>;
+  /** 没有结构化条目时的纯文本兜底（面板按行切分渲染）。 */
+  tail?: string;
+  error?: string;
+  trimmedEntries?: number;
+  sourceTruncated?: boolean;
+  /** 冷恢复补发的「上次执行」摘要（不是实时运行）。 */
+  historical?: boolean;
+}
+
 export interface ExternalAgentActivityState {
   activity: ExternalAgentActivity | null;
+  /** 最近几次执行（时间正序）。面板按它渲染"任务 → 过程 → 任务 → 过程"。 */
+  runs: ExternalAgentRunView[];
   /** 最近一次活动变化的时间（epoch ms）；没有记录时为 null。 */
   lastChangedAt: number | null;
   /** 已完成但用户还没看过的任务 id。 */
@@ -45,10 +75,53 @@ export interface ExternalAgentActivityState {
 
 const EMPTY_STATE: ExternalAgentActivityState = {
   activity: null,
+  runs: [],
   lastChangedAt: null,
   unreadTaskId: null,
   unreadLive: false,
 };
+
+function toRunView(activity: ExternalAgentActivity): ExternalAgentRunView {
+  return {
+    taskId: activity.taskId,
+    ...(activity.prompt ? { prompt: activity.prompt } : {}),
+    status: activity.status,
+    startedAt: activity.startedAt,
+    elapsedMs: activity.elapsedMs,
+    entries: activity.entries ?? [],
+    ...(activity.tail ? { tail: activity.tail } : {}),
+    ...(activity.error ? { error: activity.error } : {}),
+    ...(activity.trimmedEntries ? { trimmedEntries: activity.trimmedEntries } : {}),
+    ...(activity.sourceTruncated ? { sourceTruncated: true } : {}),
+    ...(activity.historical ? { historical: true } : {}),
+  };
+}
+
+/** 同 taskId 替换最后一条（保持前面 run 的对象引用，memo 行不重渲染）。 */
+function upsertRun(
+  runs: readonly ExternalAgentRunView[],
+  activity: ExternalAgentActivity,
+): ExternalAgentRunView[] {
+  const last = runs.at(-1);
+  const next =
+    last?.taskId === activity.taskId
+      ? [...runs.slice(0, -1), toRunView(activity)]
+      : [...runs, toRunView(activity)];
+  let start = 0;
+  let totalChars = next.reduce(
+    (sum, run) => sum + run.entries.reduce((chars, entry) => chars + entry.text.length, 0),
+    0,
+  );
+  // 至少保留当前这一次；超限从最老的一次开始丢。
+  while (start < next.length - 1) {
+    const oldest = next[start]!;
+    const oldestChars = oldest.entries.reduce((chars, entry) => chars + entry.text.length, 0);
+    if (next.length - start <= MAX_RUNS && totalChars <= MAX_RUNS_CHARS) break;
+    totalChars -= oldestChars;
+    start += 1;
+  }
+  return start > 0 ? next.slice(start) : next;
+}
 
 const states = new Map<string, ExternalAgentActivityState>();
 const listeners = new Map<string, Set<() => void>>();
@@ -114,6 +187,7 @@ export function publishExternalAgentActivity(
 
   write(sessionId, {
     activity,
+    runs: upsertRun(previous?.runs ?? [], activity),
     lastChangedAt: Date.now(),
     unreadTaskId,
     unreadLive: settledNow ? options.replayed !== true : (previous?.unreadLive ?? false),

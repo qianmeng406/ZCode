@@ -201,9 +201,66 @@ describe("externalAgentActivityStore 注意力（seen / 无输出）", () => {
     expect(getExternalAgentActivityState(null)).toBe(getExternalAgentActivityState(undefined));
     expect(getExternalAgentActivityState("")).toEqual({
       activity: null,
+      runs: [],
       lastChangedAt: null,
       unreadTaskId: null,
       unreadLive: false,
     });
+  });
+});
+
+describe("externalAgentActivityStore 多次执行累积（像子智能体一样继承上下文）", () => {
+  const entry = (text: string) => [{ kind: "tool" as const, text }];
+
+  it("同一次执行替换最后一条，新任务才追加", () => {
+    publishExternalAgentActivity(
+      "s-runs",
+      activity({ taskId: "run-1", prompt: "修 lint", entries: entry("Bash: npm test") }),
+    );
+    expect(getExternalAgentActivityState("s-runs").runs).toMatchObject([
+      { taskId: "run-1", prompt: "修 lint", status: "running", entries: entry("Bash: npm test") },
+    ]);
+
+    // 同一个 taskId 的后续帧：更新那一条，不新增。
+    publishExternalAgentActivity(
+      "s-runs",
+      activity({ taskId: "run-1", prompt: "修 lint", status: "completed", elapsedMs: 61_000 }),
+    );
+    expect(getExternalAgentActivityState("s-runs").runs).toHaveLength(1);
+
+    // 续接的第二次委派：追加一条，前一次的过程留在面板里。
+    publishExternalAgentActivity(
+      "s-runs",
+      activity({ taskId: "run-2", prompt: "再跑一次测试", entries: entry("Bash: npm run test") }),
+    );
+    const runs = getExternalAgentActivityState("s-runs").runs;
+    expect(runs.map((run) => run.taskId)).toEqual(["run-1", "run-2"]);
+    expect(runs[0]).toMatchObject({ status: "completed", prompt: "修 lint" });
+    expect(runs[1]).toMatchObject({ prompt: "再跑一次测试" });
+  });
+
+  it("只保留最近 5 次执行", () => {
+    for (let index = 1; index <= 7; index += 1) {
+      publishExternalAgentActivity(
+        "s-runs-cap",
+        activity({ taskId: `run-${index}`, status: "completed", entries: entry(`tool-${index}`) }),
+      );
+    }
+    expect(getExternalAgentActivityState("s-runs-cap").runs.map((run) => run.taskId)).toEqual([
+      "run-3",
+      "run-4",
+      "run-5",
+      "run-6",
+      "run-7",
+    ]);
+  });
+
+  it("显式清除（解绑/冷恢复）连历史一起清掉", () => {
+    publishExternalAgentActivity(
+      "s-runs-clear",
+      activity({ taskId: "run-1", prompt: "修 lint", status: "completed" }),
+    );
+    clearExternalAgentActivity("s-runs-clear");
+    expect(getExternalAgentActivityState("s-runs-clear").runs).toEqual([]);
   });
 });

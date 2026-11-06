@@ -42,11 +42,12 @@ export interface ExternalAgentDelegateInput {
    */
   continuation?: "auto" | "fresh";
   /**
-   * 绑定读取完成、进程即将启动：回调带上展示名与模型。
+   * 绑定读取完成、进程即将启动：回调带上展示名、模型与**实际发给 CLI 的任务正文**。
    *
-   * 让 UI 的活动卡在**第一帧**就知道"谁在跑"，而不是等任务结束才拿到 label。
+   * 让 UI 的活动卡在**第一帧**就知道"谁在跑"，而不是等任务结束才拿到 label；
+   * `prompt` 让过程面板像子智能体一样先显示"主 agent 发了什么"。
    */
-  onStart?: (info: { label: string; model?: string }) => void;
+  onStart?: (info: { label: string; model?: string; prompt?: string }) => void;
   /** 任务收口（成功/失败/取消）：回调给出最终 outcome，供活动卡落终态。 */
   onSettled?: (outcome: ExternalAgentDelegateOutcome) => void;
 }

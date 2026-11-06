@@ -5220,6 +5220,7 @@ const enUS: Record<string, string> = {
   "chat.externalAgent.activity.historical": "Last run",
   "chat.externalAgent.activity.historicalHint":
     "Summary of the previous run; the full trace isn't kept on this device.",
+  "chat.externalAgent.activity.runMeta": "Run {index}",
   "chat.externalAgent.readOnly": "Orchestrator · {agent}",
   "chat.externalAgent.unbind": "Unbind {agent}",
   "chat.externalAgent.readOnlyHint":

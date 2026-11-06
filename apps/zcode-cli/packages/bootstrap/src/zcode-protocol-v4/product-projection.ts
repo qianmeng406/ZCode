@@ -6251,6 +6251,9 @@ function mergeActivityDelta(
     : previousEntries.length;
   const merged: NonNullable<ExternalAgentActivityPayload["activity"]> = {
     ...incoming,
+    // 任务正文只在全量帧里下发（增量帧重复带上会按帧数放大事件日志）：
+    // 增量帧缺席时沿用上一次的值。
+    ...(incoming.prompt === undefined && previous.prompt ? { prompt: previous.prompt } : {}),
     entries: [...previousEntries.slice(0, from), ...(incoming.entries ?? [])],
   };
   delete merged.baseRevision;

@@ -43,6 +43,11 @@ export const externalAgentActivitySchema = z.object({
   agentLabel: z.string().min(1),
   /** 本次委派使用的模型；缺省表示 CLI 默认模型。 */
   model: z.string().optional(),
+  /**
+   * 主 agent 实际发给外部 CLI 的任务正文。面板渲染成一条「用户消息」，
+   * 与子智能体面板能看到发起 prompt 对齐；上报端截断到 MAX_PROMPT_CHARS。
+   */
+  prompt: z.string().max(20_000).optional(),
   status: z.enum(["running", "completed", "failed", "cancelled"]),
   /** 开始时间（epoch ms）：UI 本地计时，避免每秒一条事件。 */
   startedAt: z.number().int(),

@@ -15,6 +15,8 @@ import type { ToolHandler } from "../types.js";
 
 const TAIL_CHARS = 2_000;
 const THROTTLE_MS = 300;
+/** 任务正文进快照的长度上限：面板要显示"主 agent 发了什么"，但不能撑爆快照。 */
+const MAX_PROMPT_CHARS = 20_000;
 // 上限只约束"当前累积的展示窗口"：增量帧下每个事件只带新增片段，事件流大小
 // 与真实输出成正比，不再需要小上限来压快照体积。
 const MAX_ENTRIES = 1_000;
@@ -26,8 +28,8 @@ interface ActivityEntry {
 }
 
 export interface ExternalAgentActivityReporter {
-  /** 绑定读到时调用：卡片立即出现（running，0ms）。 */
-  started(info: { label: string; model?: string }): void;
+  /** 绑定读到时调用：卡片立即出现（running，0ms）。`prompt` 是实际发给 CLI 的任务正文。 */
+  started(info: { label: string; model?: string; prompt?: string }): void;
   /** 执行中的输出：节流更新 tail。`replaceEntries` 是收口权威重建，整体替换。 */
   progress(chunk: {
     text?: string;
@@ -59,6 +61,8 @@ export function createExternalAgentActivityReporter(
   const startedAt = options.startedAt ?? Date.now();
   let agentLabel = options.agentLabel;
   let model: string | undefined;
+  // 主 agent 实际发给 CLI 的任务正文：面板把它渲染成第一条「用户消息」。
+  let prompt: string | undefined;
   let tail = "";
   let entries: ActivityEntry[] = [];
   let entriesChars = 0;
@@ -103,6 +107,10 @@ export function createExternalAgentActivityReporter(
       taskId,
       agentLabel,
       ...(model ? { model } : {}),
+      // 任务正文只随全量帧下发：它每帧都一样，增量帧重复带上会把事件日志
+      // 按帧数放大（一次 10 分钟委派 ≈ 200 帧）。接收方靠 mergeActivityDelta
+      // 保留上一次的值。
+      ...(prompt && !canDelta ? { prompt } : {}),
       status,
       startedAt,
       elapsedMs: now - startedAt,
@@ -219,6 +227,12 @@ export function createExternalAgentActivityReporter(
     started(info) {
       agentLabel = info.label || agentLabel;
       if (info.model) model = info.model;
+      if (info.prompt?.trim()) {
+        prompt =
+          info.prompt.length > MAX_PROMPT_CHARS
+            ? `${info.prompt.slice(0, MAX_PROMPT_CHARS)}…`
+            : info.prompt;
+      }
       emit("running", { force: true, full: true });
     },
     progress(chunk) {

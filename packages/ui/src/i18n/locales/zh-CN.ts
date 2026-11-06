@@ -4909,6 +4909,7 @@ const zhCN: Record<string, string> = {
   "chat.externalAgent.activity.unread": "外部 Agent 执行已结束",
   "chat.externalAgent.activity.historical": "上次执行",
   "chat.externalAgent.activity.historicalHint": "这是上次执行的摘要，完整过程不在本机保留。",
+  "chat.externalAgent.activity.runMeta": "第 {index} 次执行",
   "chat.externalAgent.readOnly": "主控 · {agent}",
   "chat.externalAgent.unbind": "解绑 {agent}",
   "chat.externalAgent.readOnlyHint":

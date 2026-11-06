@@ -28,11 +28,13 @@ import {
 import { GenUiMessageResponse } from "@/gen-ui/index.js";
 import { useZCodeIntl } from "@/i18n/IntlProvider.js";
 import type { ExternalAgentActivitySidePaneTab } from "@/lib/workspaceSidePane.js";
+import { ConversationUserInputBubble } from "@/v4/ConversationUserInputBubble.js";
 import {
   EXTERNAL_AGENT_IDLE_HINT_MS,
   getExternalAgentActivityState,
   markExternalAgentActivitySeen,
   subscribeExternalAgentActivity,
+  type ExternalAgentRunView,
 } from "@/v4/externalAgent/externalAgentActivityStore.js";
 import { ExternalAgentToolRow } from "@/v4/externalAgent/ExternalAgentToolRow.js";
 
@@ -169,19 +171,28 @@ export function ExternalAgentActivitySidePane({
   // 结构化条目优先；只有纯文本 tail 时退回按行切分。空思考条目是"正在思考"的
   // 标记（CLI 不下发思考正文），运行中必须保留；结束后它只会变成一句假的
   // "正在思考"，所以完成态直接丢掉。
-  const entries = useMemo<ActivityEntry[]>(() => {
-    if (!activity) return [];
-    if (activity.entries && activity.entries.length > 0) {
-      return activity.entries.filter(
-        (entry) => entry.text.trim().length > 0 || (entry.kind === "reasoning" && running),
-      );
-    }
-    return (activity.tail ?? "")
-      .split(/\r?\n/u)
-      .map((line) => line.replace(/\s+$/u, ""))
-      .filter((line) => line.length > 0)
-      .map((line) => ({ kind: "text" as const, text: line }));
-  }, [activity, running]);
+  //
+  // 多次执行按「任务 → 过程」累积：外部 CLI 的会话是续接的，面板要像子智能体
+  // 一样看到前几次发了什么、做了什么，而不是每跑一次就换一屏。
+  const renderedRuns = useMemo(() => {
+    const lastIndex = state.runs.length - 1;
+    return state.runs.map((run, index) => {
+      const isCurrent = index === lastIndex;
+      const streamingRun = running && isCurrent;
+      const entries: ActivityEntry[] =
+        run.entries.length > 0
+          ? run.entries.filter(
+              (entry) =>
+                entry.text.trim().length > 0 || (entry.kind === "reasoning" && streamingRun),
+            )
+          : (run.tail ?? "")
+              .split(/\r?\n/u)
+              .map((line) => line.replace(/\s+$/u, ""))
+              .filter((line) => line.length > 0)
+              .map((line) => ({ kind: "text" as const, text: line }));
+      return { run, index, isCurrent, streamingRun, entries };
+    });
+  }, [state.runs, running]);
 
   // 贴底跟随：只在用户本来就在底部时生效；运行中每来一条增量跟一次。
   const viewportRef = useRef<HTMLDivElement | null>(null);
@@ -201,7 +212,10 @@ export function ExternalAgentActivitySidePane({
     viewport.addEventListener("scroll", onScroll, { passive: true });
     return () => viewport.removeEventListener("scroll", onScroll);
   }, []);
-  const entryCount = entries.length;
+  const entryCount = renderedRuns.reduce((sum, item) => sum + item.entries.length, 0);
+  // 新一次执行开始时条数可能反而变少（新一轮从 0 条开始），也要跟到底部——
+  // 否则用户看不到刚发出去的那条任务。
+  const lastRunId = renderedRuns.at(-1)?.run.taskId ?? null;
   useEffect(() => {
     const previous = seenEntryCountRef.current;
     seenEntryCountRef.current = entryCount;
@@ -213,7 +227,7 @@ export function ExternalAgentActivitySidePane({
     const viewport = viewportRef.current;
     if (!viewport || !running || !followBottomRef.current) return;
     viewport.scrollTop = viewport.scrollHeight;
-  }, [entryCount, running]);
+  }, [entryCount, lastRunId, running]);
   const scrollToBottom = useCallback(() => {
     const viewport = viewportRef.current;
     if (viewport) viewport.scrollTop = viewport.scrollHeight;
@@ -221,18 +235,21 @@ export function ExternalAgentActivitySidePane({
     setUnseenCount(0);
   }, []);
 
-  const statusLabel = activity
-    ? intl.formatMessage({
+  const runStatusLabel = useCallback(
+    (status: ExternalAgentRunView["status"]): string =>
+      intl.formatMessage({
         id:
-          activity.status === "running"
+          status === "running"
             ? "chat.externalAgent.activity.running"
-            : activity.status === "completed"
+            : status === "completed"
               ? "chat.externalAgent.activity.completed"
-              : activity.status === "failed"
+              : status === "failed"
                 ? "chat.externalAgent.activity.failed"
                 : "chat.externalAgent.activity.cancelled",
-      })
-    : null;
+      }),
+    [intl],
+  );
+  const statusLabel = activity ? runStatusLabel(activity.status) : null;
 
   return (
     <div
@@ -326,106 +343,149 @@ export function ExternalAgentActivitySidePane({
       </div>
       <div className="relative flex min-h-0 flex-1 flex-col">
         <ScrollFadeViewport ref={viewportRef} className="px-3 py-3">
-          {activity === null ? (
+          {renderedRuns.length === 0 ? (
             <p className="text-ui-sm text-foreground-subtle">
               {intl.formatMessage({ id: "chat.externalAgent.activity.empty" })}
             </p>
           ) : (
-            <div className="flex flex-col gap-3" data-testid="external-agent-activity-panel-trace">
-              {/* 历史摘要只有结尾一段正文，别让用户以为过程被"裁掉"了。 */}
-              {activity.historical ? (
-                <p
-                  className="text-ui-xs text-foreground-subtle"
-                  data-testid="external-agent-activity-panel-historical-hint"
+            <div className="flex flex-col gap-5" data-testid="external-agent-activity-panel-trace">
+              {renderedRuns.map(({ run, index, isCurrent, streamingRun, entries }) => (
+                <div
+                  key={run.taskId}
+                  className="flex flex-col gap-3"
+                  data-testid="external-agent-activity-panel-run"
                 >
-                  {intl.formatMessage({ id: "chat.externalAgent.activity.historicalHint" })}
-                </p>
-              ) : null}
-              {/* 长任务会超出条目上限、从最老开始裁：必须说清楚，否则用户只觉得内容不全。 */}
-              {activity.trimmedEntries ? (
-                <p
-                  className="text-ui-xs text-foreground-subtle"
-                  data-testid="external-agent-activity-panel-trimmed"
-                >
-                  {intl.formatMessage(
-                    { id: "chat.externalAgent.activity.hiddenLines" },
-                    { count: activity.trimmedEntries },
-                  )}
-                </p>
-              ) : null}
-              {/* 源输出本身被截断（artifact 超上限）：与我们主动折叠展示窗口是两件事，
-                  必须区分，否则用户以为任务只跑出了后半段。 */}
-              {activity.sourceTruncated ? (
-                <p
-                  className="text-ui-xs text-foreground-subtle"
-                  data-testid="external-agent-activity-panel-source-truncated"
-                >
-                  {intl.formatMessage({ id: "chat.externalAgent.activity.sourceTruncated" })}
-                </p>
-              ) : null}
-              {entries.map((entry, index) => {
-                const streaming = running && index === entries.length - 1;
-                if (entry.kind === "tool") {
-                  return (
-                    <div key={`t-${index}`} data-testid="external-agent-activity-panel-tool">
-                      <TraceToolRow
-                        toolId={`external-agent-tool-${index}`}
-                        text={entry.text}
-                        workspacePath={tab.workspacePath}
+                  {/* 主 agent 发给外部 CLI 的任务：和子智能体面板一样，先看到"让它干什么"。
+                      气泡用会话同款组件，长任务自带「展开/收起」。 */}
+                  {run.prompt ? (
+                    <div
+                      className="flex justify-end"
+                      data-testid="external-agent-activity-panel-prompt"
+                    >
+                      <ConversationUserInputBubble
+                        text={run.prompt}
+                        rowId={`external-agent-prompt:${run.taskId}`}
                       />
                     </div>
-                  );
-                }
-                if (entry.kind === "reasoning") {
-                  // CLI 只下发"思考开始"与空内容：呈现"正在思考"而不是空块。
-                  if (!entry.text.trim()) {
+                  ) : null}
+                  {/* 历史摘要只有结尾一段正文，别让用户以为过程被"裁掉"了。 */}
+                  {run.historical ? (
+                    <p
+                      className="text-ui-xs text-foreground-subtle"
+                      data-testid="external-agent-activity-panel-historical-hint"
+                    >
+                      {intl.formatMessage({ id: "chat.externalAgent.activity.historicalHint" })}
+                    </p>
+                  ) : null}
+                  {/* 长任务会超出条目上限、从最老开始裁：必须说清楚，否则用户只觉得内容不全。 */}
+                  {run.trimmedEntries ? (
+                    <p
+                      className="text-ui-xs text-foreground-subtle"
+                      data-testid="external-agent-activity-panel-trimmed"
+                    >
+                      {intl.formatMessage(
+                        { id: "chat.externalAgent.activity.hiddenLines" },
+                        { count: run.trimmedEntries },
+                      )}
+                    </p>
+                  ) : null}
+                  {/* 源输出本身被截断（artifact 超上限）：与我们主动折叠展示窗口是两件事，
+                      必须区分，否则用户以为任务只跑出了后半段。 */}
+                  {run.sourceTruncated ? (
+                    <p
+                      className="text-ui-xs text-foreground-subtle"
+                      data-testid="external-agent-activity-panel-source-truncated"
+                    >
+                      {intl.formatMessage({ id: "chat.externalAgent.activity.sourceTruncated" })}
+                    </p>
+                  ) : null}
+                  {entries.map((entry, entryIndex) => {
+                    const streaming = streamingRun && entryIndex === entries.length - 1;
+                    const entryKey = `${run.taskId}-${entryIndex}`;
+                    if (entry.kind === "tool") {
+                      return (
+                        <div key={entryKey} data-testid="external-agent-activity-panel-tool">
+                          <TraceToolRow
+                            toolId={`external-agent-tool-${entryKey}`}
+                            text={entry.text}
+                            workspacePath={tab.workspacePath}
+                          />
+                        </div>
+                      );
+                    }
+                    if (entry.kind === "reasoning") {
+                      // CLI 只下发"思考开始"与空内容：呈现"正在思考"而不是空块。
+                      if (!entry.text.trim()) {
+                        return (
+                          <div
+                            key={entryKey}
+                            className="flex items-center gap-1.5 border-l-2 border-border pl-2 text-ui-xs italic text-foreground-subtle"
+                            data-testid="external-agent-activity-panel-thinking"
+                          >
+                            {streamingRun ? (
+                              <span className="inline-flex size-1.5 animate-pulse rounded-full bg-foreground-subtle" />
+                            ) : null}
+                            {intl.formatMessage({ id: "chat.externalAgent.activity.thinking" })}
+                          </div>
+                        );
+                      }
+                      return (
+                        <div key={entryKey} data-testid="external-agent-activity-panel-reasoning">
+                          <TraceReasoning text={entry.text} streaming={streaming} />
+                        </div>
+                      );
+                    }
                     return (
-                      <div
-                        key={`r-${index}`}
-                        className="flex items-center gap-1.5 border-l-2 border-border pl-2 text-ui-xs italic text-foreground-subtle"
-                        data-testid="external-agent-activity-panel-thinking"
-                      >
-                        {running ? (
-                          <span className="inline-flex size-1.5 animate-pulse rounded-full bg-foreground-subtle" />
-                        ) : null}
-                        {intl.formatMessage({ id: "chat.externalAgent.activity.thinking" })}
+                      <div key={entryKey} data-testid="external-agent-activity-panel-text">
+                        {/* 会话正文同一个渲染器：markdown/代码块/gen-ui 引用都按对话里的样子排。 */}
+                        <TraceText
+                          text={entry.text}
+                          streaming={streaming}
+                          messageKey={`external-agent:${entryKey}`}
+                          workspacePath={tab.workspacePath}
+                          sessionId={tab.sessionId}
+                          {...(tab.workspaceIdentity
+                            ? { workspaceIdentity: tab.workspaceIdentity }
+                            : {})}
+                          {...(tab.remoteSessionId ? { remoteSessionId: tab.remoteSessionId } : {})}
+                        />
                       </div>
                     );
-                  }
-                  return (
-                    <div key={`r-${index}`} data-testid="external-agent-activity-panel-reasoning">
-                      <TraceReasoning text={entry.text} streaming={streaming} />
+                  })}
+                  {run.error ? (
+                    <p className="whitespace-pre-wrap break-words text-ui-sm text-danger">
+                      {run.error}
+                    </p>
+                  ) : null}
+                  {/* 只有空思考标记被过滤掉时才会走到这里：给一句说明，别留空面板。 */}
+                  {isCurrent && !running && entries.length === 0 && !run.error ? (
+                    <p className="text-ui-sm text-foreground-subtle">
+                      {intl.formatMessage({ id: "chat.externalAgent.activity.noTrace" })}
+                    </p>
+                  ) : null}
+                  {/* 非当前这次：用一条分隔线标出"第 N 次执行 · 状态 · 耗时"，
+                      否则多次执行连排时分不清哪里是上一轮的结尾。 */}
+                  {!isCurrent ? (
+                    <div
+                      className="flex items-center gap-2 pt-1 text-ui-xs text-foreground-subtle"
+                      data-testid="external-agent-activity-panel-run-meta"
+                    >
+                      <span className="h-px flex-1 bg-border/60" />
+                      <span className="shrink-0 whitespace-nowrap">
+                        {intl.formatMessage(
+                          { id: "chat.externalAgent.activity.runMeta" },
+                          { index: index + 1 },
+                        )}
+                        {" · "}
+                        {runStatusLabel(run.status)}
+                        {" · "}
+                        {formatElapsed(run.elapsedMs)}
+                      </span>
+                      <span className="h-px flex-1 bg-border/60" />
                     </div>
-                  );
-                }
-                return (
-                  <div key={`x-${index}`} data-testid="external-agent-activity-panel-text">
-                    {/* 会话正文同一个渲染器：markdown/代码块/gen-ui 引用都按对话里的样子排。 */}
-                    <TraceText
-                      text={entry.text}
-                      streaming={streaming}
-                      messageKey={`external-agent:${index}`}
-                      workspacePath={tab.workspacePath}
-                      sessionId={tab.sessionId}
-                      {...(tab.workspaceIdentity
-                        ? { workspaceIdentity: tab.workspaceIdentity }
-                        : {})}
-                      {...(tab.remoteSessionId ? { remoteSessionId: tab.remoteSessionId } : {})}
-                    />
-                  </div>
-                );
-              })}
-              {activity.error ? (
-                <p className="whitespace-pre-wrap break-words text-ui-sm text-danger">
-                  {activity.error}
-                </p>
-              ) : null}
-              {/* 只有空思考标记被过滤掉时才会走到这里：给一句说明，别留空面板。 */}
-              {!running && entries.length === 0 && !activity.error ? (
-                <p className="text-ui-sm text-foreground-subtle">
-                  {intl.formatMessage({ id: "chat.externalAgent.activity.noTrace" })}
-                </p>
-              ) : null}
+                  ) : null}
+                </div>
+              ))}
             </div>
           )}
         </ScrollFadeViewport>

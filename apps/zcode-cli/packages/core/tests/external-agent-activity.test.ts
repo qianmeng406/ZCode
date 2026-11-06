@@ -53,6 +53,35 @@ describe("createExternalAgentActivityReporter", () => {
     expect(event.payload.activity).not.toHaveProperty("model");
   });
 
+  it("started 带任务正文时写进快照（面板要显示主 agent 发了什么）", () => {
+    const { context, emitEvent } = makeContext();
+    const reporter = createExternalAgentActivityReporter(context, { agentLabel: "外部 agent" });
+
+    reporter.started({
+      label: "CodeBuddy",
+      model: "glm-4.6",
+      prompt: "修 lint\n\n## 补充材料\n验收：测试通过",
+    });
+
+    const event = emitEvent.mock.calls[0]?.[0] as unknown as {
+      payload: { activity: { prompt?: string } };
+    };
+    expect(event.payload.activity.prompt).toBe("修 lint\n\n## 补充材料\n验收：测试通过");
+  });
+
+  it("超长任务正文截断到上限（快照不能被 20 万字 prompt 撑爆）", () => {
+    const { context, emitEvent } = makeContext();
+    const reporter = createExternalAgentActivityReporter(context, { agentLabel: "外部 agent" });
+
+    reporter.started({ label: "CodeBuddy", prompt: "x".repeat(25_000) });
+
+    const event = emitEvent.mock.calls[0]?.[0] as unknown as {
+      payload: { activity: { prompt?: string } };
+    };
+    expect(event.payload.activity.prompt).toHaveLength(20_001);
+    expect(event.payload.activity.prompt?.endsWith("…")).toBe(true);
+  });
+
   it("收口时用 result 全文补完最后一块流式正文（不追加重复）", () => {
     const { context, emitEvent } = makeContext();
     const reporter = createExternalAgentActivityReporter(context, { agentLabel: "外部 agent" });

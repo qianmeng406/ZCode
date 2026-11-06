@@ -97,8 +97,7 @@ const PROVIDER_OUTPUT_SCHEMA = {
       type: "integer",
       minimum: 0,
       maximum: 60,
-      description:
-        "How long to wait inline (minutes). 0 returns a taskId immediately; default 2.",
+      description: "How long to wait inline (minutes). 0 returns a taskId immediately; default 2.",
     },
     // running 形态（等待超时）：任务在后台继续跑，用 GetExternalAgentTaskResult 续查。
     running: { type: "boolean" },
@@ -144,7 +143,7 @@ const handler: ToolHandler = async (input, context) => {
     cwd: context.workspaceRoot ?? context.workingDirectory,
     abortSignal: context.abortSignal,
     ...(context.traceContext ? { trace: context.traceContext as TraceContext } : {}),
-    onStart: (info: { label: string; model?: string }) => activity.started(info),
+    onStart: (info) => activity.started(info),
     // 外部 agent 的实时输出 → 工具进度事件（与 Bash 同形）+ 活动卡。
     onOutput: (chunk: { stream: "stdout" | "stderr"; text: string; preview?: unknown }) => {
       emitProgress(chunk);
@@ -213,9 +212,7 @@ const handler: ToolHandler = async (input, context) => {
     result: outcome.text,
     continued: outcome.continued,
     ...(outcome.externalSessionId ? { externalSessionId: outcome.externalSessionId } : {}),
-    ...(outcome.changes && outcome.changes.files.length > 0
-      ? { changes: outcome.changes }
-      : {}),
+    ...(outcome.changes && outcome.changes.files.length > 0 ? { changes: outcome.changes } : {}),
   };
 };
 
@@ -265,12 +262,16 @@ function formatModelContent(output: unknown): string {
  * "要不要自己读 diff 复审"的唯一线索。
  */
 function formatChangeSummary(
-  changes: { files?: Array<{ path: string; added: number; deleted: number }>; truncated?: boolean } | undefined,
+  changes:
+    | { files?: Array<{ path: string; added: number; deleted: number }>; truncated?: boolean }
+    | undefined,
 ): string {
   const files = changes?.files ?? [];
   if (files.length === 0) return "";
   const lines = files.map((file) => `- ${file.path} +${file.added} -${file.deleted}`);
-  return [`工作区改动（${files.length}${changes?.truncated ? "+" : ""} 个文件）：`, ...lines].join("\n");
+  return [`工作区改动（${files.length}${changes?.truncated ? "+" : ""} 个文件）：`, ...lines].join(
+    "\n",
+  );
 }
 
 export const delegateToExternalAgentToolEntry: ToolEntry = {

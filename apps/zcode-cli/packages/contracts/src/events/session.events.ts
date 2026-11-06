@@ -1229,6 +1229,13 @@ export type ExternalAgentActivityPayload = {
     agentLabel: string;
     /** 本次委派使用的模型（缺省 = CLI 默认模型）。 */
     model?: string;
+    /**
+     * 主 agent 实际发给外部 CLI 的任务正文（composeDelegationPrompt 的结果）。
+     *
+     * 过程面板把它渲染成一条「用户消息」——和子智能体面板能看到发起 prompt 一样，
+     * 用户能确认"到底让外部 agent 做了什么"。过长时由上报端截断。
+     */
+    prompt?: string;
     status: "running" | "completed" | "failed" | "cancelled";
     /** 开始时间（epoch ms），UI 据此本地计时。 */
     startedAt: number;

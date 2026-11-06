@@ -144,6 +144,30 @@ describe("external agent activity projection", () => {
     expect(h.current()?.revision).toBe(3);
   });
 
+  it("增量帧不带 prompt 时沿用上一次的任务正文（全量帧才下发它）", () => {
+    const h = harness();
+    h.apply({
+      ...richSettled,
+      status: "running",
+      prompt: "修 lint",
+      entries: [{ kind: "text", text: "A" }],
+      revision: 1,
+    });
+    h.apply({
+      taskId: "call-1",
+      agentLabel: "CodeBuddy",
+      status: "running",
+      startedAt: richSettled.startedAt,
+      elapsedMs: 2_000,
+      revision: 2,
+      baseRevision: 1,
+      entriesFrom: 1,
+      entries: [{ kind: "tool", text: "Bash: ls" }],
+    });
+    expect(h.current()?.prompt).toBe("修 lint");
+    expect(h.current()?.entries?.map((entry) => entry.text)).toEqual(["A", "Bash: ls"]);
+  });
+
   it("baseRevision 对不上时退化成追加，不丢已有过程", () => {
     const h = harness();
     h.apply({

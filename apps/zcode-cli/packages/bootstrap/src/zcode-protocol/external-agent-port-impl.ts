@@ -107,18 +107,22 @@ export function createExternalAgentPort(
     const sessionId = String(input.sessionId);
     const binding = await options.readBinding(sessionId).catch(() => undefined);
     if (!binding) return { kind: "unbound" };
-    // 活动卡第一帧就要有"谁在跑"：在进程启动前把 label/模型交出去。
+    // 实际发给 CLI 的正文在这里合成一次：既交给 driver，也回传给活动快照——
+    // 面板要像子智能体一样先显示"主 agent 发了什么"，两处必须是同一份文本。
+    const prompt = composeDelegationPrompt({
+      task: input.task,
+      ...(input.context ? { context: input.context } : {}),
+    });
+    // 活动卡第一帧就要有"谁在跑"：在进程启动前把 label/模型/任务交给出去。
     input.onStart?.({
       label: binding.label,
       ...(binding.model ? { model: binding.model } : {}),
+      prompt,
     });
 
     const result = await driver.run({
       binding,
-      prompt: composeDelegationPrompt({
-        task: input.task,
-        ...(input.context ? { context: input.context } : {}),
-      }),
+      prompt,
       cwd: input.cwd,
       continuation: input.continuation ?? "auto",
       ...((signal ?? input.abortSignal) ? { signal: signal ?? input.abortSignal! } : {}),

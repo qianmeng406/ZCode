@@ -67,7 +67,7 @@ const LINKS: Array<{ file: string; pattern: RegExp; why: string }> = [
   },
   {
     file: "src/app-shell/ExternalAgentActivitySidePane.tsx",
-    pattern: /entry\.kind === "reasoning" && running/,
+    pattern: /entry\.kind === "reasoning" && streamingRun/,
     why: "完成态丢掉空思考标记，避免把「正在思考」留到结束后",
   },
   {
@@ -136,6 +136,27 @@ const LINKS: Array<{ file: string; pattern: RegExp; why: string }> = [
     file: "src/app-shell/ExternalAgentActivitySidePane.tsx",
     pattern: /data-testid="external-agent-activity-panel-historical"/,
     why: "面板必须标出「上次执行」，否则用户以为刚跑过",
+  },
+  // ── 对齐子智能体：任务正文 + 多次执行累积（2026-11-06）──
+  {
+    file: "src/app-shell/ExternalAgentActivitySidePane.tsx",
+    pattern: /data-testid="external-agent-activity-panel-prompt"/,
+    why: "主 agent 发给外部 CLI 的任务要像子智能体面板一样可见（用户气泡）",
+  },
+  {
+    file: "src/app-shell/ExternalAgentActivitySidePane.tsx",
+    pattern: /ConversationUserInputBubble/,
+    why: "任务正文用会话同一个用户气泡组件渲染，视觉与子智能体一致",
+  },
+  {
+    file: "src/app-shell/ExternalAgentActivitySidePane.tsx",
+    pattern: /data-testid="external-agent-activity-panel-run-meta"/,
+    why: "多次执行之间要有「第 N 次执行 · 状态 · 耗时」分隔，避免过程连排分不清",
+  },
+  {
+    file: "src/v4/externalAgent/externalAgentActivityStore.ts",
+    pattern: /upsertRun\(previous\?\.runs \?\? \[\], activity\)/,
+    why: "新任务追加一条 run、同任务替换最后一条——面板像会话一样累积，而不是每次清屏",
   },
 ];
 
