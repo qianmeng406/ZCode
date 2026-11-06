@@ -82,6 +82,44 @@ describe("createExternalAgentActivityReporter", () => {
     expect(event.payload.activity.prompt?.endsWith("…")).toBe(true);
   });
 
+  it("driver 形状的收口重建（replace: true）整体替换，不会把正文追加成两遍", () => {
+    // 回归：driver 的 onOutput 用 `replace: true` 标记权威重建，reporter 早期只认
+    // `replaceEntries`，导致重建被当成普通增量追加——同一段结论出现两遍。
+    vi.useFakeTimers();
+    try {
+      const { context, emitEvent } = makeContext();
+      const reporter = createExternalAgentActivityReporter(context, { agentLabel: "外部 agent" });
+      reporter.started({ label: "CodeBuddy" });
+      vi.advanceTimersByTime(350);
+      reporter.progress({ entries: [{ kind: "text", text: "结论正文" }] });
+      vi.advanceTimersByTime(350);
+      // 全量重解析后整体替换（driver 的真实形状）。
+      reporter.progress({
+        entries: [
+          { kind: "text", text: "结论正文" },
+          { kind: "tool", text: "Bash: ls" },
+        ],
+        replace: true,
+      });
+
+      const event = emitEvent.mock.calls.at(-1)?.[0] as unknown as {
+        payload: {
+          activity: {
+            entries: Array<{ kind: string; text: string }>;
+            baseRevision?: number;
+          };
+        };
+      };
+      const textEntries = event.payload.activity.entries.filter((entry) => entry.kind === "text");
+      expect(textEntries.map((entry) => entry.text)).toEqual(["结论正文"]);
+      expect(event.payload.activity.entries).toHaveLength(2);
+      // 权威重建必须是全量帧：增量帧表达不了"全部换掉"。
+      expect(event.payload.activity.baseRevision).toBeUndefined();
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
   it("收口时用 result 全文补完最后一块流式正文（不追加重复）", () => {
     const { context, emitEvent } = makeContext();
     const reporter = createExternalAgentActivityReporter(context, { agentLabel: "外部 agent" });

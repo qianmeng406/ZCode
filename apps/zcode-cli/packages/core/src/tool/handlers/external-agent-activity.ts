@@ -30,11 +30,22 @@ interface ActivityEntry {
 export interface ExternalAgentActivityReporter {
   /** 绑定读到时调用：卡片立即出现（running，0ms）。`prompt` 是实际发给 CLI 的任务正文。 */
   started(info: { label: string; model?: string; prompt?: string }): void;
-  /** 执行中的输出：节流更新 tail。`replaceEntries` 是收口权威重建，整体替换。 */
+  /**
+   * 执行中的输出：节流更新 tail。
+   *
+   * 收口权威重建有两种调用形状，**都必须支持**：
+   * - driver 的 onOutput：`{ entries, replace: true }`（bootstrap 直接透传）；
+   * - reporter 自己的测试/调用方：`{ replaceEntries }`。
+   *
+   * 曾经只认后者、而 driver 发前者，于是"权威重建"被当成普通增量追加，
+   * 同一段结论在面板里出现两遍（2026-11-06 实测）。
+   */
   progress(chunk: {
     text?: string;
     preview?: unknown;
     entries?: ActivityEntry[];
+    /** driver 形状：true = entries 是收口后的权威重建，整体替换。 */
+    replace?: boolean;
     replaceEntries?: ActivityEntry[];
     /** 源输出被截断（artifact 超重解析上限）：粘性标记，之后每帧都带上。 */
     sourceTruncated?: boolean;
@@ -237,13 +248,16 @@ export function createExternalAgentActivityReporter(
     },
     progress(chunk) {
       if (finished) return;
+      // 统一替换语义：driver 用 `replace: true`，内部调用方用 `replaceEntries`。
+      // 两者都是"整体替换"，绝不能落进下面的 append 分支（那会让正文出现两遍）。
+      const replacement = chunk.replaceEntries ?? (chunk.replace ? chunk.entries : undefined);
       if (chunk.sourceTruncated) {
         sourceTruncated = true;
         // 只有标记、没有内容：也要发一帧，否则这条提示要等下一次输出才生效
         // （最后一帧可能就是收口帧，但中途静默时用户不该等）。
         if (
           !chunk.entries?.length &&
-          !chunk.replaceEntries?.length &&
+          !replacement?.length &&
           !chunk.text &&
           !previewText(chunk.preview)
         ) {
@@ -251,10 +265,10 @@ export function createExternalAgentActivityReporter(
           return;
         }
       }
-      if (chunk.replaceEntries) {
+      if (replacement) {
         // 收口权威重建：来自全量 stdout 的重解析，整体替换执行中靠尾窗差分
         // 拼出来的条目（那些可能重复/丢段）。替换后重新计裁剪数。
-        entries = chunk.replaceEntries.map((entry) => ({ ...entry }));
+        entries = replacement.map((entry) => ({ ...entry }));
         entriesChars = entries.reduce((sum, entry) => sum + entry.text.length, 0);
         trimmedEntries = 0;
         trimEntries();
