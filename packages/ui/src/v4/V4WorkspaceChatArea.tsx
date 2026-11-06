@@ -16,6 +16,7 @@ import type {
   OpenScopedSubagentDirectorySideTabRequest,
   OpenOracleReviewSidePaneRequest,
   OpenExternalAgentActivitySidePaneRequest,
+  OpenExternalAgentTranscriptSidePaneRequest,
   OpenSelectionSideChatRequest,
   OpenScopedPlanDetailSideTabRequest,
   OpenScopedWorkflowArtifactSideTabRequest,
@@ -108,6 +109,7 @@ export interface V4WorkspaceChatAreaProps {
   onOpenOracleReviewPanel?: (request: OpenOracleReviewSidePaneRequest) => void;
   /** 外部 agent 过程面板：状态卡「查看过程」→ 右侧 tab（同一条壳层入口）。 */
   onOpenExternalAgentPanel?: (request: OpenExternalAgentActivitySidePaneRequest) => void;
+  onOpenExternalAgentTranscript?: (request: OpenExternalAgentTranscriptSidePaneRequest) => void;
   onSyncSubagentSessionTabs?: (request: SyncSubagentSessionTabsRequest) => void;
   onOpenSelectionSideChat?: (request: OpenSelectionSideChatRequest) => void;
   onOpenPlanDetail?: (request: OpenScopedPlanDetailSideTabRequest) => void;
@@ -174,6 +176,7 @@ export function V4WorkspaceChatArea({
   onOpenSubagentDirectory,
   onOpenOracleReviewPanel,
   onOpenExternalAgentPanel,
+  onOpenExternalAgentTranscript,
   onSyncSubagentSessionTabs,
   onOpenSelectionSideChat,
   onOpenPlanDetail,
@@ -304,6 +307,7 @@ export function V4WorkspaceChatArea({
       onOpenSubagentDirectory,
       onOpenOracleReviewPanel,
       onOpenExternalAgentPanel,
+      onOpenExternalAgentTranscript,
       onSyncSubagentSessionTabs,
       onOpenSelectionSideChat,
       onOpenPlanDetail,

@@ -10,6 +10,7 @@ import {
   externalAgentPresetSchema,
   type ExternalAgentPresetStatus,
 } from "../externalAgentCatalog.js";
+import { externalAgentTranscriptPageSchema } from "../externalAgentSessions.js";
 
 const presetStatusSchema = z
   .object({
@@ -76,6 +77,45 @@ export const v4ExternalAgentSessionsResultSchema = z
   })
   .strict();
 export type V4ExternalAgentSessionsResult = z.infer<typeof v4ExternalAgentSessionsResultSchema>;
+
+// ── 删除一个外部会话（续接菜单的行内删除）──
+// 幂等：本来就不存在时返回 deleted:false，不报错（与"删两次"等价）。
+export const v4ExternalAgentDeleteSessionParamsSchema = z
+  .object({
+    /** zcode 会话 id：删除必须落到该会话真正执行的那台机器（远程会话的 CLI 在远端）。 */
+    sessionId: z.string().min(1),
+    /** 要删除的外部 CLI 会话 id。 */
+    externalSessionId: z.string().min(1),
+  })
+  .strict();
+export type V4ExternalAgentDeleteSessionParams = z.infer<
+  typeof v4ExternalAgentDeleteSessionParamsSchema
+>;
+
+export const v4ExternalAgentDeleteSessionResultSchema = z
+  .object({
+    deleted: z.boolean(),
+  })
+  .strict();
+export type V4ExternalAgentDeleteSessionResult = z.infer<
+  typeof v4ExternalAgentDeleteSessionResultSchema
+>;
+
+// ── 外部会话的完整上下文（只读、无状态、可重发）──
+// 游标是"条目序号"：会话文件只追加，已有条目的序号稳定，「加载更早」不会跳段。
+export const v4ExternalAgentTranscriptParamsSchema = z
+  .object({
+    sessionId: z.string().min(1),
+    externalSessionId: z.string().min(1),
+    /** 取 (before-limit, before) 这一段；缺省 = 最新的一页。 */
+    before: z.number().int().nonnegative().optional(),
+    limit: z.number().int().positive().max(60).optional(),
+  })
+  .strict();
+export type V4ExternalAgentTranscriptParams = z.infer<typeof v4ExternalAgentTranscriptParamsSchema>;
+
+export const v4ExternalAgentTranscriptResultSchema = externalAgentTranscriptPageSchema;
+export type V4ExternalAgentTranscriptResult = z.infer<typeof v4ExternalAgentTranscriptResultSchema>;
 
 /** 与 shared 顶层同形（两个定义必须一致；此处只做类型对齐，避免两份漂移）。 */
 export type { ExternalAgentPresetStatus };

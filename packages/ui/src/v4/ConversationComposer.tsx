@@ -583,6 +583,10 @@ export interface ConversationComposerProps {
   onChangeExternalAgentSession?: (sessionId: string | null) => Promise<void>;
   /** 拉取绑定的外部 CLI 的历史会话列表；缺席 = 不显示会话子菜单。 */
   onLoadExternalAgentSessions?: () => Promise<V4ExternalAgentSessionsResult>;
+  /** 删除一个外部会话（行内二次确认）；缺席 = 不显示删除入口。 */
+  onDeleteExternalAgentSession?: (externalSessionId: string) => Promise<boolean>;
+  /** 打开某个外部会话的完整上下文面板；缺席 = 不显示「查看上下文」。 */
+  onOpenExternalAgentSessionTranscript?: (session: { sessionId: string; title: string }) => void;
   /** 本机探测到的外部 agent 列表；null/缺席 = 探测不可用（对话框退回手填）。 */
   externalAgentProbe?: ExternalAgentPresetStatus[] | null;
   /** 是否正在探测（对话框里显示 loading）。 */
@@ -722,6 +726,8 @@ function ConversationComposerImpl({
   onChangeExternalAgentEffort,
   onChangeExternalAgentSession,
   onLoadExternalAgentSessions,
+  onDeleteExternalAgentSession,
+  onOpenExternalAgentSessionTranscript,
   externalAgentProbe,
   externalAgentProbing,
   onReprobeExternalAgents,
@@ -3185,6 +3191,12 @@ function ConversationComposerImpl({
               : {})}
             {...(externalAgentSessionsLoader
               ? { onLoadSessions: externalAgentSessionsLoader }
+              : {})}
+            {...(onDeleteExternalAgentSession
+              ? { onDeleteSession: onDeleteExternalAgentSession }
+              : {})}
+            {...(onOpenExternalAgentSessionTranscript
+              ? { onOpenSessionTranscript: onOpenExternalAgentSessionTranscript }
               : {})}
             effortOptions={externalAgentEffortOptions}
             modelOptions={externalAgentModelOptions}

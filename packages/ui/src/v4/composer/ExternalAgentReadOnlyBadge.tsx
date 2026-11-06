@@ -11,7 +11,15 @@
 // 换目标 = 接着另一段历史干活；清除 = 回到每次委派开新会话。列表在菜单展开时拉取
 // （落执行机的目录扫描，不能在渲染期发起）。
 import { memo, useCallback, useState } from "react";
-import { ChevronDownIcon, LoaderIcon, LockIcon, PlusIcon } from "lucide-react";
+import {
+  BookOpenIcon,
+  ChevronDownIcon,
+  LoaderIcon,
+  LockIcon,
+  PlusIcon,
+  Trash2Icon,
+  XIcon,
+} from "lucide-react";
 import type {
   ExternalAgentState,
   V4ExternalAgentSessionsResult,
@@ -62,6 +70,13 @@ export interface ExternalAgentReadOnlyBadgeProps {
   onChangeSession?: (sessionId: string | null) => Promise<void>;
   /** 拉取历史会话列表；菜单展开时调用。缺席 = 不显示会话子菜单。 */
   onLoadSessions?: () => Promise<V4ExternalAgentSessionsResult>;
+  /** 删除一个外部会话（行内二次确认）。resolve false = 没删掉（本来就不存在）。 */
+  onDeleteSession?: (externalSessionId: string) => Promise<boolean>;
+  /**
+   * 打开该外部会话的完整上下文面板。
+   * 缺席 = 不显示「查看上下文」入口（宿主没接线或旧 CLI 不支持）。
+   */
+  onOpenSessionTranscript?: (session: { sessionId: string; title: string }) => void;
   disabled?: boolean;
 }
 
@@ -88,6 +103,8 @@ function ExternalAgentReadOnlyBadgeImpl({
   effortOptions,
   onChangeSession,
   onLoadSessions,
+  onDeleteSession,
+  onOpenSessionTranscript,
   disabled,
 }: ExternalAgentReadOnlyBadgeProps) {
   const { intl } = useZCodeIntl();
@@ -96,6 +113,10 @@ function ExternalAgentReadOnlyBadgeImpl({
   // 会话列表只在菜单展开时拉一次（之后缓存到关闭为止）。
   const [sessions, setSessions] = useState<SessionEntry[] | null>(null);
   const [sessionsLoading, setSessionsLoading] = useState(false);
+  // 删除是破坏性操作：第一次点垃圾桶只进入"待确认"，再点一次才真删。
+  const [pendingDeleteId, setPendingDeleteId] = useState<string | null>(null);
+  const [deletingId, setDeletingId] = useState<string | null>(null);
+  const [menuOpen, setMenuOpen] = useState(false);
 
   const handleUnbind = useCallback(() => {
     if (pending || !onUnbind) return;
@@ -155,6 +176,40 @@ function ExternalAgentReadOnlyBadgeImpl({
       .catch(() => setSessions([]))
       .finally(() => setSessionsLoading(false));
   }, [onLoadSessions]);
+
+  // 查看上下文：打开侧栏面板并收起菜单（面板不在菜单里）。
+  const handleOpenTranscript = useCallback(
+    (session: SessionEntry) => {
+      if (!onOpenSessionTranscript) return;
+      setMenuOpen(false);
+      onOpenSessionTranscript({ sessionId: session.sessionId, title: session.title });
+    },
+    [onOpenSessionTranscript],
+  );
+
+  // 两步删除：第一次点只进入待确认，第二次才真正执行。
+  const handleDeleteSession = useCallback(
+    (session: SessionEntry) => {
+      if (!onDeleteSession || deletingId) return;
+      if (pendingDeleteId !== session.sessionId) {
+        setPendingDeleteId(session.sessionId);
+        return;
+      }
+      setDeletingId(session.sessionId);
+      void onDeleteSession(session.sessionId)
+        .then((deleted) => {
+          // 无论删没删掉都从列表里移除：删失败（本来就不存在）时列表也该刷新。
+          setSessions((current) =>
+            (current ?? []).filter((s) => s.sessionId !== session.sessionId),
+          );
+          setPendingDeleteId(null);
+          if (!deleted) loadSessions();
+        })
+        .catch(() => setPendingDeleteId(null))
+        .finally(() => setDeletingId(null));
+    },
+    [deletingId, loadSessions, onDeleteSession, pendingDeleteId],
+  );
 
   // 徽标文案带上模型与档位：只读会话里"现在谁在跑、以什么强度"是事实。
   const agentName = [
@@ -216,11 +271,14 @@ function ExternalAgentReadOnlyBadgeImpl({
 
   return (
     <DropdownMenu
-      {...(hasSessionMenu
+      {...(hasSessionMenu || onOpenSessionTranscript || onDeleteSession
         ? {
+            open: menuOpen,
             onOpenChange: (open: boolean) => {
+              setMenuOpen(open);
+              if (!open) setPendingDeleteId(null);
               // 每次展开都重拉：列表数据在另一台机器/另一个进程落盘，缓存会过期。
-              if (open) {
+              if (open && hasSessionMenu) {
                 setSessions(null);
                 loadSessions();
               }
@@ -368,16 +426,107 @@ function ExternalAgentReadOnlyBadgeImpl({
                   className="max-h-56 overflow-y-auto overscroll-contain"
                   data-testid="external-agent-sessions-scroll"
                 >
-                  {sessions?.map((session) => (
-                    <DropdownMenuRadioItem key={session.sessionId} value={session.sessionId}>
-                      <span className="flex min-w-0 flex-col">
-                        <span className="min-w-0 truncate">{session.title}</span>
-                        <span className="text-ui-xs text-foreground-subtle tabular-nums">
-                          {formatSessionTime(session.updatedAt)} · {session.sessionId.slice(0, 8)}
-                        </span>
-                      </span>
-                    </DropdownMenuRadioItem>
-                  ))}
+                  {sessions?.map((session) => {
+                    const pendingDelete = pendingDeleteId === session.sessionId;
+                    const deleting = deletingId === session.sessionId;
+                    return (
+                      <div
+                        key={session.sessionId}
+                        className="flex items-center gap-1 pr-1"
+                        data-testid="external-agent-session-row"
+                      >
+                        <DropdownMenuRadioItem value={session.sessionId} className="min-w-0 flex-1">
+                          <span className="flex min-w-0 flex-col">
+                            <span className="min-w-0 truncate">{session.title}</span>
+                            <span className="text-ui-xs text-foreground-subtle tabular-nums">
+                              {formatSessionTime(session.updatedAt)} ·{" "}
+                              {session.sessionId.slice(0, 8)}
+                            </span>
+                          </span>
+                        </DropdownMenuRadioItem>
+                        {/* 两个行内动作不是菜单项：点它们不改变"续接目标"，也不该关掉菜单
+                            （删除要两步确认）。 */}
+                        {onOpenSessionTranscript ? (
+                          <button
+                            type="button"
+                            className="shrink-0 rounded p-1 text-foreground-subtle hover:bg-surface-hover hover:text-foreground"
+                            data-testid="external-agent-session-open"
+                            aria-label={intl.formatMessage({
+                              id: "chat.externalAgent.sessionViewContext",
+                            })}
+                            title={intl.formatMessage({
+                              id: "chat.externalAgent.sessionViewContext",
+                            })}
+                            onPointerDown={(event) => event.stopPropagation()}
+                            onClick={(event) => {
+                              event.preventDefault();
+                              event.stopPropagation();
+                              handleOpenTranscript(session);
+                            }}
+                          >
+                            <BookOpenIcon className="size-3.5" />
+                          </button>
+                        ) : null}
+                        {onDeleteSession ? (
+                          pendingDelete ? (
+                            <span
+                              className="flex shrink-0 items-center gap-1"
+                              onPointerDown={(event) => event.stopPropagation()}
+                            >
+                              <button
+                                type="button"
+                                className="rounded bg-danger/10 px-1.5 py-0.5 text-ui-xs text-danger hover:bg-danger/20 disabled:opacity-50"
+                                data-testid="external-agent-session-delete-confirm"
+                                disabled={deleting}
+                                onClick={(event) => {
+                                  event.preventDefault();
+                                  event.stopPropagation();
+                                  handleDeleteSession(session);
+                                }}
+                              >
+                                {deleting
+                                  ? intl.formatMessage({ id: "chat.externalAgent.sessionDeleting" })
+                                  : intl.formatMessage({
+                                      id: "chat.externalAgent.sessionDeleteConfirm",
+                                    })}
+                              </button>
+                              <button
+                                type="button"
+                                className="rounded p-1 text-foreground-subtle hover:bg-surface-hover"
+                                data-testid="external-agent-session-delete-cancel"
+                                aria-label={intl.formatMessage({ id: "common.cancel" })}
+                                onClick={(event) => {
+                                  event.preventDefault();
+                                  event.stopPropagation();
+                                  setPendingDeleteId(null);
+                                }}
+                              >
+                                <XIcon className="size-3" />
+                              </button>
+                            </span>
+                          ) : (
+                            <button
+                              type="button"
+                              className="shrink-0 rounded p-1 text-foreground-subtle hover:bg-surface-hover hover:text-danger"
+                              data-testid="external-agent-session-delete"
+                              aria-label={intl.formatMessage({
+                                id: "chat.externalAgent.sessionDelete",
+                              })}
+                              title={intl.formatMessage({ id: "chat.externalAgent.sessionDelete" })}
+                              onPointerDown={(event) => event.stopPropagation()}
+                              onClick={(event) => {
+                                event.preventDefault();
+                                event.stopPropagation();
+                                handleDeleteSession(session);
+                              }}
+                            >
+                              <Trash2Icon className="size-3.5" />
+                            </button>
+                          )
+                        ) : null}
+                      </div>
+                    );
+                  })}
                 </div>
               </DropdownMenuRadioGroup>
             )}

@@ -438,6 +438,7 @@ const WorkspaceShellLayoutContent = memo(function WorkspaceShellLayoutComponent(
   handleOpenSubagentDirectory,
   handleOpenOracleReviewPanel,
   handleOpenExternalAgentPanel,
+  handleOpenExternalAgentTranscript,
   handleSyncSubagentSessionTabs,
   handleOpenSelectionSideChat,
   handleOpenPlanDetail,
@@ -2455,6 +2456,7 @@ const WorkspaceShellLayoutContent = memo(function WorkspaceShellLayoutComponent(
                   onOpenSubagentDirectory={handleOpenSubagentDirectory}
                   onOpenOracleReviewPanel={handleOpenOracleReviewPanel}
                   onOpenExternalAgentPanel={handleOpenExternalAgentPanel}
+                  onOpenExternalAgentTranscript={handleOpenExternalAgentTranscript}
                   onSyncSubagentSessionTabs={handleSyncSubagentSessionTabs}
                   onOpenPlanDetail={handleOpenPlanDetail}
                   onOpenWorkflowRun={handleOpenWorkflowRun}
@@ -2906,6 +2908,7 @@ const WorkspaceShellLayoutContent = memo(function WorkspaceShellLayoutComponent(
                                 onOpenSubagentDirectory={handleOpenSubagentDirectory}
                                 onOpenOracleReviewPanel={handleOpenOracleReviewPanel}
                                 onOpenExternalAgentPanel={handleOpenExternalAgentPanel}
+                                onOpenExternalAgentTranscript={handleOpenExternalAgentTranscript}
                                 onSyncSubagentSessionTabs={handleSyncSubagentSessionTabs}
                                 onOpenSelectionSideChat={handleOpenSelectionSideChat}
                                 onOpenPlanDetail={handleOpenPlanDetail}

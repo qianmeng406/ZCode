@@ -2,6 +2,7 @@ import assert from "node:assert/strict";
 import test from "node:test";
 import {
   cwdToProjectDirName,
+  parseClaudeFamilyTranscript,
   scanClaudeFamilySessionFile,
   scanClaudeFamilySessionsFromLines,
 } from "../src/externalAgentSessions.js";
@@ -90,4 +91,116 @@ test("扫描：超长标题截断到 120 字符并带省略号", () => {
   assert.ok(summary);
   assert.equal(summary.title.length, 121);
   assert.ok(summary.title.endsWith("…"));
+});
+
+// ── 外部会话的完整上下文（transcript） ──
+
+function messageLine(role: string, text: string, extra: Record<string, unknown> = {}): string {
+  return JSON.stringify({
+    type: "message",
+    role,
+    content: [{ type: role === "assistant" ? "output_text" : "input_text", text }],
+    timestamp: 1_700_000_000_000,
+    ...extra,
+  });
+}
+
+test("transcript: 解析用户/助手/工具调用/工具结果，按文件顺序", () => {
+  const content = [
+    messageLine("user", "修一下 lint"),
+    messageLine("assistant", "先看报错"),
+    JSON.stringify({
+      type: "function_call",
+      name: "Bash",
+      arguments: JSON.stringify({ command: "pnpm lint" }),
+      timestamp: 1_700_000_001_000,
+    }),
+    JSON.stringify({
+      type: "function_call_result",
+      name: "Bash",
+      output: { type: "text", text: "3 errors" },
+      timestamp: 1_700_000_002_000,
+    }),
+    messageLine("assistant", "改完了"),
+  ].join("\n");
+
+  const page = parseClaudeFamilyTranscript(content, { sessionId: "sess-1", limit: 10 });
+  assert.deepEqual(
+    page.entries.map((entry) => [entry.kind, entry.text]),
+    [
+      ["user", "修一下 lint"],
+      ["assistant", "先看报错"],
+      ["tool", "Bash: pnpm lint"],
+      ["tool_result", "3 errors"],
+      ["assistant", "改完了"],
+    ],
+  );
+  assert.equal(page.total, 5);
+  assert.equal(page.hasMore, false);
+  assert.equal(page.truncated, false);
+  assert.equal(page.sessionId, "sess-1");
+});
+
+test("transcript: 跳过 CLI 注入的提示与本地命令回显", () => {
+  const content = [
+    messageLine("user", '<system-reminder data-role="command-caveat">caveat</system-reminder>'),
+    messageLine("user", "<command-name>/model</command-name>"),
+    messageLine("user", "真正的任务", { providerData: { skipRun: true } }),
+    messageLine("user", "真正的任务"),
+  ].join("\n");
+  const page = parseClaudeFamilyTranscript(content, { sessionId: "s" });
+  assert.deepEqual(
+    page.entries.map((entry) => entry.text),
+    ["真正的任务"],
+  );
+});
+
+test("transcript: REPL 从 code 里取出真实命令", () => {
+  const content = JSON.stringify({
+    type: "function_call",
+    name: "REPL",
+    arguments: JSON.stringify({ code: 'const r = await Bash({ command: "ls -la" });' }),
+  });
+  const page = parseClaudeFamilyTranscript(content, { sessionId: "s" });
+  assert.equal(page.entries[0]?.text, "REPL: ls -la");
+});
+
+test("transcript: 分页按条目序号向前翻，hasMore 正确", () => {
+  const lines = Array.from({ length: 12 }, (_, index) => messageLine("user", `第 ${index + 1} 句`));
+  const content = lines.join("\n");
+  const latest = parseClaudeFamilyTranscript(content, { sessionId: "s", limit: 5 });
+  assert.deepEqual(
+    latest.entries.map((entry) => entry.text),
+    ["第 8 句", "第 9 句", "第 10 句", "第 11 句", "第 12 句"],
+  );
+  assert.equal(latest.hasMore, true);
+
+  const earlier = parseClaudeFamilyTranscript(content, {
+    sessionId: "s",
+    limit: 5,
+    // latest 的窗口从第 8 条开始（0 基 7）。
+    before: latest.total - latest.entries.length,
+  });
+  assert.deepEqual(
+    earlier.entries.map((entry) => entry.text),
+    ["第 3 句", "第 4 句", "第 5 句", "第 6 句", "第 7 句"],
+  );
+  assert.equal(earlier.hasMore, true);
+});
+
+test("transcript: 单条超长被截断并标记 clipped", () => {
+  const content = messageLine("assistant", "x".repeat(20_000));
+  const page = parseClaudeFamilyTranscript(content, { sessionId: "s" });
+  assert.equal(page.entries[0]?.clipped, true);
+  assert.equal(page.entries[0]?.text.length, 12_001);
+});
+
+test("transcript: 单页正文预算超限时从最老开始丢", () => {
+  const lines = Array.from({ length: 30 }, () => messageLine("assistant", "y".repeat(12_000)));
+  const page = parseClaudeFamilyTranscript(lines.join("\n"), { sessionId: "s", limit: 30 });
+  const chars = page.entries.reduce((sum, entry) => sum + entry.text.length, 0);
+  assert.ok(chars <= 240_000, `page chars ${chars}`);
+  assert.ok(page.entries.length < 30);
+  // 丢的是最老的：最后一条必须还在。
+  assert.equal(page.entries.at(-1)?.text.startsWith("y"), true);
 });

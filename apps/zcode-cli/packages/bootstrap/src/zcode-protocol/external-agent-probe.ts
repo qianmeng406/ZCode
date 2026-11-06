@@ -10,6 +10,7 @@ import type { ExecutionPort } from "@zcode/contracts";
 import {
   EXTERNAL_AGENT_PRESETS,
   cwdToProjectDirName,
+  parseClaudeFamilyTranscript,
   parseModelCatalogFromProductJson,
   parseModelListFromHelp,
   parseServerModelCache,
@@ -17,6 +18,7 @@ import {
   type ExternalAgentModelInfo,
   type ExternalAgentPreset,
   type ExternalAgentSessionSummary,
+  type ExternalAgentTranscriptPage,
 } from "@zcode/shared";
 
 /** 一个预设在本机的实测状态。 */
@@ -284,9 +286,7 @@ export async function probeExternalAgents(options: {
   cwd: string;
 }): Promise<ExternalAgentProbeResult> {
   const agents = await Promise.all(
-    EXTERNAL_AGENT_PRESETS.map((preset) =>
-      probePreset(options.executionPort, preset, options.cwd),
-    ),
+    EXTERNAL_AGENT_PRESETS.map((preset) => probePreset(options.executionPort, preset, options.cwd)),
   );
   return { agents };
 }
@@ -345,9 +345,7 @@ export function buildExternalAgentSessionsScript(cwd: string): string {
 }
 
 /** 宿主侧解析探测输出（与 `buildExternalAgentSessionsScript` 的线格式配对）。 */
-export function parseExternalAgentSessionsProbe(
-  stdout: string,
-): ExternalAgentSessionSummary[] {
+export function parseExternalAgentSessionsProbe(stdout: string): ExternalAgentSessionSummary[] {
   const summaries: ExternalAgentSessionSummary[] = [];
   for (const block of stdout.split("\u0000END\u0000")) {
     const parts = block.split("\u0000FILE\u0000");
@@ -365,4 +363,121 @@ export function parseExternalAgentSessionsProbe(
     if (summary) summaries.push(summary);
   }
   return summaries.sort((left, right) => right.updatedAt - left.updatedAt);
+}
+
+// ── 外部会话的删除与完整上下文 ──
+//
+// 两条都必须在**执行机**上做（远程会话的 CLI home 在远端），与列表扫描同源：
+// 用 `node -e` 内联脚本操作同一个 projects 目录。
+
+/** 会话 id 会被拼进执行机上的路径：只允许文件名安全字符（uuid/hex 足够）。 */
+const SAFE_EXTERNAL_SESSION_ID = /^[A-Za-z0-9_-]{1,128}$/;
+
+/**
+ * 单次读取的会话文件上限；超过只取尾部（最近的上下文才是用户要看的）。
+ *
+ * 4MB 是权衡：整份内容要作为一条 RPC 响应走回宿主（协议单帧 1MB、逻辑帧可拼），
+ * 再大的文件读起来慢且没有额外价值——分页本身只取一页，尾部足够翻很多页。
+ */
+const TRANSCRIPT_READ_LIMIT_BYTES = 4_000_000;
+
+/**
+ * 删除脚本：删 `<id>.jsonl` 和同名的附属目录（CLI 用它存工具产物/文件历史）。
+ *
+ * 返回 `1` = 确实删掉了东西，`0` = 本来就不存在（幂等语义）。
+ */
+export function buildDeleteExternalAgentSessionScript(
+  cwd: string,
+  externalSessionId: string,
+): string {
+  return [
+    "const fs=require('fs'),path=require('path'),os=require('os');",
+    `const dir=path.join(os.homedir(),'.codebuddy','projects',${JSON.stringify(cwdToProjectDirName(cwd))});`,
+    `const id=${JSON.stringify(externalSessionId)};`,
+    "const targets=[path.join(dir,id+'.jsonl'),path.join(dir,id)];",
+    "const existed=targets.some(t=>{try{return fs.existsSync(t);}catch{return false;}});",
+    "for(const t of targets){try{fs.rmSync(t,{recursive:true,force:true});}catch{}}",
+    "process.stdout.write(existed?'1':'0');",
+  ].join("");
+}
+
+/** 删除一个外部会话；id 不合法或脚本失败都按"没删"处理，绝不抛错。 */
+export async function deleteExternalAgentSession(options: {
+  executionPort: ExecutionPort;
+  cwd: string;
+  externalSessionId: string;
+}): Promise<boolean> {
+  if (!SAFE_EXTERNAL_SESSION_ID.test(options.externalSessionId)) return false;
+  const read = await probeCommand(
+    options.executionPort,
+    "node",
+    ["-e", buildDeleteExternalAgentSessionScript(options.cwd, options.externalSessionId)],
+    options.cwd,
+  );
+  return read.ok && read.stdout.trim() === "1";
+}
+
+/**
+ * 读取脚本：整份文件倒回 stdout；超过上限时取尾部。
+ *
+ * 首行是 `1`/`0`（源文件是否被截断），其后是原始 JSONL——不套 JSON 信封，
+ * 避免大文件的转义开销。
+ */
+export function buildExternalAgentTranscriptScript(cwd: string, externalSessionId: string): string {
+  return [
+    "const fs=require('fs'),path=require('path'),os=require('os');",
+    `const dir=path.join(os.homedir(),'.codebuddy','projects',${JSON.stringify(cwdToProjectDirName(cwd))});`,
+    `const file=path.join(dir,${JSON.stringify(externalSessionId)}+'.jsonl');`,
+    `const MAX=${TRANSCRIPT_READ_LIMIT_BYTES};`,
+    "let content='',truncated=false;",
+    "try{",
+    "  const st=fs.statSync(file);",
+    "  if(st.size>MAX){",
+    "    const fd=fs.openSync(file,'r');",
+    "    const buf=Buffer.alloc(MAX);",
+    "    fs.readSync(fd,buf,0,MAX,st.size-MAX);",
+    "    fs.closeSync(fd);",
+    "    content=buf.toString('utf8');truncated=true;",
+    "  }else{content=fs.readFileSync(file,'utf8');}",
+    "}catch{process.exit(0);}",
+    "process.stdout.write((truncated?'1':'0')+String.fromCharCode(10)+content);",
+  ].join("");
+}
+
+/** 读取某个外部会话的一页上下文（缺省 = 最新一页）。 */
+export async function readExternalAgentSessionTranscript(options: {
+  executionPort: ExecutionPort;
+  cwd: string;
+  externalSessionId: string;
+  before?: number;
+  limit?: number;
+}): Promise<ExternalAgentTranscriptPage> {
+  const empty: ExternalAgentTranscriptPage = {
+    sessionId: options.externalSessionId,
+    entries: [],
+    total: 0,
+    hasMore: false,
+    truncated: false,
+  };
+  if (!SAFE_EXTERNAL_SESSION_ID.test(options.externalSessionId)) return empty;
+  const read = await probeCommand(
+    options.executionPort,
+    "node",
+    ["-e", buildExternalAgentTranscriptScript(options.cwd, options.externalSessionId)],
+    options.cwd,
+    {
+      maxInlineBytes: TRANSCRIPT_READ_LIMIT_BYTES + 1_000_000,
+      maxBufferBytes: TRANSCRIPT_READ_LIMIT_BYTES + 1_000_000,
+    },
+  );
+  if (!read.ok || !read.stdout) return empty;
+  const newline = read.stdout.indexOf("\n");
+  if (newline < 0) return empty;
+  const truncated = read.stdout.slice(0, newline).trim() === "1";
+  return parseClaudeFamilyTranscript(read.stdout.slice(newline + 1), {
+    sessionId: options.externalSessionId,
+    sourceTruncated: truncated,
+    ...(options.before !== undefined ? { before: options.before } : {}),
+    ...(options.limit !== undefined ? { limit: options.limit } : {}),
+  });
 }

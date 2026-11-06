@@ -20,6 +20,10 @@ import type {
   V4ExternalAgentProbeResult,
   V4ExternalAgentSessionsParams,
   V4ExternalAgentSessionsResult,
+  V4ExternalAgentDeleteSessionParams,
+  V4ExternalAgentDeleteSessionResult,
+  V4ExternalAgentTranscriptParams,
+  V4ExternalAgentTranscriptResult,
   V4ConversationWorkflowRunArtifactDataParams,
   V4ConversationWorkflowRunArtifactDataResult,
   V4ConversationWorkflowRunArtifactReadParams,
@@ -67,6 +71,14 @@ export interface V4ConversationContextValue {
   externalAgentSessions(
     params: V4ExternalAgentSessionsParams,
   ): Promise<V4ExternalAgentSessionsResult>;
+  /** 删除一个外部会话（续接菜单行内删除）；幂等。 */
+  externalAgentDeleteSession(
+    params: V4ExternalAgentDeleteSessionParams,
+  ): Promise<V4ExternalAgentDeleteSessionResult>;
+  /** 外部会话的完整上下文（按条目序号分页）；只读、无状态。 */
+  externalAgentTranscript(
+    params: V4ExternalAgentTranscriptParams,
+  ): Promise<V4ExternalAgentTranscriptResult>;
   /** workflow run 事件日志分页（详情页审计面）；只读、无状态、超时重发安全。 */
   workflowRunEvents(
     params: V4ConversationWorkflowRunEventsParams,
@@ -193,6 +205,10 @@ function ReadyV4ConversationProvider({
         transport.externalAgentProbe(params),
       externalAgentSessions: (params: V4ExternalAgentSessionsParams) =>
         transport.externalAgentSessions(params),
+      externalAgentDeleteSession: (params: V4ExternalAgentDeleteSessionParams) =>
+        transport.externalAgentDeleteSession(params),
+      externalAgentTranscript: (params: V4ExternalAgentTranscriptParams) =>
+        transport.externalAgentTranscript(params),
       workflowRunEvents: (params: V4ConversationWorkflowRunEventsParams) =>
         transport.workflowRunEvents(params),
       workflowRunArtifacts: (params: V4ConversationWorkflowRunArtifactsParams) =>
@@ -390,6 +406,10 @@ function ReadyV4PaneConversationProvider({
           lease.transport.externalAgentProbe(params),
         externalAgentSessions: (params: V4ExternalAgentSessionsParams) =>
           lease.transport.externalAgentSessions(params),
+        externalAgentDeleteSession: (params: V4ExternalAgentDeleteSessionParams) =>
+          lease.transport.externalAgentDeleteSession(params),
+        externalAgentTranscript: (params: V4ExternalAgentTranscriptParams) =>
+          lease.transport.externalAgentTranscript(params),
         workflowRunEvents: (params: V4ConversationWorkflowRunEventsParams) =>
           lease.transport.workflowRunEvents(params),
         workflowRunArtifacts: (params: V4ConversationWorkflowRunArtifactsParams) =>

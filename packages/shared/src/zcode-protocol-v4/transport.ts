@@ -370,6 +370,10 @@ export const V4_METHODS = {
   // 外部 coding agent 的历史会话列表（续接选择菜单的数据源）。
   // 只读、无状态、超时重发安全；目录不存在返回空列表（不是错误）。
   externalAgentSessions: "v4/externalAgent/sessions",
+  // 删除一个外部会话（续接菜单的行内删除）。幂等：本来不存在时 deleted:false。
+  externalAgentDeleteSession: "v4/externalAgent/deleteSession",
+  // 外部会话的完整上下文（分页）。只读、无状态、超时重发安全。
+  externalAgentTranscript: "v4/externalAgent/transcript",
   // 当前有效分支的终态 ExitPlanMode 目录；只读、无状态、超时重发安全。
   conversationPlans: "v4/conversation/plans",
   conversationFileChanges: "v4/conversation/fileChanges",

@@ -121,6 +121,8 @@ import type {
   V4ConversationPlansResult,
   V4ExternalAgentProbeResult,
   V4ExternalAgentSessionsResult,
+  V4ExternalAgentDeleteSessionResult,
+  V4ExternalAgentTranscriptResult,
   V4ConversationWorkflowRunEventsResult,
   V4ConversationWorkflowRunArtifactDataResult,
   V4ConversationWorkflowRunArtifactReadResult,
@@ -1045,6 +1047,18 @@ export interface IZCodeAgentService {
   externalAgentSessionsV4(
     params: ZCodeAgentExternalAgentProbeParams,
   ): Promise<V4ExternalAgentSessionsResult>;
+  /** 删除一个外部会话（续接菜单行内删除）；幂等，本来不存在时 deleted:false。 */
+  externalAgentDeleteSessionV4(
+    params: ZCodeAgentExternalAgentProbeParams & { externalSessionId: string },
+  ): Promise<V4ExternalAgentDeleteSessionResult>;
+  /** 外部会话的完整上下文（按条目序号分页）；只读、无状态。 */
+  externalAgentTranscriptV4(
+    params: ZCodeAgentExternalAgentProbeParams & {
+      externalSessionId: string;
+      before?: number;
+      limit?: number;
+    },
+  ): Promise<V4ExternalAgentTranscriptResult>;
   /** 输入预测：只读、无状态；Host 开关关闭 / 无运行时 / 失败一律回空结果，不抛错。 */
   conversationInputPredictionV4(
     params: ZCodeAgentConversationInputPredictionParams,

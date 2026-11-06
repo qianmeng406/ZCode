@@ -71,6 +71,7 @@ import { SubagentSessionSidePane } from "@/app-shell/SubagentSessionSidePane.js"
 import { SubagentDirectorySidePane } from "@/app-shell/SubagentDirectorySidePane.js";
 import { OracleReviewSidePane } from "@/app-shell/OracleReviewSidePane.js";
 import { ExternalAgentActivitySidePane } from "@/app-shell/ExternalAgentActivitySidePane.js";
+import { ExternalAgentTranscriptSidePane } from "@/app-shell/ExternalAgentTranscriptSidePane.js";
 import { SelectionSideChatPane } from "@/app-shell/SelectionSideChatPane.js";
 import { BackgroundBashOutputSidePane } from "@/app-shell/BackgroundBashOutputSidePane.js";
 import { PlanDetailSidePane } from "@/app-shell/PlanDetailSidePane.js";
@@ -1311,6 +1312,11 @@ export function AnimatedSidePanePanel({
                           <ExternalAgentActivitySidePane
                             tab={tab}
                             visible={isVisible && tab.id === contentActiveTabId}
+                            onClose={() => onCloseTab(tab.id)}
+                          />
+                        ) : tab.type === "external-agent-transcript" ? (
+                          <ExternalAgentTranscriptSidePane
+                            tab={tab}
                             onClose={() => onCloseTab(tab.id)}
                           />
                         ) : tab.type === "selection-side-chat" ? (

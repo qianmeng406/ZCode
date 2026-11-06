@@ -140,3 +140,215 @@ export function scanClaudeFamilySessionFile(
     updatedAtFallback,
   );
 }
+
+// ── 外部会话的完整上下文（transcript）──
+//
+// 续接菜单只能看到标题；用户想"进到那个外部会话里看全部上下文"时，需要把
+// CLI 的 JSONL 还原成一条会话：用户消息 / 助手正文 / 工具调用 / 工具结果。
+// 与上面的概要扫描同源：**纯函数**，文件读取留在执行机侧。
+//
+// 分页按"条目序号"切，不按字节：文件是 append-only 的，靠尾部追加新事件，
+// 已有条目的序号稳定，"加载更早"因此不会跳段。
+
+/** 单条正文上限：用户/助手保留更多，工具结果只留可辨认的片段。 */
+const TRANSCRIPT_TEXT_LIMITS = {
+  user: 12_000,
+  assistant: 12_000,
+  tool: 300,
+  tool_result: 4_000,
+} as const;
+
+export const DEFAULT_TRANSCRIPT_PAGE_SIZE = 30;
+export const MAX_TRANSCRIPT_PAGE_SIZE = 60;
+/** 单页正文预算：超过就从最老的条目开始丢（面板滚动不需要一次拿全）。 */
+const MAX_PAGE_CHARS = 240_000;
+
+export const externalAgentTranscriptEntrySchema = z
+  .object({
+    kind: z.enum(["user", "assistant", "tool", "tool_result"]),
+    text: z.string(),
+    /** tool / tool_result 的工具名（Bash / Read / REPL…）。 */
+    name: z.string().optional(),
+    /** 事件时间（epoch ms）。 */
+    at: z.number().int().optional(),
+    /** 这一条因过长被截断（原文在 CLI 的会话文件里）。 */
+    clipped: z.boolean().optional(),
+  })
+  .strict();
+export type ExternalAgentTranscriptEntry = z.infer<typeof externalAgentTranscriptEntrySchema>;
+
+export const externalAgentTranscriptPageSchema = z
+  .object({
+    sessionId: z.string().min(1),
+    entries: z.array(externalAgentTranscriptEntrySchema),
+    /** 规范化后的总条目数（分页游标的口径）。 */
+    total: z.number().int().nonnegative(),
+    /** 更早还有条目。 */
+    hasMore: z.boolean(),
+    /** 源文件超过读取上限，只解析了尾部（更早的条目根本不在本次数据里）。 */
+    truncated: z.boolean(),
+  })
+  .strict();
+export type ExternalAgentTranscriptPage = z.infer<typeof externalAgentTranscriptPageSchema>;
+
+function clipTranscriptText(
+  text: string,
+  limit: number,
+): Pick<ExternalAgentTranscriptEntry, "text" | "clipped"> {
+  if (text.length <= limit) return { text };
+  return { text: `${text.slice(0, limit)}…`, clipped: true };
+}
+
+/** 把 content 数组里的文本片段拼起来（user/assistant 两种消息共用）。 */
+function readContentText(content: unknown): string {
+  if (!Array.isArray(content)) return "";
+  return content
+    .map((part) =>
+      part && typeof part === "object" && typeof (part as { text?: unknown }).text === "string"
+        ? (part as { text: string }).text
+        : "",
+    )
+    .join("")
+    .trim();
+}
+
+/** function_call_result 的正文：`output.text` 或 `output.content[]`。 */
+function readToolResultText(output: unknown): string {
+  if (!output || typeof output !== "object") return "";
+  const record = output as { text?: unknown; content?: unknown };
+  if (typeof record.text === "string") return record.text.trim();
+  return readContentText(record.content);
+}
+
+/**
+ * `REPL({ code })` 里的真实动作在 code 文本中（`Bash({ command: "..." })`）：
+ * 直接展示 code 会是一屏 JS，取 command 更像"它到底跑了什么"。
+ */
+function describeFunctionCall(name: string, rawArguments: unknown): string {
+  let args: Record<string, unknown> = {};
+  if (typeof rawArguments === "string") {
+    try {
+      const parsed: unknown = JSON.parse(rawArguments);
+      if (parsed && typeof parsed === "object") args = parsed as Record<string, unknown>;
+    } catch {
+      // arguments 不是 JSON（模型偶尔给纯文本）：下面按空参数处理。
+    }
+  } else if (rawArguments && typeof rawArguments === "object") {
+    args = rawArguments as Record<string, unknown>;
+  }
+  const readString = (key: string): string | undefined => {
+    const value = args[key];
+    return typeof value === "string" && value.trim() ? value.trim() : undefined;
+  };
+  const code = readString("code");
+  if (code) {
+    const command = /command:\s*(['"`])([\s\S]*?)\1/.exec(code)?.[2];
+    const detail = (command ?? code).replace(/\s+/gu, " ").trim();
+    return detail ? `${name}: ${detail.length > 160 ? `${detail.slice(0, 160)}…` : detail}` : name;
+  }
+  const detail =
+    readString("command") ??
+    readString("file_path") ??
+    readString("path") ??
+    readString("pattern") ??
+    readString("query");
+  if (!detail) return name;
+  return `${name}: ${detail.length > 160 ? `${detail.slice(0, 160)}…` : detail}`;
+}
+
+/**
+ * 解析 claude-family 的会话 JSONL（codebuddy / claude 同构）。
+ *
+ * 跳过的东西：
+ * - `system-reminder` / `<command-*>` 开头的用户消息（CLI 自己注入的提示与本地命令回显）；
+ * - `providerData.skipRun` 的消息（`/model` 之类的本地命令，不会进模型上下文）；
+ * - `session-meta` / `summary` / `ai-title` / `turn-metrics` / `file-history-snapshot`
+ *   （元数据，不是对话内容）。
+ */
+export function parseClaudeFamilyTranscript(
+  content: string,
+  options: { sessionId: string; before?: number; limit?: number; sourceTruncated?: boolean },
+): ExternalAgentTranscriptPage {
+  const entries: ExternalAgentTranscriptEntry[] = [];
+  for (const line of content.split(/\r?\n/u)) {
+    const trimmed = line.trim();
+    if (!trimmed.startsWith("{")) continue;
+    let value: unknown;
+    try {
+      value = JSON.parse(trimmed);
+    } catch {
+      continue;
+    }
+    if (!value || typeof value !== "object") continue;
+    const record = value as Record<string, unknown>;
+    const at = typeof record.timestamp === "number" ? record.timestamp : undefined;
+
+    if (record.type === "message") {
+      const role = record.role;
+      if (role !== "user" && role !== "assistant") continue;
+      const providerData = record.providerData;
+      if (
+        providerData &&
+        typeof providerData === "object" &&
+        (providerData as { skipRun?: unknown }).skipRun === true
+      ) {
+        continue;
+      }
+      const text = readContentText(record.content);
+      if (!text) continue;
+      // CLI 注入的提示（command-caveat 等）不是用户上下文。
+      if (role === "user" && text.startsWith("<")) continue;
+      entries.push({
+        kind: role,
+        ...clipTranscriptText(text, TRANSCRIPT_TEXT_LIMITS[role]),
+        ...(at !== undefined ? { at } : {}),
+      });
+      continue;
+    }
+
+    if (record.type === "function_call") {
+      const name = typeof record.name === "string" && record.name ? record.name : "tool";
+      const text = describeFunctionCall(name, record.arguments ?? record.input);
+      entries.push({
+        kind: "tool",
+        name,
+        ...clipTranscriptText(text, TRANSCRIPT_TEXT_LIMITS.tool),
+        ...(at !== undefined ? { at } : {}),
+      });
+      continue;
+    }
+
+    if (record.type === "function_call_result") {
+      const text = readToolResultText(record.output);
+      if (!text) continue;
+      const name = typeof record.name === "string" && record.name ? record.name : "tool";
+      entries.push({
+        kind: "tool_result",
+        name,
+        ...clipTranscriptText(text, TRANSCRIPT_TEXT_LIMITS.tool_result),
+        ...(at !== undefined ? { at } : {}),
+      });
+    }
+  }
+
+  const total = entries.length;
+  const limit = Math.min(
+    MAX_TRANSCRIPT_PAGE_SIZE,
+    Math.max(1, options.limit ?? DEFAULT_TRANSCRIPT_PAGE_SIZE),
+  );
+  const before = Math.max(0, Math.min(options.before ?? total, total));
+  let start = Math.max(0, before - limit);
+  let chars = 0;
+  for (let index = start; index < before; index += 1) chars += entries[index]!.text.length;
+  while (start < before - 1 && chars > MAX_PAGE_CHARS) {
+    chars -= entries[start]!.text.length;
+    start += 1;
+  }
+  return {
+    sessionId: options.sessionId,
+    entries: entries.slice(start, before),
+    total,
+    hasMore: start > 0,
+    truncated: options.sourceTruncated === true,
+  };
+}

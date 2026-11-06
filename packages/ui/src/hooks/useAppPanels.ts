@@ -34,6 +34,7 @@ import {
   openSubagentDirectorySidePane,
   openOracleReviewSidePane,
   openExternalAgentActivitySidePane,
+  openExternalAgentTranscriptSidePane,
   openSelectionSideChatPane,
   openPlanDetailSidePane,
   openWorkflowRunSidePane,
@@ -79,6 +80,7 @@ import {
   type OpenSelectionSideChatRequest,
   type OpenOracleReviewSidePaneRequest,
   type OpenExternalAgentActivitySidePaneRequest,
+  type OpenExternalAgentTranscriptSidePaneRequest,
   type OpenScopedPlanDetailSideTabRequest,
   type OpenScopedWorkflowRunSideTabRequest,
   type OpenScopedWorkflowRunDirectorySideTabRequest,
@@ -1038,6 +1040,14 @@ export function useAppPanels(options: {
     [commitOpenedSidePaneState, revealSidePaneForCurrentOwner],
   );
 
+  const handleOpenExternalAgentTranscript = useCallback(
+    (request: OpenExternalAgentTranscriptSidePaneRequest) => {
+      revealSidePaneForCurrentOwner();
+      commitOpenedSidePaneState((current) => openExternalAgentTranscriptSidePane(current, request));
+    },
+    [commitOpenedSidePaneState, revealSidePaneForCurrentOwner],
+  );
+
   const handleOpenSelectionSideChat = useCallback(
     (request: OpenSelectionSideChatRequest) => {
       const workspaceKey = request.workspaceIdentity?.trim() || request.workspacePath;
@@ -1734,6 +1744,7 @@ export function useAppPanels(options: {
     handleOpenSubagentDirectory,
     handleOpenOracleReviewPanel,
     handleOpenExternalAgentPanel,
+    handleOpenExternalAgentTranscript,
     handleSyncSubagentSessionTabs,
     handleOpenSelectionSideChat,
     handleOpenPlanDetail,

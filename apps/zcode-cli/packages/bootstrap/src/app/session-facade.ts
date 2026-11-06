@@ -33,8 +33,10 @@ import { normalizeModelSelection, type ModelSelection } from "@zcode/provider";
 import { listMcpServerStatuses } from "../mcp-config.js";
 import { loadSessionTranscriptFromStore } from "../session-transcript.js";
 import {
+  deleteExternalAgentSession,
   listExternalAgentSessions,
   probeExternalAgents,
+  readExternalAgentSessionTranscript,
 } from "../zcode-protocol/external-agent-probe.js";
 import { getLocaleConfigPath } from "./locale-selection.js";
 import type { ProviderRegistryModelSource } from "./provider-registry-model-runtime.js";
@@ -70,6 +72,8 @@ type SessionFacade = Pick<
   | "generateWorkspaceText"
   | "probeExternalAgents"
   | "listExternalAgentSessions"
+  | "deleteExternalAgentSession"
+  | "readExternalAgentSessionTranscript"
   | "sampleModel"
   | "testModelConnectivity"
   | "forkFromCheckpoint"
@@ -616,6 +620,20 @@ export function createSessionFacade(deps: CreateSessionFacadeDeps): SessionFacad
       listExternalAgentSessions({
         executionPort: deps.executionPort,
         cwd: deps.workingDirectory,
+      }),
+    deleteExternalAgentSession: async (externalSessionId) =>
+      deleteExternalAgentSession({
+        executionPort: deps.executionPort,
+        cwd: deps.workingDirectory,
+        externalSessionId,
+      }),
+    readExternalAgentSessionTranscript: async (input) =>
+      readExternalAgentSessionTranscript({
+        executionPort: deps.executionPort,
+        cwd: deps.workingDirectory,
+        externalSessionId: input.externalSessionId,
+        ...(input.before !== undefined ? { before: input.before } : {}),
+        ...(input.limit !== undefined ? { limit: input.limit } : {}),
       }),
     setMode: async (mode: CollaborationMode) => {
       const previousMode = deps.runtime.getMode();

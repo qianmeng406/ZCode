@@ -1845,6 +1845,7 @@ const enUS: Record<string, string> = {
   "sidePane.subagentDirectory": "Subagents",
   "sidePane.oracleReview": "Review",
   "sidePane.externalAgentActivity": "External agent activity",
+  "sidePane.externalAgentTranscript": "External agent context",
   "sidePane.selectionChat": "Side conversation",
   "sidePane.sites": "Sites",
   "sidePane.workflowRun": "Workflow run",
@@ -5217,6 +5218,22 @@ const enUS: Record<string, string> = {
   "chat.externalAgent.activity.sourceTruncated":
     "Raw output was too large; only part of it was parsed, so earlier steps may be missing.",
   "chat.externalAgent.activity.unread": "External agent run finished",
+  "chat.externalAgent.sessionViewContext": "View session context",
+  "chat.externalAgent.sessionDelete": "Delete this external session",
+  "chat.externalAgent.sessionDeleteConfirm": "Delete",
+  "chat.externalAgent.sessionDeleting": "Deleting…",
+  "chat.externalAgent.transcript.empty": "This external session has no context to show yet.",
+  "chat.externalAgent.transcript.loading": "Reading external session…",
+  "chat.externalAgent.transcript.loadEarlier": "Load earlier context",
+  "chat.externalAgent.transcript.retry": "Retry",
+  "chat.externalAgent.transcript.truncated":
+    "The session file is large; only the most recent part was read.",
+  "chat.externalAgent.transcript.count": "{count} entries",
+  "chat.externalAgent.transcript.expand": "Show full text",
+  "chat.externalAgent.transcript.collapse": "Collapse",
+  "chat.externalAgent.transcript.noMore": "This is the start of the session",
+  "chat.externalAgent.transcript.notLoaded":
+    "Unable to read this external session; reopen it from the badge menu.",
   "chat.externalAgent.activity.historical": "Last run",
   "chat.externalAgent.activity.historicalHint":
     "Summary of the previous run; the full trace isn't kept on this device.",

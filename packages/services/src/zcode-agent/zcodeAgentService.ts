@@ -387,6 +387,8 @@ import {
   v4ConversationPlansResultSchema,
   v4ExternalAgentProbeResultSchema,
   v4ExternalAgentSessionsResultSchema,
+  v4ExternalAgentDeleteSessionResultSchema,
+  v4ExternalAgentTranscriptResultSchema,
   v4ConversationInputPredictionResultSchema,
   emptyInputPredictionResult,
   v4ConversationWorkflowRunEventsResultSchema,
@@ -7555,6 +7557,39 @@ export function createZCodeAgentService(
         V4_METHODS.externalAgentSessions,
         { sessionId: params.sessionId },
         v4ExternalAgentSessionsResultSchema,
+      );
+    },
+
+    // 删除一个外部会话：删的是执行机上的会话文件，幂等（本来不存在时 deleted:false）。
+    async externalAgentDeleteSessionV4(
+      params: ZCodeAgentExternalAgentProbeParams & { externalSessionId: string },
+    ) {
+      const client = await getReadOnlyClient(params, "existing-only");
+      return client.request(
+        V4_METHODS.externalAgentDeleteSession,
+        { sessionId: params.sessionId, externalSessionId: params.externalSessionId },
+        v4ExternalAgentDeleteSessionResultSchema,
+      );
+    },
+
+    // 外部会话的完整上下文（分页）：同列表只读查询，落到会话所在那台机器。
+    async externalAgentTranscriptV4(
+      params: ZCodeAgentExternalAgentProbeParams & {
+        externalSessionId: string;
+        before?: number;
+        limit?: number;
+      },
+    ) {
+      const client = await getReadOnlyClient(params, "existing-only");
+      return client.request(
+        V4_METHODS.externalAgentTranscript,
+        {
+          sessionId: params.sessionId,
+          externalSessionId: params.externalSessionId,
+          ...(params.before !== undefined ? { before: params.before } : {}),
+          ...(params.limit !== undefined ? { limit: params.limit } : {}),
+        },
+        v4ExternalAgentTranscriptResultSchema,
       );
     },
 

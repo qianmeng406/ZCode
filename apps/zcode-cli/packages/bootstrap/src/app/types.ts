@@ -385,6 +385,21 @@ export interface ZCodeApp {
   listExternalAgentSessions?(): Promise<
     Array<{ sessionId: string; title: string; updatedAt: number; preview?: string }>
   >;
+  /**
+   * 删除一个外部会话（续接菜单的行内删除）。幂等：本来不存在时返回 false。
+   * 与列表同源，落在真正执行的那台机器上（远程会话删的是远端文件）。
+   */
+  deleteExternalAgentSession?(externalSessionId: string): Promise<boolean>;
+  /**
+   * 读取某个外部会话的一页上下文（按条目序号分页）。
+   *
+   * 只读、无副作用；缺省返回最新一页。缺席 = 宿主不支持（UI 不显示"查看上下文"）。
+   */
+  readExternalAgentSessionTranscript?(input: {
+    externalSessionId: string;
+    before?: number;
+    limit?: number;
+  }): Promise<import("@zcode/shared").ExternalAgentTranscriptPage>;
   /** current-only 协议快照精确读取当前 Registry 模型，避免枚举整个目录。 */
   getCurrentModelOption?(): ZCodeModelOption | undefined;
   /** 只读 Registry 元数据；不要求选项完整，也不绑定执行模型。 */

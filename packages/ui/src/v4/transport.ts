@@ -23,6 +23,10 @@ import type {
   V4ExternalAgentProbeResult,
   V4ExternalAgentSessionsParams,
   V4ExternalAgentSessionsResult,
+  V4ExternalAgentDeleteSessionParams,
+  V4ExternalAgentDeleteSessionResult,
+  V4ExternalAgentTranscriptParams,
+  V4ExternalAgentTranscriptResult,
   V4ConversationRowsRangeParams,
   V4ConversationRowsRangeResult,
   V4ConversationWorkflowRunArtifactDataParams,
@@ -84,6 +88,20 @@ export interface ConversationTransport {
   externalAgentSessions(
     params: V4ExternalAgentSessionsParams,
   ): Promise<V4ExternalAgentSessionsResult>;
+  /**
+   * v4/externalAgent/deleteSession：删除一个外部会话（续接菜单的行内删除）。
+   * 幂等；旧 CLI 不支持时抛错（调用方隐藏删除入口）。
+   */
+  externalAgentDeleteSession(
+    params: V4ExternalAgentDeleteSessionParams,
+  ): Promise<V4ExternalAgentDeleteSessionResult>;
+  /**
+   * v4/externalAgent/transcript：外部会话的完整上下文（按条目序号分页）。
+   * 只读、无状态；游标是"条目序号"，文件只追加所以历史页稳定。
+   */
+  externalAgentTranscript(
+    params: V4ExternalAgentTranscriptParams,
+  ): Promise<V4ExternalAgentTranscriptResult>;
   /** v4/conversation/workflowRunEvents：workflow run 的事件日志分页（cursor = journal sequence）。 */
   workflowRunEvents(
     params: V4ConversationWorkflowRunEventsParams,

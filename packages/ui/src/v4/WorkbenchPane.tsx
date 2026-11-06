@@ -24,6 +24,7 @@ import type {
   OpenScopedSubagentDirectorySideTabRequest,
   OpenOracleReviewSidePaneRequest,
   OpenExternalAgentActivitySidePaneRequest,
+  OpenExternalAgentTranscriptSidePaneRequest,
   OpenSelectionSideChatRequest,
   OpenScopedPlanDetailSideTabRequest,
   OpenScopedWorkflowActorSessionSideTabRequest,
@@ -240,6 +241,7 @@ export interface WorkbenchShellBinding {
   onOpenOracleReviewPanel?: (request: OpenOracleReviewSidePaneRequest) => void;
   /** 外部 agent 过程面板：状态卡「查看过程」经同一条壳层路径打开右侧 tab。 */
   onOpenExternalAgentPanel?: (request: OpenExternalAgentActivitySidePaneRequest) => void;
+  onOpenExternalAgentTranscript?: (request: OpenExternalAgentTranscriptSidePaneRequest) => void;
   onSyncSubagentSessionTabs?: (request: SyncSubagentSessionTabsRequest) => void;
   onOpenSelectionSideChat?: (request: OpenSelectionSideChatRequest) => void;
   onOpenPlanDetail?: (request: OpenScopedPlanDetailSideTabRequest) => void;
@@ -474,6 +476,7 @@ export function WorkbenchLeafPane({
           onOpenSubagentDirectory={shell.onOpenSubagentDirectory}
           onOpenOracleReviewPanel={shell.onOpenOracleReviewPanel}
           onOpenExternalAgentPanel={shell.onOpenExternalAgentPanel}
+          onOpenExternalAgentTranscript={shell.onOpenExternalAgentTranscript}
           onSyncSubagentSessionTabs={shell.onSyncSubagentSessionTabs}
           onOpenSelectionSideChat={shell.onOpenSelectionSideChat}
           onOpenPlanDetail={shell.onOpenPlanDetail}

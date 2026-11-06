@@ -66,6 +66,9 @@ export function getSidePaneTabSearchHint(tab: WorkspaceSidePaneTab): string {
   if (tab.type === "external-agent-activity") {
     return `${tab.sessionId} external agent codebuddy activity progress`;
   }
+  if (tab.type === "external-agent-transcript") {
+    return `${tab.sessionId} ${tab.externalSessionId} ${tab.title} external agent session context transcript`;
+  }
   if (tab.type === "browser-permissions") return `${tab.origin} permissions settings`;
   if (tab.type === "browser") return tab.initialUrl ?? "";
   if (tab.type === "file-explorer") return "files file explorer tree 文件 文件树";
@@ -141,6 +144,8 @@ export function getSidePaneTabTypeLabel(
   if (tab.type === "subagent-directory") return labels.subagentDirectoryTitle;
   if (tab.type === "external-agent-activity")
     return labels.externalAgentActivityTitle ?? labels.terminalTitle;
+  // 上下文面板的标题就是菜单里那次外部会话的标题（自带信息，不需要 label）。
+  if (tab.type === "external-agent-transcript") return tab.title;
   if (tab.type === "browser" || tab.type === "browser-use") return labels.browserTitle;
   if (tab.type === "browser-permissions") return labels.browserPermissionsTitle;
   if (tab.type === "file-manager") return labels.fileManagerTitle ?? labels.codeViewerTitle;

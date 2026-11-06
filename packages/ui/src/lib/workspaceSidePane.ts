@@ -259,6 +259,29 @@ export interface ExternalAgentActivitySidePaneTab {
   sessionId: string;
 }
 
+/**
+ * 某个外部 CLI 会话的完整上下文（只读）。
+ *
+ * 与 `external-agent-activity`（当前这次委派的过程）不同：这里读的是 CLI 自己的
+ * 会话文件，能看到历次委派累积的完整对话。每个 (zcode 会话, 外部会话) 一个 tab。
+ */
+export interface ExternalAgentTranscriptSidePaneTab {
+  id: string;
+  type: "external-agent-transcript";
+  ownerTaskId?: string | null;
+  openedAt?: number;
+  workspaceKey: string;
+  workspacePath: string;
+  workspaceIdentity?: string;
+  remoteSessionId?: string;
+  rootSessionId: string;
+  sessionId: string;
+  /** 要查看的外部 CLI 会话 id。 */
+  externalSessionId: string;
+  /** 菜单里显示过的标题（面板头部回显，避免再查一次）。 */
+  title: string;
+}
+
 export interface SelectionSideChatPaneTab {
   id: string;
   type: "selection-side-chat";
@@ -634,6 +657,7 @@ export type WorkspaceSidePaneTab =
   | SubagentDirectorySidePaneTab
   | OracleReviewSidePaneTab
   | ExternalAgentActivitySidePaneTab
+  | ExternalAgentTranscriptSidePaneTab
   | SelectionSideChatPaneTab
   | PlanDetailSidePaneTab
   | PluginUiSidePaneTab
@@ -1281,6 +1305,7 @@ export function isSidePaneTabVisibleInScope(
     case "subagent-directory":
     case "oracle-review":
     case "external-agent-activity":
+    case "external-agent-transcript":
     case "bash-output":
       return tab.rootSessionId === scope.ownerTaskId;
     case "selection-side-chat":
@@ -2045,6 +2070,64 @@ export function openExternalAgentActivitySidePane(
   const existing = current?.tabs.find(
     (tab): tab is ExternalAgentActivitySidePaneTab =>
       tab.type === "external-agent-activity" && tab.id === nextTab.id,
+  );
+  return activateSidePaneTab(current, existing ? { ...existing, ...nextTab } : nextTab);
+}
+
+export function createExternalAgentTranscriptSidePaneTab(options: {
+  workspaceKey: string;
+  workspacePath: string;
+  workspaceIdentity?: string;
+  remoteSessionId?: string;
+  sessionId: string;
+  externalSessionId: string;
+  title: string;
+}): ExternalAgentTranscriptSidePaneTab {
+  return {
+    // 每 (会话, 外部会话) 唯一：同一段外部历史重复点只激活已有 tab。
+    id: [
+      "external-agent-transcript",
+      encodeSidePaneTabIdPart(options.sessionId),
+      encodeSidePaneTabIdPart(options.externalSessionId),
+    ].join(":"),
+    type: "external-agent-transcript",
+    openedAt: Date.now(),
+    workspaceKey: options.workspaceKey,
+    workspacePath: options.workspacePath,
+    ...(options.workspaceIdentity ? { workspaceIdentity: options.workspaceIdentity } : {}),
+    ...(options.remoteSessionId ? { remoteSessionId: options.remoteSessionId } : {}),
+    rootSessionId: options.sessionId,
+    sessionId: options.sessionId,
+    externalSessionId: options.externalSessionId,
+    title: options.title,
+  };
+}
+
+export interface OpenExternalAgentTranscriptSidePaneRequest {
+  sessionId: string;
+  externalSessionId: string;
+  title: string;
+  workspacePath: string;
+  workspaceIdentity?: string;
+  remoteSessionId?: string;
+}
+
+export function openExternalAgentTranscriptSidePane(
+  current: WorkspaceSidePaneState | null,
+  request: OpenExternalAgentTranscriptSidePaneRequest,
+): WorkspaceSidePaneState {
+  const nextTab = createExternalAgentTranscriptSidePaneTab({
+    workspaceKey: request.workspaceIdentity?.trim() || request.workspacePath,
+    workspacePath: request.workspacePath,
+    ...(request.workspaceIdentity ? { workspaceIdentity: request.workspaceIdentity } : {}),
+    ...(request.remoteSessionId ? { remoteSessionId: request.remoteSessionId } : {}),
+    sessionId: request.sessionId,
+    externalSessionId: request.externalSessionId,
+    title: request.title,
+  });
+  const existing = current?.tabs.find(
+    (tab): tab is ExternalAgentTranscriptSidePaneTab =>
+      tab.type === "external-agent-transcript" && tab.id === nextTab.id,
   );
   return activateSidePaneTab(current, existing ? { ...existing, ...nextTab } : nextTab);
 }

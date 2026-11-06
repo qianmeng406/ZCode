@@ -33,6 +33,10 @@ import {
   type V4ExternalAgentProbeResult,
   type V4ExternalAgentSessionsParams,
   type V4ExternalAgentSessionsResult,
+  type V4ExternalAgentDeleteSessionParams,
+  type V4ExternalAgentDeleteSessionResult,
+  type V4ExternalAgentTranscriptParams,
+  type V4ExternalAgentTranscriptResult,
   type V4ConversationRowsRangeParams,
   type V4ConversationRowsRangeResult,
   type V4ConversationSubscribeResult,
@@ -69,6 +73,8 @@ type ConversationV4AgentService = Pick<
   | "conversationPlansV4"
   | "externalAgentProbeV4"
   | "externalAgentSessionsV4"
+  | "externalAgentDeleteSessionV4"
+  | "externalAgentTranscriptV4"
   | "conversationWorkflowRunEventsV4"
   | "conversationWorkflowRunsV4"
   | "conversationWorkflowRunArtifactsV4"
@@ -465,6 +471,30 @@ export function createAgentConversationTransport(
       return agentService.externalAgentSessionsV4({
         ...workspace,
         sessionId: params.sessionId,
+      });
+    },
+    // 删除一个外部会话：幂等；旧 CLI 不认识这个方法时抛错，UI 隐藏删除入口。
+    async externalAgentDeleteSession(
+      params: V4ExternalAgentDeleteSessionParams,
+    ): Promise<V4ExternalAgentDeleteSessionResult> {
+      await ensureHandshake();
+      return agentService.externalAgentDeleteSessionV4({
+        ...workspace,
+        sessionId: params.sessionId,
+        externalSessionId: params.externalSessionId,
+      });
+    },
+    // 外部会话的完整上下文（分页）：只读查询，落到执行机。
+    async externalAgentTranscript(
+      params: V4ExternalAgentTranscriptParams,
+    ): Promise<V4ExternalAgentTranscriptResult> {
+      await ensureHandshake();
+      return agentService.externalAgentTranscriptV4({
+        ...workspace,
+        sessionId: params.sessionId,
+        externalSessionId: params.externalSessionId,
+        ...(params.before !== undefined ? { before: params.before } : {}),
+        ...(params.limit !== undefined ? { limit: params.limit } : {}),
       });
     },
     // dwf journal 的两个只读查询拆在 agentConversationTransportWorkflowRuns.ts（max-lines 边界）。

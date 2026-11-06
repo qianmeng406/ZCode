@@ -193,6 +193,18 @@ export class ReplaceableConversationTransport implements ConversationTransport {
     return this.current.externalAgentSessions(params);
   }
 
+  externalAgentDeleteSession(
+    params: Parameters<ConversationTransport["externalAgentDeleteSession"]>[0],
+  ): ReturnType<ConversationTransport["externalAgentDeleteSession"]> {
+    return this.current.externalAgentDeleteSession(params);
+  }
+
+  externalAgentTranscript(
+    params: Parameters<ConversationTransport["externalAgentTranscript"]>[0],
+  ): ReturnType<ConversationTransport["externalAgentTranscript"]> {
+    return this.current.externalAgentTranscript(params);
+  }
+
   // workflowRunEvents 是后来（workflow run 事件日志的 RPC）加进 ConversationTransport
   // 的成员，加的时候只落到了具体传输实现上，这个稳定身份漏掉了转发。而 pane 持的正是本对象，
   // 于是走 service proxy 的 pane 上 `transport.workflowRunEvents` 是 undefined——run 详情页

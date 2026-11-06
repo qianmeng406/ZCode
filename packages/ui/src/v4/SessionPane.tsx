@@ -14,6 +14,10 @@ import {
   publishExternalAgentActivity,
   clearExternalAgentActivity,
 } from "@/v4/externalAgent/externalAgentActivityStore.js";
+import {
+  externalAgentTranscriptKey,
+  registerExternalAgentTranscriptLoader,
+} from "@/v4/externalAgent/externalAgentTranscriptStore.js";
 import { resolveSelectionSideInheritedModel } from "@/lib/selectionSideInheritedModel.js";
 import { useStartPlanRecommendation } from "@/hooks/useStartPlanRecommendation.js";
 import type { SessionCreateSource } from "@zcode/shared";
@@ -385,6 +389,7 @@ import type {
   OpenScopedSubagentDirectorySideTabRequest,
   OpenOracleReviewSidePaneRequest,
   OpenExternalAgentActivitySidePaneRequest,
+  OpenExternalAgentTranscriptSidePaneRequest,
   OpenSelectionSideChatRequest,
   SyncSubagentSessionTabsRequest,
   OpenSubagentSideTabRequest,
@@ -488,6 +493,8 @@ export interface SessionPaneProps {
   onOpenOracleReviewPanel?: (request: OpenOracleReviewSidePaneRequest) => void;
   /** 外部 agent 状态卡「查看过程」→ 右侧执行过程面板。 */
   onOpenExternalAgentPanel?: (request: OpenExternalAgentActivitySidePaneRequest) => void;
+  /** 打开某个外部会话的完整上下文面板（侧栏 tab）。 */
+  onOpenExternalAgentTranscript?: (request: OpenExternalAgentTranscriptSidePaneRequest) => void;
   onSyncSubagentSessionTabs?: (request: SyncSubagentSessionTabsRequest) => void;
   onOpenSelectionSideChat?: (request: OpenSelectionSideChatRequest) => void;
   onOpenPlanDetail?: (request: OpenScopedPlanDetailSideTabRequest) => void;
@@ -729,6 +736,7 @@ export function SessionPane({
   onOpenSubagentDirectory,
   onOpenOracleReviewPanel,
   onOpenExternalAgentPanel,
+  onOpenExternalAgentTranscript,
   onSyncSubagentSessionTabs,
   onOpenSelectionSideChat,
   onOpenPlanDetail,
@@ -758,6 +766,8 @@ export function SessionPane({
     fileRewindPreview,
     externalAgentProbe: requestExternalAgentProbe,
     externalAgentSessions: requestExternalAgentSessions,
+    externalAgentDeleteSession: requestExternalAgentDeleteSession,
+    externalAgentTranscript: requestExternalAgentTranscript,
   } = useV4Conversation();
   const platform = useOptionalPlatform();
   const {
@@ -5326,6 +5336,68 @@ export function SessionPane({
     [dispatchCommand, sessionId],
   );
 
+  // 删除一个外部会话：删的是执行机上的会话文件（不可恢复）。
+  // 如果删的正是当前续接目标，顺手清掉绑定——否则下一次委派 `-r` 会指向不存在的会话。
+  const handleDeleteExternalAgentSession = useCallback(
+    async (externalSessionId: string) => {
+      if (!sessionId) return false;
+      try {
+        const result = await requestExternalAgentDeleteSession({ sessionId, externalSessionId });
+        if (
+          result.deleted &&
+          snapshotRef.current?.externalAgent?.externalSessionId === externalSessionId
+        ) {
+          await handleChangeExternalAgentSession(null);
+        }
+        return result.deleted;
+      } catch {
+        return false;
+      }
+    },
+    [handleChangeExternalAgentSession, requestExternalAgentDeleteSession, sessionId],
+  );
+
+  // 打开外部会话的完整上下文：先把 loader 注册到模块级 store（面板挂在壳层，
+  // 拿不到这里的 transport），再开侧栏 tab。
+  const handleOpenExternalAgentSessionTranscript = useCallback(
+    (session: { sessionId: string; title: string }) => {
+      if (!sessionId || !onOpenExternalAgentTranscript) return;
+      const key = externalAgentTranscriptKey(sessionId, session.sessionId);
+      registerExternalAgentTranscriptLoader(key, async (input) => {
+        const page = await requestExternalAgentTranscript({
+          sessionId,
+          externalSessionId: session.sessionId,
+          ...(input.before !== undefined ? { before: input.before } : {}),
+          ...(input.limit !== undefined ? { limit: input.limit } : {}),
+        });
+        return page
+          ? {
+              entries: page.entries,
+              total: page.total,
+              hasMore: page.hasMore,
+              truncated: page.truncated,
+            }
+          : null;
+      });
+      onOpenExternalAgentTranscript({
+        sessionId,
+        externalSessionId: session.sessionId,
+        title: session.title,
+        workspacePath,
+        ...(workspaceIdentity ? { workspaceIdentity } : {}),
+        ...(remoteSessionId ? { remoteSessionId } : {}),
+      });
+    },
+    [
+      onOpenExternalAgentTranscript,
+      remoteSessionId,
+      requestExternalAgentTranscript,
+      sessionId,
+      workspaceIdentity,
+      workspacePath,
+    ],
+  );
+
   // 绑定入口的提交动作。命令面会先把 entry 落盘再切只读，所以这里不做乐观更新：
   // 徽标出现在下一次投影刷新里，与真实状态一致。
   const handleBindExternalAgent = useCallback(
@@ -6596,6 +6668,10 @@ export function SessionPane({
       onChangeExternalAgentEffort={handleChangeExternalAgentEffort}
       onChangeExternalAgentSession={handleChangeExternalAgentSession}
       onLoadExternalAgentSessions={handleLoadExternalAgentSessions}
+      onDeleteExternalAgentSession={handleDeleteExternalAgentSession}
+      {...(onOpenExternalAgentTranscript
+        ? { onOpenExternalAgentSessionTranscript: handleOpenExternalAgentSessionTranscript }
+        : {})}
       externalAgentProbe={externalAgentProbe}
       externalAgentProbing={externalAgentProbing}
       onReprobeExternalAgents={handleReprobeExternalAgents}

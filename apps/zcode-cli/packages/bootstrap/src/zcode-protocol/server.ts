@@ -28,6 +28,8 @@ import {
   parseWorkspaceConfigTopic,
   v4ExternalAgentProbeParamsSchema,
   v4ExternalAgentSessionsParamsSchema,
+  v4ExternalAgentDeleteSessionParamsSchema,
+  v4ExternalAgentTranscriptParamsSchema,
 } from "@zcode/shared/zcode-protocol-v4";
 import type {
   ZCodeProtocolError,
@@ -784,6 +786,36 @@ export class ZCodeProtocolAgentServer {
           );
         }
         return { sessions: await record.app.listExternalAgentSessions() };
+      }
+      // 删除一个外部会话：幂等；缺失能力时明确拒绝（UI 不显示删除入口）。
+      case V4_METHODS.externalAgentDeleteSession: {
+        const params = v4ExternalAgentDeleteSessionParamsSchema.parse(request.params);
+        const record = this.context.sessions.get(params.sessionId);
+        if (!record?.app.deleteExternalAgentSession) {
+          throw new ProtocolRequestError(
+            zcodeProtocolErrorCodes.sessionUnavailable,
+            `External agent session delete unavailable for ${params.sessionId}`,
+          );
+        }
+        return {
+          deleted: await record.app.deleteExternalAgentSession(params.externalSessionId),
+        };
+      }
+      // 外部会话的完整上下文（分页）：只读、无状态；同列表落在执行机上。
+      case V4_METHODS.externalAgentTranscript: {
+        const params = v4ExternalAgentTranscriptParamsSchema.parse(request.params);
+        const record = this.context.sessions.get(params.sessionId);
+        if (!record?.app.readExternalAgentSessionTranscript) {
+          throw new ProtocolRequestError(
+            zcodeProtocolErrorCodes.sessionUnavailable,
+            `External agent transcript unavailable for ${params.sessionId}`,
+          );
+        }
+        return await record.app.readExternalAgentSessionTranscript({
+          externalSessionId: params.externalSessionId,
+          ...(params.before !== undefined ? { before: params.before } : {}),
+          ...(params.limit !== undefined ? { limit: params.limit } : {}),
+        });
       }
       // Oracle 审查记录：会话附属持久化（session entry），CLI 侧按 sessionId 隔离。
       case zcodeProtocolMethods.oracleReviewSaveRecord:

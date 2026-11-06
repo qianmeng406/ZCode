@@ -4,6 +4,7 @@ import { useSortable } from "@dnd-kit/sortable";
 import { CSS } from "@dnd-kit/utilities";
 import {
   ActivityIcon,
+  BookOpenIcon,
   FolderOpenIcon,
   PuzzleIcon,
   BotIcon,
@@ -363,6 +364,11 @@ export function SidePaneTabIcon({ tab }: { tab: WorkspaceSidePaneTab }) {
     return <ActivityIcon className="size-3.5" />;
   }
 
+  // 外部会话上下文：一本"读取历史"的书，与活动面板的"脉冲"区分开。
+  if (tab.type === "external-agent-transcript") {
+    return <BookOpenIcon className="size-3.5" />;
+  }
+
   if (tab.type === "browser") {
     return <BrowserTabFavicon faviconUrl={tab.faviconUrl} />;
   }
@@ -589,6 +595,10 @@ export function getSidePaneTabTitle(
 
   if (tab.type === "external-agent-activity") {
     return formatMessage({ id: "sidePane.externalAgentActivity" });
+  }
+
+  if (tab.type === "external-agent-transcript") {
+    return tab.title || formatMessage({ id: "sidePane.externalAgentTranscript" });
   }
 
   if (tab.type === "browser") {

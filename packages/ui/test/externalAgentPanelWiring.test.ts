@@ -158,6 +158,47 @@ const LINKS: Array<{ file: string; pattern: RegExp; why: string }> = [
     pattern: /upsertRun\(previous\?\.runs \?\? \[\], activity\)/,
     why: "新任务追加一条 run、同任务替换最后一条——面板像会话一样累积，而不是每次清屏",
   },
+  // ── 外部会话的删除与完整上下文（2026-11-06）──
+  {
+    file: "src/v4/composer/ExternalAgentReadOnlyBadge.tsx",
+    pattern: /data-testid="external-agent-session-open"/,
+    why: "续接菜单每行要有「查看会话上下文」入口",
+  },
+  {
+    file: "src/v4/composer/ExternalAgentReadOnlyBadge.tsx",
+    pattern: /data-testid="external-agent-session-delete-confirm"/,
+    why: "删除外部会话是破坏性操作：必须两步确认，不能一次点掉",
+  },
+  {
+    file: "src/v4/composer/ExternalAgentReadOnlyBadge.tsx",
+    pattern: /onDeleteSession|handleDeleteSession/,
+    why: "删除动作接线存在（缺席时入口不渲染）",
+  },
+  {
+    file: "src/app-shell/ExternalAgentTranscriptSidePane.tsx",
+    pattern: /data-testid="external-agent-transcript-panel"/,
+    why: "外部会话上下文面板存在",
+  },
+  {
+    file: "src/app-shell/ExternalAgentTranscriptSidePane.tsx",
+    pattern: /data-testid="external-agent-transcript-load-earlier"/,
+    why: "上下文按需向前翻页（省略策略：只留最近一页 + 加载更早）",
+  },
+  {
+    file: "src/app-shell/AnimatedSidePanePanel.tsx",
+    pattern: /tab\.type === "external-agent-transcript"/,
+    why: "侧栏渲染上下文 tab",
+  },
+  {
+    file: "src/v4/SessionPane.tsx",
+    pattern: /registerExternalAgentTranscriptLoader\(/,
+    why: "打开面板前把 loader 注册进模块级 store（面板拿不到 transport）",
+  },
+  {
+    file: "src/v4/SessionPane.tsx",
+    pattern: /requestExternalAgentDeleteSession\(\{ sessionId, externalSessionId \}\)/,
+    why: "删除走 v4 RPC（删的是执行机上的会话文件）",
+  },
 ];
 
 function readSurface(relativePath: string): string {
