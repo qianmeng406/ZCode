@@ -23,8 +23,12 @@ import { ScrollFadeViewport } from "@/components/ui/scroll-fade-viewport.js";
 import { GenUiMessageResponse } from "@/gen-ui/index.js";
 import { useZCodeIntl } from "@/i18n/IntlProvider.js";
 import type { ExternalAgentTranscriptSidePaneTab } from "@/lib/workspaceSidePane.js";
+import { ToolLayout } from "@/ToolCallBlocks/ToolLayout.js";
 import { ConversationUserInputBubble } from "@/v4/ConversationUserInputBubble.js";
-import { ExternalAgentToolRow } from "@/v4/externalAgent/ExternalAgentToolRow.js";
+import {
+  ExternalAgentToolRow,
+  resolveExternalAgentToolPresentation,
+} from "@/v4/externalAgent/ExternalAgentToolRow.js";
 import {
   externalAgentTranscriptKey,
   getExternalAgentTranscriptState,
@@ -55,8 +59,31 @@ const ClampedBlock = memo(function ClampedBlock({
   const { intl } = useZCodeIntl();
   const [expanded, setExpanded] = useState(false);
   const collapsed = clampable && !expanded;
+  const toggle = (
+    <button
+      type="button"
+      data-testid="external-agent-transcript-clamp-toggle"
+      aria-expanded={expanded}
+      className="flex items-center gap-0.5 rounded px-1 py-0.5 text-ui-xs text-foreground-subtle hover:bg-surface-hover hover:text-foreground"
+      onClick={() => setExpanded((value) => !value)}
+    >
+      {expanded ? <ChevronUpIcon className="size-3" /> : <ChevronDownIcon className="size-3" />}
+      {intl.formatMessage({
+        id: expanded
+          ? "chat.externalAgent.transcript.collapse"
+          : "chat.externalAgent.transcript.expand",
+      })}
+    </button>
+  );
   return (
     <div className="relative" data-testid={testId}>
+      {/* 展开后正文可能有上千像素高：收起按钮必须粘在块顶部。曾经把它只放在块尾，
+          展开一段长正文后按钮被推到很远，用户以为「展开就收不回去」。 */}
+      {expanded ? (
+        <div className="sticky top-0 z-10 -mx-1 mb-1 flex bg-background/95 px-1 py-0.5 backdrop-blur">
+          {toggle}
+        </div>
+      ) : null}
       <div
         className={collapsed ? "overflow-hidden" : undefined}
         style={collapsed ? { maxHeight: `${CLAMPED_MAX_HEIGHT_PX}px` } : undefined}
@@ -66,42 +93,93 @@ const ClampedBlock = memo(function ClampedBlock({
       {collapsed ? (
         <div className="pointer-events-none absolute inset-x-0 bottom-0 h-10 bg-gradient-to-t from-background to-transparent" />
       ) : null}
-      {clampable ? (
-        <button
-          type="button"
-          className="mt-1 flex items-center gap-0.5 rounded px-1 py-0.5 text-ui-xs text-foreground-subtle hover:bg-surface-hover hover:text-foreground"
-          onClick={() => setExpanded((value) => !value)}
-        >
-          {expanded ? <ChevronUpIcon className="size-3" /> : <ChevronDownIcon className="size-3" />}
-          {intl.formatMessage({
-            id: expanded
-              ? "chat.externalAgent.transcript.collapse"
-              : "chat.externalAgent.transcript.expand",
-          })}
-        </button>
-      ) : null}
+      {clampable && !expanded ? <div className="mt-1 flex">{toggle}</div> : null}
     </div>
   );
 });
 
+/** CLI 把工具结果包在 `{"result": "..."}` 里（REPL 一族）。 */
+const TOOL_RESULT_WRAPPER = /^\{\s*"(?:result|text|output|stdout|content|message)"\s*:\s*"/u;
+const TOOL_RESULT_KEYS = ["result", "text", "output", "stdout", "content", "message"] as const;
+
+/**
+ * 剥掉 CLI 的结果包装，拿到正文。
+ *
+ * 先按前缀剥壳：解析器把过长的结果截断成 `...…`，末尾不是 `"}`，JSON.parse 直接失败，
+ * 按前缀切就是唯一稳的路径。没包装的才尝试整段 JSON。
+ */
+function unwrapToolResult(text: string): string {
+  const trimmed = text.trim();
+  const wrapper = TOOL_RESULT_WRAPPER.exec(trimmed);
+  if (wrapper) {
+    return trimmed
+      .slice(wrapper[0].length)
+      .replace(/(?:"\s*\}?|…)\s*$/u, "")
+      .replace(/\\"/gu, '"');
+  }
+  if (trimmed.startsWith("{") || trimmed.startsWith("[")) {
+    try {
+      const parsed: unknown = JSON.parse(trimmed);
+      if (parsed && typeof parsed === "object" && !Array.isArray(parsed)) {
+        const record = parsed as Record<string, unknown>;
+        for (const key of TOOL_RESULT_KEYS) {
+          const value = record[key];
+          if (typeof value === "string" && value.trim()) return value;
+        }
+      }
+    } catch {
+      // 不是合法 JSON（半个事件/纯文本）：按原文展示。
+    }
+  }
+  return text;
+}
+
+/**
+ * 结果行的摘要：一行人类可读的文本。
+ *
+ * 直接把原文首行拿来当摘要，用户看到的是 `{"result":"total 1285\ndrwxr-xr-x...`。
+ * 所以：先剥包装，再把换行/转义换行压成空格。
+ */
+function toolResultPreview(text: string): string {
+  // 摘要是一行：换行压成空格，长内容由 CSS 截断（这里先砍到 160 字，
+  // 避免把整段输出拼进 title/aria 属性）。
+  return unwrapToolResult(text).replace(/\\n/gu, " ").replace(/\s+/gu, " ").trim().slice(0, 160);
+}
+
 const ToolResultBlock = memo(function ToolResultBlock({
   entry,
+  rowKey,
 }: {
   entry: ExternalAgentTranscriptEntry;
+  rowKey: string;
 }) {
+  const { intl } = useZCodeIntl();
+  const toolName = entry.name ?? "tool";
+  const presentation = resolveExternalAgentToolPresentation(toolName, (id) =>
+    intl.formatMessage({ id }),
+  );
+  const preview = toolResultPreview(entry.text);
+  // 工具结果默认收起（与会话里的工具详情一致）：81 条历史里终端输出占大头，
+  // 全摊开就是一面滚不完的日志墙。点行展开、再点收起，摘要行始终在内容上方。
   return (
-    <div
-      className="rounded-lg border border-border/60 bg-surface/60 px-3 py-2"
-      data-testid="external-agent-transcript-tool-result"
-    >
-      {entry.name ? (
-        <div className="mb-1 text-ui-xs font-medium text-foreground-subtle">{entry.name}</div>
-      ) : null}
-      <ClampedBlock clampable={shouldClamp(entry)} testId="external-agent-transcript-tool-output">
-        <pre className="whitespace-pre-wrap break-words font-mono text-ui-xs leading-relaxed text-foreground-subtle">
-          {entry.text}
-        </pre>
-      </ClampedBlock>
+    <div data-testid="external-agent-transcript-tool-result">
+      <ToolLayout
+        toolId={`external-agent-transcript-tool-result-${rowKey}`}
+        icon={presentation.icon}
+        kindLabel={presentation.kindLabel}
+        primaryText={
+          <span className="min-w-0 truncate text-foreground-subtle" title={preview}>
+            {preview}
+          </span>
+        }
+        prioritizePrimaryText
+        title={preview}
+        content={
+          <pre className="max-h-[60vh] overflow-auto whitespace-pre-wrap break-words rounded-lg border border-border/60 bg-surface/60 p-3 font-mono text-ui-xs leading-relaxed text-foreground-subtle">
+            {entry.text}
+          </pre>
+        }
+      />
     </div>
   );
 });
@@ -301,7 +379,9 @@ export function ExternalAgentTranscriptSidePane({
                 );
               }
               if (entry.kind === "tool_result") {
-                return <ToolResultBlock key={entryKey} entry={entry} />;
+                return (
+                  <ToolResultBlock key={entryKey} entry={entry} rowKey={`${key}:${entryKey}`} />
+                );
               }
               return (
                 <div key={entryKey} data-testid="external-agent-transcript-assistant">

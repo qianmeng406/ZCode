@@ -8,7 +8,7 @@
 // - 模型探测失败 = 空清单 → 对话框退回自由输入，不把"猜不到"呈现成"没有模型"。
 import type { ExecutionPort } from "@zcode/contracts";
 import {
-  EXTERNAL_AGENT_PRESETS,
+  EXTERNAL_AGENT_BINDABLE_PRESETS,
   cwdToProjectDirName,
   parseClaudeFamilyTranscript,
   parseModelCatalogFromProductJson,
@@ -277,16 +277,21 @@ async function probePreset(
 }
 
 /**
- * 探测全部内置预设。
+ * 探测全部**可绑定**预设（`adaptation === "full"`）。
  *
- * 并发探测：三条命令互不依赖，串行会让对话框打开慢 3 倍。
+ * 半适配的预设不进探测：列表里没有它，探测它的版本/模型就没有意义，还会让
+ * 对话框多出几条"看起来能选、选了半残"的选项。
+ *
+ * 并发探测：几条命令互不依赖，串行会让对话框打开慢 N 倍。
  */
 export async function probeExternalAgents(options: {
   executionPort: ExecutionPort;
   cwd: string;
 }): Promise<ExternalAgentProbeResult> {
   const agents = await Promise.all(
-    EXTERNAL_AGENT_PRESETS.map((preset) => probePreset(options.executionPort, preset, options.cwd)),
+    EXTERNAL_AGENT_BINDABLE_PRESETS.map((preset) =>
+      probePreset(options.executionPort, preset, options.cwd),
+    ),
   );
   return { agents };
 }

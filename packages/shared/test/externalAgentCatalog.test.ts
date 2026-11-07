@@ -1,6 +1,7 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 import {
+  EXTERNAL_AGENT_BINDABLE_PRESETS,
   EXTERNAL_AGENT_PRESETS,
   findExternalAgentPreset,
   parseModelCatalogFromProductJson,
@@ -40,6 +41,21 @@ test("findExternalAgentPreset: 命中已知 id，未知/空返回 undefined", ()
   assert.equal(findExternalAgentPreset("codebuddy")?.command, "codebuddy");
   assert.equal(findExternalAgentPreset("nope"), undefined);
   assert.equal(findExternalAgentPreset(undefined), undefined);
+});
+
+test("EXTERNAL_AGENT_BINDABLE_PRESETS: 只列完整适配的", () => {
+  // 绑定列表的准入条件只有一个：调用形状 + 流式过程 + 模型目录 + 会话落盘都实测过。
+  // codex / claude-code 目前只验证过最基本的调用形状，列出来用户会以为能完整用。
+  assert.deepEqual(
+    EXTERNAL_AGENT_BINDABLE_PRESETS.map((preset) => preset.id),
+    ["codebuddy"],
+  );
+  // 目录里不删它们：老绑定还要靠 findExternalAgentPreset 回显 label 与调用参数。
+  for (const id of ["claude-code", "codex"]) {
+    const preset = findExternalAgentPreset(id);
+    assert.ok(preset);
+    assert.equal(preset.adaptation, "partial");
+  }
 });
 
 test("codex 预设用 codex-exec 族与 exec 子命令", () => {

@@ -184,6 +184,22 @@ const LINKS: Array<{ file: string; pattern: RegExp; why: string }> = [
     pattern: /data-testid="external-agent-transcript-load-earlier"/,
     why: "上下文按需向前翻页（省略策略：只留最近一页 + 加载更早）",
   },
+  // ── 折叠语义（2026-11-07 实测反馈）──
+  {
+    file: "src/app-shell/ExternalAgentTranscriptSidePane.tsx",
+    pattern: /<ToolLayout[\s\S]{0,600}external-agent-transcript-tool-result/,
+    why: "工具结果用会话同款工具行渲染：默认收起成一行摘要，点行展开/收起",
+  },
+  {
+    file: "src/app-shell/ExternalAgentTranscriptSidePane.tsx",
+    pattern: /data-testid="external-agent-transcript-clamp-toggle"/,
+    why: "长正文要能显式收起，不能给一个只能展开的按钮",
+  },
+  {
+    file: "src/app-shell/ExternalAgentTranscriptSidePane.tsx",
+    pattern: /sticky top-0/,
+    why: "展开后收起按钮粘在块顶：正文上千像素高时按钮不能跟着跑到块尾",
+  },
   {
     file: "src/app-shell/AnimatedSidePanePanel.tsx",
     pattern: /tab\.type === "external-agent-transcript"/,
@@ -198,6 +214,11 @@ const LINKS: Array<{ file: string; pattern: RegExp; why: string }> = [
     file: "src/v4/SessionPane.tsx",
     pattern: /requestExternalAgentDeleteSession\(\{ sessionId, externalSessionId \}\)/,
     why: "删除走 v4 RPC（删的是执行机上的会话文件）",
+  },
+  {
+    file: "../../apps/zcode-cli/packages/bootstrap/src/zcode-protocol/external-agent-probe.ts",
+    pattern: /EXTERNAL_AGENT_BINDABLE_PRESETS/,
+    why: "绑定候选只探测完整适配的预设：半适配的 CLI 不该出现在「选一个 agent」列表里",
   },
 ];
 

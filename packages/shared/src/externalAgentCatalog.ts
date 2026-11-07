@@ -50,6 +50,21 @@ export const externalAgentPresetSchema = z.object({
   label: z.string().min(1),
   /** 一句话说明（对话框副标题）。 */
   description: z.string().min(1),
+  /**
+   * 适配完成度。
+   *
+   * - `full`：调用形状、流式过程、模型目录、会话落盘扫描都实测过，绑定后能完整用起来
+   *   （活动卡实时过程 + 续接列表 + 上下文面板 + 删除）；
+   * - `partial`：只验证过最基本的调用形状，模型/档位/过程流对不齐，**不进绑定列表**
+   *   （用户选了只会得到一个看起来能用、实际半残的绑定）。
+   *
+   * 仍然留在目录里：老绑定还需要 `findExternalAgentPreset` 回显 label。
+   *
+   * 缺省 `full` 是**线上兼容**取向的：探测结果会过一遍这个 schema，旧执行机的
+   * payload 没有这个字段，缺省成 `partial` 会让新 UI 一条预设都列不出来；
+   * 缺省成 `full` 则退回"全都列"的旧行为，不会比今天更差。
+   */
+  adaptation: z.enum(["full", "partial"]).default("full"),
   driver: z.enum(["claude-family", "codex-exec", "generic-template"]),
   command: z.string().min(1),
   /** 不含 prompt 的固定前缀参数。 */
@@ -167,6 +182,7 @@ export const EXTERNAL_AGENT_PRESETS: readonly ExternalAgentPreset[] = [
     id: "claude-code",
     label: "Claude Code",
     description: "Anthropic 官方 CLI，参数与 codebuddy 同构。",
+    adaptation: "partial",
     driver: "claude-family",
     command: "claude",
     // stream-json：逐事件输出，活动卡才能实时展示"正在跑什么命令"。
@@ -184,6 +200,7 @@ export const EXTERNAL_AGENT_PRESETS: readonly ExternalAgentPreset[] = [
     id: "codebuddy",
     label: "CodeBuddy",
     description: "腾讯 CodeBuddy CLI（WorkBuddy 桌面版内置同一 CLI）。",
+    adaptation: "full",
     driver: "claude-family",
     command: "codebuddy",
     // stream-json：逐事件输出，活动卡才能实时展示"正在跑什么命令"。
@@ -201,6 +218,7 @@ export const EXTERNAL_AGENT_PRESETS: readonly ExternalAgentPreset[] = [
     id: "codex",
     label: "Codex CLI",
     description: "OpenAI Codex CLI，非交互入口为 `codex exec`。",
+    adaptation: "partial",
     driver: "codex-exec",
     command: "codex",
     args: ["exec"],
@@ -218,6 +236,15 @@ export function findExternalAgentPreset(id: string | undefined): ExternalAgentPr
   if (!id) return undefined;
   return EXTERNAL_AGENT_PRESETS.find((preset) => preset.id === id);
 }
+
+/**
+ * 可供绑定的预设（`adaptation === "full"`）。
+ *
+ * 绑定对话框与探测只认这一份：半适配的预设留在目录里只是为了老绑定还能回显，
+ * 摆进"选一个 agent"列表会让用户以为它能用。
+ */
+export const EXTERNAL_AGENT_BINDABLE_PRESETS: readonly ExternalAgentPreset[] =
+  EXTERNAL_AGENT_PRESETS.filter((preset) => preset.adaptation === "full");
 
 /**
  * 一个预设在本机探测到的状态。

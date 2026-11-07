@@ -62,6 +62,24 @@ const FALLBACK_PRESENTATION: ToolRowPresentation = {
   kindLabelId: null,
 };
 
+/**
+ * 工具行的图标与文案（Read → 「读取」、Bash → 「终端」…）。
+ *
+ * 导出的原因：上下文面板里的工具**结果**行要和工具调用行长得一样，同一种工具
+ * 在两个地方用两套图标会让人以为是不同的东西。
+ */
+export function resolveExternalAgentToolPresentation(
+  toolName: string,
+  formatKindLabel: (id: string) => string,
+): { icon: ReactNode; kindLabel: string } {
+  const presentation = TOOL_ROW_PRESENTATION[toolName] ?? FALLBACK_PRESENTATION;
+  return {
+    icon: presentation.icon,
+    kindLabel:
+      presentation.kindLabelId === null ? toolName : formatKindLabel(presentation.kindLabelId),
+  };
+}
+
 /** `Bash: ls src` → `{ toolName: "Bash", target: "ls src" }`；没有详情时 target 为空。 */
 export function splitExternalAgentToolText(text: string): { toolName: string; target: string } {
   const separator = text.indexOf(": ");
@@ -84,10 +102,9 @@ export function ExternalAgentToolRow({
   const { intl } = useZCodeIntl();
   const { toolName, target } = splitExternalAgentToolText(text);
   const presentation = TOOL_ROW_PRESENTATION[toolName] ?? FALLBACK_PRESENTATION;
-  const kindLabel =
-    presentation.kindLabelId === null
-      ? toolName
-      : intl.formatMessage({ id: presentation.kindLabelId });
+  const kindLabel = resolveExternalAgentToolPresentation(toolName, (id) =>
+    intl.formatMessage({ id }),
+  ).kindLabel;
 
   if (toolName === "Read" && target) {
     const descriptor = resolveFileDisplayDescriptor(
