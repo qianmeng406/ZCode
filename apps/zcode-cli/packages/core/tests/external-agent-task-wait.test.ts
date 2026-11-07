@@ -11,6 +11,7 @@ import {
   GET_EXTERNAL_AGENT_TASK_TOOL_NAME,
   MAX_EXTERNAL_AGENT_WAIT_SECONDS,
   getExternalAgentTaskResultToolEntry,
+  startExternalAgentTaskToolEntry,
 } from "../src/tool/handlers/external-agent-tasks.js";
 
 const entry = getExternalAgentTaskResultToolEntry;
@@ -156,5 +157,28 @@ describe("GetExternalAgentTaskResult handler", () => {
       waitedMs: 60_000,
     });
     expect(text).toContain("已等待 60s");
+  });
+});
+
+describe("StartExternalAgentTask 的结果指引", () => {
+  // 工具都是 shouldDefer（按需加载 schema），modelInstructions 在模型发起委派时
+  // 不一定进过上下文——实测它仍然去 Bash sleep 45。下一步指令必须写在结果文本里。
+  const format = startExternalAgentTaskToolEntry.formatModelContent;
+
+  it("结果文本带下一步等待指令（工具名 + taskId + 不要 sleep）", () => {
+    const text = format?.({ taskId: "ext_1", status: "running" });
+    expect(text).toContain("GetExternalAgentTaskResult");
+    expect(text).toContain("ext_1");
+    expect(text).toMatch(/不要用 Bash sleep/);
+  });
+
+  it("handler 启动后台任务并返回 taskId", async () => {
+    const start = vi.fn(async () => ({ taskId: "ext_9" }));
+    const result = (await startExternalAgentTaskToolEntry.handler(
+      { task: "做点事" },
+      makeContext({ start }),
+    )) as { taskId?: string; status?: string };
+    expect(result).toEqual({ taskId: "ext_9", status: "running" });
+    expect(start).toHaveBeenCalledTimes(1);
   });
 });

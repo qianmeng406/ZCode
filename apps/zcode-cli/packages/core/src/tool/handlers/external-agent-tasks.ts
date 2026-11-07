@@ -236,7 +236,15 @@ export const startExternalAgentTaskToolEntry: ToolEntry = {
   handler: startHandler,
   formatModelContent: (output) => {
     const record = output as { taskId?: string };
-    return `已启动外部 agent 后台任务：${record.taskId ?? "(未知)"}`;
+    const taskId = record.taskId ?? "(未知)";
+    // 这段是模型决定"怎么等"的时刻唯一可靠读到的文本：工具都是 shouldDefer
+    // （按需加载 schema），metadata.modelInstructions 在它发起委派时不一定进过上下文
+    // ——实测（2026-11-07）模型仍然去 Bash sleep 45。下一步指令必须写在结果里。
+    return [
+      `已启动外部 agent 后台任务：${taskId}`,
+      `下一步：调用 GetExternalAgentTaskResult({ "taskId": "${taskId}" }) 等它结束——该调用会阻塞到任务收口并直接返回报告（一轮最多等 60s，没等完就再调一次）。`,
+      "不要用 Bash sleep 等待，也不要重复委派；等待期间可以先做其他只读工作。",
+    ].join("\n");
   },
   inputSchema: {
     type: "object",
