@@ -384,6 +384,72 @@ describe("外部 agent 续接与后台任务", () => {
     ).toBeUndefined();
   });
 
+  it("后台任务：wait 在任务收口当刻返回，不等满超时", async () => {
+    const { createExternalAgentPort } =
+      await import("../src/zcode-protocol/external-agent-port-impl.js");
+    // 30ms 结束的任务：如果 wait 是按超时 sleep，这里会等满 5s。
+    const run = vi.fn(
+      () =>
+        new Promise((resolve) => {
+          setTimeout(
+            () =>
+              resolve({
+                streams: { stdout: { text: stdoutWithSession("sess-1") }, stderr: { text: "" } },
+                exitCode: 0,
+              }),
+            30,
+          );
+        }),
+    );
+    const port = createExternalAgentPort({
+      executionPort: { run } as never,
+      readBinding: async () => claudeFamily,
+    });
+    const { taskId } = await port.start!({ sessionId: "s" as never, task: "短任务", cwd: "/tmp" });
+    const startedAt = Date.now();
+    const snapshot = await port.wait!(taskId, { timeoutMs: 5_000 });
+    const elapsed = Date.now() - startedAt;
+    expect(snapshot).toMatchObject({ taskId, status: "completed" });
+    expect(elapsed).toBeLessThan(2_000);
+  });
+
+  it("后台任务：wait 超时返回 running 快照（不丢任务）", async () => {
+    const { createExternalAgentPort } =
+      await import("../src/zcode-protocol/external-agent-port-impl.js");
+    const run = vi.fn(
+      () =>
+        new Promise((resolve) => {
+          setTimeout(
+            () =>
+              resolve({
+                streams: { stdout: { text: stdoutWithSession("sess-1") }, stderr: { text: "" } },
+                exitCode: 0,
+              }),
+            200,
+          );
+        }),
+    );
+    const port = createExternalAgentPort({
+      executionPort: { run } as never,
+      readBinding: async () => claudeFamily,
+    });
+    const { taskId } = await port.start!({ sessionId: "s" as never, task: "长任务", cwd: "/tmp" });
+    const snapshot = await port.wait!(taskId, { timeoutMs: 10 });
+    expect(snapshot).toMatchObject({ taskId, status: "running" });
+    // 超时只结束这一次等待：任务本身没被取消，随后还能等到它收口。
+    expect(await port.wait!(taskId, { timeoutMs: 5_000 })).toMatchObject({ status: "completed" });
+  });
+
+  it("后台任务：wait 未知 taskId 返回 undefined", async () => {
+    const { createExternalAgentPort } =
+      await import("../src/zcode-protocol/external-agent-port-impl.js");
+    const port = createExternalAgentPort({
+      executionPort: { run: vi.fn() } as never,
+      readBinding: async () => claudeFamily,
+    });
+    expect(await port.wait!("nope")).toBeUndefined();
+  });
+
   it("后台任务：取消后状态为 cancelled", async () => {
     const { createExternalAgentPort } =
       await import("../src/zcode-protocol/external-agent-port-impl.js");

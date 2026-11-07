@@ -239,6 +239,34 @@ export function createExternalAgentPort(
       return task ? snapshot(task) : undefined;
     },
 
+    async wait(taskId, options = {}) {
+      const task = tasks.get(taskId);
+      if (!task) return undefined;
+      if (task.settledAt !== undefined) return snapshot(task);
+      const { timeoutMs, signal } = options;
+      if (timeoutMs !== undefined && timeoutMs <= 0) return snapshot(task);
+
+      // 事件驱动：任务收口的那一刻返回，不按固定节拍采样。
+      // 三条退出路径（收口 / 超时 / 调用方取消）都只 resolve 一次，拿到的都是最新快照。
+      await new Promise<void>((resolve) => {
+        let settled = false;
+        let timer: ReturnType<typeof setTimeout> | undefined;
+        const finish = () => {
+          if (settled) return;
+          settled = true;
+          if (timer !== undefined) clearTimeout(timer);
+          signal?.removeEventListener("abort", finish);
+          resolve();
+        };
+        task.promise.then(finish, finish);
+        if (timeoutMs !== undefined) timer = setTimeout(finish, timeoutMs);
+        signal?.addEventListener("abort", finish, { once: true });
+        // 注册监听之前就已经取消/收口的情况。
+        if (signal?.aborted === true) finish();
+      });
+      return snapshot(task);
+    },
+
     async cancel(taskId) {
       const task = tasks.get(taskId);
       if (!task || task.settledAt !== undefined) return undefined;

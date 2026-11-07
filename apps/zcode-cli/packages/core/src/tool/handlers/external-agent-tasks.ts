@@ -9,10 +9,11 @@
 // - 取结果是幂等的：完成前后都可以查，完成后重复查结果不变；
 // - 取消尽力而为：取消后立即返回 cancelled 快照，进程由 ExecutionPort 终止。
 import { CoreErrorType, createCoreError } from "@zcode/contracts";
-import type { ExternalAgentTaskSnapshot } from "@zcode/contracts";
+import type { ExternalAgentPort, ExternalAgentTaskSnapshot } from "@zcode/contracts";
 import { z } from "zod";
 import type { ToolEntry, ToolHandler } from "../types.js";
 import { createExternalAgentProgressEmitter } from "./external-agent-progress.js";
+import { waitForExternalAgentTask } from "./external-agent-wait.js";
 import {
   createExternalAgentActivityReporter,
   publishExternalAgentTaskStatus,
@@ -21,6 +22,18 @@ import {
 export const START_EXTERNAL_AGENT_TASK_TOOL_NAME = "StartExternalAgentTask";
 export const GET_EXTERNAL_AGENT_TASK_TOOL_NAME = "GetExternalAgentTaskResult";
 export const CANCEL_EXTERNAL_AGENT_TASK_TOOL_NAME = "CancelExternalAgentTask";
+
+/**
+ * 缺省阻塞等待时长：任务先结束就立刻返回，到点仍在跑就返回 running 快照。
+ *
+ * 这是为了根除「poll → sleep 60s → poll」的瞎等：那个 sleep 与任务何时结束无关，
+ * 任务第 5 秒结束主 agent 也要睡满，反之任务跑了 61 秒就必然多等一轮。
+ */
+export const DEFAULT_EXTERNAL_AGENT_WAIT_SECONDS = 60;
+/** 单次等待上限（再长就分多轮，让模型有机会重新判断要不要继续等）。 */
+export const MAX_EXTERNAL_AGENT_WAIT_SECONDS = 240;
+/** 等待之外留给端口/序列化的预算。 */
+const WAIT_TIMEOUT_MARGIN_MS = 20_000;
 
 const startInputSchema = z
   .object({
@@ -36,6 +49,14 @@ const pollInputSchema = z
   .object({
     /** 缺省 = 列出本会话全部任务状态。 */
     taskId: z.string().min(1).max(200).optional(),
+    /**
+     * 阻塞等待秒数：任务收口立即返回；到点仍在跑则返回 running 快照。
+     *
+     * - 缺省 `DEFAULT_EXTERNAL_AGENT_WAIT_SECONDS`（60s）：一次调用就等它一会儿，
+     *   结束得早也就早返回——这就是 sleep 的替代品；
+     * - `0` = 只看一眼立刻返回（还想先做别的只读工作、回来再等时用）。
+     */
+    waitSeconds: z.number().int().min(0).max(MAX_EXTERNAL_AGENT_WAIT_SECONDS).optional(),
   })
   .strict();
 
@@ -100,23 +121,42 @@ const pollHandler: ToolHandler = async (input, context) => {
   const parsed = pollInputSchema.parse(input);
   const port = requirePort(context, GET_EXTERNAL_AGENT_TASK_TOOL_NAME);
   if (parsed.taskId) {
-    if (!port.poll) {
+    const waitMs = (parsed.waitSeconds ?? DEFAULT_EXTERNAL_AGENT_WAIT_SECONDS) * 1_000;
+    if (waitMs > 0) {
+      if (!port.wait && !port.poll) {
+        throw createCoreError(CoreErrorType.ToolExecutionFailed, "当前执行端不支持后台任务查询", {
+          context: { toolCallId: context.toolCallId },
+          recoverable: false,
+        });
+      }
+    } else if (!port.poll) {
       throw createCoreError(CoreErrorType.ToolExecutionFailed, "当前执行端不支持后台任务查询", {
         context: { toolCallId: context.toolCallId },
         recoverable: false,
       });
     }
-    const snapshot = await port.poll(parsed.taskId);
+    const startedAt = Date.now();
+    const snapshot = await waitForExternalAgentTask(
+      port,
+      parsed.taskId,
+      waitMs,
+      context.abortSignal,
+    );
     if (!snapshot) {
-      throw createCoreError(CoreErrorType.ToolExecutionFailed, `未知的外部 agent 任务：${parsed.taskId}`, {
-        context: { toolCallId: context.toolCallId },
-        recoverable: true,
-      });
+      throw createCoreError(
+        CoreErrorType.ToolExecutionFailed,
+        `未知的外部 agent 任务：${parsed.taskId}`,
+        {
+          context: { toolCallId: context.toolCallId },
+          recoverable: true,
+        },
+      );
     }
     // 轮询观察到终态时顺便把活动卡收口：发起委派的工具早已返回，
     // 它的 reporter 不再有机会把状态从 running 推进到 completed。
     syncActivityFromSnapshot(context, snapshot);
-    return snapshot;
+    // waitedMs 让模型知道"这次是真等了一会儿还是立刻返回"，避免它再去 sleep 补时间。
+    return { ...snapshot, waitedMs: Date.now() - startedAt };
   }
   const list = (await port.list?.(String(context.sessionId))) ?? [];
   return {
@@ -185,7 +225,7 @@ export const startExternalAgentTaskToolEntry: ToolEntry = {
     modelInstructions: [
       "Use this instead of DelegateToExternalAgent when the work may take more than a couple of minutes.",
       "Put the complete task in `task`; the external agent does not see this conversation.",
-      "After starting, do other read-only work and poll with GetExternalAgentTaskResult.",
+      "Then call GetExternalAgentTaskResult with the taskId: it returns the moment the task settles (no sleep needed).",
       "Set continuation=fresh when the task is unrelated to the previous delegation.",
     ],
     concurrentSafe: false,
@@ -232,7 +272,12 @@ export const startExternalAgentTaskToolEntry: ToolEntry = {
   resultBudget: { maxInlineBytes: 8_000, maxModelBytes: 8_000, strategy: "truncate" },
   timeout: { defaultMs: 30_000, maxMs: 60_000, allowCallOverride: false },
   cancellation: { supported: true, cleanup: "none", userVisibleMessage: "启动后台委派已取消" },
-  trace: { required: true, propagateToAdapters: true, recordInput: "summary", recordOutput: "summary" },
+  trace: {
+    required: true,
+    propagateToAdapters: true,
+    recordInput: "summary",
+    recordOutput: "summary",
+  },
 };
 
 export const getExternalAgentTaskResultToolEntry: ToolEntry = {
@@ -241,9 +286,11 @@ export const getExternalAgentTaskResultToolEntry: ToolEntry = {
     ...COMMON_METADATA,
     name: GET_EXTERNAL_AGENT_TASK_TOOL_NAME,
     description:
-      "Poll a background external-agent task, or list this session's tasks when taskId is omitted.",
+      "Wait for a background external-agent task to settle (or list this session's tasks when taskId is omitted).",
     modelInstructions: [
-      "Poll sparingly (every 30-60s). running means keep doing other work.",
+      "Pass taskId: the call blocks until the task settles or waitSeconds elapses, then returns the snapshot.",
+      "waitSeconds defaults to 60 and is capped at 240; pass 0 to peek without blocking.",
+      "Never sleep in Bash to wait for a delegation — call this instead; it returns the moment the task finishes.",
       "When status is completed, the outcome.text holds the external agent's report.",
       "Omit taskId to list all tasks started in this session.",
     ],
@@ -258,6 +305,7 @@ export const getExternalAgentTaskResultToolEntry: ToolEntry = {
       taskId?: string;
       status?: string;
       durationMs?: number;
+      waitedMs?: number;
       outcome?: { text?: string; isError?: boolean; changes?: { files?: unknown[] } };
       tasks?: unknown[];
     };
@@ -273,11 +321,25 @@ export const getExternalAgentTaskResultToolEntry: ToolEntry = {
     }
     const header = `外部 agent 任务 ${record.taskId ?? "?"}：${record.status ?? "?"}（${record.durationMs ?? 0}ms）`;
     const body = record.outcome?.text?.trim();
-    return body ? `${header}\n\n${body}` : header;
+    if (body) return `${header}\n\n${body}`;
+    // 等过一轮仍在跑：明确告诉模型"已经等过了，不是没等"，它不该再用 sleep 补时间。
+    if (record.status === "running" && (record.waitedMs ?? 0) > 0) {
+      return `${header}\n\n已等待 ${Math.round((record.waitedMs ?? 0) / 1_000)}s，任务仍在运行。可以直接再次调用等待，或先做其他工作。`;
+    }
+    return header;
   },
   inputSchema: {
     type: "object",
-    properties: { taskId: { type: "string", description: "Omit to list all tasks." } },
+    properties: {
+      taskId: { type: "string", description: "Omit to list all tasks." },
+      waitSeconds: {
+        type: "integer",
+        minimum: 0,
+        maximum: MAX_EXTERNAL_AGENT_WAIT_SECONDS,
+        description:
+          "Block until the task settles or this many seconds elapse. Default 60. 0 = return immediately.",
+      },
+    },
     additionalProperties: false,
   },
   outputSchema: {
@@ -286,6 +348,7 @@ export const getExternalAgentTaskResultToolEntry: ToolEntry = {
       taskId: { type: "string" },
       status: { type: "string" },
       durationMs: { type: "integer" },
+      waitedMs: { type: "integer" },
       outcome: { type: "object" },
       tasks: { type: "array", items: { type: "object" } },
     },
@@ -300,6 +363,8 @@ export const getExternalAgentTaskResultToolEntry: ToolEntry = {
         sessionId: z.string(),
         status: z.enum(["running", "completed", "failed", "cancelled"]),
         durationMs: z.number().int(),
+        /** 这次调用实际阻塞了多久（0 = 立刻返回）。 */
+        waitedMs: z.number().int().nonnegative().optional(),
         outcome: z.unknown().optional(),
       })
       .strict(),
@@ -328,9 +393,37 @@ export const getExternalAgentTaskResultToolEntry: ToolEntry = {
     denyPriority: "beforeAsk",
   },
   resultBudget: { maxInlineBytes: 128_000, maxModelBytes: 128_000, strategy: "truncate" },
-  timeout: { defaultMs: 15_000, maxMs: 30_000, allowCallOverride: false },
-  cancellation: { supported: false, cleanup: "none", userVisibleMessage: "查询不可取消" },
-  trace: { required: true, propagateToAdapters: true, recordInput: "summary", recordOutput: "summary" },
+  // 等待是入参决定的：预算必须覆盖 waitSeconds，否则工具会在自己等待的过程中被
+  // executor 的超时打断，模型拿到的是失败而不是"还在跑"。
+  timeout: {
+    defaultMs: 15_000,
+    maxMs: MAX_EXTERNAL_AGENT_WAIT_SECONDS * 1_000 + WAIT_TIMEOUT_MARGIN_MS,
+    allowCallOverride: false,
+  },
+  resolveTimeoutBudgetMs: (input) => {
+    if (!input || typeof input !== "object") return undefined;
+    const record = input as { taskId?: unknown; waitSeconds?: unknown };
+    // 列表形态不等待，沿用默认预算。
+    if (typeof record.taskId !== "string" || record.taskId.length === 0) return undefined;
+    const seconds =
+      typeof record.waitSeconds === "number"
+        ? record.waitSeconds
+        : DEFAULT_EXTERNAL_AGENT_WAIT_SECONDS;
+    const clamped = Math.min(Math.max(seconds, 0), MAX_EXTERNAL_AGENT_WAIT_SECONDS);
+    return clamped * 1_000 + WAIT_TIMEOUT_MARGIN_MS;
+  },
+  // 等待可以被用户打断（停止生成 / 取消）：外部任务本身不受影响，仍会在后台跑完。
+  cancellation: {
+    supported: true,
+    cleanup: "none",
+    userVisibleMessage: "已停止等待（外部任务仍在后台运行）",
+  },
+  trace: {
+    required: true,
+    propagateToAdapters: true,
+    recordInput: "summary",
+    recordOutput: "summary",
+  },
 };
 
 export const cancelExternalAgentTaskToolEntry: ToolEntry = {
@@ -392,5 +485,10 @@ export const cancelExternalAgentTaskToolEntry: ToolEntry = {
   resultBudget: { maxInlineBytes: 8_000, maxModelBytes: 8_000, strategy: "truncate" },
   timeout: { defaultMs: 30_000, maxMs: 60_000, allowCallOverride: false },
   cancellation: { supported: false, cleanup: "none", userVisibleMessage: "查询不可取消" },
-  trace: { required: true, propagateToAdapters: true, recordInput: "summary", recordOutput: "summary" },
+  trace: {
+    required: true,
+    propagateToAdapters: true,
+    recordInput: "summary",
+    recordOutput: "summary",
+  },
 };

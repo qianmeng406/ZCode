@@ -20,6 +20,7 @@ import {
 import { z } from "zod";
 import type { ToolEntry, ToolHandler } from "../types.js";
 import { createExternalAgentProgressEmitter } from "./external-agent-progress.js";
+import { waitForExternalAgentTask } from "./external-agent-wait.js";
 import { createExternalAgentActivityReporter } from "./external-agent-activity.js";
 
 export const DELEGATE_TO_EXTERNAL_AGENT_TOOL_NAME = "DelegateToExternalAgent";
@@ -52,14 +53,8 @@ type DelegateInput = z.infer<typeof inputSchema>;
 
 /** 默认等待上限：短任务一次拿全，长任务把控制权还给主 agent。 */
 const DEFAULT_WAIT_MS = 120_000;
-/** 轮询间隔：够快看到结束，又不会把 RPC 打满。 */
-const POLL_INTERVAL_MS = 1_500;
 /** running 结果里附带的输出尾巴（模型据此判断"它在干什么"）。 */
 const RUNNING_PREVIEW_CHARS = 2_000;
-
-function delay(ms: number): Promise<void> {
-  return new Promise((resolve) => setTimeout(resolve, Math.max(0, ms)));
-}
 
 const PROVIDER_OUTPUT_SCHEMA = {
   $schema: "https://json-schema.org/draft/2020-12/schema",
@@ -171,15 +166,11 @@ const handler: ToolHandler = async (input, context) => {
   // 主 agent（返回 running + taskId），而不是把整轮对话卡在一条工具调用上。
   // 不能 start 的宿主退回原来的阻塞式 delegate（行为不变）。
   let outcome: ExternalAgentDelegateOutcome | undefined;
-  if (port.start && port.poll) {
+  if (port.start && (port.wait || port.poll)) {
     const { taskId } = await port.start(delegateInput);
     const startedAt = Date.now();
-    const deadline = startedAt + waitMs;
-    let snapshot = await port.poll(taskId);
-    while (snapshot?.status === "running" && Date.now() < deadline) {
-      await delay(Math.min(POLL_INTERVAL_MS, Math.max(0, deadline - Date.now())));
-      snapshot = await port.poll(taskId);
-    }
+    // 事件驱动等待：任务收口当刻返回，不按固定节拍采样（旧端口内部退回轮询）。
+    const snapshot = await waitForExternalAgentTask(port, taskId, waitMs, context.abortSignal);
     if (snapshot && snapshot.status !== "running" && snapshot.outcome) {
       outcome = snapshot.outcome;
     } else {
@@ -287,7 +278,7 @@ export const delegateToExternalAgentToolEntry: ToolEntry = {
       "The external agent works in its own process. This session stays read-only.",
       "Delegations continue the previous external session by default; pass continuation=fresh for unrelated work.",
       "The result includes a workspace change summary when git is available — review the diff yourself if it matters.",
-      "Waiting is bounded (default 2 minutes): if the external agent is still running, the tool returns running=true and a taskId. Keep working on something else, then poll with GetExternalAgentTaskResult (or cancel with CancelExternalAgentTask) instead of re-delegating.",
+      "Waiting is bounded (default 2 minutes): if the external agent is still running, the tool returns running=true and a taskId. Call GetExternalAgentTaskResult with that taskId — it blocks until the task settles and returns the report; never sleep in Bash to wait, and do not re-delegate.",
       "Use waitMinutes to change the inline wait: 0 returns a taskId immediately, up to 60.",
       "Do not use this tool for analysis or exploration — do those yourself with read-only tools.",
     ],

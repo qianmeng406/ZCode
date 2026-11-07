@@ -103,6 +103,19 @@ export interface ExternalAgentPort {
   start?(input: ExternalAgentDelegateInput): Promise<{ taskId: string }>;
   /** 查询后台任务；未知 taskId 返回 undefined。 */
   poll?(taskId: string): Promise<ExternalAgentTaskSnapshot | undefined>;
+  /**
+   * 等到任务收口（或等到超时/取消订阅），返回**当时**的快照。
+   *
+   * 存在理由：主 agent 之前只能「poll → 没结束 → sleep → poll」，而 sleep 是瞎等——
+   * 任务在第 5 秒结束，它也要睡满 60 秒才回来。这里是事件驱动：任务一收口立即返回，
+   * 仍在跑则在 `timeoutMs` 到点时返回 running 快照（调用方可以再等一轮）。
+   *
+   * 未知 taskId 返回 undefined。缺席时调用方退回 poll 轮询（兼容旧执行端）。
+   */
+  wait?(
+    taskId: string,
+    options?: { timeoutMs?: number; signal?: AbortSignal },
+  ): Promise<ExternalAgentTaskSnapshot | undefined>;
   /** 取消后台任务；未知/已完成返回 undefined。 */
   cancel?(taskId: string): Promise<ExternalAgentTaskSnapshot | undefined>;
   /** 列出本会话的后台任务（含最近的已完成项，供模型确认状态）。 */
