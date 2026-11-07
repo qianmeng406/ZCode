@@ -548,7 +548,7 @@ test("parseExternalAgentResult: 带回 session_id 供下一轮续接", () => {
   });
 });
 
-test("buildExternalAgentInvocation: 有 externalSessionId 时续接，fresh 时不带 -r", () => {
+test("buildExternalAgentInvocation: 续接由用户钉死——有 externalSessionId 时 fresh 也带 -r", () => {
   const binding = externalAgentBindingSchema.parse({
     label: "CodeBuddy",
     driver: "claude-family",
@@ -560,9 +560,23 @@ test("buildExternalAgentInvocation: 有 externalSessionId 时续接，fresh 时�
   const continued = buildExternalAgentInvocation(binding, "继续");
   assert.deepEqual(continued.args.slice(-2), ["-r", "sess-123"]);
   assert.equal(continued.stdin, "继续");
+  // 模型传 fresh 也不能打断"一直续接"（实测模型动辄判定任务无关另开新会话）。
   const fresh = buildExternalAgentInvocation(binding, "新任务", { continuation: "fresh" });
-  assert.ok(!fresh.args.includes("-r"));
+  assert.deepEqual(fresh.args.slice(-2), ["-r", "sess-123"]);
   assert.equal(fresh.stdin, "新任务");
+});
+
+test("buildExternalAgentInvocation: 不续接（无 externalSessionId）时不带 -r", () => {
+  const binding = externalAgentBindingSchema.parse({
+    label: "CodeBuddy",
+    driver: "claude-family",
+    command: "codebuddy",
+    args: ["-p", "--output-format", "json"],
+    promptDelivery: "argv-append",
+  });
+  const invocation = buildExternalAgentInvocation(binding, "新任务");
+  assert.ok(!invocation.args.includes("-r"));
+  assert.equal(invocation.stdin, "新任务");
 });
 
 test("stream 解析器：正文/思考只取完整 assistant 消息，delta 不产出条目", () => {

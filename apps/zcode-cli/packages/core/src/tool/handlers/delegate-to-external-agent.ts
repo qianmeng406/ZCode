@@ -276,7 +276,7 @@ export const delegateToExternalAgentToolEntry: ToolEntry = {
       "Put the complete plan in `task`; the external agent does not see this conversation.",
       "Add `context` for acceptance criteria, constraints, or file hints the executor needs.",
       "The external agent works in its own process. This session stays read-only.",
-      "Delegations continue the previous external session by default; pass continuation=fresh for unrelated work.",
+      "External-session continuity is controlled by the user in the badge menu: a pinned session is always continued, 不续接 always starts fresh. Do not pass continuation — it is not honored.",
       "The result includes a workspace change summary when git is available — review the diff yourself if it matters.",
       "Waiting is bounded (default 2 minutes): if the external agent is still running, the tool returns running=true and a taskId. Call GetExternalAgentTaskResult with that taskId — it blocks until the task settles and returns the report; never sleep in Bash to wait, and do not re-delegate.",
       "Use waitMinutes to change the inline wait: 0 returns a taskId immediately, up to 60.",
@@ -306,7 +306,8 @@ export const delegateToExternalAgentToolEntry: ToolEntry = {
       continuation: {
         type: "string",
         enum: ["auto", "fresh"],
-        description: "auto continues the previous external session; fresh starts a new one.",
+        description:
+          "Deprecated and ignored: external-session continuity is controlled by the user's badge menu.",
       },
       waitMinutes: {
         type: "integer",

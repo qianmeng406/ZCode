@@ -173,9 +173,12 @@ export function buildExternalAgentInvocation(
     const permissionMode =
       findExternalAgentPreset(binding.presetId)?.permissionMode ?? binding.permissionMode;
     if (permissionMode) args.push("--permission-mode", permissionMode);
-    // 续接上一轮外部会话：`-r <id>` 让两次委派共享上下文（CLI 自己起不到会话时
-    // 会自动开新的，不阻塞本次任务）。
-    if (options?.continuation !== "fresh" && binding.externalSessionId) {
+    // 续接语义由**用户钉死**（徽标菜单选了哪个外部会话）：有 externalSessionId 就
+    // 永远 `-r` 它——包括工具入参传 continuation:"fresh" 时。实测（2026-11-07）让
+    // 模型自己决定 fresh 会打断"一直续接"：它动辄判定任务无关另开新会话，用户
+    // 想要的跨轮工作线就断了。想换目标/开新会话是用户的动作（菜单里选）。
+    // CLI 起不到会话时会自动开新的，不阻塞本次任务；新 id 由端口写回自愈。
+    if (binding.externalSessionId) {
       args.push("-r", binding.externalSessionId);
     }
     // prompt 一律走 stdin，不再按落库的 promptDelivery 分流到 argv 末尾追加。

@@ -288,6 +288,31 @@ describe("外部 agent 续接与后台任务", () => {
     expect(updates).toEqual([{ sessionId: "s", externalSessionId: "sess-new" }]);
   });
 
+  it("不续接（绑定无 externalSessionId）：每次新会话且绝不写回", async () => {
+    const { createExternalAgentPort } =
+      await import("../src/zcode-protocol/external-agent-port-impl.js");
+    const run = vi.fn(async () => ({
+      streams: { stdout: { text: stdoutWithSession("sess-brand-new") }, stderr: { text: "" } },
+      exitCode: 0,
+    }));
+    const updates: Array<{ sessionId: string; externalSessionId?: string }> = [];
+    const port = createExternalAgentPort({
+      executionPort: { run } as never,
+      readBinding: async () => ({ ...claudeFamily }),
+      updateBinding: async (sessionId, binding) => {
+        updates.push({ sessionId, externalSessionId: binding.externalSessionId });
+      },
+    });
+    await port.delegate({ sessionId: "s" as never, task: "独立任务", cwd: "/tmp" });
+    const codebuddyCall = run.mock.calls.find(
+      (call) => (call[0] as { command?: { file?: string } }).command?.file === "codebuddy",
+    )!;
+    // 菜单里选了「不续接（每次新会话）」就是字面语义：连续委派各自新开，
+    // 新 session id 不能写回绑定——否则第一次之后标签就撒谎了。
+    expect((codebuddyCall[0] as { command: { args: string[] } }).command.args).not.toContain("-r");
+    expect(updates).toEqual([]);
+  });
+
   it("后台任务：start → poll 完成 → 结果可取", async () => {
     const { createExternalAgentPort } =
       await import("../src/zcode-protocol/external-agent-port-impl.js");

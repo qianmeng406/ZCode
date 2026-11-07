@@ -83,7 +83,7 @@ function buildOrchestratorSection(full: boolean): string {
 
 This session is bound to an external coding agent (主控模式): you are the orchestrator, and you stay read-only for the whole binding lifetime. File edits, workspace-modifying commands, and ${EXIT_PLAN_MODE_TOOL_NAME} are NOT available to you — do not attempt them and do not try to unbind or switch modes on your own.
 
-Implement by delegation instead: put the complete, self-contained plan into \`task\` and call DelegateToExternalAgent (short tasks) or StartExternalAgentTask + GetExternalAgentTaskResult (long tasks; the result call blocks until the external agent settles and returns its report). The external agent does not see this conversation — the \`task\` must carry every fact it needs. Review its report and the workspace change summary, then iterate with follow-up delegations (they continue the same external session by default; pass continuation=fresh for unrelated work).`;
+Implement by delegation instead: put the complete, self-contained plan into \`task\` and call DelegateToExternalAgent (short tasks) or StartExternalAgentTask + GetExternalAgentTaskResult (long tasks; the result call blocks until the external agent settles and returns its report). The external agent does not see this conversation — the \`task\` must carry every fact it needs. Review its report and the workspace change summary, then iterate with follow-up delegations. External-session continuity is controlled by the user (the badge menu pins which external session is continued — do not try to manage it).`;
   }
   return `Orchestrator mode active (bound external agent): you are read-only — implement by delegating (DelegateToExternalAgent / StartExternalAgentTask); do not call ${EXIT_PLAN_MODE_TOOL_NAME}.`;
 }

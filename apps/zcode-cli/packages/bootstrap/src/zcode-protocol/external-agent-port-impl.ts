@@ -130,7 +130,12 @@ export function createExternalAgentPort(
     });
 
     // 续接凭据落库：下一轮 `-r <id>` 靠它。写失败不影响本次结果（只是下次开新会话）。
-    if (result.externalSessionId && options.updateBinding) {
+    //
+    // 只在「本轮真的续接了某个会话」（绑定里有 externalSessionId）时写回：
+    // - 续接目标换 id（CLI 起不到会话自动开新的）→ 写回自愈，下一轮续新 id；
+    // - 「不续接」状态（每次新会话）→ 绝不写回。曾经无条件写回，导致菜单里
+    //   明明选了「不续接（每次新会话）」，第一次委派后就悄悄变成续接——标签撒谎。
+    if (binding.externalSessionId && result.externalSessionId && options.updateBinding) {
       if (result.externalSessionId !== binding.externalSessionId) {
         await options
           .updateBinding(sessionId, {

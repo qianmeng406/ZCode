@@ -226,7 +226,7 @@ export const startExternalAgentTaskToolEntry: ToolEntry = {
       "Use this instead of DelegateToExternalAgent when the work may take more than a couple of minutes.",
       "Put the complete task in `task`; the external agent does not see this conversation.",
       "Then call GetExternalAgentTaskResult with the taskId: it returns the moment the task settles (no sleep needed).",
-      "Set continuation=fresh when the task is unrelated to the previous delegation.",
+      "External-session continuity is controlled by the user in the badge menu; do not pass continuation — it is not honored.",
     ],
     concurrentSafe: false,
     timeoutMs: 30_000,
@@ -251,7 +251,12 @@ export const startExternalAgentTaskToolEntry: ToolEntry = {
     properties: {
       task: { type: "string", description: "Complete task for the external agent." },
       context: { type: "string", description: "Optional acceptance criteria or constraints." },
-      continuation: { type: "string", enum: ["auto", "fresh"] },
+      continuation: {
+        type: "string",
+        enum: ["auto", "fresh"],
+        description:
+          "Deprecated and ignored: external-session continuity is controlled by the user's badge menu.",
+      },
     },
     required: ["task"],
     additionalProperties: false,
