@@ -221,6 +221,9 @@ function fallbackEffortPreset(binding: ExternalAgentBinding): ExternalAgentPrese
     id: "custom",
     label: binding.label,
     description: "",
+    // 手填命令不可能是"完整适配"：模型目录、过程流、会话落盘都没实测过。
+    // 它只用来算档位候选，不会进入绑定列表（列表读的是内置目录）。
+    adaptation: "partial",
     driver: binding.driver,
     command: binding.command,
     args: binding.args,
