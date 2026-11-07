@@ -152,6 +152,14 @@ export interface ExitPlanModeTransitionResult {
 export interface SessionModePort {
   supportsPermissionFullAccess?(): boolean;
   isPlanEnabled?(): boolean;
+  /**
+   * 会话是否处于只读主控（绑定了外部 coding agent）。
+   *
+   * 只读主控 = plan + binding 的呈现别名：绑定存在期间 plan 恒开，退出计划模式
+   * 在唯一写入口会被拒。plan 工具用它前置拦截并把模型引向委派，而不是让模型
+   * 拿到一句通用报错后试错。
+   */
+  isExternalAgentReadOnly?(): boolean;
   getMode(): CollaborationMode;
   getPrePlanMode(): Exclude<CollaborationMode, "plan"> | undefined;
   enterPlanMode(input?: SessionModeTransitionInput): Promise<EnterPlanModeTransitionResult>;

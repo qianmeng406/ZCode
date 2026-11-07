@@ -331,7 +331,12 @@ async function collectInputAttachments(
     state.turnRequestState.entries,
     runtime.getMode(),
     runtime.getPlanEnabled(),
-    { pendingFull: runtime.runtimeModeReminderPendingFull },
+    {
+      pendingFull: runtime.runtimeModeReminderPendingFull,
+      // 主控（绑定外部 agent）时把委派工作流写进提醒：没有这段模型只能靠试错
+      // 发现自己只读，默认路径是 ExitPlanMode → 自己实施 → 被唯一写入口拒绝。
+      externalAgentReadOnly: runtime.externalAgentReadOnly === true,
+    },
   );
   if (runtimeModeReminder) {
     // 只写内存会在冷恢复时丢失提醒与计数边界；复用动态公告的持久化和 hydration。

@@ -68,6 +68,26 @@ This is critical - your turn should only end with either using the ${ASK_USER_QU
 NOTE: At any point in time through this workflow you should feel free to ask the user questions or clarifications using the ${ASK_USER_QUESTION_TOOL_NAME} tool. Don't make large assumptions about user intent. The goal is to present a well researched plan to the user, and tie any loose ends before implementation begins.`;
 }
 
+/**
+ * 主控（绑定外部 coding agent）追加段。
+ *
+ * 为什么挂在 plan 提醒上而不是独立提醒：主控 = plan + binding 的呈现别名，绑定
+ * 存在期间 plan 恒开，plan 提醒天然每轮在场（节流由同一套 activation 机制管）。
+ * 没有这段时模型只能靠试错发现自己只读——实测（2026-11-07）模型的默认路径是
+ * 「ExitPlanMode → 自己实施」，被唯一写入口拒绝后还在「退计划/解绑」之间打转，
+ * 没有意识到留在主控里委派才是设计好的工作方式。
+ */
+function buildOrchestratorSection(full: boolean): string {
+  if (full) {
+    return `## Orchestrator mode (bound external agent)
+
+This session is bound to an external coding agent (主控模式): you are the orchestrator, and you stay read-only for the whole binding lifetime. File edits, workspace-modifying commands, and ${EXIT_PLAN_MODE_TOOL_NAME} are NOT available to you — do not attempt them and do not try to unbind or switch modes on your own.
+
+Implement by delegation instead: put the complete, self-contained plan into \`task\` and call DelegateToExternalAgent (short tasks) or StartExternalAgentTask + GetExternalAgentTaskResult (long tasks; the result call blocks until the external agent settles and returns its report). The external agent does not see this conversation — the \`task\` must carry every fact it needs. Review its report and the workspace change summary, then iterate with follow-up delegations (they continue the same external session by default; pass continuation=fresh for unrelated work).`;
+  }
+  return `Orchestrator mode active (bound external agent): you are read-only — implement by delegating (DelegateToExternalAgent / StartExternalAgentTask); do not call ${EXIT_PLAN_MODE_TOOL_NAME}.`;
+}
+
 const PLAN_MODE_FULL_REMINDER = [
   "Plan mode is active. The user indicated that they do not want you to execute yet -- you MUST NOT make any edits, run any non-readonly tools (including changing configs or making commits), or otherwise make any changes to the system. This supercedes any other instructions you have received.",
   buildPlanWorkflow(),
@@ -304,7 +324,7 @@ export function buildRuntimeModeReminderBody(
   entries: readonly RuntimeMessageEntry[],
   mode: CollaborationMode,
   planEnabled = mode === "plan",
-  options: { pendingFull?: boolean } = {},
+  options: { pendingFull?: boolean; externalAgentReadOnly?: boolean } = {},
 ): string | null {
   return buildRuntimeModeReminder(entries, mode, planEnabled, options)?.body ?? null;
 }
@@ -343,7 +363,7 @@ export function buildRuntimeModeReminder(
   entries: readonly RuntimeMessageEntry[],
   mode: CollaborationMode,
   planEnabled = mode === "plan",
-  options: { pendingFull?: boolean } = {},
+  options: { pendingFull?: boolean; externalAgentReadOnly?: boolean } = {},
 ): RuntimeModeReminder | null {
   const identity = resolveRuntimeModeIdentity(mode, planEnabled);
   if (!identity) return null;
@@ -372,7 +392,13 @@ export function buildRuntimeModeReminder(
   if (identity === "research") {
     body = (full ? RESEARCH_MODE_FULL_REMINDER : RESEARCH_MODE_SPARSE_REMINDER).join("\n");
   } else {
-    body = (full ? PLAN_MODE_FULL_REMINDER : PLAN_MODE_SPARSE_REMINDER).join("\n");
+    // 主控（绑定外部 agent）是 plan 的修饰态：提醒正文追加主控段，身份仍是 plan，
+    // 节流/activation 逻辑与普通 plan 完全一致。
+    const planBody = (full ? PLAN_MODE_FULL_REMINDER : PLAN_MODE_SPARSE_REMINDER).join("\n");
+    body =
+      options.externalAgentReadOnly === true
+        ? `${planBody}\n\n${buildOrchestratorSection(full)}`
+        : planBody;
   }
   return { body, identity, kind };
 }

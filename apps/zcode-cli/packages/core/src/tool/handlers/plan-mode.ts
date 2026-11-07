@@ -77,6 +77,24 @@ export const exitPlanModeHandler: ToolHandler = async (input, context) => {
     );
   }
 
+  // 主控（绑定外部 coding agent）= plan + 只读的呈现别名：绑定存在期间 plan 恒开，
+  // 退出计划模式在唯一写入口必然被拒。这里前置拦截并给出路——委派，而不是让模型
+  // 拿到一句通用的「先解绑」后试错（实测 2026-11-07：模型把被拒当成死胡同，在
+  // 「退出计划模式」与「解绑」之间来回打转，没有意识到留在主控里委派才是正解）。
+  if (context.sessionModePort.isExternalAgentReadOnly?.() === true) {
+    throw createCoreError(
+      CoreErrorType.InvalidStateTransition,
+      "Orchestrator mode: this session is bound to an external coding agent, so plan mode stays on. Do not exit plan mode — delegate the implementation instead: put the complete plan into `task` and call DelegateToExternalAgent (short tasks) or StartExternalAgentTask + GetExternalAgentTaskResult (long tasks). Review the external agent's report and iterate with follow-up delegations.",
+      {
+        context: {
+          toolCallId: context.toolCallId,
+          toolName: EXIT_PLAN_MODE_TOOL_NAME,
+        },
+        recoverable: true,
+      },
+    );
+  }
+
   await persistApprovedPlanFileBeforeExitPlanMode({
     context,
     plan: parsed.plan,

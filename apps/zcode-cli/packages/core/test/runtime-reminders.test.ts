@@ -111,3 +111,36 @@ test("structured identity and kind are exposed for attachment tagging", () => {
     { identity: "research", kind: "full" },
   );
 });
+
+test("主控（绑定外部 agent）在 plan 全文提醒上追加委派工作流", () => {
+  const body = buildRuntimeModeReminderBody([], "plan", true, {
+    externalAgentReadOnly: true,
+  });
+  assert.ok(body!.includes("## Orchestrator mode"));
+  assert.ok(body!.includes("DelegateToExternalAgent"));
+  assert.ok(body!.includes("StartExternalAgentTask"));
+  assert.ok(body!.includes("NOT available to you"));
+  // 普通 plan 提醒不含主控段：没有绑定的会话不该看到这套指引。
+  const plain = buildRuntimeModeReminderBody([], "plan", true);
+  assert.ok(!plain!.includes("Orchestrator mode"));
+});
+
+test("主控 sparse 提醒同样带一句委派指引（节流轮次也不能丢语义）", () => {
+  // 6 条人类轮：最新一条是「本轮未回应的 prompt」不计入，5 条计数才越过节流阈值。
+  const entries = [
+    modeReminder("plan", "full"),
+    humanTurn(),
+    humanTurn(),
+    humanTurn(),
+    humanTurn(),
+    humanTurn(),
+    humanTurn(),
+  ];
+  const sparse = buildRuntimeModeReminderBody(entries, "plan", true, {
+    externalAgentReadOnly: true,
+  });
+  assert.ok(sparse);
+  assert.ok(!sparse!.includes("## Orchestrator mode"));
+  assert.ok(sparse!.includes("Orchestrator mode active"));
+  assert.ok(sparse!.includes("DelegateToExternalAgent"));
+});

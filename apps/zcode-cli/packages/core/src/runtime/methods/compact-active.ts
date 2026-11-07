@@ -576,7 +576,11 @@ async function compactActiveConversationImpl(
       // 保留段只有简短提醒时，完整说明已被摘要，仍要重发。
       const planModeReminderBody = hasFullRuntimeModeReminder(preservedEntries)
         ? null
-        : buildRuntimeModeReminderBody([], this.getMode(), this.getPlanEnabled());
+        : buildRuntimeModeReminderBody([], this.getMode(), this.getPlanEnabled(), {
+            // 压缩重发的 plan 提醒同样要带主控段：绑定存在期间「只读 + 委派」的语义
+            // 不能因 compact 丢失，否则压缩后的第一轮又回到「自己实施」的试错路径。
+            externalAgentReadOnly: this.externalAgentReadOnly === true,
+          });
       // compaction 附件顺序：文件恢复 → plan 文件 → plan 提醒 → ToolSearch 公告
       // → agent listing → skill 列表 → 环境 → 模型 → 输出风格。
       // 修复原因：agent listing 排在文件恢复之前，顺序错误。

@@ -8,6 +8,7 @@ export function createRuntimeSessionModePort(runtime: AgentRuntimeInternal): Ses
     getMode: () => runtime.config.mode ?? "build",
     getPrePlanMode: () => undefined,
     isPlanEnabled: () => readRuntimeExecutionState(runtime).planEnabled,
+    isExternalAgentReadOnly: () => runtime.externalAgentReadOnly === true,
     async enterPlanMode(input) {
       const previous = readRuntimeExecutionState(runtime);
       const next = await applyRuntimeExecutionState(
