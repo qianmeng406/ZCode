@@ -65,7 +65,7 @@ test("codex 预设用 codex-exec 族与 exec 子命令", () => {
   assert.equal(codex.modelFlag, "-m");
 });
 
-test("claude-family 预设都是 -p + stream-json 输出 + 末尾追加 prompt", () => {
+test("claude-family 预设都是 -p + stream-json 输出 + stdin 交付 prompt", () => {
   for (const preset of EXTERNAL_AGENT_PRESETS.filter((p) => p.driver === "claude-family")) {
     assert.deepEqual(preset.args, [
       "-p",
@@ -73,7 +73,8 @@ test("claude-family 预设都是 -p + stream-json 输出 + 末尾追加 prompt",
       "stream-json",
       "--include-partial-messages",
     ]);
-    assert.equal(preset.promptDelivery, "argv-append");
+    // 交付形状由驱动族知识决定（Windows .cmd shim 会截断多行 argv），落库值不参与分流。
+    assert.equal(preset.promptDelivery, "stdin");
   }
 });
 
@@ -96,7 +97,7 @@ const baseBinding = externalAgentBindingSchema.parse({
   promptDelivery: "argv-append",
 });
 
-test("模型注入: claude-family 用 --model，插在 prompt 之前、permissionMode 之后", () => {
+test("模型注入: claude-family 用 --model，插在 permissionMode 之后；prompt 走 stdin", () => {
   const invocation = buildExternalAgentInvocation(
     { ...baseBinding, model: "hy3", permissionMode: "acceptEdits" },
     "干活",
@@ -109,8 +110,17 @@ test("模型注入: claude-family 用 --model，插在 prompt 之前、permissio
     "hy3",
     "--permission-mode",
     "acceptEdits",
-    "干活",
   ]);
+  assert.equal(invocation.stdin, "干活");
+});
+
+test("claude-family 多行 prompt 完整进 stdin，绝不进 argv（cmd shim 截断防线）", () => {
+  const prompt = "第一行\n第二行\n\n第四行";
+  const invocation = buildExternalAgentInvocation(baseBinding, prompt);
+  assert.equal(invocation.stdin, prompt);
+  for (const line of prompt.split("\n")) {
+    assert.ok(!invocation.args.includes(line));
+  }
 });
 
 test("模型注入: 未指定 model 时不出现任何模型 flag", () => {
@@ -223,7 +233,8 @@ test("全部清空后 effortsByModel 字段整体消失（不留空对象）", (
 test("档位注入: claude-family 取**当前模型**记着的那一档", () => {
   let bound = withModelEffort({ ...baseBinding, model: "hy3" }, "hy3", "high");
   bound = withModelEffort(bound, "glm-5.3", "max");
-  assert.deepEqual(buildExternalAgentInvocation(bound, "干活").args, [
+  const invocation = buildExternalAgentInvocation(bound, "干活");
+  assert.deepEqual(invocation.args, [
     "-p",
     "--output-format",
     "stream-json",
@@ -231,8 +242,8 @@ test("档位注入: claude-family 取**当前模型**记着的那一档", () => 
     "hy3",
     "--effort",
     "high",
-    "干活",
   ]);
+  assert.equal(invocation.stdin, "干活");
 });
 
 test("档位注入: 换模型后自动用新模型自己的档位，不会残留旧模型的", () => {
@@ -285,7 +296,8 @@ test("模型与档位同时给时顺序稳定（model → effort → permissionM
     "hy3",
     "max",
   );
-  assert.deepEqual(buildExternalAgentInvocation(bound, "干活").args, [
+  const invocation = buildExternalAgentInvocation(bound, "干活");
+  assert.deepEqual(invocation.args, [
     "-p",
     "--output-format",
     "stream-json",
@@ -295,8 +307,8 @@ test("模型与档位同时给时顺序稳定（model → effort → permissionM
     "max",
     "--permission-mode",
     "acceptEdits",
-    "干活",
   ]);
+  assert.equal(invocation.stdin, "干活");
 });
 
 // ── 真实模型目录（product.json）优先于静态表 ──
@@ -546,10 +558,11 @@ test("buildExternalAgentInvocation: 有 externalSessionId 时续接，fresh 时�
     externalSessionId: "sess-123",
   });
   const continued = buildExternalAgentInvocation(binding, "继续");
-  assert.deepEqual(continued.args.slice(-3), ["-r", "sess-123", "继续"]);
+  assert.deepEqual(continued.args.slice(-2), ["-r", "sess-123"]);
+  assert.equal(continued.stdin, "继续");
   const fresh = buildExternalAgentInvocation(binding, "新任务", { continuation: "fresh" });
-  assert.deepEqual(fresh.args.slice(-1), ["新任务"]);
   assert.ok(!fresh.args.includes("-r"));
+  assert.equal(fresh.stdin, "新任务");
 });
 
 test("stream 解析器：正文/思考只取完整 assistant 消息，delta 不产出条目", () => {

@@ -178,11 +178,14 @@ export function buildExternalAgentInvocation(
     if (options?.continuation !== "fresh" && binding.externalSessionId) {
       args.push("-r", binding.externalSessionId);
     }
-    if (binding.promptDelivery === "stdin")
-      return { command: binding.command, args, stdin: prompt };
-    // argv-append / template 在 family 族里都落到末尾追加 prompt。
-    args.push(prompt);
-    return { command: binding.command, args };
+    // prompt 一律走 stdin，不再按落库的 promptDelivery 分流到 argv 末尾追加。
+    // 实测（2026-11-07）：Windows 上 claude-family 的 CLI 是 .cmd shim，经 cmd.exe
+    // 启动时多行 prompt 从第一个换行处被截断（外部 agent 只收到第一行），且命令行
+    // 有 8191 字符上限（长任务书直接「命令行太长」）；stdin 两个限制都没有。
+    // claude-family 的 CLI（claude / codebuddy 同构）都支持 `-p` + stdin 提示词，
+    // 所以落库的 argv-append 值在此族内不再有意义——传参形状由驱动族知识决定，
+    // 与「预设 args 跟随代码」同一取向。
+    return { command: binding.command, args, stdin: prompt };
   }
   if (binding.driver === "codex-exec") {
     const base = binding.args.length > 0 ? binding.args : [...CODEX_EXEC_DEFAULT_ARGS];

@@ -18,14 +18,15 @@ const claudeFamily: ExternalAgentBinding = {
 };
 
 describe("buildExternalAgentInvocation", () => {
-  it("claude-family 默认用 -p + --output-format stream-json，prompt 追加在末尾", () => {
+  it("claude-family 默认用 -p + --output-format stream-json，prompt 走 stdin", () => {
     expect(buildExternalAgentInvocation(claudeFamily, "修一下 lint")).toEqual({
       command: "codebuddy",
-      args: ["-p", "--output-format", "stream-json", "修一下 lint"],
+      args: ["-p", "--output-format", "stream-json"],
+      stdin: "修一下 lint",
     });
   });
 
-  it("claude-family 带 permissionMode 时补上 --permission-mode", () => {
+  it("claude-family 带 permissionMode 时补上 --permission-mode，prompt 仍在 stdin", () => {
     const invocation = buildExternalAgentInvocation(
       { ...claudeFamily, permissionMode: "plan" },
       "分析一下",
@@ -36,17 +37,15 @@ describe("buildExternalAgentInvocation", () => {
       "stream-json",
       "--permission-mode",
       "plan",
-      "分析一下",
     ]);
+    expect(invocation.stdin).toBe("分析一下");
   });
 
-  it("claude-family + stdin 交付：prompt 不进 argv", () => {
-    const invocation = buildExternalAgentInvocation(
-      { ...claudeFamily, promptDelivery: "stdin" },
-      "长计划正文",
-    );
-    expect(invocation.args).toEqual(["-p", "--output-format", "stream-json"]);
-    expect(invocation.stdin).toBe("长计划正文");
+  it("claude-family 多行 prompt 完整进 stdin（cmd shim 截断防线）", () => {
+    const prompt = "第一行\n第二行\n\n第四行";
+    const invocation = buildExternalAgentInvocation(claudeFamily, prompt);
+    expect(invocation.stdin).toBe(prompt);
+    expect(invocation.args.join(" ")).not.toContain("第二行");
   });
 
   it("claude-family 自定义 args 时不再补默认参数", () => {
@@ -54,7 +53,8 @@ describe("buildExternalAgentInvocation", () => {
       { ...claudeFamily, args: ["-p", "--output-format", "stream-json"] },
       "hi",
     );
-    expect(invocation.args).toEqual(["-p", "--output-format", "stream-json", "hi"]);
+    expect(invocation.args).toEqual(["-p", "--output-format", "stream-json"]);
+    expect(invocation.stdin).toBe("hi");
   });
 
   it("generic-template 用 {prompt} 占位替换", () => {
@@ -239,7 +239,7 @@ describe("createExternalAgentPort", () => {
       exitCode: 0,
       isError: false,
     });
-    // 调用形状：argv 模式 + 末尾追加 prompt。
+    // 调用形状：argv 模式 + prompt 走 stdin（Windows cmd shim 会截断多行 argv）。
     // 端口还会跑 git 汇总变更（cwd 非 git 仓库时也各跑一次），因此按命令过滤。
     const codebuddyCalls = run.mock.calls.filter(
       (call) => (call[0] as { command?: { file?: string } }).command?.file === "codebuddy",
@@ -249,8 +249,9 @@ describe("createExternalAgentPort", () => {
     expect(request.command).toMatchObject({
       mode: "argv",
       file: "codebuddy",
-      args: ["-p", "--output-format", "stream-json", "修 lint"],
+      args: ["-p", "--output-format", "stream-json"],
     });
+    expect(request.stdin).toBe("修 lint");
     expect(request.cwd).toBe("/tmp");
   });
 });

@@ -187,7 +187,9 @@ export const EXTERNAL_AGENT_PRESETS: readonly ExternalAgentPreset[] = [
     command: "claude",
     // stream-json：逐事件输出，活动卡才能实时展示"正在跑什么命令"。
     args: ["-p", "--output-format", "stream-json", "--include-partial-messages"],
-    promptDelivery: "argv-append",
+    // 交付形状由驱动族知识决定：claude-family 一律 stdin（见 buildExternalAgentInvocation
+    // 的注释——Windows cmd shim 会截断多行 argv 且有 8191 上限），落库值不再参与分流。
+    promptDelivery: "stdin",
     permissionMode: "bypassPermissions",
     modelFlag: "--model",
     // Claude Code 的 --model 只接受别名或完整模型名，没有可枚举清单。
@@ -205,7 +207,7 @@ export const EXTERNAL_AGENT_PRESETS: readonly ExternalAgentPreset[] = [
     command: "codebuddy",
     // stream-json：逐事件输出，活动卡才能实时展示"正在跑什么命令"。
     args: ["-p", "--output-format", "stream-json", "--include-partial-messages"],
-    promptDelivery: "argv-append",
+    promptDelivery: "stdin",
     permissionMode: "bypassPermissions",
     modelFlag: "--model",
     // 模型与档位都来自服务端下发的缓存（登录后才有）；product.json 只作兜底。
