@@ -950,3 +950,179 @@ describe("opencode 实时输出与收口", () => {
     ).toMatchObject({ text: "provider unauthorized", isError: true });
   });
 });
+
+// ── 进度看门狗（2026-11-08）──
+// 601s 现场的根因：timeoutMs 被当成硬超时，到点无条件 kill，健康 agent 只要
+// 跑得久就会被杀。改成"停滞才终止"后，这里要钉住四种情况：
+// 持续有进度不被杀、停滞被杀且文案明确、活动会重置计时、用户取消与停滞可区分。
+
+/** 用真实计时器跑看门狗：阈值压到毫秒级，用例等待时间可控。 */
+const STALL_TIMEOUT_MS = 60;
+const STALL_CHECK_INTERVAL_MS = 10;
+/** 持续有进度时"跑多久"：明显超过停滞阈值，证明时长本身不再触发终止。 */
+const HEALTHY_RUN_MS = 200;
+
+function sleep(ms: number): Promise<void> {
+  return new Promise((resolve) => setTimeout(resolve, ms));
+}
+
+describe("进度看门狗", () => {
+  it("持续有进度事件：远超停滞阈值也不中止，正常返回结果", async () => {
+    const { createOneShotExternalAgentDriver } =
+      await import("../src/zcode-protocol/external-agent-driver.js");
+    const captured: Array<Record<string, unknown>> = [];
+    const run = async (
+      request: unknown,
+      options?: {
+        onEvent?: (event: unknown) => void;
+        abortSignal?: AbortSignal;
+      },
+    ) => {
+      captured.push({ request, signal: options?.abortSignal });
+      // 每 20ms 报一次进度，持续 200ms（≈3 倍停滞阈值）。
+      for (let index = 0; index < HEALTHY_RUN_MS / 20; index += 1) {
+        await sleep(20);
+        options?.onEvent?.({ type: "progress", stdoutTail: `chunk ${index}\n` });
+      }
+      expect(options?.abortSignal?.aborted).toBe(false);
+      return {
+        streams: {
+          stdout: {
+            text: JSON.stringify({
+              type: "assistant",
+              message: { role: "assistant", content: [{ type: "text", text: "干完了" }] },
+            }),
+            ...{},
+          },
+          stderr: { text: "" },
+        },
+        exitCode: 0,
+      };
+    };
+    const driver = createOneShotExternalAgentDriver({
+      executionPort: { run } as never,
+      stallTimeoutMs: STALL_TIMEOUT_MS,
+      stallCheckIntervalMs: STALL_CHECK_INTERVAL_MS,
+    });
+    const result = await driver.run({ binding: claudeFamily, prompt: "x", cwd: "/tmp" });
+    expect(result.isError).toBe(false);
+    expect(result.durationMs).toBeGreaterThanOrEqual(HEALTHY_RUN_MS - 20);
+  });
+
+  it("停滞：发一次进度后沉默 → 看门狗中止，isError 且文案说明无新输出", async () => {
+    const { createOneShotExternalAgentDriver } =
+      await import("../src/zcode-protocol/external-agent-driver.js");
+    const run = async (
+      _request: unknown,
+      options?: { onEvent?: (event: unknown) => void; abortSignal?: AbortSignal },
+    ) => {
+      options?.onEvent?.({ type: "progress", stdoutTail: "开始\n" });
+      // 一直沉默，直到被中止；模拟端口对 abortSignal 的响应。
+      await new Promise<void>((resolve) => {
+        options?.abortSignal?.addEventListener("abort", () => resolve(), { once: true });
+      });
+      return {
+        streams: { stdout: { text: "" }, stderr: { text: "" } },
+        exitCode: null,
+        error: { kind: "cancelled" },
+      };
+    };
+    const driver = createOneShotExternalAgentDriver({
+      executionPort: { run } as never,
+      stallTimeoutMs: STALL_TIMEOUT_MS,
+      stallCheckIntervalMs: STALL_CHECK_INTERVAL_MS,
+    });
+    const result = await driver.run({ binding: claudeFamily, prompt: "x", cwd: "/tmp" });
+    expect(result.isError).toBe(true);
+    expect(result.exitCode).not.toBe(0);
+    expect(result.text).toContain("无新输出");
+    expect(result.text).toContain("已自动终止");
+  });
+
+  it("进度事件会重置计时：总时长超阈值，但每次间隔都短于阈值 → 不中止", async () => {
+    const { createOneShotExternalAgentDriver } =
+      await import("../src/zcode-protocol/external-agent-driver.js");
+    let aborted = false;
+    const run = async (
+      _request: unknown,
+      options?: { onEvent?: (event: unknown) => void; abortSignal?: AbortSignal },
+    ) => {
+      options?.abortSignal?.addEventListener("abort", () => (aborted = true), { once: true });
+      // 每次间隔 40ms < 60ms 阈值，但累计 6 次 = 240ms 远超阈值。
+      for (let index = 0; index < 6; index += 1) {
+        await sleep(40);
+        options?.onEvent?.({ type: "progress", stderrTail: `tick ${index}\n` });
+      }
+      return {
+        streams: {
+          stdout: {
+            text: JSON.stringify({
+              type: "assistant",
+              message: { role: "assistant", content: [{ type: "text", text: "ok" }] },
+            }),
+          },
+          stderr: { text: "" },
+        },
+        exitCode: 0,
+      };
+    };
+    const driver = createOneShotExternalAgentDriver({
+      executionPort: { run } as never,
+      stallTimeoutMs: STALL_TIMEOUT_MS,
+      stallCheckIntervalMs: STALL_CHECK_INTERVAL_MS,
+    });
+    const result = await driver.run({ binding: claudeFamily, prompt: "x", cwd: "/tmp" });
+    expect(aborted).toBe(false);
+    expect(result.isError).toBe(false);
+  });
+
+  it("用户取消：立即中止，文案不与「无新输出」混淆", async () => {
+    const { createOneShotExternalAgentDriver } =
+      await import("../src/zcode-protocol/external-agent-driver.js");
+    const run = async (_request: unknown, options?: { abortSignal?: AbortSignal }) => {
+      await new Promise<void>((resolve) => {
+        options?.abortSignal?.addEventListener("abort", () => resolve(), { once: true });
+      });
+      return {
+        streams: { stdout: { text: "" }, stderr: { text: "" } },
+        exitCode: null,
+        error: { kind: "cancelled" },
+      };
+    };
+    const driver = createOneShotExternalAgentDriver({
+      executionPort: { run } as never,
+      // 阈值给得很大：取消必须立刻生效，不能等看门狗。
+      stallTimeoutMs: 10_000,
+      stallCheckIntervalMs: 10,
+    });
+    const controller = new AbortController();
+    const startedAt = Date.now();
+    setTimeout(() => controller.abort(), 10);
+    const result = await driver.run({
+      binding: claudeFamily,
+      prompt: "x",
+      cwd: "/tmp",
+      signal: controller.signal,
+    });
+    expect(Date.now() - startedAt).toBeLessThan(1_000);
+    expect(result.text).not.toContain("无新输出");
+  });
+
+  it("传给 port 的 timeoutMs 是硬顶兜底：缺省 1 小时，绑定值优先", async () => {
+    const { createOneShotExternalAgentDriver } =
+      await import("../src/zcode-protocol/external-agent-driver.js");
+    const timeouts: number[] = [];
+    const run = async (request: { timeoutMs?: number }) => {
+      timeouts.push(request.timeoutMs ?? -1);
+      return { streams: { stdout: { text: "" }, stderr: { text: "" } }, exitCode: 0 };
+    };
+    const driver = createOneShotExternalAgentDriver({ executionPort: { run } as never });
+    await driver.run({ binding: claudeFamily, prompt: "x", cwd: "/tmp" });
+    await driver.run({
+      binding: { ...claudeFamily, timeoutMs: 120_000 },
+      prompt: "x",
+      cwd: "/tmp",
+    });
+    expect(timeouts).toEqual([3_600_000, 120_000]);
+  });
+});
