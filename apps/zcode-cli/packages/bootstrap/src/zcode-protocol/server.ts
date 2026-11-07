@@ -785,7 +785,12 @@ export class ZCodeProtocolAgentServer {
             `External agent sessions unavailable for ${params.sessionId}`,
           );
         }
-        return { sessions: await record.app.listExternalAgentSessions() };
+        return {
+          sessions: await record.app.listExternalAgentSessions(
+            // 只把"确实带了 driver"的调用转成对象：旧实现的可选无参形状不要被强塞一个 undefined 再走一遍。
+            params.driver !== undefined ? { driver: params.driver } : undefined,
+          ),
+        };
       }
       // 删除一个外部会话：幂等；缺失能力时明确拒绝（UI 不显示删除入口）。
       case V4_METHODS.externalAgentDeleteSession: {
@@ -798,7 +803,10 @@ export class ZCodeProtocolAgentServer {
           );
         }
         return {
-          deleted: await record.app.deleteExternalAgentSession(params.externalSessionId),
+          deleted: await record.app.deleteExternalAgentSession(
+            params.externalSessionId,
+            params.driver !== undefined ? { driver: params.driver } : undefined,
+          ),
         };
       }
       // 外部会话的完整上下文（分页）：只读、无状态；同列表落在执行机上。
@@ -815,6 +823,7 @@ export class ZCodeProtocolAgentServer {
           externalSessionId: params.externalSessionId,
           ...(params.before !== undefined ? { before: params.before } : {}),
           ...(params.limit !== undefined ? { limit: params.limit } : {}),
+          ...(params.driver !== undefined ? { driver: params.driver } : {}),
         });
       }
       // Oracle 审查记录：会话附属持久化（session entry），CLI 侧按 sessionId 隔离。

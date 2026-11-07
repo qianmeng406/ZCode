@@ -616,16 +616,18 @@ export function createSessionFacade(deps: CreateSessionFacadeDeps): SessionFacad
         executionPort: deps.executionPort,
         cwd: deps.workingDirectory,
       }),
-    listExternalAgentSessions: async () =>
+    listExternalAgentSessions: async (input) =>
       listExternalAgentSessions({
         executionPort: deps.executionPort,
         cwd: deps.workingDirectory,
+        ...(input?.driver !== undefined ? { driver: input.driver } : {}),
       }),
-    deleteExternalAgentSession: async (externalSessionId) =>
+    deleteExternalAgentSession: async (externalSessionId, input) =>
       deleteExternalAgentSession({
         executionPort: deps.executionPort,
         cwd: deps.workingDirectory,
         externalSessionId,
+        ...(input?.driver !== undefined ? { driver: input.driver } : {}),
       }),
     readExternalAgentSessionTranscript: async (input) =>
       readExternalAgentSessionTranscript({
@@ -634,6 +636,7 @@ export function createSessionFacade(deps: CreateSessionFacadeDeps): SessionFacad
         externalSessionId: input.externalSessionId,
         ...(input.before !== undefined ? { before: input.before } : {}),
         ...(input.limit !== undefined ? { limit: input.limit } : {}),
+        ...(input.driver !== undefined ? { driver: input.driver } : {}),
       }),
     setMode: async (mode: CollaborationMode) => {
       const previousMode = deps.runtime.getMode();

@@ -12,7 +12,11 @@ import {
   buildDeleteExternalAgentSessionScript,
   buildExternalAgentSessionsScript,
   buildExternalAgentTranscriptScript,
+  deleteExternalAgentSession,
+  listExternalAgentSessions,
   parseExternalAgentSessionsProbe,
+  parseModelListLines,
+  parseOpencodeSessionListProbe,
   readExternalAgentSessionTranscript,
 } from "../src/zcode-protocol/external-agent-probe.js";
 import { cwdToProjectDirName } from "@zcode/shared";
@@ -204,5 +208,204 @@ describe("readExternalAgentSessionTranscript", () => {
     expect(page.truncated).toBe(true);
     expect(page.sessionId).toBe("sess-1");
     expect(page.entries.map((entry) => entry.text)).toEqual(["第一句", "第二句"]);
+  });
+});
+
+// ── opencode 驱动分派（2026-11-08）──
+// opencode 的会话不在落盘 JSONL 里，只能问 CLI。这里钉住两件事：
+// 1. driver 分派真的换了命令（opencode 走 CLI，claude 仍走 node -e 脚本）；
+// 2. driver 缺省时行为与改动前逐字一致（旧客户端不发 driver 字段）。
+
+function okResult(stdout: string, exitCode = 0) {
+  return { streams: { stdout: { text: stdout }, stderr: { text: "" } }, exitCode };
+}
+
+function stubPort(handler: (request: { command: { file: string; args: string[] } }) => unknown) {
+  return { run: vi.fn(async (request: never) => handler(request)) } as never;
+}
+
+function listEntry(id: string, title: string, updated: number) {
+  return { id, title, updated, created: updated - 1_000, projectId: "p", directory: WORKSPACE };
+}
+
+describe("parseOpencodeSessionListProbe", () => {
+  it("取 id/title/updated，按 updated 降序，缺标题退 id", () => {
+    const stdout = JSON.stringify([
+      listEntry("ses_old", "旧会话", 1_000),
+      { id: "ses_new", updated: 3_000 },
+      listEntry("ses_mid", "中间", 2_000),
+    ]);
+    expect(parseOpencodeSessionListProbe(stdout)).toEqual([
+      { sessionId: "ses_new", title: "ses_new", updatedAt: 3_000 },
+      { sessionId: "ses_mid", title: "中间", updatedAt: 2_000 },
+      { sessionId: "ses_old", title: "旧会话", updatedAt: 1_000 },
+    ]);
+  });
+
+  it("最多 30 条；畸形输入返回空数组", () => {
+    const many = Array.from({ length: 40 }, (_, index) =>
+      listEntry(`ses_${index}`, `t${index}`, index),
+    );
+    const result = parseOpencodeSessionListProbe(JSON.stringify(many));
+    expect(result).toHaveLength(30);
+    expect(result[0]?.sessionId).toBe("ses_39");
+    expect(parseOpencodeSessionListProbe("not json")).toEqual([]);
+    expect(parseOpencodeSessionListProbe("{}")).toEqual([]);
+  });
+});
+
+describe("会话探测的 driver 分派", () => {
+  it("opencode: list 走 `opencode session list --format json`", async () => {
+    const port = stubPort(() => okResult(JSON.stringify([listEntry("ses_1", "一次任务", 5)])));
+    const sessions = await listExternalAgentSessions({
+      executionPort: port,
+      cwd: WORKSPACE,
+      driver: "opencode-exec",
+    });
+    expect(sessions).toEqual([{ sessionId: "ses_1", title: "一次任务", updatedAt: 5 }]);
+    const request = (port as { run: { mock: { calls: Array<[unknown]> } } }).run.mock
+      .calls[0]![0] as {
+      command: { file: string; args: string[] };
+    };
+    expect(request.command.file).toBe("opencode");
+    expect(request.command.args).toEqual(["session", "list", "--format", "json", "-n", "100"]);
+  });
+
+  it("claude-family（含 driver 缺省）: 仍走 node -e 脚本，不碰 opencode", async () => {
+    const port = stubPort(() => okResult(""));
+    await listExternalAgentSessions({ executionPort: port, cwd: WORKSPACE });
+    await listExternalAgentSessions({
+      executionPort: port,
+      cwd: WORKSPACE,
+      driver: "claude-family",
+    });
+    const calls = (port as { run: { mock: { calls: Array<[unknown]> } } }).run.mock.calls;
+    expect(calls).toHaveLength(2);
+    for (const [request] of calls) {
+      const command = (request as { command: { file: string; args: string[] } }).command;
+      expect(command.file).toBe("node");
+      expect(command.args[0]).toBe("-e");
+      expect(command.args[1]).toContain(".codebuddy");
+    }
+  });
+
+  it("opencode: transcript 走 `session export`，内容交给 parseOpencodeSessionExport", async () => {
+    const exported = JSON.stringify({
+      info: { id: "ses_9" },
+      messages: [
+        { type: "user", time: { created: 1 }, content: [{ type: "text", text: "修一下 lint" }] },
+        {
+          type: "assistant",
+          time: { created: 2 },
+          content: [
+            { type: "text", text: "先看报错" },
+            {
+              type: "tool",
+              tool: "bash",
+              state: { input: { command: "pnpm lint" }, output: "3 errors" },
+            },
+          ],
+        },
+      ],
+    });
+    const port = stubPort(() => okResult(exported));
+    const page = await readExternalAgentSessionTranscript({
+      executionPort: port,
+      cwd: WORKSPACE,
+      externalSessionId: "ses_9",
+      driver: "opencode-exec",
+      limit: 10,
+    });
+    expect(page.sessionId).toBe("ses_9");
+    expect(page.entries.map((entry) => [entry.kind, entry.text])).toEqual([
+      ["user", "修一下 lint"],
+      ["assistant", "先看报错"],
+      ["tool", "bash: pnpm lint"],
+      ["tool_result", "3 errors"],
+    ]);
+    const request = (port as { run: { mock: { calls: Array<[unknown]> } } }).run.mock
+      .calls[0]![0] as {
+      command: { file: string; args: string[] };
+      outputLimit: { maxInlineBytes: number; maxBufferBytes: number };
+    };
+    expect(request.command.file).toBe("opencode");
+    expect(request.command.args).toEqual(["session", "export", "ses_9"]);
+    expect(request.outputLimit.maxBufferBytes).toBe(8_000_000);
+  });
+
+  it("opencode: 非法 id 直接拒绝（不跑命令），返回空页", async () => {
+    const run = vi.fn();
+    const page = await readExternalAgentSessionTranscript({
+      executionPort: { run } as never,
+      cwd: WORKSPACE,
+      externalSessionId: "../../evil",
+      driver: "opencode-exec",
+    });
+    expect(run).not.toHaveBeenCalled();
+    expect(page).toMatchObject({ entries: [], total: 0 });
+  });
+
+  it("opencode: delete 走 `session delete`，退出码 0 = 删除成功", async () => {
+    const port = stubPort(() => okResult(""));
+    expect(
+      await deleteExternalAgentSession({
+        executionPort: port,
+        cwd: WORKSPACE,
+        externalSessionId: "ses_abc-1",
+        driver: "opencode-exec",
+      }),
+    ).toBe(true);
+    const request = (port as { run: { mock: { calls: Array<[unknown]> } } }).run.mock
+      .calls[0]![0] as {
+      command: { file: string; args: string[] };
+    };
+    expect(request.command.file).toBe("opencode");
+    expect(request.command.args).toEqual(["session", "delete", "ses_abc-1"]);
+  });
+
+  it("opencode: delete 非零退出 = 失败；非法 id 不跑命令", async () => {
+    const port = stubPort(() => okResult("", 1));
+    expect(
+      await deleteExternalAgentSession({
+        executionPort: port,
+        cwd: WORKSPACE,
+        externalSessionId: "ses_missing",
+        driver: "opencode-exec",
+      }),
+    ).toBe(false);
+
+    const run = vi.fn();
+    expect(
+      await deleteExternalAgentSession({
+        executionPort: { run } as never,
+        cwd: WORKSPACE,
+        externalSessionId: "bad id!",
+        driver: "opencode-exec",
+      }),
+    ).toBe(false);
+    expect(run).not.toHaveBeenCalled();
+  });
+});
+
+describe("parseModelListLines（opencode models 的输出）", () => {
+  it("每行一个 id：去空、去重、保序、单条超 120 字符丢弃", () => {
+    const stdout = [
+      "anthropic/claude-sonnet-4",
+      "",
+      "  openai/gpt-5  ",
+      "anthropic/claude-sonnet-4",
+      "x".repeat(121),
+      "google/gemini-3",
+    ].join("\n");
+    expect(parseModelListLines(stdout)).toEqual([
+      "anthropic/claude-sonnet-4",
+      "openai/gpt-5",
+      "google/gemini-3",
+    ]);
+  });
+
+  it("最多 100 条", () => {
+    const stdout = Array.from({ length: 150 }, (_, index) => `p/m${index}`).join("\n");
+    expect(parseModelListLines(stdout)).toHaveLength(100);
   });
 });

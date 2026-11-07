@@ -16,6 +16,10 @@ export const EXTERNAL_AGENT_DRIVER_KINDS = [
   // codex 的非交互入口是子命令 `codex exec`，输出是 JSONL 事件流，
   // 与 claude 族的"单个 JSON 数组"不同，所以必须独立成族。
   "codex-exec",
+  // opencode：`opencode run --format json` 同样逐行输出 JSON 事件，但事件字段
+  // （part.text / part.tool / part.state.input）与 codex、claude 都不同；
+  // prompt 走 stdin（不进 argv）。字段不同、错误行语义也不同，所以独立成族。
+  "opencode-exec",
   "generic-template",
 ] as const;
 export type ExternalAgentDriverKind = (typeof EXTERNAL_AGENT_DRIVER_KINDS)[number];
@@ -107,6 +111,8 @@ export type ExternalAgentRunSummary = z.infer<typeof externalAgentRunSummarySche
 // stream-json：逐事件输出（每行一个 JSON），活动卡才能实时展示"正在跑什么命令"。
 const CLAUDE_FAMILY_DEFAULT_ARGS = ["-p", "--output-format", "stream-json"] as const;
 const CODEX_EXEC_DEFAULT_ARGS = ["exec"] as const;
+// --format json 是活动卡实时过程的唯一来源；缺了它就只能等一次性结果。
+const OPENCODE_RUN_DEFAULT_ARGS = ["run", "--format", "json"] as const;
 
 /**
  * 模型 flag：按驱动族给默认值，绑定时用户显式选过 preset 则用 preset 的。
@@ -115,6 +121,7 @@ const CODEX_EXEC_DEFAULT_ARGS = ["exec"] as const;
 function resolveModelFlag(binding: ExternalAgentBinding): string | undefined {
   if (binding.driver === "codex-exec") return "-m";
   if (binding.driver === "claude-family") return "--model";
+  if (binding.driver === "opencode-exec") return "--model";
   return undefined;
 }
 
@@ -145,6 +152,8 @@ function resolveEffortArgs(binding: ExternalAgentBinding): string[] {
  *   （claude / codebuddy 实测同构：`-p` 非交互，`--output-format json` 返回数组，
  *   取 `type:"result"` 的 `.result`）。
  * - codex-exec：`{command} exec [-m M] [-c key=value] "<prompt>"`（非交互入口是子命令）。
+ * - opencode-exec：`{command} run --format json [--auto] [--model M] [--session ID]`，
+ *   prompt 走 stdin（见该分支注释）。
  * - generic-template：`{command} [...args]`，`{prompt}` 占位替换；
  *   `stdin` 模式则把 prompt 通过 stdin 传入。
  */
@@ -201,6 +210,34 @@ export function buildExternalAgentInvocation(
     args.push(prompt);
     return { command: binding.command, args };
   }
+  if (binding.driver === "opencode-exec") {
+    // 与 claude-family 同一取向：预设 argv 跟随代码，老绑定落库的 args 不覆盖
+    // `run --format json`——少了 --format json 就拿不到逐事件过程，只剩最后一坨
+    // 结果，且用户还得重新绑定才生效。
+    const presetArgs = findExternalAgentPreset(binding.presetId)?.args;
+    const base =
+      presetArgs && presetArgs.length > 0
+        ? [...presetArgs]
+        : binding.args.length > 0
+          ? [...binding.args]
+          : [...OPENCODE_RUN_DEFAULT_ARGS];
+    const args = [...base];
+    // --auto：自动批准未显式拒绝的权限。非交互委派下没人能点确认框，不给这个
+    // 标志外部 agent 会在第一个需要批准的操作上卡死。同样跟随预设代码走，
+    // 手填命令仍用绑定自己的值。
+    const permissionMode =
+      findExternalAgentPreset(binding.presetId)?.permissionMode ?? binding.permissionMode;
+    if (permissionMode) args.push("--auto");
+    const modelFlag = resolveModelFlag(binding);
+    if (binding.model && modelFlag) args.push(modelFlag, binding.model);
+    // 续接由用户钉死（与 claude-family 一致）：有 externalSessionId 就永远
+    // `--session <id>`，continuation:"fresh" 也不改。opencode 对不存在的 id 会
+    // 用这个 id 新建会话，所以续接不会硬失败。
+    if (binding.externalSessionId) args.push("--session", binding.externalSessionId);
+    // prompt 绝不进 argv：Windows 上 opencode 是 .cmd shim，多行 prompt 经 cmd.exe
+    // 会在第一个换行处被截断，长任务书还会撞 8191 字符命令行上限；stdin 两者都没有。
+    return { command: binding.command, args, stdin: prompt };
+  }
   // generic-template：只有 args 参与，{prompt} 显式占位。
   const args = binding.args.map((arg) =>
     arg.includes(PROMPT_PLACEHOLDER) ? arg.split(PROMPT_PLACEHOLDER).join(prompt) : arg,
@@ -208,6 +245,74 @@ export function buildExternalAgentInvocation(
   if (binding.promptDelivery === "stdin") return { command: binding.command, args, stdin: prompt };
   if (!binding.args.some((arg) => arg.includes(PROMPT_PLACEHOLDER))) args.push(prompt);
   return { command: binding.command, args };
+}
+
+/**
+ * 解析 `opencode run --format json` 的 JSONL 输出。
+ *
+ * 每行一个事件 `{type, timestamp, sessionID, ...}`：
+ * - `text`：正文在 `part.text`。模型可能分成多段输出，段与段之间是不同段落，
+ *   所以用空行拼接而不是直接连写（连写会让两段话粘成一句）。
+ * - `error`：`error.message` 是失败原因；退出码之外的第二道判据。
+ * - `sessionID`：任意事件都带，取第一个非空值即可——它是下一轮 `--session` 续接的凭据。
+ *
+ * 一条 JSON 都解析不出来（CLI 崩溃后直接打印栈、或 --format 没生效）→ 原文兜底：
+ * 宁可把原始输出交给用户，也不能吞成空报告。
+ */
+export function parseOpencodeRunResult(stdout: string): {
+  text: string;
+  isError: boolean;
+  sessionId?: string;
+} {
+  const texts: string[] = [];
+  let sessionId: string | undefined;
+  let errorMessage: string | undefined;
+  let parsedAny = false;
+  for (const line of stdout.split(/\r?\n/u)) {
+    const trimmed = line.trim();
+    if (!trimmed.startsWith("{")) continue;
+    let entry: unknown;
+    try {
+      entry = JSON.parse(trimmed);
+    } catch {
+      // 半个事件（进程被杀 / 输出截断）：跳过。
+      continue;
+    }
+    if (!entry || typeof entry !== "object") continue;
+    parsedAny = true;
+    const record = entry as {
+      type?: unknown;
+      sessionID?: unknown;
+      part?: unknown;
+      error?: unknown;
+    };
+    if (!sessionId && typeof record.sessionID === "string" && record.sessionID) {
+      sessionId = record.sessionID;
+    }
+    if (record.type === "text") {
+      const part = record.part as { text?: unknown } | undefined;
+      if (part && typeof part.text === "string" && part.text.trim()) texts.push(part.text.trim());
+      continue;
+    }
+    if (record.type === "error") {
+      const error = record.error as { message?: unknown } | undefined;
+      errorMessage =
+        error && typeof error.message === "string" && error.message.trim()
+          ? error.message.trim()
+          : (errorMessage ?? "OpenCode 返回错误");
+    }
+  }
+  if (!parsedAny) return { text: stdout, isError: false };
+  const text = texts.join("\n\n");
+  if (errorMessage !== undefined) {
+    // 失败时正文也要留着：错误行经常只有一句话，前面打出来的过程是排查线索。
+    return {
+      text: text ? `${text}\n\n${errorMessage}` : errorMessage,
+      isError: true,
+      ...(sessionId ? { sessionId } : {}),
+    };
+  }
+  return { text, isError: false, ...(sessionId ? { sessionId } : {}) };
 }
 
 /** 读取某个模型当前的推理档位（undefined = 用该 CLI 默认档位）。 */
@@ -247,13 +352,19 @@ export function withModelEffort(
  *   （实测 codebuddy 2.179.2 / claude 2.1.193 的结构）；解析失败时退回原文。
  * - codex-exec：不加 `--json` 时 stdout 就是最终回答，原样返回；
  *   `is_error` 只能由退出码判定（见 driver）。
+ * - opencode-exec：逐行 JSON 事件流，正文由 text 事件拼成（见 parseOpencodeRunResult）。
  * - 其余情况：原文（generic 模板无法假设结构）。
  */
 export function parseExternalAgentResult(
   binding: ExternalAgentBinding,
   stdout: string,
 ): { text: string; isError: boolean; sessionId?: string } {
-  if (binding.driver !== "claude-family") return { text: stdout, isError: false };
+  if (binding.driver !== "claude-family") {
+    // opencode 的 stdout 是 JSONL 事件流，原始文本直接当报告是给用户看一堆 JSON；
+    // 必须先在「非 claude-family 一律返回原文」这条短路之前分流。
+    if (binding.driver === "opencode-exec") return parseOpencodeRunResult(stdout);
+    return { text: stdout, isError: false };
+  }
   // stream-json：每行一个事件，最后一条 type=result 才是最终结果。
   const streamResult = parseStreamJsonResult(stdout);
   if (streamResult) return streamResult;
@@ -263,8 +374,12 @@ export function parseExternalAgentResult(
     const result = parsed.find(
       (
         entry,
-      ): entry is { type: string; result?: unknown; is_error?: unknown; session_id?: unknown } =>
-        !!entry && typeof entry === "object" && (entry as { type?: unknown }).type === "result",
+      ): entry is {
+        type: string;
+        result?: unknown;
+        is_error?: unknown;
+        session_id?: unknown;
+      } => !!entry && typeof entry === "object" && (entry as { type?: unknown }).type === "result",
     );
     if (!result) return { text: stdout, isError: false };
     const body =
@@ -298,7 +413,11 @@ function parseStreamJsonResult(
 ): { text: string; isError: boolean; sessionId?: string } | undefined {
   const lines = stdout.split(/\r?\n/u).filter((line) => line.trim().startsWith("{"));
   if (lines.length === 0) return undefined;
-  let last: { result?: unknown; is_error?: unknown; session_id?: unknown } | null = null;
+  let last: {
+    result?: unknown;
+    is_error?: unknown;
+    session_id?: unknown;
+  } | null = null;
   for (const line of lines) {
     try {
       const entry = JSON.parse(line) as {
@@ -352,7 +471,12 @@ export function formatClaudeFamilyStreamLine(line: string): string[] {
   const lines: string[] = [];
   for (const part of content) {
     if (!part || typeof part !== "object") continue;
-    const item = part as { type?: unknown; text?: unknown; name?: unknown; input?: unknown };
+    const item = part as {
+      type?: unknown;
+      text?: unknown;
+      name?: unknown;
+      input?: unknown;
+    };
     if (item.type === "text" && typeof item.text === "string" && item.text.trim()) {
       lines.push(item.text.trim());
       continue;
@@ -383,7 +507,11 @@ function describeToolUse(name: string, input: unknown): string {
 /** 取消息数组里最后一条 assistant 的文本（兜底，可能为空）。 */
 function lastAssistantText(entries: readonly unknown[]): string {
   for (let index = entries.length - 1; index >= 0; index -= 1) {
-    const entry = entries[index] as { type?: unknown; role?: unknown; content?: unknown };
+    const entry = entries[index] as {
+      type?: unknown;
+      role?: unknown;
+      content?: unknown;
+    };
     if (entry?.type !== "message" || entry.role !== "assistant" || !Array.isArray(entry.content)) {
       continue;
     }

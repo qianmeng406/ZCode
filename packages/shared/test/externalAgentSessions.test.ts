@@ -3,6 +3,7 @@ import test from "node:test";
 import {
   cwdToProjectDirName,
   parseClaudeFamilyTranscript,
+  parseOpencodeSessionExport,
   scanClaudeFamilySessionFile,
   scanClaudeFamilySessionsFromLines,
 } from "../src/externalAgentSessions.js";
@@ -203,4 +204,154 @@ test("transcript: 单页正文预算超限时从最老开始丢", () => {
   assert.ok(page.entries.length < 30);
   // 丢的是最老的：最后一条必须还在。
   assert.equal(page.entries.at(-1)?.text.startsWith("y"), true);
+});
+
+// ── opencode：`opencode session export <id>` 的 JSON 还原 ──
+// 形状与 claude-family 的 JSONL 完全不同（单个 JSON + messages[].content[]），
+// 所以单独一组用例；面板侧只关心产出与 claude-family 同形的 transcript page。
+
+function opencodeMessage(
+  type: string,
+  content: unknown[],
+  created = 1_700_000_000_000,
+): Record<string, unknown> {
+  // 只有 user/assistant 带 content；system 等状态消息在真实 export 里没有 content。
+  return { type, time: { created }, ...(content.length > 0 ? { content } : {}) };
+}
+
+function opencodeExport(messages: unknown[]): string {
+  return JSON.stringify({ info: { id: "ses_1" }, messages });
+}
+
+test("opencode export: 用户/助手/工具调用/工具结果四类条目，按消息顺序", () => {
+  const content = opencodeExport([
+    opencodeMessage("user", [{ type: "text", text: "修一下 lint" }]),
+    opencodeMessage("assistant", [
+      { type: "step-start" },
+      { type: "text", text: "先看报错" },
+      {
+        type: "tool",
+        tool: "bash",
+        state: { input: { command: "pnpm lint" }, output: "3 errors" },
+      },
+      { type: "step-finish" },
+    ]),
+    opencodeMessage("assistant", [{ type: "text", text: "改完了" }]),
+  ]);
+  const page = parseOpencodeSessionExport(content, { sessionId: "ses_1", limit: 10 });
+  assert.deepEqual(
+    page.entries.map((entry) => [entry.kind, entry.name ?? "", entry.text]),
+    [
+      ["user", "", "修一下 lint"],
+      ["assistant", "", "先看报错"],
+      ["tool", "bash", "bash: pnpm lint"],
+      ["tool_result", "bash", "3 errors"],
+      ["assistant", "", "改完了"],
+    ],
+  );
+  assert.equal(page.total, 5);
+  assert.equal(page.hasMore, false);
+  assert.equal(page.truncated, false);
+  assert.equal(page.sessionId, "ses_1");
+});
+
+test("opencode export: system/idle/model-switched/compaction 消息跳过", () => {
+  const content = opencodeExport([
+    opencodeMessage("system", [], 1),
+    opencodeMessage("user", [{ type: "text", text: "真正的任务" }]),
+    opencodeMessage("idle", [], 2),
+    opencodeMessage("model-switched", [], 3),
+    opencodeMessage("compaction", [{ type: "text", text: "压缩摘要" }]),
+  ]);
+  const page = parseOpencodeSessionExport(content, { sessionId: "s" });
+  assert.deepEqual(
+    page.entries.map((entry) => entry.text),
+    ["真正的任务"],
+  );
+  assert.equal(page.total, 1);
+});
+
+test("opencode export: 多段 text 用空行拼接，thinking 不入转录", () => {
+  const content = opencodeExport([
+    opencodeMessage("assistant", [
+      { type: "reasoning", text: "先想一下" },
+      { type: "text", text: "第一段" },
+      { type: "text", text: "第二段" },
+    ]),
+  ]);
+  const page = parseOpencodeSessionExport(content, { sessionId: "s" });
+  assert.deepEqual(
+    page.entries.map((entry) => entry.text),
+    ["第一段\n\n第二段"],
+  );
+});
+
+test("opencode export: 工具没有 output 时只出调用条目", () => {
+  const content = opencodeExport([
+    opencodeMessage("assistant", [{ type: "tool", tool: "read", state: { input: {} } }]),
+  ]);
+  const page = parseOpencodeSessionExport(content, { sessionId: "s" });
+  assert.deepEqual(
+    page.entries.map((entry) => [entry.kind, entry.text]),
+    [["tool", "read"]],
+  );
+});
+
+test("opencode export: 分页按条目序号向前翻，before/limit 与 claude-family 同语义", () => {
+  const messages = Array.from({ length: 12 }, (_, index) =>
+    opencodeMessage("user", [{ type: "text", text: `第 ${index + 1} 句` }]),
+  );
+  const content = opencodeExport(messages);
+  const latest = parseOpencodeSessionExport(content, { sessionId: "s", limit: 5 });
+  assert.deepEqual(
+    latest.entries.map((entry) => entry.text),
+    ["第 8 句", "第 9 句", "第 10 句", "第 11 句", "第 12 句"],
+  );
+  assert.equal(latest.hasMore, true);
+  const earlier = parseOpencodeSessionExport(content, {
+    sessionId: "s",
+    limit: 5,
+    before: latest.total - latest.entries.length,
+  });
+  assert.deepEqual(
+    earlier.entries.map((entry) => entry.text),
+    ["第 3 句", "第 4 句", "第 5 句", "第 6 句", "第 7 句"],
+  );
+  assert.equal(earlier.hasMore, true);
+});
+
+test("opencode export: 超长正文按 kind 各自上限截断并标 clipped", () => {
+  const content = opencodeExport([
+    opencodeMessage("assistant", [{ type: "text", text: "x".repeat(20_000) }]),
+    opencodeMessage("assistant", [
+      {
+        type: "tool",
+        tool: "bash",
+        state: { input: { command: "ls" }, output: "o".repeat(10_000) },
+      },
+    ]),
+  ]);
+  const page = parseOpencodeSessionExport(content, { sessionId: "s" });
+  const [assistant, tool, toolResult] = page.entries;
+  assert.equal(assistant?.clipped, true);
+  assert.equal(assistant?.text.length, 12_001);
+  assert.equal(tool?.clipped, undefined);
+  assert.equal(toolResult?.clipped, true);
+  assert.equal(toolResult?.text.length, 4_001);
+});
+
+test("opencode export: sourceTruncated 透传为 truncated", () => {
+  const page = parseOpencodeSessionExport(opencodeExport([]), {
+    sessionId: "s",
+    sourceTruncated: true,
+  });
+  assert.equal(page.truncated, true);
+  assert.deepEqual(page.entries, []);
+});
+
+test("opencode export: 损坏的 JSON 返回空页而不是抛错", () => {
+  const page = parseOpencodeSessionExport('{"messages":[{"type":"user"', { sessionId: "s" });
+  assert.deepEqual(page.entries, []);
+  assert.equal(page.total, 0);
+  assert.equal(page.hasMore, false);
 });

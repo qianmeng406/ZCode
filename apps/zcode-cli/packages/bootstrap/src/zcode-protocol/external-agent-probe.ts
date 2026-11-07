@@ -13,13 +13,23 @@ import {
   parseClaudeFamilyTranscript,
   parseModelCatalogFromProductJson,
   parseModelListFromHelp,
+  parseOpencodeSessionExport,
   parseServerModelCache,
   scanClaudeFamilySessionFile,
+  type ExternalAgentBinding,
   type ExternalAgentModelInfo,
   type ExternalAgentPreset,
   type ExternalAgentSessionSummary,
   type ExternalAgentTranscriptPage,
 } from "@zcode/shared";
+
+/**
+ * 外部会话相关的三个探测按驱动族分派。
+ *
+ * 缺省 `claude-family` 是刻意保留的：旧客户端/旧 Host 不带 driver 字段，
+ * 必须继续走原来那条 `~/.codebuddy` 脚本路径，行为逐字不变。
+ */
+type ExternalAgentDriverKind = ExternalAgentBinding["driver"];
 
 /** 一个预设在本机的实测状态。 */
 export interface ExternalAgentPresetStatus {
@@ -260,6 +270,18 @@ async function probePreset(
   const version = versionProbe.stdout.trim().split(/\r?\n/u)[0]?.trim() || undefined;
   const base = { preset, installed: true, ...(version ? { version } : {}) };
 
+  // 模型清单来自 CLI 自己的子命令（opencode 的 `models`）：--help 不列模型，
+  // 也没有可读的模型目录文件，只能跑一次拿逐行输出。
+  if (preset.modelSource === "command" && preset.modelListCommand?.length) {
+    const listed = await probeCommand(executionPort, preset.command, preset.modelListCommand, cwd);
+    return {
+      ...base,
+      models: listed.ok ? parseModelListLines(listed.stdout) : [],
+      // 这种来源没有逐模型档位信息：空数组 = 调用方退回静态兜底表。
+      modelCatalog: [],
+    };
+  }
+
   // 产品清单优先：它同时给出模型名与逐模型档位，是唯一权威来源。
   const modelCatalog = await probeModelCatalog(executionPort, preset, cwd);
   if (modelCatalog.length > 0) {
@@ -274,6 +296,26 @@ async function probePreset(
     models: helpProbe.ok ? parseModelListFromHelp(helpProbe.stdout) : [],
     modelCatalog: [],
   };
+}
+
+/**
+ * 把 `models` 子命令的 stdout 转成模型 id 列表（每行一个 `providerID/modelID`）。
+ *
+ * 去空行、去重、保序（CLI 的输出顺序本身就是用户习惯的顺序）；cap 100 与
+ * 单条 120 字符上限是为了不让一条异常的探测输出把对话框撑爆——模型 id 再长
+ * 也就几十字符，超出的只可能是 CLI 打了别的东西进来。
+ */
+export function parseModelListLines(stdout: string): string[] {
+  const seen = new Set<string>();
+  const models: string[] = [];
+  for (const line of stdout.split(/\r?\n/u)) {
+    const id = line.trim();
+    if (!id || id.length > 120 || seen.has(id)) continue;
+    seen.add(id);
+    models.push(id);
+    if (models.length >= 100) break;
+  }
+  return models;
 }
 
 /**
@@ -311,8 +353,23 @@ export async function listExternalAgentSessions(options: {
   executionPort: ExecutionPort;
   cwd: string;
   limit?: number;
+  /** 缺省 claude-family：旧调用方不带该字段时行为与以前完全一致。 */
+  driver?: ExternalAgentDriverKind;
 }): Promise<ExternalAgentSessionSummary[]> {
   const limit = options.limit ?? 30;
+  if (options.driver === "opencode-exec") {
+    // opencode 的会话存在自己的数据库里，没有可扫的 JSONL 目录；只能问 CLI。
+    // list 天然按当前 cwd 作用域（opencode 以 cwd 划分 project）。
+    const listed = await probeCommand(
+      options.executionPort,
+      "opencode",
+      ["session", "list", "--format", "json", "-n", "100"],
+      options.cwd,
+      { maxInlineBytes: 8_000_000, maxBufferBytes: 8_000_000 },
+    );
+    if (!listed.ok || !listed.stdout.trim()) return [];
+    return parseOpencodeSessionListProbe(listed.stdout).slice(0, limit);
+  }
   const read = await probeCommand(
     options.executionPort,
     "node",
@@ -322,6 +379,38 @@ export async function listExternalAgentSessions(options: {
   );
   if (!read.ok || !read.stdout.trim()) return [];
   return parseExternalAgentSessionsProbe(read.stdout).slice(0, limit);
+}
+
+/**
+ * 宿主侧解析 `opencode session list --format json` 的输出。
+ *
+ * 形状：`[{id, title, updated, created, projectId, directory}]`。只取列表需要的
+ * 三个字段；`updated` 是 epoch ms，按它降序（新到旧）再截前 30 条——菜单只展示
+ * 最近的一批，全量塞进下拉框既慢也没用。
+ * 解析失败返回空数组：列表是尽力而为的展示，畸形输出不该让整个菜单报错。
+ */
+export function parseOpencodeSessionListProbe(stdout: string): ExternalAgentSessionSummary[] {
+  let parsed: unknown;
+  try {
+    parsed = JSON.parse(stdout);
+  } catch {
+    return [];
+  }
+  if (!Array.isArray(parsed)) return [];
+  const summaries: ExternalAgentSessionSummary[] = [];
+  for (const item of parsed) {
+    if (!item || typeof item !== "object") continue;
+    const record = item as { id?: unknown; title?: unknown; updated?: unknown };
+    if (typeof record.id !== "string" || !record.id) continue;
+    summaries.push({
+      sessionId: record.id,
+      // 没标题的会话用 id 占位（与 claude-family 的"标题缺席退 id"同口径）。
+      title:
+        typeof record.title === "string" && record.title.trim() ? record.title.trim() : record.id,
+      updatedAt: typeof record.updated === "number" ? record.updated : 0,
+    });
+  }
+  return summaries.sort((left, right) => right.updatedAt - left.updatedAt).slice(0, 30);
 }
 
 /**
@@ -411,8 +500,22 @@ export async function deleteExternalAgentSession(options: {
   executionPort: ExecutionPort;
   cwd: string;
   externalSessionId: string;
+  /** 缺省 claude-family：旧调用方不带该字段时行为与以前完全一致。 */
+  driver?: ExternalAgentDriverKind;
 }): Promise<boolean> {
+  // id 会被拼进 argv/路径：两种驱动都先过同一道白名单。不合法直接 false，
+  // 语义与"本来就不存在"一致（幂等、不抛错）。
   if (!SAFE_EXTERNAL_SESSION_ID.test(options.externalSessionId)) return false;
+  if (options.driver === "opencode-exec") {
+    // opencode 的删除是 CLI 子命令（连带子会话），没有 --force；退出码 0 即删除成功。
+    const deleted = await probeCommand(
+      options.executionPort,
+      "opencode",
+      ["session", "delete", options.externalSessionId],
+      options.cwd,
+    );
+    return deleted.ok;
+  }
   const read = await probeCommand(
     options.executionPort,
     "node",
@@ -456,6 +559,8 @@ export async function readExternalAgentSessionTranscript(options: {
   externalSessionId: string;
   before?: number;
   limit?: number;
+  /** 缺省 claude-family：旧调用方不带该字段时行为与以前完全一致。 */
+  driver?: ExternalAgentDriverKind;
 }): Promise<ExternalAgentTranscriptPage> {
   const empty: ExternalAgentTranscriptPage = {
     sessionId: options.externalSessionId,
@@ -465,6 +570,22 @@ export async function readExternalAgentSessionTranscript(options: {
     truncated: false,
   };
   if (!SAFE_EXTERNAL_SESSION_ID.test(options.externalSessionId)) return empty;
+  if (options.driver === "opencode-exec") {
+    // 走 CLI 的 export（单个 JSON）：会话不在可读的 JSONL 文件里，只能由 CLI 导出。
+    const exported = await probeCommand(
+      options.executionPort,
+      "opencode",
+      ["session", "export", options.externalSessionId],
+      options.cwd,
+      { maxInlineBytes: 8_000_000, maxBufferBytes: 8_000_000 },
+    );
+    if (!exported.ok || !exported.stdout.trim()) return empty;
+    return parseOpencodeSessionExport(exported.stdout, {
+      sessionId: options.externalSessionId,
+      ...(options.before !== undefined ? { before: options.before } : {}),
+      ...(options.limit !== undefined ? { limit: options.limit } : {}),
+    });
+  }
   const read = await probeCommand(
     options.executionPort,
     "node",

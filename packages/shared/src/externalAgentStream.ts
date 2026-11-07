@@ -53,7 +53,11 @@ export function createClaudeStreamParser(): ClaudeStreamParser {
       return [];
     }
     if (!entry || typeof entry !== "object") return [];
-    const record = entry as { type?: unknown; event?: unknown; message?: unknown };
+    const record = entry as {
+      type?: unknown;
+      event?: unknown;
+      message?: unknown;
+    };
 
     // 增量事件不产出正文/思考条目（滚动尾窗差分不可靠，见文件头）；
     // 只保留「思考块开始」作为「正在思考」的信号给 UI。
@@ -88,7 +92,10 @@ export function createClaudeStreamParser(): ClaudeStreamParser {
         continue;
       }
       if (item.type !== "tool_use" || typeof item.name !== "string") continue;
-      entries.push({ kind: "tool", text: describeToolUse(item.name, item.input) });
+      entries.push({
+        kind: "tool",
+        text: describeToolUse(item.name, item.input),
+      });
     }
     return entries;
   };
@@ -112,7 +119,12 @@ export function createClaudeStreamParser(): ClaudeStreamParser {
   };
 }
 
-/** 工具调用的单行描述：取最有信息量的那个入参。 */
+/**
+ * 工具调用的单行描述：取最有信息量的那个入参。
+ *
+ * 活动卡只展示「它现在在做什么」，一行足够；超 160 字符的入参（整段脚本）截断，
+ * 否则一条工具调用就能把卡片撑成一屏代码。
+ */
 function describeToolUse(name: string, input: unknown): string {
   const args = (input && typeof input === "object" ? input : {}) as Record<string, unknown>;
   const readString = (key: string): string | undefined =>
@@ -127,4 +139,90 @@ function describeToolUse(name: string, input: unknown): string {
     readString("query");
   if (!detail) return name;
   return `${name}: ${detail.length > MAX_TOOL_DETAIL ? `${detail.slice(0, MAX_TOOL_DETAIL)}…` : detail}`;
+}
+
+// ── opencode（`opencode run --format json`，JSONL）──
+//
+// 事件形状（v2.2.5 实测）：
+//   {type:"text"|"reasoning", part:{text}}
+//   {type:"tool_use", part:{tool, state:{input, output}}}
+//   {type:"step_start"|"step_finish"|"retry"|"error", ...}
+// 与 claude 族的差别是两个字段层：正文在 `part.text`（不是 message.content 数组），
+// 工具名在 `part.tool`、入参在 `part.state.input`。所以必须单独解析，不能复用
+// claude 的行解析器。
+//
+// 与 claude 相同的两条纪律：
+// 1. 每行本身就是一个完整事件（opencode 没有 claude 那种 delta 流），所以直接产出条目；
+// 2. 半行 JSON 留在缓冲里等下一次，不产出——半个事件解析出来的字段是残的。
+
+/**
+ * 对**完整**的 opencode 输出做一次性解析（收口时的权威重建）。
+ *
+ * 理由同 parseClaudeFamilyStreamActivities：运行中的实时进度是滚动尾窗快照，
+ * 只有进程结束后的 stdout artifact 才有全量有序字节。
+ */
+export function parseOpencodeStreamActivities(stdout: string): ExternalAgentActivityEntry[] {
+  const parser = createOpencodeStreamParser();
+  const entries = parser.push(stdout);
+  return [...entries, ...parser.flush()];
+}
+
+export function createOpencodeStreamParser(): ClaudeStreamParser {
+  let buffer = "";
+
+  const parseLine = (rawLine: string): ExternalAgentActivityEntry[] => {
+    const line = rawLine.trim();
+    if (!line) return [];
+    let entry: unknown;
+    try {
+      entry = JSON.parse(line);
+    } catch {
+      return [];
+    }
+    if (!entry || typeof entry !== "object") return [];
+    const record = entry as { type?: unknown; part?: unknown };
+    const part = (record.part && typeof record.part === "object" ? record.part : {}) as {
+      text?: unknown;
+      tool?: unknown;
+      state?: unknown;
+    };
+    if (record.type === "text") {
+      // 空文本不产出：step 边界处常见的空 text 事件会在面板上留一堆空行。
+      return typeof part.text === "string" && part.text.trim()
+        ? [{ kind: "text", text: part.text }]
+        : [];
+    }
+    if (record.type === "reasoning") {
+      return typeof part.text === "string" && part.text.trim()
+        ? [{ kind: "reasoning", text: part.text }]
+        : [];
+    }
+    if (record.type === "tool_use") {
+      if (typeof part.tool !== "string" || !part.tool) return [];
+      const state = part.state && typeof part.state === "object" ? part.state : {};
+      const name = part.tool;
+      const input = (state as { input?: unknown }).input;
+      return [{ kind: "tool", text: describeToolUse(name, input) }];
+    }
+    // step_start / step_finish / retry / error / 未知 type：不是"过程"，不产出。
+    return [];
+  };
+
+  const consume = (text: string): ExternalAgentActivityEntry[] => {
+    buffer += text;
+    const lines = buffer.split(/\r?\n/u);
+    buffer = lines.pop() ?? "";
+    return lines.flatMap(parseLine);
+  };
+
+  return {
+    push(chunk) {
+      return consume(chunk);
+    },
+    flush() {
+      const rest = buffer;
+      buffer = "";
+      return rest ? parseLine(rest) : [];
+    },
+  };
 }

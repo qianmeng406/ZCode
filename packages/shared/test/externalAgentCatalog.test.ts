@@ -11,12 +11,15 @@ import {
 } from "../src/externalAgentCatalog.js";
 import {
   createClaudeStreamParser,
+  createOpencodeStreamParser,
   parseClaudeFamilyStreamActivities,
+  parseOpencodeStreamActivities,
 } from "../src/externalAgentStream.js";
 import {
   buildExternalAgentInvocation,
   externalAgentBindingSchema,
   parseExternalAgentResult,
+  parseOpencodeRunResult,
   readModelEffort,
   withModelEffort,
 } from "../src/externalAgentBinding.js";
@@ -48,7 +51,7 @@ test("EXTERNAL_AGENT_BINDABLE_PRESETS: 只列完整适配的", () => {
   // codex / claude-code 目前只验证过最基本的调用形状，列出来用户会以为能完整用。
   assert.deepEqual(
     EXTERNAL_AGENT_BINDABLE_PRESETS.map((preset) => preset.id),
-    ["codebuddy"],
+    ["codebuddy", "opencode"],
   );
   // 目录里不删它们：老绑定还要靠 findExternalAgentPreset 回显 label 与调用参数。
   for (const id of ["claude-code", "codex"]) {
@@ -309,6 +312,212 @@ test("模型与档位同时给时顺序稳定（model → effort → permissionM
     "acceptEdits",
   ]);
   assert.equal(invocation.stdin, "干活");
+});
+
+// ── opencode 适配 ──
+// 调用形状来自 v2.2.5 实测：`opencode run --format json` 输出 JSONL，prompt 走 stdin，
+// 模型清单来自 `opencode models`，没有独立 effort flag。
+
+test("opencode 预设：run --format json + stdin 交付 + models 子命令 + 无档位", () => {
+  const opencode = findExternalAgentPreset("opencode")!;
+  assert.equal(opencode.driver, "opencode-exec");
+  assert.equal(opencode.adaptation, "full");
+  assert.deepEqual(opencode.args, ["run", "--format", "json"]);
+  assert.equal(opencode.promptDelivery, "stdin");
+  assert.equal(opencode.permissionMode, "auto");
+  assert.equal(opencode.modelFlag, "--model");
+  assert.equal(opencode.modelSource, "command");
+  assert.deepEqual(opencode.modelListCommand, ["models"]);
+  // 档位走 --model 的 #variant，本版不提供档位选择：给一组候选只会让参数猜错。
+  assert.equal(opencode.effortDelivery, "none");
+  assert.deepEqual(opencode.effortLevelsByModel, {});
+  assert.deepEqual(resolveEffortLevels(opencode, "anthropic/claude"), []);
+});
+
+const opencodeBinding = externalAgentBindingSchema.parse({
+  label: "OpenCode",
+  driver: "opencode-exec",
+  command: "opencode",
+  args: ["run", "--format", "json"],
+  promptDelivery: "stdin",
+  permissionMode: "auto",
+  presetId: "opencode",
+});
+
+test("opencode invocation: 无 model 无续接 → run --format json --auto，prompt 只在 stdin", () => {
+  const invocation = buildExternalAgentInvocation(opencodeBinding, "干活");
+  assert.deepEqual(invocation.args, ["run", "--format", "json", "--auto"]);
+  assert.equal(invocation.stdin, "干活");
+  assert.equal(invocation.args.includes("干活"), false);
+});
+
+test("opencode invocation: 多行 prompt 绝不进 argv（Windows .cmd shim 截断防线）", () => {
+  const prompt = "第一行\n第二行\n\n第四行";
+  const invocation = buildExternalAgentInvocation(
+    { ...opencodeBinding, model: "anthropic/claude", externalSessionId: "ses_123" },
+    prompt,
+  );
+  // prompt 必须整段留在 stdin：cmd.exe 会在第一个换行处截断多行 argv，
+  // 且命令行有 8191 字符上限，进 argv 就只剩第一行。
+  assert.equal(invocation.stdin, prompt);
+  assert.equal(invocation.args.includes(prompt), false);
+  for (const line of prompt.split("\n")) {
+    assert.equal(invocation.args.includes(line), false);
+  }
+});
+
+test("opencode invocation: --model 与 --session 的位置固定（续接由用户钉死）", () => {
+  const invocation = buildExternalAgentInvocation(
+    { ...opencodeBinding, model: "anthropic/claude", externalSessionId: "ses_123" },
+    "继续",
+  );
+  assert.deepEqual(invocation.args, [
+    "run",
+    "--format",
+    "json",
+    "--auto",
+    "--model",
+    "anthropic/claude",
+    "--session",
+    "ses_123",
+  ]);
+  assert.equal(invocation.stdin, "继续");
+  // 与 claude-family 同语义：模型传 fresh 也不打断"一直续接"。
+  const fresh = buildExternalAgentInvocation(
+    { ...opencodeBinding, externalSessionId: "ses_123" },
+    "新任务",
+    { continuation: "fresh" },
+  );
+  assert.deepEqual(fresh.args.slice(-2), ["--session", "ses_123"]);
+});
+
+test("opencode invocation: 无 externalSessionId 时不带 --session（新会话）", () => {
+  const invocation = buildExternalAgentInvocation(opencodeBinding, "新任务");
+  assert.equal(invocation.args.includes("--session"), false);
+});
+
+test("opencode invocation: 预设 argv 跟随代码，老绑定落库的 args 不覆盖 --format json", () => {
+  const stale = externalAgentBindingSchema.parse({
+    label: "OpenCode",
+    driver: "opencode-exec",
+    command: "opencode",
+    // 假设老绑定落库时没有 --format json（拿不到逐事件过程）。
+    args: ["run"],
+    promptDelivery: "argv-append",
+    presetId: "opencode",
+  });
+  assert.deepEqual(buildExternalAgentInvocation(stale, "干活").args, [
+    "run",
+    "--format",
+    "json",
+    "--auto",
+  ]);
+});
+
+test("parseOpencodeRunResult: 多段 text 用空行拼接并带回 sessionID", () => {
+  const stdout = [
+    JSON.stringify({ type: "step_start", sessionID: "ses_1" }),
+    JSON.stringify({ type: "text", sessionID: "ses_1", part: { text: "第一段" } }),
+    JSON.stringify({ type: "tool_use", sessionID: "ses_1", part: { tool: "bash" } }),
+    JSON.stringify({ type: "text", sessionID: "ses_1", part: { text: "第二段" } }),
+    JSON.stringify({ type: "step_finish", sessionID: "ses_1" }),
+  ].join("\n");
+  assert.deepEqual(parseOpencodeRunResult(stdout), {
+    text: "第一段\n\n第二段",
+    isError: false,
+    sessionId: "ses_1",
+  });
+});
+
+test("parseOpencodeRunResult: error 行 → isError 且保留错误前的过程正文", () => {
+  const stdout = [
+    JSON.stringify({ type: "text", sessionID: "ses_2", part: { text: "做到一半" } }),
+    JSON.stringify({
+      type: "error",
+      sessionID: "ses_2",
+      error: { message: "provider unauthorized" },
+    }),
+  ].join("\n");
+  assert.deepEqual(parseOpencodeRunResult(stdout), {
+    text: "做到一半\n\nprovider unauthorized",
+    isError: true,
+    sessionId: "ses_2",
+  });
+});
+
+test("parseOpencodeRunResult: 只有 error 行时正文就是错误信息", () => {
+  const stdout = JSON.stringify({ type: "error", error: { message: "boom" } });
+  assert.deepEqual(parseOpencodeRunResult(stdout), { text: "boom", isError: true });
+});
+
+test("parseOpencodeRunResult: 一条 JSON 都没解析出来 → 原文兜底且不算错误", () => {
+  const stdout = "opencode: command failed\nstack trace";
+  assert.deepEqual(parseOpencodeRunResult(stdout), { text: stdout, isError: false });
+});
+
+test("parseExternalAgentResult: opencode-exec 走 JSONL 解析而不是原文短路", () => {
+  const stdout = [
+    JSON.stringify({ type: "text", sessionID: "ses_9", part: { text: "改完了" } }),
+    JSON.stringify({ type: "step_finish", sessionID: "ses_9" }),
+  ].join("\n");
+  assert.deepEqual(parseExternalAgentResult(opencodeBinding, stdout), {
+    text: "改完了",
+    isError: false,
+    sessionId: "ses_9",
+  });
+});
+
+test("parseOpencodeStreamActivities: text/reasoning/tool 三类条目，其余事件忽略", () => {
+  const line = (obj: unknown) => `${JSON.stringify(obj)}\n`;
+  const stdout = [
+    line({ type: "step_start", sessionID: "s" }),
+    line({ type: "reasoning", sessionID: "s", part: { text: "先看目录" } }),
+    line({ type: "text", sessionID: "s", part: { text: "好的，我看看" } }),
+    line({
+      type: "tool_use",
+      sessionID: "s",
+      part: { tool: "bash", state: { input: { command: "ls src" }, output: "" } },
+    }),
+    line({ type: "text", sessionID: "s", part: { text: "   " } }),
+    line({ type: "retry", sessionID: "s" }),
+    line({ type: "step_finish", sessionID: "s" }),
+    '截断的半行 {"type":"text"',
+  ].join("");
+  assert.deepEqual(parseOpencodeStreamActivities(stdout), [
+    { kind: "reasoning", text: "先看目录" },
+    { kind: "text", text: "好的，我看看" },
+    { kind: "tool", text: "bash: ls src" },
+  ]);
+});
+
+test("opencode stream 解析器：行被切成多段推送也能接上，flush 处理残行", () => {
+  const parser = createOpencodeStreamParser();
+  const text = JSON.stringify({ type: "text", part: { text: "分段到达" } });
+  // 一行 JSON 被切成两次 feed：前半个事件不能产出（字段是残的）。
+  assert.deepEqual(parser.push(text.slice(0, 10)), []);
+  assert.deepEqual(parser.push(`${text.slice(10)}\n`), [{ kind: "text", text: "分段到达" }]);
+  assert.deepEqual(parser.push('{"type":"text","part":{"text":"末尾"}}'), []);
+  assert.deepEqual(parser.flush(), [{ kind: "text", text: "末尾" }]);
+});
+
+test("opencode tool_use: 入参按 command/file_path/path/pattern/query 顺序取，缺失时退回工具名", () => {
+  const parser = createOpencodeStreamParser();
+  const feed = (input: unknown) =>
+    parser.push(
+      `${JSON.stringify({ type: "tool_use", part: { tool: "read", state: { input } } })}\n`,
+    );
+  assert.deepEqual(feed({ file_path: "src/a.ts", path: "/other" }), [
+    { kind: "tool", text: "read: src/a.ts" },
+  ]);
+  assert.deepEqual(feed({}), [{ kind: "tool", text: "read" }]);
+});
+
+test("parseOpencodeStreamActivities: 空输出与纯 step 事件不产出条目", () => {
+  assert.deepEqual(parseOpencodeStreamActivities(""), []);
+  assert.deepEqual(
+    parseOpencodeStreamActivities(`${JSON.stringify({ type: "step_finish" })}\n`),
+    [],
+  );
 });
 
 // ── 真实模型目录（product.json）优先于静态表 ──

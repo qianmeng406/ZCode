@@ -231,10 +231,17 @@ function fallbackEffortPreset(binding: ExternalAgentBinding): ExternalAgentPrese
     modelFlag: "none",
     modelSource: "free-text",
     models: [],
-    effortDelivery: binding.driver === "codex-exec" ? "config" : "flag",
-    // claude-family 的 --effort 合法值集合（实测）；generic-template 为空 = 不提供档位。
+    // opencode 没有独立 effort flag（档位走 --model 的 #variant），本版不提供档位：
+    // 给一组候选只会让 UI 显示一个传不下去的选择。
+    effortDelivery:
+      binding.driver === "codex-exec"
+        ? "config"
+        : binding.driver === "opencode-exec"
+          ? "none"
+          : "flag",
+    // claude-family 的 --effort 合法值集合（实测）；generic-template / opencode 为空 = 不提供档位。
     effortLevelsByModel:
-      binding.driver === "generic-template"
+      binding.driver === "generic-template" || binding.driver === "opencode-exec"
         ? {}
         : { "": ["low", "medium", "high", "xhigh", "max"] },
   };

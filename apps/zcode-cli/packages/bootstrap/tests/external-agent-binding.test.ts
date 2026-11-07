@@ -791,3 +791,162 @@ describe("stream-json 活动文本", () => {
     expect(formatClaudeFamilyStreamLine('{"type": "assis')).toEqual([]);
   });
 });
+
+// ── opencode 驱动分派（2026-11-08）──
+// `opencode run --format json` 与 claude-family 一样是逐行 JSON 事件，但字段形状
+// 不同（part.text / part.tool / part.state.input）。把"能不能流式解析"收成能力表
+// 以后，这里要钉住的是：驱动表认出了 opencode，且走的是同一条读取/重建流程。
+
+const opencodeBinding: ExternalAgentBinding = {
+  label: "OpenCode",
+  driver: "opencode-exec",
+  command: "opencode",
+  args: ["run", "--format", "json"],
+  promptDelivery: "stdin",
+  permissionMode: "auto",
+};
+
+function opencodeLine(record: unknown): string {
+  return `${JSON.stringify(record)}\n`;
+}
+
+describe("opencode 实时输出与收口", () => {
+  it("stdout 的 JSONL 被解析成 text/reasoning/tool 条目，而不是原样倾倒", async () => {
+    const { createOneShotExternalAgentDriver } =
+      await import("../src/zcode-protocol/external-agent-driver.js");
+    const jsonl = [
+      opencodeLine({ type: "step_start", sessionID: "ses_1" }),
+      opencodeLine({ type: "text", sessionID: "ses_1", part: { text: "好的，我看看" } }),
+      opencodeLine({
+        type: "tool_use",
+        sessionID: "ses_1",
+        part: { tool: "bash", state: { input: { command: "ls src" } } },
+      }),
+      opencodeLine({ type: "reasoning", sessionID: "ses_1", part: { text: "先看目录" } }),
+      opencodeLine({ type: "step_finish", sessionID: "ses_1" }),
+    ].join("");
+    const entries: Array<{ kind: string; text: string }> = [];
+    const replaceFrames: Array<Array<{ kind: string; text: string }>> = [];
+    const rawText: string[] = [];
+    const run = async (_request: unknown, options?: { onEvent?: (event: unknown) => void }) => {
+      // 尾窗快照逐段增长：只解析出完整行，半行留缓冲。
+      options?.onEvent?.({ type: "progress", stdoutTail: jsonl.slice(0, 60) });
+      options?.onEvent?.({ type: "progress", stdoutTail: jsonl });
+      return { streams: { stdout: { text: jsonl }, stderr: { text: "" } }, exitCode: 0 };
+    };
+    const driver = createOneShotExternalAgentDriver({ executionPort: { run } as never });
+    const result = await driver.run({
+      binding: opencodeBinding,
+      prompt: "看看 src",
+      cwd: "/tmp",
+      onOutput: (chunk) => {
+        if (chunk.entries?.length) {
+          entries.push(...chunk.entries);
+          if (chunk.replace) replaceFrames.push(chunk.entries);
+        }
+        if (chunk.text) rawText.push(chunk.text);
+      },
+    });
+    // 收口权威重建把条目定格成三类，顺序与事件顺序一致；实时条目会被整体替换，
+    // 所以只断言最后一帧 replace 的内容（面板最终看到的就是它）。
+    expect(replaceFrames.at(-1)).toEqual([
+      { kind: "text", text: "好的，我看看" },
+      { kind: "tool", text: "bash: ls src" },
+      { kind: "reasoning", text: "先看目录" },
+    ]);
+    // 原始 JSONL 绝不能当成进度正文再推一遍（面板里会出现一堆 JSON）。
+    expect(rawText).toEqual([]);
+    expect(result.text).toBe("好的，我看看");
+    expect(result.externalSessionId).toBe("ses_1");
+  });
+
+  it("收口时读 artifact 全量重解析并整体替换条目（replace）", async () => {
+    const { createOneShotExternalAgentDriver } =
+      await import("../src/zcode-protocol/external-agent-driver.js");
+    const { mkdtempSync, writeFileSync, rmSync } = await import("node:fs");
+    const { tmpdir } = await import("node:os");
+    const { join } = await import("node:path");
+    const dir = mkdtempSync(join(tmpdir(), "ext-agent-opencode-"));
+    try {
+      const full = [
+        opencodeLine({ type: "text", sessionID: "ses_2", part: { text: "第一段" } }),
+        opencodeLine({
+          type: "tool_use",
+          sessionID: "ses_2",
+          part: { tool: "read", state: { input: { path: "src/a.ts" } } },
+        }),
+        opencodeLine({ type: "text", sessionID: "ses_2", part: { text: "第二段" } }),
+      ].join("");
+      const artifactPath = join(dir, "stdout.log");
+      writeFileSync(artifactPath, full, "utf8");
+
+      const chunks: Array<{
+        entries?: Array<{ kind: string; text: string }>;
+        replace?: boolean;
+      }> = [];
+      const run = async (_request: unknown, options?: { onEvent?: (event: unknown) => void }) => {
+        // 执行中的尾窗只到半行（被窗口切断）→ 实时解析不出条目。
+        options?.onEvent?.({ type: "progress", stdoutTail: full.slice(0, 50) });
+        return {
+          streams: { stdout: { text: "", artifactPath }, stderr: { text: "" } },
+          exitCode: 0,
+        };
+      };
+      const driver = createOneShotExternalAgentDriver({ executionPort: { run } as never });
+      const result = await driver.run({
+        binding: opencodeBinding,
+        prompt: "x",
+        cwd: "/tmp",
+        onOutput: (chunk) => {
+          if (chunk.entries?.length)
+            chunks.push({ entries: chunk.entries, replace: chunk.replace });
+        },
+      });
+
+      const replace = chunks.find((chunk) => chunk.replace);
+      expect(replace).toBeDefined();
+      expect(replace?.entries).toEqual([
+        { kind: "text", text: "第一段" },
+        { kind: "tool", text: "read: src/a.ts" },
+        { kind: "text", text: "第二段" },
+      ]);
+      expect(result.text).toBe("第一段\n\n第二段");
+    } finally {
+      rmSync(dir, { recursive: true, force: true });
+    }
+  });
+
+  it("解析不出正文时不把原始 JSONL 当结果回传", async () => {
+    // 与 claude-family 同一条防线：JSONL 是证据，不是回答。
+    const { createOneShotExternalAgentDriver } =
+      await import("../src/zcode-protocol/external-agent-driver.js");
+    const jsonl = opencodeLine({ type: "step_start", sessionID: "ses_3" });
+    const run = async () => ({
+      streams: { stdout: { text: jsonl, bytes: jsonl.length }, stderr: { text: "" } },
+      exitCode: 0,
+    });
+    const driver = createOneShotExternalAgentDriver({ executionPort: { run } as never });
+    const result = await driver.run({ binding: opencodeBinding, prompt: "x", cwd: "/tmp" });
+    expect(result.text).not.toContain('"type"');
+    expect(result.text).toContain("没有读到可解析的输出");
+  });
+
+  it("parseExternalAgentResult: opencode 走 JSONL 解析（多段 text + 错误行）", () => {
+    expect(
+      parseExternalAgentResult(
+        opencodeBinding,
+        [
+          opencodeLine({ type: "text", sessionID: "ses_4", part: { text: "第一段" } }),
+          opencodeLine({ type: "text", sessionID: "ses_4", part: { text: "第二段" } }),
+        ].join(""),
+      ),
+    ).toEqual({ text: "第一段\n\n第二段", isError: false, sessionId: "ses_4" });
+
+    expect(
+      parseExternalAgentResult(
+        opencodeBinding,
+        opencodeLine({ type: "error", error: { message: "provider unauthorized" } }),
+      ),
+    ).toMatchObject({ text: "provider unauthorized", isError: true });
+  });
+});

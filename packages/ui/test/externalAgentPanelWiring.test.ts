@@ -212,7 +212,8 @@ const LINKS: Array<{ file: string; pattern: RegExp; why: string }> = [
   },
   {
     file: "src/v4/SessionPane.tsx",
-    pattern: /requestExternalAgentDeleteSession\(\{ sessionId, externalSessionId \}\)/,
+    // driver 是后加的可选参数，断言跟着放宽到"抛出的参数对象里含 externalSessionId"。
+    pattern: /requestExternalAgentDeleteSession\(\{[\s\S]{0,120}?externalSessionId/,
     why: "删除走 v4 RPC（删的是执行机上的会话文件）",
   },
   // ── 绑定身份变化清空 run 记录（2026-11-07 实测反馈）──
@@ -225,6 +226,32 @@ const LINKS: Array<{ file: string; pattern: RegExp; why: string }> = [
     file: "../../apps/zcode-cli/packages/bootstrap/src/zcode-protocol/external-agent-probe.ts",
     pattern: /EXTERNAL_AGENT_BINDABLE_PRESETS/,
     why: "绑定候选只探测完整适配的预设：半适配的 CLI 不该出现在「选一个 agent」列表里",
+  },
+  // ── opencode 驱动接线（2026-11-08）──
+  // 三个 RPC 各钉一条：执行机据此决定问 CLI 还是扫落盘文件，漏传一处就会让
+  // 那一处仍按 claude-family 去找 opencode 的会话（表现为静默空列表）。
+  {
+    file: "src/v4/SessionPane.tsx",
+    pattern:
+      /requestExternalAgentSessions\(\{\s*sessionId,\s*\.\.\.\(driver \? \{ driver \} : \{\}\),/,
+    why: "SessionPane 把 snapshot.externalAgent?.driver 传给 sessions RPC",
+  },
+  {
+    file: "src/v4/SessionPane.tsx",
+    pattern:
+      /requestExternalAgentDeleteSession\(\{\s*sessionId,\s*externalSessionId,\s*\.\.\.\(driver \? \{ driver \} : \{\}\),/,
+    why: "SessionPane 把 driver 传给 delete RPC（opencode 走 `session delete`）",
+  },
+  {
+    file: "src/v4/SessionPane.tsx",
+    pattern:
+      /requestExternalAgentTranscript\(\{[\s\S]{0,400}?\.\.\.\(driver \? \{ driver \} : \{\}\),/,
+    why: "SessionPane 把 driver 传给 transcript RPC（opencode 走 `session export`）",
+  },
+  {
+    file: "src/v4/composer/externalAgentCommands.ts",
+    pattern: /value:\s*"opencode-exec"/,
+    why: "手填表单的驱动下拉要能选 opencode-exec",
   },
 ];
 

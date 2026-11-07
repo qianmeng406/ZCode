@@ -28,6 +28,9 @@ import { highspeedMessageMetaSchema } from "../highspeed.js";
 import { sharedContextRefSchema } from "./shared-context-ref.js";
 import { conversationInputSourceSchema } from "./input-intent.js";
 import { contextProfileSchema } from "../execution-state.js";
+// driver 枚举只允许有一份：协议层手抄一份会在新增驱动族（如 opencode-exec）时
+// 与绑定/预设层静默分叉，UI 提交的绑定命令被 schema 拒掉才发现。
+import { EXTERNAL_AGENT_DRIVER_KINDS } from "../externalAgentBinding.js";
 export type { SharedContextRef } from "./shared-context-ref.js";
 export * from "./workflow-command-rejections.js";
 
@@ -275,7 +278,7 @@ export const commandPayloadSchemas = {
   bindExternalAgent: z
     .object({
       label: z.string().trim().min(1).max(80),
-      driver: z.enum(["claude-family", "codex-exec", "generic-template"]),
+      driver: z.enum(EXTERNAL_AGENT_DRIVER_KINDS),
       command: z.string().trim().min(1).max(500),
       args: z.array(z.string().max(2_000)).max(50).optional(),
       promptDelivery: z.enum(["argv-append", "stdin", "template"]).optional(),

@@ -11,6 +11,15 @@ import {
   type ExternalAgentPresetStatus,
 } from "../externalAgentCatalog.js";
 import { externalAgentTranscriptPageSchema } from "../externalAgentSessions.js";
+import { EXTERNAL_AGENT_DRIVER_KINDS } from "../externalAgentBinding.js";
+
+/**
+ * 驱动族（可选）：执行机据此决定"扫 ~/.codebuddy 文件"还是"跑 opencode 子命令"。
+ *
+ * 允许缺席是刻意的线上兼容取向：旧客户端不带这个字段，Host 按 claude-family
+ * 处理，行为与新增之前完全一致。
+ */
+const optionalDriverSchema = z.enum(EXTERNAL_AGENT_DRIVER_KINDS).optional();
 
 const presetStatusSchema = z
   .object({
@@ -59,6 +68,8 @@ export const v4ExternalAgentSessionsParamsSchema = z
   .object({
     /** 会话 id：扫描落到该会话真正执行的那台机器（远程会话的 CLI 在远端）。 */
     sessionId: z.string().min(1),
+    /** 缺省 claude-family：opencode 走 `session list`，其它扫落盘文件。 */
+    driver: optionalDriverSchema,
   })
   .strict();
 export type V4ExternalAgentSessionsParams = z.infer<typeof v4ExternalAgentSessionsParamsSchema>;
@@ -86,6 +97,8 @@ export const v4ExternalAgentDeleteSessionParamsSchema = z
     sessionId: z.string().min(1),
     /** 要删除的外部 CLI 会话 id。 */
     externalSessionId: z.string().min(1),
+    /** 缺省 claude-family：opencode 走 `session delete`，其它删落盘文件。 */
+    driver: optionalDriverSchema,
   })
   .strict();
 export type V4ExternalAgentDeleteSessionParams = z.infer<
@@ -110,6 +123,8 @@ export const v4ExternalAgentTranscriptParamsSchema = z
     /** 取 (before-limit, before) 这一段；缺省 = 最新的一页。 */
     before: z.number().int().nonnegative().optional(),
     limit: z.number().int().positive().max(60).optional(),
+    /** 缺省 claude-family：opencode 走 `session export`，其它读落盘文件。 */
+    driver: optionalDriverSchema,
   })
   .strict();
 export type V4ExternalAgentTranscriptParams = z.infer<typeof v4ExternalAgentTranscriptParamsSchema>;

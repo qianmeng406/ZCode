@@ -381,15 +381,21 @@ export interface ZCodeApp {
    *
    * 只读、无副作用；同 probeExternalAgents 落在真正执行的那台机器上。
    * 目录不存在返回空数组（不是错误）。缺席 = 宿主不支持（UI 不显示会话入口）。
+   *
+   * `driver` 决定去哪找会话（opencode 问 CLI，其余扫落盘文件）；缺省
+   * claude-family，旧调用方不传时行为不变。
    */
-  listExternalAgentSessions?(): Promise<
-    Array<{ sessionId: string; title: string; updatedAt: number; preview?: string }>
-  >;
+  listExternalAgentSessions?(input?: {
+    driver?: import("@zcode/shared").ExternalAgentBinding["driver"];
+  }): Promise<Array<{ sessionId: string; title: string; updatedAt: number; preview?: string }>>;
   /**
    * 删除一个外部会话（续接菜单的行内删除）。幂等：本来不存在时返回 false。
    * 与列表同源，落在真正执行的那台机器上（远程会话删的是远端文件）。
    */
-  deleteExternalAgentSession?(externalSessionId: string): Promise<boolean>;
+  deleteExternalAgentSession?(
+    externalSessionId: string,
+    input?: { driver?: import("@zcode/shared").ExternalAgentBinding["driver"] },
+  ): Promise<boolean>;
   /**
    * 读取某个外部会话的一页上下文（按条目序号分页）。
    *
@@ -399,6 +405,7 @@ export interface ZCodeApp {
     externalSessionId: string;
     before?: number;
     limit?: number;
+    driver?: import("@zcode/shared").ExternalAgentBinding["driver"];
   }): Promise<import("@zcode/shared").ExternalAgentTranscriptPage>;
   /** current-only 协议快照精确读取当前 Registry 模型，避免枚举整个目录。 */
   getCurrentModelOption?(): ZCodeModelOption | undefined;

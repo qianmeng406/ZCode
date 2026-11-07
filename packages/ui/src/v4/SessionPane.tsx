@@ -5339,9 +5339,16 @@ export function SessionPane({
 
   // 拉取绑定的外部 CLI 的历史会话（续接子菜单）。失败必须抛给调用方：
   // 菜单把"拉不到"呈现成空列表会把故障伪装成"没有会话"。
+  //
+  // 带上 driver：opencode 的会话不在落盘 JSONL 里，执行机必须知道问 CLI 的哪条
+  // 子命令；缺省（没绑定/旧快照）时由执行机按 claude-family 处理。
   const handleLoadExternalAgentSessions = useCallback(async () => {
     if (!sessionId) return { sessions: [] };
-    return requestExternalAgentSessions({ sessionId });
+    const driver = snapshotRef.current?.externalAgent?.driver;
+    return requestExternalAgentSessions({
+      sessionId,
+      ...(driver ? { driver } : {}),
+    });
   }, [requestExternalAgentSessions, sessionId]);
 
   // 切换续接的外部会话（null = 清除，回到每次委派开新会话）。
@@ -5368,7 +5375,12 @@ export function SessionPane({
     async (externalSessionId: string) => {
       if (!sessionId) return false;
       try {
-        const result = await requestExternalAgentDeleteSession({ sessionId, externalSessionId });
+        const driver = snapshotRef.current?.externalAgent?.driver;
+        const result = await requestExternalAgentDeleteSession({
+          sessionId,
+          externalSessionId,
+          ...(driver ? { driver } : {}),
+        });
         if (
           result.deleted &&
           snapshotRef.current?.externalAgent?.externalSessionId === externalSessionId
@@ -5390,11 +5402,14 @@ export function SessionPane({
       if (!sessionId || !onOpenExternalAgentTranscript) return;
       const key = externalAgentTranscriptKey(sessionId, session.sessionId);
       registerExternalAgentTranscriptLoader(key, async (input) => {
+        // 与列表同源：driver 决定执行机读落盘文件还是跑 `session export`。
+        const driver = snapshotRef.current?.externalAgent?.driver;
         const page = await requestExternalAgentTranscript({
           sessionId,
           externalSessionId: session.sessionId,
           ...(input.before !== undefined ? { before: input.before } : {}),
           ...(input.limit !== undefined ? { limit: input.limit } : {}),
+          ...(driver ? { driver } : {}),
         });
         return page
           ? {

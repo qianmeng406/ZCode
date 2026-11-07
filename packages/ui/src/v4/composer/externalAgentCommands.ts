@@ -10,5 +10,10 @@ export const EXTERNAL_AGENT_DRIVER_OPTIONS = [
     // codebuddy / claude 等同构：-p 非交互 + --output-format json。
     label: "claude-family",
   },
+  {
+    value: "opencode-exec" as const,
+    // opencode run --format json：JSONL 事件流，prompt 走 stdin，续接用 --session。
+    label: "opencode-exec",
+  },
   { value: "generic-template" as const, label: "generic-template" },
 ] as const;

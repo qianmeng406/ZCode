@@ -20,12 +20,16 @@ import { z } from "zod";
  *   全局可接受值域，对具体模型并不成立（实测把 low 传给只支持 high 的模型，
  *   CLI 照收不报错，用户无从察觉）。
  * - `help-probe`：从 `--help` 的 `--model` 说明里解析模型名列表（无逐模型档位）。
+ * - `command`：跑 preset.modelListCommand（如 `opencode models`）逐行读模型 id。
+ *   opencode 的 `--help` 不列模型，模型清单只存在于这条子命令的输出里，既不能
+ *   从帮助文本解析，也不会像 codebuddy 那样带逐模型档位信息。
  * - `free-text`：完全手填。
  */
 export const EXTERNAL_AGENT_MODEL_SOURCES = [
   "static",
   "server-cache",
   "help-probe",
+  "command",
   "free-text",
 ] as const;
 export type ExternalAgentModelSource = (typeof EXTERNAL_AGENT_MODEL_SOURCES)[number];
@@ -65,7 +69,8 @@ export const externalAgentPresetSchema = z.object({
    * 缺省成 `full` 则退回"全都列"的旧行为，不会比今天更差。
    */
   adaptation: z.enum(["full", "partial"]).default("full"),
-  driver: z.enum(["claude-family", "codex-exec", "generic-template"]),
+  // opencode-exec：`opencode run` 的 stdout 是逐行 JSON 事件流，prompt 走 stdin。
+  driver: z.enum(["claude-family", "codex-exec", "opencode-exec", "generic-template"]),
   command: z.string().min(1),
   /** 不含 prompt 的固定前缀参数。 */
   args: z.array(z.string()).default([]),
@@ -81,6 +86,13 @@ export const externalAgentPresetSchema = z.object({
   permissionMode: z.string().optional(),
   modelFlag: z.enum(EXTERNAL_AGENT_MODEL_FLAGS),
   modelSource: z.enum(EXTERNAL_AGENT_MODEL_SOURCES),
+  /**
+   * modelSource=`command` 时要跑的子命令（相对 preset.command 的参数）。
+   *
+   * 只存参数不存命令：命令永远是被绑定的那个可执行文件，否则"探测哪个 CLI"与
+   * "调用哪个 CLI"会分家。
+   */
+  modelListCommand: z.array(z.string().max(200)).max(10).optional(),
   /** modelSource=static 时的候选。 */
   models: z.array(z.string()).default([]),
   /** 推理档位的传参形状；none = 该 CLI 没有这个概念。 */
@@ -175,7 +187,10 @@ const CODEX_EFFORT_LEVELS = [
  * - claude / codebuddy：`-p --output-format json "<prompt>"`，`--model` 取模型 ID，
  *   推理档位是 `--effort <level>`；
  * - codex：非交互入口是 `codex exec`，模型是 `-m`，但它**没有** effort flag——
- *   只能 `-c model_reasoning_effort="…"` 覆盖配置项。
+ *   只能 `-c model_reasoning_effort="…"` 覆盖配置项；
+ * - opencode：非交互入口是 `opencode run --format json`（JSONL 事件流），prompt 走
+ *   stdin（多行 prompt 进 argv 会被 Windows .cmd shim 截断）；模型来自
+ *   `opencode models` 的逐行输出，而不是 --help；没有独立 effort flag。
  */
 export const EXTERNAL_AGENT_PRESETS: readonly ExternalAgentPreset[] = [
   {
@@ -231,6 +246,31 @@ export const EXTERNAL_AGENT_PRESETS: readonly ExternalAgentPreset[] = [
     models: [],
     effortDelivery: "config",
     effortLevelsByModel: { "": [...CODEX_EFFORT_LEVELS] },
+  },
+  {
+    id: "opencode",
+    label: "OpenCode",
+    description: "OpenCode CLI（opencode.ai），非交互入口 `opencode run`。",
+    adaptation: "full",
+    driver: "opencode-exec",
+    command: "opencode",
+    // --format json：逐行 JSON 事件（text / reasoning / tool_use / …），活动卡才有实时过程。
+    args: ["run", "--format", "json"],
+    // prompt 经 stdin 交付：既不进 argv（多行会被 cmd shim 截断），也不依赖 CLI 的
+    // "管道 stdin 并入 message"以外的任何隐式行为。
+    promptDelivery: "stdin",
+    // 委派要能跑命令：opencode 的 --auto 自动批准未被显式拒绝的权限，等价于其它族的
+    // bypassPermissions（用户绑定即明示同意把执行交给它）。
+    permissionMode: "auto",
+    modelFlag: "--model",
+    // 模型清单只在 `opencode models` 的逐行输出里，--help 不列。
+    modelSource: "command",
+    modelListCommand: ["models"],
+    models: [],
+    // opencode 没有独立 effort flag（档位走 --model 的 #variant），本版不提供档位选择：
+    // 猜一个不存在的 flag 只会让调用静默失败。
+    effortDelivery: "none",
+    effortLevelsByModel: {},
   },
 ] as const;
 
@@ -335,7 +375,11 @@ export function parseServerModelCache(raw: unknown): ExternalAgentModelInfo[] {
     }
     const reasoning =
       m.reasoning && typeof m.reasoning === "object"
-        ? (m.reasoning as { supportedEfforts?: unknown; defaultEffort?: unknown; effort?: unknown })
+        ? (m.reasoning as {
+            supportedEfforts?: unknown;
+            defaultEffort?: unknown;
+            effort?: unknown;
+          })
         : undefined;
     const supported = Array.isArray(reasoning?.supportedEfforts)
       ? reasoning.supportedEfforts.filter((value): value is string => typeof value === "string")

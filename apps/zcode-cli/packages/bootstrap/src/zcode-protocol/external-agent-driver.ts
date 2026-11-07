@@ -10,10 +10,45 @@ import { readFileSync, statSync } from "node:fs";
 import {
   buildExternalAgentInvocation,
   createClaudeStreamParser,
+  createOpencodeStreamParser,
   parseClaudeFamilyStreamActivities,
   parseExternalAgentResult,
+  parseOpencodeStreamActivities,
+  type ExternalAgentActivityEntry,
   type ExternalAgentBinding,
 } from "@zcode/shared";
+
+/**
+ * 流式驱动的能力表：某个驱动族能不能把 stdout 当 JSONL 解析成活动条目。
+ *
+ * 以前是三处 `binding.driver === "claude-family"` 硬编码；opencode 加进来以后
+ * 再抄一遍就会变成五处，漏一处就是"opencode 的活动卡永远空白"这类静默降级。
+ * 表里只有能力，不含分支逻辑：读取/重建/正文兜底仍然共用同一段流程。
+ */
+interface StreamingDriverCapabilities {
+  /** 逐块喂 stdout 的增量解析器。 */
+  createParser: () => {
+    push(chunk: string): ExternalAgentActivityEntry[];
+    flush(): ExternalAgentActivityEntry[];
+  };
+  /** 全量重解析（收口权威重建）。 */
+  parseActivities: (stdout: string) => ExternalAgentActivityEntry[];
+}
+
+const STREAMING_DRIVERS: Partial<
+  Record<ExternalAgentBinding["driver"], StreamingDriverCapabilities>
+> = {
+  "claude-family": {
+    createParser: createClaudeStreamParser,
+    parseActivities: parseClaudeFamilyStreamActivities,
+  },
+  // opencode 的 `run --format json` 同样是逐行 JSON 事件，字段形状不同但
+  // "半行留缓冲 + 全量重解析"的语义一致，所以共用同一条驱动流程。
+  "opencode-exec": {
+    createParser: createOpencodeStreamParser,
+    parseActivities: parseOpencodeStreamActivities,
+  },
+};
 
 export interface ExternalAgentRunResult {
   /** 外部 agent 的最终回答文本（已按 driver 族解析）。 */
@@ -57,9 +92,10 @@ export interface ExternalAgentDriver {
 /** 一次性执行：spawn → 收全量输出 → 解析。 */
 export function createOneShotExternalAgentDriver(input: {
   executionPort: ExecutionPort;
+  /** 执行硬超时（防进程失控）。 */
   defaultTimeoutMs?: number;
 }): ExternalAgentDriver {
-  const defaultTimeoutMs = input.defaultTimeoutMs ?? 600_000;
+  const defaultTimeoutMs = input.defaultTimeoutMs ?? 1_800_000;
 
   return {
     kind: "oneshot",
@@ -74,9 +110,10 @@ export function createOneShotExternalAgentDriver(input: {
       let streamed = false;
       // 正文是否已经以增量形式推过：推过就不再补整段结果，避免卡片里出现两遍。
       let streamedText = false;
-      // claude-family 是 stream-json：逐行解析成结构化条目（思考/正文/工具），
-      // 半行 JSON 留在解析器缓冲里；非 JSONL 驱动原样转发。
-      const streamParser = createClaudeStreamParser();
+      // 流式驱动（claude-family / opencode）：逐行解析成结构化条目（思考/正文/工具），
+      // 半行 JSON 留在解析器缓冲里；非 JSONL 驱动没有解析器，原样转发。
+      const capabilities = STREAMING_DRIVERS[binding.driver];
+      const streamParser = capabilities?.createParser();
       // 结构化条目里出现正文 = 正文已经进过活动卡；末尾的 result 不能再补一遍。
       // （codebuddy 的 result 就是 assistant 正文的全文，重复追加会让面板里同一段
       // 话出现两遍——实测反馈。）
@@ -94,7 +131,7 @@ export function createOneShotExternalAgentDriver(input: {
           runInput.onOutput?.({ stream, text });
           return;
         }
-        if (binding.driver !== "claude-family") {
+        if (!streamParser) {
           streamed = true;
           runInput.onOutput?.({ stream, text });
           return;
@@ -102,7 +139,8 @@ export function createOneShotExternalAgentDriver(input: {
         emitEntries(streamParser.push(text));
       };
 
-      const result = await input.executionPort.run(
+      let result: unknown;
+      result = await input.executionPort.run(
         {
           command: {
             mode: "argv",
@@ -155,7 +193,7 @@ export function createOneShotExternalAgentDriver(input: {
       );
 
       // 结束时把解析器缓冲里的半行也尝试产出（进程刚好在行中间退出）。
-      const flushed = streamParser.flush();
+      const flushed = streamParser?.flush() ?? [];
       if (flushed.length > 0) emitEntries(flushed);
 
       const stdoutView = readStreamOutput(result, "stdout");
@@ -164,11 +202,10 @@ export function createOneShotExternalAgentDriver(input: {
       // 全量 stdout：inline 视图只保留**前** maxInlineBytes，result 事件在末尾，
       // 用截断视图解析必然失败（真实事故：6.5MB 输出的委派把 1MB JSONL 当结果
       // 回传给主 agent，再被工具预算二次截断）。
-      const fullStdoutView =
-        binding.driver === "claude-family"
-          ? readFullStdout(stdoutView)
-          : // 其它 driver 不落 artifact 兜底解析，就直接沿用执行端报告的截断事实。
-            { text: rawStdout, truncated: stdoutView.truncated === true };
+      const fullStdoutView = capabilities
+        ? readFullStdout(stdoutView)
+        : // 非流式驱动不落 artifact 兜底解析，就直接沿用执行端报告的截断事实。
+          { text: rawStdout, truncated: stdoutView.truncated === true };
       const fullStdout = fullStdoutView.text;
       // 源输出被截断（artifact > 重解析上限）：必须让面板知道「更早的过程没解析」，
       // 否则用户只会看到一份从中间开始的记录，却以为任务本身丢了内容。
@@ -176,12 +213,12 @@ export function createOneShotExternalAgentDriver(input: {
         runInput.onOutput?.({ stream: "stdout", text: "", sourceTruncated: true });
       }
 
-      // 权威重建（claude-family）：执行中的条目来自滚动尾窗差分，行会被窗口
+      // 权威重建（流式驱动）：执行中的条目来自滚动尾窗差分，行会被窗口
       // 切断、内容会重复/丢段。进程结束后 stdout artifact 里有全量字节，用它
       // 整体重解析并把活动条目整体替换掉——最终面板必须完整且有序。
       // 解析结果为空（非 JSONL 等）时保持原样，不破坏已有条目。
-      if (binding.driver === "claude-family") {
-        const authoritative = parseClaudeFamilyStreamActivities(fullStdout);
+      if (capabilities) {
+        const authoritative = capabilities.parseActivities(fullStdout);
         if (authoritative.length > 0) {
           streamed = true;
           if (authoritative.some((entry) => entry.kind === "text")) streamedText = true;
@@ -205,10 +242,9 @@ export function createOneShotExternalAgentDriver(input: {
       const parsed = parseExternalAgentResult(binding, fullStdout);
       const parsedText = parsed.text.trim();
       // 解析不到 result 时 parseExternalAgentResult 会把原始 stdout 当正文返回；
-      // claude-family 的 JSONL 不是正文——既不能进活动条目，也不能当委派结果。
+      // 流式驱动的 JSONL 不是正文——既不能进活动条目，也不能当委派结果。
       const hasResultText =
-        parsedText.length > 0 &&
-        !(binding.driver === "claude-family" && looksLikeStreamJson(parsedText));
+        parsedText.length > 0 && !(capabilities && looksLikeStreamJson(parsedText));
       // 没流式到正文时（模型只回了 result，或没开 partial）：把最终回答作为一条正文条目，
       // 否则活动卡只有工具调用、看不到它的结论。
       if (!streamedText && hasResultText) {
@@ -222,7 +258,7 @@ export function createOneShotExternalAgentDriver(input: {
       // 否则上层只能看到「已完成」，无从判断是 CLI 没输出还是我们没读到。
       const text = hasResultText
         ? parsed.text
-        : binding.driver === "claude-family" && looksLikeStreamJson(fullStdout)
+        : capabilities && looksLikeStreamJson(fullStdout)
           ? describeMissingOutput(stdoutView)
           : rawStdout.trim()
             ? rawStdout

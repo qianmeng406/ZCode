@@ -267,7 +267,12 @@ function describeFunctionCall(name: string, rawArguments: unknown): string {
  */
 export function parseClaudeFamilyTranscript(
   content: string,
-  options: { sessionId: string; before?: number; limit?: number; sourceTruncated?: boolean },
+  options: {
+    sessionId: string;
+    before?: number;
+    limit?: number;
+    sourceTruncated?: boolean;
+  },
 ): ExternalAgentTranscriptPage {
   const entries: ExternalAgentTranscriptEntry[] = [];
   for (const line of content.split(/\r?\n/u)) {
@@ -332,6 +337,158 @@ export function parseClaudeFamilyTranscript(
   }
 
   const total = entries.length;
+  return paginateTranscript(entries, total, options);
+}
+
+/**
+ * 从 `opencode session export <id>` 的 JSON 还原一条会话。
+ *
+ * 形状（v2.2.5 实测）：单个 JSON `{info, messages[]}`，不是 JSONL——所以不能复用
+ * 上面逐行扫描的解析器。message.content 是 part 数组：
+ * - `text`：用户输入与助手正文；
+ * - `tool`：一次工具调用，`state.input` 是入参、`state.output` 是输出文本。
+ *
+ * 工具调用拆成「调用」与「结果」两条，与 claude-family 的 function_call /
+ * function_call_result 对齐：面板按同一套 kind 渲染，不需要为每个驱动写分支。
+ *
+ * 跳过的消息类型：`system` / `idle` / `model-switched` / `compaction` 都是 CLI 自己
+ * 的状态记录，不是对话内容。
+ *
+ * 同为纯函数：内容由执行机侧读好再喂进来，这里不做任何 IO。
+ */
+export function parseOpencodeSessionExport(
+  content: string,
+  options: {
+    sessionId: string;
+    before?: number;
+    limit?: number;
+    sourceTruncated?: boolean;
+  },
+): ExternalAgentTranscriptPage {
+  const entries: ExternalAgentTranscriptEntry[] = [];
+  let parsed: unknown;
+  try {
+    parsed = JSON.parse(content);
+  } catch {
+    // export 内容被截断/损坏：返回空页而不是抛错——面板显示"没有可读内容"比整块崩掉好。
+    parsed = undefined;
+  }
+  const messages =
+    parsed &&
+    typeof parsed === "object" &&
+    Array.isArray((parsed as { messages?: unknown }).messages)
+      ? ((parsed as { messages: unknown[] }).messages as unknown[])
+      : [];
+  for (const message of messages) {
+    if (!message || typeof message !== "object") continue;
+    const record = message as {
+      type?: unknown;
+      time?: unknown;
+      content?: unknown;
+    };
+    const at =
+      record.time &&
+      typeof record.time === "object" &&
+      typeof (record.time as { created?: unknown }).created === "number"
+        ? (record.time as { created: number }).created
+        : undefined;
+    const type = record.type;
+    if (type !== "user" && type !== "assistant") continue;
+    if (!Array.isArray(record.content)) continue;
+
+    if (type === "user") {
+      // 用户消息只保留正文；里面的 tool part 是 CLI 回填的工具结果，已在助手侧
+      // 的 tool 条目里出现，重复展示会让同一次调用出现两遍。
+      const text = readContentText(record.content);
+      if (!text) continue;
+      entries.push({
+        kind: "user",
+        ...clipTranscriptText(text, TRANSCRIPT_TEXT_LIMITS.user),
+        ...(at !== undefined ? { at } : {}),
+      });
+      continue;
+    }
+
+    // 助手消息：正文与工具调用按 part 顺序展开。正文用空行连接多段 text，避免
+    // 两段话粘成一句。
+    //
+    // 正文条目在遇到第一个 tool part 之前就落位（而不是等整条消息扫完再追加）：
+    // 一条 assistant 消息里常常是「一句话 → 一次工具调用」，先推后推决定了面板上
+    // 是"说完再做"还是"做完再说话"。先到先得的工具条目位置则天然正确。
+    const texts: string[] = [];
+    const flushText = (): void => {
+      const text = texts.join("\n\n");
+      if (!text) return;
+      texts.length = 0;
+      entries.push({
+        kind: "assistant",
+        ...clipTranscriptText(text, TRANSCRIPT_TEXT_LIMITS.assistant),
+        ...(at !== undefined ? { at } : {}),
+      });
+    };
+    for (const rawPart of record.content) {
+      if (!rawPart || typeof rawPart !== "object") continue;
+      const part = rawPart as {
+        type?: unknown;
+        text?: unknown;
+        tool?: unknown;
+        state?: unknown;
+      };
+      if (part.type === "text" && typeof part.text === "string" && part.text.trim()) {
+        texts.push(part.text.trim());
+        continue;
+      }
+      if (part.type === "reasoning") {
+        // 思考过程不进行转录：面板展示的是"它做了什么"，思考片段量大且易误导。
+        continue;
+      }
+      if (part.type !== "tool" || typeof part.tool !== "string" || !part.tool) continue;
+      flushText();
+      const state = (part.state && typeof part.state === "object" ? part.state : {}) as {
+        input?: unknown;
+        output?: unknown;
+      };
+      entries.push({
+        kind: "tool",
+        name: part.tool,
+        ...clipTranscriptText(
+          describeFunctionCall(part.tool, state.input),
+          TRANSCRIPT_TEXT_LIMITS.tool,
+        ),
+        ...(at !== undefined ? { at } : {}),
+      });
+      const output = typeof state.output === "string" ? state.output.trim() : "";
+      if (output) {
+        entries.push({
+          kind: "tool_result",
+          name: part.tool,
+          ...clipTranscriptText(output, TRANSCRIPT_TEXT_LIMITS.tool_result),
+          ...(at !== undefined ? { at } : {}),
+        });
+      }
+    }
+    // 工具之后的正文属于新一轮"说话"，仍按 part 顺序落在后面。
+    flushText();
+  }
+  return paginateTranscript(entries, entries.length, options);
+}
+
+/**
+ * 按条目序号从尾部切一页（claude-family 与 opencode 共用）。
+ *
+ * 分页规则只允许有一份：两个驱动如果各自实现，`hasMore`/预算裁剪的边界迟早分叉，
+ * 面板"加载更早"就会在某些驱动上跳段。
+ */
+function paginateTranscript(
+  entries: readonly ExternalAgentTranscriptEntry[],
+  total: number,
+  options: {
+    sessionId: string;
+    before?: number;
+    limit?: number;
+    sourceTruncated?: boolean;
+  },
+): ExternalAgentTranscriptPage {
   const limit = Math.min(
     MAX_TRANSCRIPT_PAGE_SIZE,
     Math.max(1, options.limit ?? DEFAULT_TRANSCRIPT_PAGE_SIZE),
