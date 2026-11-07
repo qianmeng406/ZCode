@@ -862,6 +862,32 @@ export function SessionPane({
       cleared: externalAgentActivitySnapshot === null,
     });
   }, [sessionId, externalAgentActivitySnapshot]);
+  // 绑定身份变化 = 换了一段执行史：重绑/换绑后，旧绑定攒下的 run 记录不再属于
+  // 新绑定（实测 2026-11-07：解绑 → 再绑定新会话，面板还挂着上一次的报告）。
+  // 身份刻意**不含** model/effort/externalSessionId——换模型、续接换外部会话都
+  // 是同一份历史的延续，清了反而把用户刚看完的记录抹掉。
+  // 解绑（→ null）同样清：旧 agent 的完成记录不属于"未绑定"的会话。
+  const externalAgentBindingIdentityRef = useRef<{ sessionId: string; identity: string | null }>(
+    null,
+  );
+  const externalAgentBinding =
+    snapshot && snapshot.sessionId === sessionId ? snapshot.externalAgent : undefined;
+  useEffect(() => {
+    if (!sessionId) return;
+    const identity = externalAgentBinding
+      ? `${externalAgentBinding.presetId ?? externalAgentBinding.command}|${externalAgentBinding.label}`
+      : null;
+    const observed = externalAgentBindingIdentityRef.current;
+    if (observed?.sessionId !== sessionId) {
+      // 本会话的首次观察：不清。内存里的 run 记录可能就是本会话本次运行攒的
+      // （切走再切回来），冷恢复时则是空的——两种情况都不该动。
+      externalAgentBindingIdentityRef.current = { sessionId, identity };
+      return;
+    }
+    if (observed.identity === identity) return;
+    externalAgentBindingIdentityRef.current = { sessionId, identity };
+    clearExternalAgentActivity(sessionId);
+  }, [sessionId, externalAgentBinding]);
   // 「冻结历史 + 尾轮」分区（spec：docs/ui/chat-virtual-scroll.md「每帧派生成本」）：
   // 下面随 snapshot 每帧执行的行扫描都按 history 引用缓存历史段，只扫尾轮。
   const rowsPartition = snapshot ? getConversationRowsPartition(snapshot.rows.window) : null;

@@ -215,6 +215,12 @@ const LINKS: Array<{ file: string; pattern: RegExp; why: string }> = [
     pattern: /requestExternalAgentDeleteSession\(\{ sessionId, externalSessionId \}\)/,
     why: "删除走 v4 RPC（删的是执行机上的会话文件）",
   },
+  // ── 绑定身份变化清空 run 记录（2026-11-07 实测反馈）──
+  {
+    file: "src/v4/SessionPane.tsx",
+    pattern: /externalAgentBindingIdentityRef/,
+    why: "重绑/换绑/解绑后，旧绑定攒下的 run 记录要清空，不能带进新绑定的面板",
+  },
   {
     file: "../../apps/zcode-cli/packages/bootstrap/src/zcode-protocol/external-agent-probe.ts",
     pattern: /EXTERNAL_AGENT_BINDABLE_PRESETS/,
