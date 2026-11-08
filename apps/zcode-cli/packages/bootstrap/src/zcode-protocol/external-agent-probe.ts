@@ -271,14 +271,19 @@ async function probePreset(
   const base = { preset, installed: true, ...(version ? { version } : {}) };
 
   // 模型清单来自 CLI 自己的子命令（opencode 的 `models`）：--help 不列模型，
-  // 也没有可读的模型目录文件，只能跑一次拿逐行输出。
+  // 只能跑一次拿逐行输出。档位另取 opencode 的本地模型缓存（见
+  // probeOpencodeModelCatalog）——那是唯一逐模型的 reasoning 能力事实。
   if (preset.modelSource === "command" && preset.modelListCommand?.length) {
     const listed = await probeCommand(executionPort, preset.command, preset.modelListCommand, cwd);
+    const models = listed.ok ? parseModelListLines(listed.stdout) : [];
     return {
       ...base,
-      models: listed.ok ? parseModelListLines(listed.stdout) : [],
-      // 这种来源没有逐模型档位信息：空数组 = 调用方退回静态兜底表。
-      modelCatalog: [],
+      models,
+      // 读得到缓存就给逐模型档位；读不到留空 → 调用方退回静态兜底 / 不显示档位。
+      modelCatalog:
+        preset.effortDelivery === "variant"
+          ? await probeOpencodeModelCatalog(executionPort, models, cwd)
+          : [],
     };
   }
 
@@ -316,6 +321,99 @@ export function parseModelListLines(stdout: string): string[] {
     if (models.length >= 100) break;
   }
   return models;
+}
+
+/**
+ * 探测 opencode 的逐模型档位（从 CLI 自己的模型缓存读）。
+ *
+ * 档位的权威来源是 `~/.cache/opencode/models.json`：opencode 首次运行时把它从
+ * 服务端拉下来，按 `providerID → models[modelID] → reasoning_options[]` 存
+ * 每个模型的推理能力。实测（v2.2.5）：
+ *
+ * - `reasoning:false` 或没有 `reasoning_options` → 该模型没有档位（传 `#low`
+ *   会报 `Variant unavailable for <model>: low`）；
+ * - `{"type":"toggle"}` → 只是开关语义（开=默认档），不构成可选档位；
+ * - `{"type":"effort","values":[...]}` → 就是可选档位集合（如 beam-free 的
+ *   `low/medium/high/xhigh/max`，deepseek-v4.1-flash-free 的 `low/high/max`）。
+ *
+ * 必须读执行机上的文件（远程会话的缓存在远端）。失败一律返回空数组：
+ * 档位是可选增强，读不到就让 UI 退回"不给档位选择"，不影响绑定本身。
+ */
+async function probeOpencodeModelCatalog(
+  executionPort: ExecutionPort,
+  models: readonly string[],
+  cwd: string,
+): Promise<ExternalAgentModelInfo[]> {
+  if (models.length === 0) return [];
+  const script = [
+    "const fs=require('fs'),path=require('path'),os=require('os');",
+    "const p=path.join(os.homedir(),'.cache','opencode','models.json');",
+    "if(!fs.existsSync(p))process.exit(4);",
+    "process.stdout.write(fs.readFileSync(p,'utf8'));",
+  ].join("");
+  const read = await probeCommand(executionPort, "node", ["-e", script], cwd, {
+    // 整份缓存实测数百 KB（全部 provider 的模型目录）：给足上限，否则截断后
+    // JSON.parse 失败，会被误判成"这个 CLI 没有档位信息"。
+    maxInlineBytes: 8_000_000,
+    maxBufferBytes: 8_000_000,
+  });
+  if (!read.ok || !read.stdout.trim()) return [];
+  try {
+    return parseOpencodeModelCatalog(JSON.parse(read.stdout), models);
+  } catch {
+    return [];
+  }
+}
+
+/**
+ * 把 `models.json` 的 provider 目录映射成逐模型档位。
+ *
+ * 只认探测到的模型 id（`models` 是 `opencode models` 的权威清单）：缓存里还有
+ * 一堆当前 provider 不可用的模型，把它们列进档位候选只会对不上。模型 id 形如
+ * `providerID/modelID`，缓存结构是 `{providerID: {models: {modelID: {...}}}}`。
+ *
+ * 没档位的模型也收录（`supportedEfforts: []`）：调用方据此"不给档位"，而不是
+ * 落回一张可能是错的静态表。
+ */
+export function parseOpencodeModelCatalog(
+  raw: unknown,
+  models: readonly string[],
+): ExternalAgentModelInfo[] {
+  if (!raw || typeof raw !== "object") return [];
+  const providers = raw as Record<string, unknown>;
+  const catalog: ExternalAgentModelInfo[] = [];
+  for (const id of models) {
+    const slash = id.indexOf("/");
+    if (slash <= 0) continue;
+    const providerId = id.slice(0, slash);
+    const modelId = id.slice(slash + 1);
+    const provider = providers[providerId];
+    if (!provider || typeof provider !== "object") continue;
+    const providerModels = (provider as { models?: unknown }).models;
+    if (!providerModels || typeof providerModels !== "object") continue;
+    const entry = (providerModels as Record<string, unknown>)[modelId];
+    if (!entry || typeof entry !== "object") continue;
+    const options = (entry as { reasoning_options?: unknown }).reasoning_options;
+    catalog.push({
+      id,
+      name: id,
+      supportedEfforts: Array.isArray(options) ? extractEffortValues(options) : [],
+    });
+  }
+  return catalog;
+}
+
+/** 从 `reasoning_options[]` 里取 `type:"effort"` 那一条的 values。 */
+function extractEffortValues(options: readonly unknown[]): string[] {
+  for (const option of options) {
+    if (!option || typeof option !== "object") continue;
+    const record = option as { type?: unknown; values?: unknown };
+    if (record.type !== "effort" || !Array.isArray(record.values)) continue;
+    return record.values
+      .filter((value): value is string => typeof value === "string" && value.trim().length > 0)
+      .map((value) => value.trim());
+  }
+  return [];
 }
 
 /**

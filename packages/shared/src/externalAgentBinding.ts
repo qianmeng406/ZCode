@@ -128,11 +128,16 @@ function resolveModelFlag(binding: ExternalAgentBinding): string | undefined {
 /**
  * 推理档位的传参。按驱动族决定形状：
  * - claude-family：`--effort <level>`（两家实测都支持）；
- * - codex-exec：**没有** effort flag，只能 `-c model_reasoning_effort="<level>"`。
+ * - codex-exec：**没有** effort flag，只能 `-c model_reasoning_effort="<level>"`；
+ * - opencode-exec：没有 effort flag，档位是模型串的后缀 `--model provider/model#<level>`
+ *   （实测 v2.2.5；传错档位报 `Variant unavailable`）。
  *
  * 档位从 `effortsByModel[当前模型]` 取——它是模型的能力，不是 CLI 的能力。
  * 返回空数组表示该模型没有显式档位（用 CLI 默认），或该族不接受档位
  * （generic-template）——宁可忽略也不能猜一个参数名塞进去。
+ *
+ * opencode 的档位不由这里产出：它必须跟模型串一起进 `--model`（见调用方），
+ * 单独 push 一个 `#low` 会被当成位置参数（prompt 的一部分）。
  */
 function resolveEffortArgs(binding: ExternalAgentBinding): string[] {
   const effort = binding.effortsByModel?.[binding.model ?? ""];
@@ -143,6 +148,17 @@ function resolveEffortArgs(binding: ExternalAgentBinding): string[] {
     return ["-c", `model_reasoning_effort="${effort}"`];
   }
   return [];
+}
+
+/**
+ * opencode 的模型串：把档位拼成 `#<variant>` 后缀。
+ *
+ * 模型为空时不拼——没有模型就没有档位可挂（用 CLI 默认）。
+ */
+function resolveOpencodeModelValue(binding: ExternalAgentBinding): string | undefined {
+  if (!binding.model) return undefined;
+  const effort = binding.effortsByModel?.[binding.model];
+  return effort ? `${binding.model}#${effort}` : binding.model;
 }
 
 /**
@@ -229,7 +245,10 @@ export function buildExternalAgentInvocation(
       findExternalAgentPreset(binding.presetId)?.permissionMode ?? binding.permissionMode;
     if (permissionMode) args.push("--auto");
     const modelFlag = resolveModelFlag(binding);
-    if (binding.model && modelFlag) args.push(modelFlag, binding.model);
+    // 档位在这族里是模型串的后缀（`provider/model#variant`），必须与 --model 一起进：
+    // 单独 push `#low` 会被当位置参数（= prompt 片段），CLI 不会报错，档位静默失效。
+    const modelValue = resolveOpencodeModelValue(binding);
+    if (modelValue && modelFlag) args.push(modelFlag, modelValue);
     // 续接由用户钉死（与 claude-family 一致）：有 externalSessionId 就永远
     // `--session <id>`，continuation:"fresh" 也不改。opencode 对不存在的 id 会
     // 用这个 id 新建会话，所以续接不会硬失败。

@@ -43,9 +43,12 @@ export type ExternalAgentModelFlag = (typeof EXTERNAL_AGENT_MODEL_FLAGS)[number]
  *
  * - `flag`：`--effort <level>`（claude / codebuddy 实测）；
  * - `config`：`-c key=value`（codex 没有 effort flag，只能覆盖配置项）；
+ * - `variant`：拼进模型串 `--model provider/model#<level>`（opencode 实测）——
+ *   它没有独立的 effort flag，档位是模型 id 的一部分；传错档位会立刻报
+ *   `Variant unavailable for <model>: <variant>`，与 claude-family 的静默接受相反。
  * - `none`：该 CLI 不接受推理档位。
  */
-export const EXTERNAL_AGENT_EFFORT_DELIVERIES = ["flag", "config", "none"] as const;
+export const EXTERNAL_AGENT_EFFORT_DELIVERIES = ["flag", "config", "variant", "none"] as const;
 export type ExternalAgentEffortDelivery = (typeof EXTERNAL_AGENT_EFFORT_DELIVERIES)[number];
 
 export const externalAgentPresetSchema = z.object({
@@ -145,11 +148,14 @@ export function resolveEffortLevels(
 ): string[] {
   // 服务端目录命中：有 supportedEfforts 用之；固定档回落到 CLI 选择器的缺省档——
   // codebuddy 的 EffortPanel 对固定档也是这么做的（不隐藏，回落基础档）。
+  //
+  // 例外是 `variant`（opencode）：档位是模型串的一部分，传错档位 CLI 直接报
+  // `Variant unavailable for <model>: <level>`——这时"回落缺省档"不是宽容而是必然
+  // 失败。所以空候选一律当作"该模型没有档位"，不显示档位入口。
   const probed = probedModels?.find((entry) => entry.id === model);
   if (probed) {
-    return probed.supportedEfforts.length > 0
-      ? probed.supportedEfforts
-      : [...CLI_PICKER_DEFAULT_EFFORTS];
+    if (probed.supportedEfforts.length > 0) return probed.supportedEfforts;
+    return preset.effortDelivery === "variant" ? [] : [...CLI_PICKER_DEFAULT_EFFORTS];
   }
   const exact = preset.effortLevelsByModel[model ?? ""];
   if (exact) return exact;
@@ -267,9 +273,10 @@ export const EXTERNAL_AGENT_PRESETS: readonly ExternalAgentPreset[] = [
     modelSource: "command",
     modelListCommand: ["models"],
     models: [],
-    // opencode 没有独立 effort flag（档位走 --model 的 #variant），本版不提供档位选择：
-    // 猜一个不存在的 flag 只会让调用静默失败。
-    effortDelivery: "none",
+    // 档位走 `--model provider/model#<variant>`（实测 v2.2.5）：没有独立 effort flag，
+    // 但每档都真实存在，且传错档位会立刻报 Variant unavailable——所以必须给选择，
+    // 靠推理档位是模型能力（逐模型 values 由探测从 ~/.cache/opencode/models.json 读出）。
+    effortDelivery: "variant",
     effortLevelsByModel: {},
   },
 ] as const;

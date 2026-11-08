@@ -1,6 +1,7 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 import {
+  CLI_PICKER_DEFAULT_EFFORTS,
   EXTERNAL_AGENT_BINDABLE_PRESETS,
   EXTERNAL_AGENT_PRESETS,
   findExternalAgentPreset,
@@ -211,6 +212,41 @@ test("档位候选：没有任何登记时返回空（调用方应隐藏档位�
   assert.deepEqual(resolveEffortLevels(preset, "hy3"), []);
 });
 
+test("档位候选：opencode（variant）探测到空候选时不回落到缺省档", () => {
+  const preset = findExternalAgentPreset("opencode")!;
+  // 实测（v2.2.5）：big-pickle 的 reasoning_options 是空数组，传 #low 报
+  // `Variant unavailable`。回落到 CLI 缺省档（codebuddy 的做法）在这里必然失败，
+  // 所以 variant 族的空候选必须当成"该模型没有档位"。
+  assert.deepEqual(
+    resolveEffortLevels(preset, "opencode/big-pickle", [
+      { id: "opencode/big-pickle", name: "opencode/big-pickle", supportedEfforts: [] },
+    ]),
+    [],
+  );
+  // 有候选时照常按模型给。
+  assert.deepEqual(
+    resolveEffortLevels(preset, "opencode/beam-free", [
+      {
+        id: "opencode/beam-free",
+        name: "opencode/beam-free",
+        supportedEfforts: ["low", "medium", "high"],
+      },
+    ]),
+    ["low", "medium", "high"],
+  );
+});
+
+test("档位候选：claude-family 探测到空候选时仍回落缺省档（与 opencode 相反）", () => {
+  // 行为差异的依据：codebuddy 的固定档模型（hy4free）传任意档都不报错，
+  // 隐藏档位入口反而让用户以为该模型不支持推理档位。
+  const preset = findExternalAgentPreset("codebuddy")!;
+  const levels = resolveEffortLevels(preset, "hy4free", [
+    { id: "hy4free", name: "hy4free", supportedEfforts: [] },
+  ]);
+  // 回落的是 CLI 选择器的缺省档（不是预设那张含 minimal 的静态表）。
+  assert.deepEqual(levels, [...CLI_PICKER_DEFAULT_EFFORTS]);
+});
+
 test("档位按模型分开记：改 A 模型不影响 B 模型", () => {
   const bound = withModelEffort({ ...baseBinding, model: "model-a" }, "model-a", "high");
   const switched = withModelEffort(bound, "model-b", "low");
@@ -328,9 +364,11 @@ test("opencode 预设：run --format json + stdin 交付 + models 子命令 + �
   assert.equal(opencode.modelFlag, "--model");
   assert.equal(opencode.modelSource, "command");
   assert.deepEqual(opencode.modelListCommand, ["models"]);
-  // 档位走 --model 的 #variant，本版不提供档位选择：给一组候选只会让参数猜错。
-  assert.equal(opencode.effortDelivery, "none");
+  // 档位走 --model 的 #variant（实测 v2.2.5）：没有独立 effort flag，但每档真实存在，
+  // 传错档位会报 Variant unavailable。逐模型候选由探测（models.json）给出，预设本身为空表。
+  assert.equal(opencode.effortDelivery, "variant");
   assert.deepEqual(opencode.effortLevelsByModel, {});
+  // 静态兜底（探测不可用时）：opencode 没有 CLI 级兜底档，空 = 不显示档位入口。
   assert.deepEqual(resolveEffortLevels(opencode, "anthropic/claude"), []);
 });
 
@@ -394,6 +432,46 @@ test("opencode invocation: --model 与 --session 的位置固定（续接由用�
 test("opencode invocation: 无 externalSessionId 时不带 --session（新会话）", () => {
   const invocation = buildExternalAgentInvocation(opencodeBinding, "新任务");
   assert.equal(invocation.args.includes("--session"), false);
+});
+
+test("opencode invocation: 档位拼成 --model 的 #variant 后缀（不是独立 flag）", () => {
+  const model = "opencode/deepseek-v4.1-flash-free";
+  const invocation = buildExternalAgentInvocation(
+    { ...opencodeBinding, model, effortsByModel: { [model]: "high" } },
+    "干活",
+  );
+  // 档位是模型串的一部分：单独 push 一个 "#high" 会被当成位置参数（prompt 片段），
+  // CLI 不报错但档位静默失效——这是与 claude-family 最大的形状差异。
+  assert.deepEqual(invocation.args, [
+    "run",
+    "--format",
+    "json",
+    "--auto",
+    "--model",
+    `${model}#high`,
+  ]);
+  assert.equal(invocation.args.includes("#high"), false);
+});
+
+test("opencode invocation: 该模型没记录档位 → 模型串不带 #（用 CLI 默认档）", () => {
+  const model = "opencode/big-pickle";
+  const invocation = buildExternalAgentInvocation(
+    // 别的模型的档位不能串到当前模型上：档位是模型的能力。
+    { ...opencodeBinding, model, effortsByModel: { "opencode/beam-free": "medium" } },
+    "干活",
+  );
+  assert.deepEqual(invocation.args.slice(-2), ["--model", model]);
+});
+
+test("opencode invocation: 换模型时档位按各自模型的键取，互不串档", () => {
+  const binding = {
+    ...opencodeBinding,
+    effortsByModel: { "opencode/beam-free": "medium", "opencode/big-pickle": "max" },
+  };
+  const beam = buildExternalAgentInvocation({ ...binding, model: "opencode/beam-free" }, "a");
+  const pickle = buildExternalAgentInvocation({ ...binding, model: "opencode/big-pickle" }, "b");
+  assert.deepEqual(beam.args.slice(-2), ["--model", "opencode/beam-free#medium"]);
+  assert.deepEqual(pickle.args.slice(-2), ["--model", "opencode/big-pickle#max"]);
 });
 
 test("opencode invocation: 预设 argv 跟随代码，老绑定落库的 args 不覆盖 --format json", () => {

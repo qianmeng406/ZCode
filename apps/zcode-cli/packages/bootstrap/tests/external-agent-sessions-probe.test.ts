@@ -16,6 +16,7 @@ import {
   listExternalAgentSessions,
   parseExternalAgentSessionsProbe,
   parseModelListLines,
+  parseOpencodeModelCatalog,
   parseOpencodeSessionListProbe,
   readExternalAgentSessionTranscript,
 } from "../src/zcode-protocol/external-agent-probe.js";
@@ -407,5 +408,86 @@ describe("parseModelListLines（opencode models 的输出）", () => {
   it("最多 100 条", () => {
     const stdout = Array.from({ length: 150 }, (_, index) => `p/m${index}`).join("\n");
     expect(parseModelListLines(stdout)).toHaveLength(100);
+  });
+});
+
+// opencode 的档位事实来自 ~/.cache/opencode/models.json 的 reasoning_options。
+// 实测（v2.2.5）：档位是模型能力，逐模型不同；传错档位报 `Variant unavailable`，
+// 所以候选必须精确，不能拿 CLI 级的一张表套所有模型。
+describe("parseOpencodeModelCatalog（models.json → 逐模型档位）", () => {
+  const raw = {
+    opencode: {
+      models: {
+        "beam-free": { reasoning_options: [{ type: "effort", values: ["low", "medium", "high"] }] },
+        "deepseek-v4.1-flash-free": {
+          reasoning_options: [{ type: "effort", values: ["low", "high", "max"] }],
+        },
+        // 只有 toggle 语义：不是可选档位，传 #low 会被 CLI 拒绝。
+        "toggle-only": { reasoning_options: [{ type: "toggle" }] },
+        // 完全没有 reasoning_options：同样没有档位。
+        "no-options": {},
+      },
+    },
+  };
+
+  it("逐模型取 type:effort 的 values，只认探测到的 id", () => {
+    expect(
+      parseOpencodeModelCatalog(raw, ["opencode/beam-free", "opencode/deepseek-v4.1-flash-free"]),
+    ).toEqual([
+      {
+        id: "opencode/beam-free",
+        name: "opencode/beam-free",
+        supportedEfforts: ["low", "medium", "high"],
+      },
+      {
+        id: "opencode/deepseek-v4.1-flash-free",
+        name: "opencode/deepseek-v4.1-flash-free",
+        supportedEfforts: ["low", "high", "max"],
+      },
+    ]);
+  });
+
+  it("同一个 provider 的两个模型档位不同 → 各自独立，互不串档", () => {
+    const catalog = parseOpencodeModelCatalog(raw, [
+      "opencode/beam-free",
+      "opencode/deepseek-v4.1-flash-free",
+    ]);
+    // 关键：beam-free 有 medium，deepseek 没有——拿一张 CLI 级表套两者必然错一个。
+    expect(catalog[0]?.supportedEfforts).toContain("medium");
+    expect(catalog[1]?.supportedEfforts).not.toContain("medium");
+  });
+
+  it("没有 effort 选项（toggle-only / 空）→ 收录但候选为空（UI 不显示档位入口）", () => {
+    expect(parseOpencodeModelCatalog(raw, ["opencode/toggle-only", "opencode/no-options"])).toEqual(
+      [
+        { id: "opencode/toggle-only", name: "opencode/toggle-only", supportedEfforts: [] },
+        { id: "opencode/no-options", name: "opencode/no-options", supportedEfforts: [] },
+      ],
+    );
+  });
+
+  it("缓存里没有的模型 / 未知 provider / 畸形输入 → 跳过或空数组，不抛", () => {
+    expect(parseOpencodeModelCatalog(raw, ["opencode/missing", "nosuchprovider/x"])).toEqual([]);
+    expect(parseOpencodeModelCatalog(null, ["opencode/beam-free"])).toEqual([]);
+    expect(parseOpencodeModelCatalog([], ["opencode/beam-free"])).toEqual([]);
+    expect(
+      parseOpencodeModelCatalog({ opencode: { models: "not-an-object" } }, ["opencode/x"]),
+    ).toEqual([]);
+    // 没有斜杠的 id 不是 provider/model 形状：无法定位，跳过。
+    expect(parseOpencodeModelCatalog(raw, ["beam-free"])).toEqual([]);
+  });
+
+  it("values 里的非字符串与空白项被剔除", () => {
+    const dirty = {
+      opencode: {
+        models: {
+          m: { reasoning_options: [{ type: "effort", values: ["low", 3, "  ", "high"] }] },
+        },
+      },
+    };
+    expect(parseOpencodeModelCatalog(dirty, ["opencode/m"])[0]?.supportedEfforts).toEqual([
+      "low",
+      "high",
+    ]);
   });
 });
