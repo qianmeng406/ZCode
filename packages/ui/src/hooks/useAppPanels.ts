@@ -90,7 +90,7 @@ import {
   type WorkspaceSidePaneState,
   type WorkspaceSidePaneTab,
 } from "@/lib/workspaceSidePane.js";
-import { openPluginUiSidePane } from "@/plugin-ui/index.js";
+import { openPluginUiSidePane, usePluginUiPaneTarget } from "@/plugin-ui/index.js";
 import type { OpenPluginUiSideTabRequest } from "@/plugin-ui/contract.js";
 import { logger } from "@/logger.js";
 import { getPathLeaf, joinFilePath, toFileUrl } from "@/lib/path.js";
@@ -192,6 +192,19 @@ export function useAppPanels(options: {
   } = options;
   const supportsEmbeddedBrowser = explicitSupportsEmbeddedBrowser ?? Boolean(isDesktop);
   const activeWorkspaceKey = workspaceIdentity?.trim() || workspaceAbsPath;
+  const pluginUiTarget = usePluginUiPaneTarget({
+    workspacePath: workspaceAbsPath,
+    workspaceIdentity,
+    remoteSessionId: workspaceRemoteSessionId ?? undefined,
+    sessionId: activeTaskId,
+  });
+  const pluginUiWorkspaceKey =
+    pluginUiTarget.workspaceIdentity?.trim() || pluginUiTarget.workspacePath;
+  const pluginUiScopeRef = useRef({
+    pluginUiSessionId: pluginUiTarget.sessionId,
+    pluginUiWorkspaceKey,
+  });
+  pluginUiScopeRef.current = { pluginUiSessionId: pluginUiTarget.sessionId, pluginUiWorkspaceKey };
   const { zcodeAgentService, zcodeSessionService } = useServices();
   const isOfficeMode = useIsOfficeMode();
   const sidePaneMemoryKey = useMemo(
@@ -270,6 +283,7 @@ export function useAppPanels(options: {
     () => ({
       workspaceKey: activeWorkspaceKeyRef.current,
       ownerTaskId: sidePaneOwnerIdRef.current,
+      ...pluginUiScopeRef.current,
     }),
     [],
   );
@@ -377,7 +391,11 @@ export function useAppPanels(options: {
       );
       const resolved = resolveSidePaneScopeState(
         current,
-        { workspaceKey: activeWorkspaceKey, ownerTaskId: sidePaneOwnerId },
+        {
+          workspaceKey: activeWorkspaceKey,
+          ownerTaskId: sidePaneOwnerId,
+          ...pluginUiScopeRef.current,
+        },
         preferredTabId,
         collapsedPreference,
       );
@@ -392,7 +410,14 @@ export function useAppPanels(options: {
       });
       return resolved.sidePaneState;
     });
-  }, [activeTaskId, activeWorkspaceKey, commitSidePaneState, sidePaneOwnerId]);
+  }, [
+    activeTaskId,
+    activeWorkspaceKey,
+    commitSidePaneState,
+    sidePaneOwnerId,
+    pluginUiTarget.sessionId,
+    pluginUiWorkspaceKey,
+  ]);
 
   const pendingFileManagerTarget = useOptionalTabStore((state) => state.pendingFileManagerTarget);
   const requestFileManager = useOptionalTabStore((state) => state.requestFileManager);

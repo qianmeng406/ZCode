@@ -15,6 +15,7 @@ function fixture(config: Record<string, unknown> = {}) {
   const executions: unknown[] = [];
   const runtime = {
     sessionId: "session",
+    sessionPersisted: true,
     config: { mode: "edit", planEnabled: true, ...config },
     rootTraceContext: {},
     pendingInputReservations: new Map(),
@@ -57,6 +58,45 @@ function fixture(config: Record<string, unknown> = {}) {
 }
 
 describe("审批框完全访问", () => {
+  it("草稿只授权内存，发布失败重试复用原事件，不覆盖后来的模式", async () => {
+    const { runtime, grant } = fixture();
+    runtime.sessionPersisted = false;
+    runtime.rebuildProjection.mockResolvedValue({ pendingSteerInputs: [] });
+    runtime.activeTurn.pendingInputs = [];
+    const published: unknown[] = [];
+    runtime.createEvent.mockImplementation((type, payload) => ({
+      id: `event-${runtime.createEvent.mock.calls.length}`,
+      type,
+      payload,
+      sessionId: "session",
+      traceId: "trace",
+      timestamp: new Date(),
+      sequenceNumber: 0,
+    }));
+    runtime.appendEvent.mockRejectedValueOnce(new Error("event failed"));
+    await expect(grant()).rejects.toThrow("event failed");
+    expect(runtime.config.mode).toBe("yolo");
+    runtime.appendEvent.mockImplementation(async (event) => {
+      published.push(event);
+    });
+    runtime.eventStore.getEvents.mockImplementation(async () => published);
+    await applyRuntimeExecutionState(
+      runtime as unknown as AgentRuntimeInternal,
+      { mode: "build", planEnabled: false },
+      { source: "command" },
+    );
+    await grant();
+    expect(runtime.sessionStore.commitPermissionFullAccess).not.toHaveBeenCalled();
+    expect(runtime.createEvent).toHaveBeenCalledTimes(2);
+    expect(runtime.appendEvent.mock.calls[0]?.[0]).toBe(runtime.appendEvent.mock.calls[1]?.[0]);
+    expect(published).toHaveLength(2);
+    // applyRuntimeExecutionState 解析完整 ExecutionState：contextProfile 缺省 standard。
+    expect(runtime.config).toEqual({
+      mode: "build",
+      planEnabled: false,
+      contextProfile: "standard",
+    });
+  });
   it("保留 Runtime 和每项 Plan，只更新本次目标队列权限", async () => {
     const { runtime, grant } = fixture();
     await grant();

@@ -26,6 +26,7 @@ import {
   removeSourceMapFilesInDirectory,
   stripSourceMappingUrlCommentsInDirectory,
 } from "./scripts/packaged-sourcemap-cleanup.mjs";
+import { pruneIncompatiblePlatformPackages } from "./scripts/packaged-platform-dependency-prune.mjs";
 import { getTargetPlatform } from "./scripts/target-platform.mjs";
 import {
   resolveDesktopArtifactSuffix,
@@ -497,6 +498,11 @@ async function stripPackagedSourcemapReferences(context) {
         targetPlatformKey: targetPlatform.key,
         runAsarCommand,
       }),
+    pruneStagingDirectory:
+      targetPlatform.key === "win32-x64" &&
+      process.env.ZCODE_PRUNE_PACKAGED_PLATFORM_DEPENDENCIES === "1"
+        ? (stagingDir) => pruneIncompatiblePlatformPackages(stagingDir, targetPlatform)
+        : null,
   });
 }
 

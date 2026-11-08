@@ -51,7 +51,7 @@ import {
   readApprovedPlanFileReferenceEntry,
   replaceReadFileStateAfterCompact,
   restorePostCompactFiles,
-  buildRuntimeModeReminderBody,
+  buildRuntimeModeReminderBodyForTask,
   hasFullRuntimeModeReminder,
 } from "../helpers/index.js";
 import {
@@ -574,9 +574,14 @@ async function compactActiveConversationImpl(
       // 修复原因：输入附件与 auto/reactive compaction 在同一次循环中，且先于 compaction 收集；
       // 保留段可能已带本次收集的完整提醒，无条件重发会出现两条完整提醒，周期也多算一次。
       // 保留段只有简短提醒时，完整说明已被摘要，仍要重发。
+      // 修复原因：这里曾不区分子会话，子会话 compact 后又收到主会话的五阶段提醒；与轮内收集共用选择逻辑。
       const planModeReminderBody = hasFullRuntimeModeReminder(preservedEntries)
         ? null
-        : buildRuntimeModeReminderBody([], this.getMode(), this.getPlanEnabled(), {
+        : buildRuntimeModeReminderBodyForTask([], {
+            mode: this.getMode(),
+            planEnabled: this.getPlanEnabled(),
+            taskType: this.config.taskType,
+            tools: compactCandidates,
             // 压缩重发的 plan 提醒同样要带主控段：绑定存在期间「只读 + 委派」的语义
             // 不能因 compact 丢失，否则压缩后的第一轮又回到「自己实施」的试错路径。
             externalAgentReadOnly: this.externalAgentReadOnly === true,

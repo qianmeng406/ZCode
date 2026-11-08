@@ -15,6 +15,7 @@ This repository is a personal customization of ZCode, an AI coding workspace wit
 
 ## Upstream Version and Sync Status
 
+- **2026-11-08**: Merged the official v3.17.2 baseline ([`a9fe401e`](https://github.com/zai-org/ZCode/commit/a9fe401eede6e6e5e01be9048679c206fe6f02d9)) while keeping the existing customizations.
 - **2026-11-01**: Input prediction rework — candidates now ride on the main turn's reply instead of a separate model call (the Settings toggle only controls prompt injection; the prediction model picker was removed). Added **session handoff export** (last-3-turns material window, entry in the session context menu). Fixes: missing "first token" metric on tool-call-only steps, shared-runtime task routing capability negotiation (an upstream-merge miss), the prediction directive corrupting messages with attachments, and the prediction display threshold lowered from 0.8 to 0.6; the GLM builtin-tool rewriter no longer swallows bold-opening text.
 - **2026-10-31**: Merged the official v3.17.1 baseline ([`a60ba6a7`](https://github.com/zai-org/ZCode/commit/a60ba6a7e5a06742270ca605f5d2cc2766afa7e1)) while keeping the existing customizations; also fixed Windows path comparison and permission-rule matching so the `@zcode/core` suite is green on Windows.
 - **2026-10-22**: Merged the official v3.16.2 baseline while keeping the existing customizations.
@@ -27,8 +28,8 @@ This repository is a personal customization of ZCode, an AI coding workspace wit
 - 2026-10-10: Updated to ZCode v3.15.1.
 - 2026-9-23: Updated to ZCode v3.14.3.
 
-- **Latest official source**: As of 2026-10-30, official `main` points to [the v3.17.1 commit `a60ba6a7`](https://github.com/zai-org/ZCode/commit/a60ba6a7e5a06742270ca605f5d2cc2766afa7e1) (Source-Commit `73158b64`). Upstream does not tag v3.17.1; it is published from `main`.
-- **This fork's upstream baseline**: This repository is based on the official v3.17.1 commit `a60ba6a7`; the root `package.json` version is `3.17.1`. The customizations are applied as a series of commits on top of the official baseline (migration plus later feature commits); see [docs/upstream-sync.md](docs/upstream-sync.md) for the follow-up sync workflow.
+- **Latest official source**: As of 2026-11-03, official `main` points to [the v3.17.2 commit `a9fe401e`](https://github.com/zai-org/ZCode/commit/a9fe401eede6e6e5e01be9048679c206fe6f02d9), tagged `v3.17.2`.
+- **This fork's upstream baseline**: This repository is based on the official v3.17.2 commit `a9fe401e`; the root `package.json` version is `3.17.2`. The customizations are applied as a series of commits on top of the official baseline (migration plus later feature commits); see [docs/upstream-sync.md](docs/upstream-sync.md) for the follow-up sync workflow.
 - **Official documentation**: [Chinese README](https://github.com/zai-org/ZCode/blob/main/README.md), [English README](https://github.com/zai-org/ZCode/blob/main/README.en.md), and [UI Plugin development guide](https://github.com/zai-org/ZCode/blob/aac4755666d09fdcd70272fcf063c077a639015f/UI_PLUGIN.en.md). Features, directories, and commands in newer official versions may not exist in this fork. Use the checked-out source and `package.json` as the source of truth.
 
 ## Fork Customizations

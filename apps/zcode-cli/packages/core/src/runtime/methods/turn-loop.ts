@@ -7,7 +7,7 @@ import {
 import { getTurnTools } from "./turn-tool-visibility.js";
 import { refreshOffPeakTurnAfterTakeover } from "../off-peak/turn.js";
 import { appendRuntimeAgentListing } from "../helpers/agent-listing.js";
-import { beginLocalTurnPreparation } from "@zcode/contracts";
+import { ASK_USER_QUESTION_TOOL_NAME, beginLocalTurnPreparation } from "@zcode/contracts";
 import { buildToolSearchAnnouncement } from "../../tool/search/exposure.js";
 import {
   CompactPhase,
@@ -336,6 +336,17 @@ async function collectInputAttachments(
       // 主控（绑定外部 agent）时把委派工作流写进提醒：没有这段模型只能靠试错
       // 发现自己只读，默认路径是 ExitPlanMode → 自己实施 → 被唯一写入口拒绝。
       externalAgentReadOnly: runtime.externalAgentReadOnly === true,
+      // 子会话只发精简提醒（上游 v3.17.2）：子会话没有 ExitPlanMode，也不能再派生子 agent。
+      // 与 compact 后重发的 buildRuntimeModeReminderBodyForTask 共用同一选择逻辑。
+      ...(runtime.config.taskType === "subagent_child"
+        ? {
+            subagent: {
+              askUserQuestionAvailable: tools.some(
+                (tool) => tool.name === ASK_USER_QUESTION_TOOL_NAME,
+              ),
+            },
+          }
+        : {}),
     },
   );
   if (runtimeModeReminder) {

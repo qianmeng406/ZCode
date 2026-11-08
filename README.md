@@ -20,10 +20,11 @@
 
 ## 上游基线
 
-- 上游项目为 [zai-org/ZCode](https://github.com/zai-org/ZCode)（Apache-2.0）；本仓库基于官方 **v3.17.1**（提交 [`a60ba6a7`](https://github.com/zai-org/ZCode/commit/a60ba6a7e5a06742270ca605f5d2cc2766afa7e1)，上游未打 tag，3.17.1 以 `main` 提交发布，Source-Commit `73158b64`），根目录 `package.json` 版本同为 `3.17.1`。
+- 上游项目为 [zai-org/ZCode](https://github.com/zai-org/ZCode)（Apache-2.0）；本仓库基于官方 **v3.17.2**（提交 [`a9fe401e`](https://github.com/zai-org/ZCode/commit/a9fe401eede6e6e5e01be9048679c206fe6f02d9)，tag `v3.17.2`），根目录 `package.json` 版本同为 `3.17.2`。
 - 跟进官方新版本时如何保留定制能力，见 [docs/upstream-sync.md](docs/upstream-sync.md)。
 - 官方文档：[中文 README](https://github.com/zai-org/ZCode/blob/main/README.md)、[英文 README](https://github.com/zai-org/ZCode/blob/main/README.en.md)、[UI Plugin 开发说明](https://github.com/zai-org/ZCode/blob/aac4755666d09fdcd70272fcf063c077a639015f/UI_PLUGIN.md)。官方新版中的功能、目录和命令不一定存在于本定制版，请以当前检出的源码与 `package.json` 为准。
 
+- **2026-11-08**：合并官方 v3.17.2 基线（[`a9fe401e`](https://github.com/zai-org/ZCode/commit/a9fe401eede6e6e5e01be9048679c206fe6f02d9)），保留既有定制能力（子会话精简 Plan 提醒与主控段并存、执行状态恢复走 fork 安装通道）。
 - **2026-11-01**：输入预测重构——不再独立调用模型，改为**主轮回复末尾附带候选块**（设置页开关只控注入提示词，模型选择器移除）；新增**会话交接导出**（最近 3 轮材料窗口，右键会话菜单入口）。修复：纯工具调用步指标胶囊缺「首 token」项、共享运行时任务路由能力协商（上游合并遗漏）、预测指令注入毁掉带附件消息、输入预测展示门槛 0.8→0.6、GLM 内置工具重写器误吞粗体开头正文。
 - **2026-10-31**：合并官方 v3.17.1 基线（[`a60ba6a7`](https://github.com/zai-org/ZCode/commit/a60ba6a7e5a06742270ca605f5d2cc2766afa7e1)），保留既有定制能力；同时修复 Windows 下工具路径比较与权限规则匹配（`@zcode/core` 单元测试在 Windows 上全绿）。
 - **2026-10-22**：合并官方 v3.16.2 基线，保留既有定制能力。

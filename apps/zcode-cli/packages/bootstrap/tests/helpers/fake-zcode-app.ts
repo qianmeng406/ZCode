@@ -102,6 +102,14 @@ export function createFakeApp(
         foregroundPromotionLeaseId = leaseId;
         return { kind: "acquired", leaseId };
       },
+      // 冷恢复路径（v4-bridge restoreExternalAgentReadOnly）会用到的 fork 运行时面：
+      // 只读锁、事件补发、执行状态安装。桩不需要真实语义，但必须在场，否则
+      // 持久会话的冷订阅会以 resumeFailed 失败。
+      appendEvent: async () => undefined,
+      ensureSessionPersistedForExternalActivity: async () => undefined,
+      getPlanEnabled: () => false,
+      setExecutionState: () => {},
+      setExternalAgentReadOnly: () => {},
       emitModelSelected: async () => undefined,
       getProjection: async () =>
         ({

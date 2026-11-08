@@ -169,6 +169,14 @@ export async function resumeFromStore(
   if (savedExecution.success && options?.modeOverride === undefined) {
     installRuntimeExecutionState(this, savedExecution.data, undefined, { restored: true });
   }
+  // 修复原因：子会话恢复曾沿用落盘的执行状态，父会话从 yolo 改为 build 后，恢复的子会话仍免审批执行命令；
+  // 调用方给出的完整执行状态最后生效，覆盖上面的历史 mode 与落盘状态。同样走恢复安装（不持久化、不发事件），
+  // 且必须在 context/MCP 初始化之前定案——极简档位会过滤工具面。
+  if (options?.executionStateOverride) {
+    installRuntimeExecutionState(this, options.executionStateOverride, undefined, {
+      restored: true,
+    });
+  }
   // cold resume 的历史 hydration 会先清空 runtime-local read-state；必须在
   // Context 初始化前完成，确保随后单次加载的 MEMORY.md 状态与 provider 所见内容一致。
   const readFileStateHydration = await hydrateReadFileStateFromSession({

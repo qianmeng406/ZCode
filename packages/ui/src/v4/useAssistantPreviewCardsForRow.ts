@@ -14,6 +14,7 @@ import {
   type AssistantPreviewLoadAction,
 } from "@/lib/onDemandLoadingGuards.js";
 import { logger } from "@/logger.js";
+import { shouldResyncForStaleAuthority } from "@/v4/staleAuthorityRecovery.js";
 import type {
   ConversationFileChangesRequestOptions,
   ConversationFileChangesState,
@@ -51,7 +52,14 @@ interface PreviewRequestState {
   paths: readonly string[];
 }
 
+interface StaleRetryState {
+  key: string;
+  attempt: number;
+}
+
 const EMPTY_CHANGED_FILE_PATHS: readonly string[] = [];
+const STALE_FILE_CHANGES_MAX_RETRIES = 3;
+const STALE_FILE_CHANGES_RETRY_BASE_DELAY_MS = 150;
 
 function joinAssistantTurnText(rows: readonly AssistantTextRow[]): string {
   return rows
@@ -107,7 +115,11 @@ export function useAssistantPreviewCardsForAssistantTextRow({
     : "";
   const [requestState, setRequestState] = useState<PreviewRequestState | null>(null);
   const [manualLoading, setManualLoading] = useState(false);
+  // stale 恢复重试（上游 v3.17.2）：turn 刚 complete 时查询可能被判 staleRevision，稍后重查即可。
+  const [staleRetry, setStaleRetry] = useState<StaleRetryState | null>(null);
+  const staleRetryAttempt = staleRetry?.key === requestKey ? staleRetry.attempt : 0;
   const loadSeqRef = useRef(0);
+  const staleRetryTimerRef = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
 
   const loadAction = resolveAssistantPreviewLoadAction({
     autoPreviewEnabled,
@@ -146,6 +158,24 @@ export function useAssistantPreviewCardsForAssistantTextRow({
       (error: unknown) => {
         if (loadSeqRef.current !== loadSeq) return;
         setManualLoading(false);
+        // Bug 根因：turn 刚 complete 时 projection revision 仍会被后续事件推进，查询带的
+        // baseRevision 会被 Agent 判为 proto.staleRevision。requestKey 不含 revision，若这里
+        // 记成空列表，本轮 md/html 卡片会一直被抑制；SessionPane 已删除失败缓存并触发
+        // stale recovery，稍后用最新 revision 重查即可。
+        if (
+          shouldResyncForStaleAuthority(error) &&
+          staleRetryAttempt < STALE_FILE_CHANGES_MAX_RETRIES
+        ) {
+          if (staleRetryTimerRef.current !== undefined) clearTimeout(staleRetryTimerRef.current);
+          staleRetryTimerRef.current = setTimeout(
+            () => {
+              staleRetryTimerRef.current = undefined;
+              setStaleRetry({ key: requestKey, attempt: staleRetryAttempt + 1 });
+            },
+            STALE_FILE_CHANGES_RETRY_BASE_DELAY_MS * (staleRetryAttempt + 1),
+          );
+          return;
+        }
         logger.warn("[AssistantPreviewCards] 读取本轮文件变更失败，已抑制 Markdown/HTML 卡片", {
           error: error instanceof Error ? error.message : String(error),
           rowId: target.rowId,
@@ -153,7 +183,7 @@ export function useAssistantPreviewCardsForAssistantTextRow({
         setRequestState({ key: requestKey, status: "failed", paths: [] });
       },
     );
-  }, [fetchFileChanges, fileChangesState, requestKey, target]);
+  }, [fetchFileChanges, fileChangesState, requestKey, staleRetryAttempt, target]);
 
   const loadManually = useCallback(() => {
     if (manualLoading) return;
@@ -165,10 +195,18 @@ export function useAssistantPreviewCardsForAssistantTextRow({
     runLoad();
   }, [loadAction, runLoad]);
 
+  // stale 恢复重试：attempt 递增时无条件重查（stale 只在真实失败后置位；
+  // requestKey 变化后 attempt 归零，不会误触发）。
+  useEffect(() => {
+    if (staleRetryAttempt === 0) return;
+    runLoad();
+  }, [staleRetryAttempt, runLoad]);
+
   useEffect(
     () => () => {
-      // 卸载使迟到回包失效。
+      // 卸载使迟到回包失效，并撤销未触发的 stale 重试。
       loadSeqRef.current += 1;
+      if (staleRetryTimerRef.current !== undefined) clearTimeout(staleRetryTimerRef.current);
     },
     [],
   );

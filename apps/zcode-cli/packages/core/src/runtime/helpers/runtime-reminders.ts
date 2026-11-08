@@ -9,6 +9,7 @@ import {
 import type {
   CollaborationMode,
   OutputStylePromptConfig,
+  SessionTaskType,
   SyntheticUserMessageSource,
   TodoItem,
 } from "../deps.js";
@@ -96,6 +97,19 @@ const PLAN_MODE_FULL_REMINDER = [
 const PLAN_MODE_SPARSE_REMINDER = [
   `Plan mode still active (see full instructions earlier in conversation). Read-only. Follow 5-phase workflow. End turns with ${ASK_USER_QUESTION_TOOL_NAME} (for clarifications) or ${EXIT_PLAN_MODE_TOOL_NAME} (for plan approval). Never ask about plan approval via text or AskUserQuestion.`,
 ];
+
+/** 子会话的 Plan 提醒：只保留只读约束，不含主会话的五阶段流程与收尾要求。 */
+function buildSubagentPlanModeReminder(askUserQuestionAvailable: boolean): string {
+  return [
+    PLAN_MODE_FULL_REMINDER[0],
+    "Only take read-only actions, and answer the delegated query comprehensively.",
+    ...(askUserQuestionAvailable
+      ? [
+          `If you need clarification, use the ${ASK_USER_QUESTION_TOOL_NAME} tool and ask all of your clarifying questions before proceeding.`,
+        ]
+      : []),
+  ].join("\n\n");
+}
 
 const PLAN_MODE_EXIT_REMINDER = [
   "## Exited Plan Mode",
@@ -320,11 +334,44 @@ export function buildTodoReminderBody(todos: readonly TodoItem[]): string {
   return lines.join("\n");
 }
 
+/**
+ * Plan 提醒按会话类型选择正文；轮内收集与 compact 后重发共用，避免一处漏掉子会话。
+ * tools 传本轮可见工具，用来判断子会话能否用 AskUserQuestion。
+ */
+export function buildRuntimeModeReminderBodyForTask(
+  entries: readonly RuntimeMessageEntry[],
+  input: {
+    mode: CollaborationMode;
+    planEnabled: boolean;
+    taskType: SessionTaskType | undefined;
+    tools: readonly { name: string }[];
+    externalAgentReadOnly?: boolean;
+  },
+): string | null {
+  return buildRuntimeModeReminderBody(entries, input.mode, input.planEnabled, {
+    externalAgentReadOnly: input.externalAgentReadOnly,
+    ...(input.taskType === "subagent_child"
+      ? {
+          subagent: {
+            askUserQuestionAvailable: input.tools.some(
+              (tool) => tool.name === ASK_USER_QUESTION_TOOL_NAME,
+            ),
+          },
+        }
+      : {}),
+  });
+}
+
 export function buildRuntimeModeReminderBody(
   entries: readonly RuntimeMessageEntry[],
   mode: CollaborationMode,
   planEnabled = mode === "plan",
-  options: { pendingFull?: boolean; externalAgentReadOnly?: boolean } = {},
+  options: {
+    pendingFull?: boolean;
+    externalAgentReadOnly?: boolean;
+    /** 子会话传入：只发精简提醒；askUserQuestionAvailable 表示子会话能看到 AskUserQuestion。 */
+    subagent?: { askUserQuestionAvailable: boolean };
+  } = {},
 ): string | null {
   return buildRuntimeModeReminder(entries, mode, planEnabled, options)?.body ?? null;
 }
@@ -363,7 +410,11 @@ export function buildRuntimeModeReminder(
   entries: readonly RuntimeMessageEntry[],
   mode: CollaborationMode,
   planEnabled = mode === "plan",
-  options: { pendingFull?: boolean; externalAgentReadOnly?: boolean } = {},
+  options: {
+    pendingFull?: boolean;
+    externalAgentReadOnly?: boolean;
+    subagent?: { askUserQuestionAvailable: boolean };
+  } = {},
 ): RuntimeModeReminder | null {
   const identity = resolveRuntimeModeIdentity(mode, planEnabled);
   if (!identity) return null;
@@ -379,6 +430,16 @@ export function buildRuntimeModeReminder(
     humanTurnsSinceReminder < RUNTIME_MODE_REMINDER_CONFIG.TURNS_BETWEEN_ATTACHMENTS
   ) {
     return null;
+  }
+
+  // 修复原因：子会话继承父会话 Plan 后收到了主会话的五阶段提醒，被要求再派生 Explore、只能以
+  // AskUserQuestion 或 ExitPlanMode 收尾，而子会话没有 ExitPlanMode，也不能再派生子 agent。
+  if (options.subagent) {
+    return {
+      body: buildSubagentPlanModeReminder(options.subagent.askUserQuestionAvailable),
+      identity,
+      kind: "sparse",
+    };
   }
 
   const nextReminderCount = countRuntimeModeReminders(entries, identity) + 1;
@@ -488,7 +549,10 @@ function countRuntimeModeReminders(
     // 完整／简短周期也必须在同一个退出边界重置，不能沿用旧周期。
     if (metadata?.source === "plan_mode_exit") break;
     // 旧条目没有身份标记：按当前身份处理，不能因缺标记把周期计数清零。
-    if (metadata?.source === "runtime_mode" && (metadata.runtimeMode?.identity ?? identity) === identity)
+    if (
+      metadata?.source === "runtime_mode" &&
+      (metadata.runtimeMode?.identity ?? identity) === identity
+    )
       count++;
   }
   return count;

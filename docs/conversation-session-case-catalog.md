@@ -2,6 +2,8 @@
 
 ## 项目与任务草稿生命周期（2026-10-16）
 
+PD13–PD16（2026-10-30，accepted / pending）：远端草稿在 projectId 就绪后才预热和首发；覆盖保留作用域的完整冷启动、只删除导航作用域后的冷启动与 Enter 拦截、显式项目新建后的真实首发、手机 shared-host 恢复及本地未归类首发。候选 `packages/desktop/test/e2e/conversation-session/manual-review/pending/conversation-session-remote-draft-prewarm.test.ts`；covered（候选未转正）：`packages/desktop/.e2e-artifacts/local-docker-20261030074146-15e10a` 完整通过，含真实 Provider 请求和 Host 项目归属断言。macOS Electron → SSH Linux arm64；手机为 Chrome 390px 触摸视口与真实 relay/Host，缺归属为受控 store 前置；不是实体手机或 Windows/Linux 桌面证据。缺失作用域不归因于升级。
+
 PD01–PD12 的前置、动作、断言与证据要求见 [统一生命周期规格](ui/project-task-draft-lifecycle.md)。产品语义 accepted；自动化保持 manual-review/pending，运行证据见 coverage matrix 与规格的验证记录，不代表已转正或发布。覆盖项目/任务新建、同目录项目隔离、接纳后默认配置、目录复用、迟到回执、手机独立恢复及旧数据认领。
 
 PD12 集成边界：新建项目交接正文与内存附件（同目录也交接），关闭分组草稿只撤销分组意图，刷新后仍保留正文。复用 PCD01–03 与 GRP02/03/11 验证；手机长按先检查目标可交互，再发送实际触摸事件。
@@ -1841,12 +1843,21 @@ S17 的恢复边界由 2026-08-18 用户复现确认：普通手机 permission �
 
 ## Y. Plan Mode MCP Permission / 计划模式 MCP 权限边界
 
-Plan mode 的默认边界是只允许只读、非 destructive 工具。MCP 工具是动态 server 暴露的外部能力，部分只读查询型工具不会声明 `readOnlyHint`；这类工具应允许在计划阶段读取上下文，但显式 `destructiveHint: true` 的 MCP 仍必须被 Plan mode 拦截。该组只覆盖桌面端 `desktop-continuous` 的本地 session：通过工作区 `.zcode/config.json` 注入一个 stdio MCP server，稳定暴露一个未声明 `readOnlyHint` 的查询工具和一个 destructive 工具。项目级 deny/ask、伪 `mcp__` 名称、MCP metadata 映射由 core 单测覆盖，不在 GUI E2E 里做全排列。
+Plan mode 只在进入前的模式之上收紧，不新增放行（规则见 [Plan Mode Approval Boundary](./plan-mode-approval-boundary.md)）。从 build 进入 Plan 后，未声明 `readOnlyHint` 的非 destructive MCP 需要用户单次确认，且不提供"始终允许"；显式 `destructiveHint: true` 的 MCP 仍被 Plan mode 拒绝。该组只覆盖桌面端 `desktop-continuous` 的本地 session：通过隔离 E2E HOME 下的用户级配置注入一个 stdio MCP server（工作区 MCP 需逐条信任才会连接，不适合本组），稳定暴露一个未声明 `readOnlyHint` 的查询工具和一个 destructive 工具。项目级 deny/ask、伪 `mcp__` 名称、MCP metadata 映射由 core 单测覆盖，不在 GUI E2E 里做全排列。
 
-| ID  | 前置状态                                                                                                                             | 用户/系统事件                               | 规则命中                                          | 期望结果                                                                                                                                      | Review   |
-| --- | ------------------------------------------------------------------------------------------------------------------------------------ | ------------------------------------------- | ------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------- | -------- |
-| Y01 | 桌面本地新 session；模型已通过 `EnterPlanMode` 进入 plan mode；已连接 MCP 工具 `lookup` 无 `readOnlyHint` 且 `destructiveHint:false` | assistant 调用 `mcp__plan_mode_e2e__lookup` | planModeMcpNonDestructiveAllowed + toolTurnStable | 工具真实执行；MCP tool_result 进入下一次 provider-visible 请求；不出现 permission 弹窗或 `mode.plan.nonReadOnly` 拒绝                         | accepted |
-| Y02 | 同一 plan mode turn；已连接 MCP 工具 `reset` 声明 `destructiveHint:true`                                                             | assistant 调用 `mcp__plan_mode_e2e__reset`  | planModeMcpDestructiveDenied + toolTurnStable     | runtime 在调用 MCP server 前拒绝；下一次 provider-visible 请求包含 Plan mode readonly/destructive 拒绝结果；会话仍能收口到最终 assistant 回复 | accepted |
+| ID  | 前置状态                                                                                                                                           | 用户/系统事件                                                           | 规则命中                                      | 期望结果                                                                                                                                                            | Review   |
+| --- | -------------------------------------------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------- | --------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------- | -------- |
+| Y01 | 桌面本地新 session，原模式 build；模型已通过 `EnterPlanMode` 进入 plan mode；已连接 MCP 工具 `lookup` 无 `readOnlyHint` 且 `destructiveHint:false` | assistant 调用 `mcp__plan_mode_e2e__lookup`，用户在权限弹窗选择允许一次 | planModeMcpAsksOnce + toolTurnStable          | 调用 MCP server 前出现权限弹窗，且没有"始终允许"选项；允许一次后工具真实执行，MCP tool_result 进入下一次 provider-visible 请求；不出现 `mode.plan.nonReadOnly` 拒绝 | accepted |
+| Y02 | 同一 plan mode turn；已连接 MCP 工具 `reset` 声明 `destructiveHint:true`                                                                           | assistant 调用 `mcp__plan_mode_e2e__reset`                              | planModeMcpDestructiveDenied + toolTurnStable | runtime 在调用 MCP server 前拒绝；下一次 provider-visible 请求包含 Plan mode readonly/destructive 拒绝结果；会话仍能收口到最终 assistant 回复                       | accepted |
+
+## CCH. Custom Command Shell Hand-off / 自定义命令 `!` 块转交
+
+自定义命令正文里的 `` !`cmd` `` 与 ` ```! ` 块在 CLI 解析阶段只改写文本，不执行（规则见 [custom-commands.md](../apps/zcode-cli/docs/design/v2/custom-commands.md)「Dynamic expansion」）。每个块变成一段转交说明加 `bash` 代码块：说明写明这一步来自哪个命令文件及其 `scope/source`、不是来自 ZCode；插件变量换成真实值，会话 ID 与工作区目录变量保持原文，由 Bash 工具注入的环境变量展开（[04-bash.md](../apps/zcode-cli/docs/design/v2/tool/04-bash.md)）。命令只能经模型的 `Bash` 调用执行，走正常权限流程，用户能看到这次工具调用。该组只覆盖桌面本地 `desktop-continuous` 的项目命令；识别规则、插件变量替换、无法解析时只留说明、参数不被改写由 contracts 单测覆盖，插件命令由 bootstrap 单测覆盖，TUI 路径由 CLI 单测覆盖，Bash 环境变量由 core 单测覆盖。
+
+| ID    | 前置状态                                                                                                                                            | 用户/系统事件                                                                     | 规则命中                                                                     | 期望结果                                                                                                                                                                     | Review   |
+| ----- | --------------------------------------------------------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------- | ---------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | -------- |
+| CCH01 | 桌面本地项目草稿，mode=build；项目 `.zcode/commands/<name>.md` 含 `` !`printf '%s' "$CLAUDE_CODE_SESSION_ID" > "${CLAUDE_PROJECT_DIR}/<marker>"` `` | 用户发送 `/<name> <args>`；模型对该步骤发起非只读 `Bash` 调用，用户在权限弹窗拒绝 | customCommandShellNotRunAtResolve + shellHandOffNamesSource + bashPermission | 审批前标记文件不存在；首个模型请求含转交说明，写明 `/<name>` 命令文件、`project/zcode` 和 "not from ZCode"，变量保持原文；拒绝后命令未执行，拒绝结果进入下一次请求，会话收口 | accepted |
+| CCH02 | 同 CCH01，新的项目草稿                                                                                                                              | 模型发起同一 `Bash` 调用，用户允许一次                                            | bashPermission + bashSessionEnv + toolTurnStable                             | 命令经 `Bash` 执行；标记文件出现在工作区根目录，内容等于当前会话 ID（会话 ID 与工作区目录来自 Bash 环境变量）；工具结果进入下一次请求，会话收口                              | accepted |
 
 ## MO. MCP OAuth Status Isolation / MCP OAuth 状态刷新隔离
 
@@ -1874,10 +1885,11 @@ child tool。raw child event、event store 和 model-io 仍属于 child session�
 
 当前只接受桌面端 `desktop-continuous` 的本地 session 复现：`AskUserQuestion` 覆盖 Full access/yolo 模式下仍必须向用户提问，不得被权限 bypass/deny 吞掉；普通工具 permission 覆盖 Ask-before-changes/build 模式下 child `Bash` 请求代理回父会话、用户允许后 child 继续执行并回到父 continuation。手机 `web-remote-replayable` 的 snapshot/gap 恢复、后台通知、并发 subagent 和 `ExitPlanMode` 子代理计划审批另行剪枝，不从本组推断。
 
-| ID  | 前置状态                                                           | 用户/系统事件                                   | 规则命中                                                                                  | 期望结果                                                                                                                                                                                                                                                                                                                   | Review   |
-| --- | ------------------------------------------------------------------ | ----------------------------------------------- | ----------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | -------- |
-| T01 | 父会话为 `Full access/yolo`，child subagent 调用 `AskUserQuestion` | 用户在父会话问答卡片输入自定义答案并提交        | subagentElicitationDelegated + interactionOriginPreserved + parentProjectionAuthoritative | child `PermissionRequested` 镜像到 parent 并创建 `ProductProjection.pendingInteractions`；问答请求出现在父 task UI 并显示子智能体来源 tag；pending elicitation 保留 `origin.kind=subagent`；用户答案进入 child 下一次模型请求；child resolve 镜像清除 parent pending；父 Agent tool_result 被 continuation 消费并回到 idle | accepted |
-| T02 | 父会话为 `Ask before changes/build`，child subagent 调用 `Bash`    | 用户在父会话 permission 卡片允许一次 child 命令 | subagentPermissionDelegated + interactionOriginPreserved + parentProjectionAuthoritative  | child `PermissionRequested` 镜像到 parent 并创建 `ProductProjection.pendingInteractions`；权限请求出现在父 task UI 并显示子智能体来源 tag；pending permission 保留 `origin.kind=subagent`；允许后 resolve 镜像清除 parent pending，child Bash 结果进入下一次 child 请求；父 continuation 正常收口                          | accepted |
+| ID  | 前置状态                                                                  | 用户/系统事件                                   | 规则命中                                                                                  | 期望结果                                                                                                                                                                                                                                                                                                                   | Review   |
+| --- | ------------------------------------------------------------------------- | ----------------------------------------------- | ----------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | -------- |
+| T01 | 父会话为 `Full access/yolo`，child subagent 调用 `AskUserQuestion`        | 用户在父会话问答卡片输入自定义答案并提交        | subagentElicitationDelegated + interactionOriginPreserved + parentProjectionAuthoritative | child `PermissionRequested` 镜像到 parent 并创建 `ProductProjection.pendingInteractions`；问答请求出现在父 task UI 并显示子智能体来源 tag；pending elicitation 保留 `origin.kind=subagent`；用户答案进入 child 下一次模型请求；child resolve 镜像清除 parent pending；父 Agent tool_result 被 continuation 消费并回到 idle | accepted |
+| T02 | 父会话为 `Ask before changes/build`，child subagent 调用 `Bash`           | 用户在父会话 permission 卡片允许一次 child 命令 | subagentPermissionDelegated + interactionOriginPreserved + parentProjectionAuthoritative  | child `PermissionRequested` 镜像到 parent 并创建 `ProductProjection.pendingInteractions`；权限请求出现在父 task UI 并显示子智能体来源 tag；pending permission 保留 `origin.kind=subagent`；允许后 resolve 镜像清除 parent pending，child Bash 结果进入下一次 child 请求；父 continuation 正常收口                          | accepted |
+| T03 | 父会话为 `Ask before changes/build`，内置 Explore child 调用非只读 `Bash` | 用户在父会话 permission 卡片拒绝 child 命令     | exploreInheritsParentMode + subagentPermissionDelegated + interactionOriginPreserved      | Explore 继承父会话 build，非只读 Bash 在执行前请求审批；权限请求出现在父 task UI 并显示子智能体来源 tag；拒绝后命令未执行，拒绝结果进入下一次 child 请求；父 continuation 正常收口                                                                                                                                         | accepted |
 
 ## Z. Tool Error Surface / 工具错误展示
 
@@ -2384,22 +2396,25 @@ assistantText rows
 
 本组覆盖 `localhost` / `127.0.0.1`、`file://...html`、HTML、Markdown、DOCX、XLSX、PPTX 和 PDF；文件引用支持 Unicode、空格及跨平台路径词法规则。不从公网 URL、任务级 aggregate change summary 或历史轮次文件列表推断卡片，避免跨轮串入口。文件存在性校验必须走当前 workspace service，不能在 renderer 中直接访问本地文件系统。
 
-| ID    | 前置状态                                                                                                            | 用户/系统事件                                           | 规则命中                                       | 期望结果                                                                                                                                                                                                                                     | Review   |
-| ----- | ------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------- | ---------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | -------- |
-| APC01 | latest assistant text row 为 `complete`，整轮输出包含 `http://localhost:5173`                                       | 渲染完成或恢复显示                                      | assistantPreviewCardsLatestComplete            | 最新 assistant text 下方显示 Website 卡片；早段 assistant text 和非最新 row 不显示卡片；卡片打开复用 browser side pane                                                                                                                       | accepted |
-| APC02 | latest assistant text row 为 `interrupted`，早段 assistant text 含 localhost URL                                    | stop 后渲染 interrupted turn                            | assistantPreviewCardsInterruptedTurnTail       | 卡片只挂到 interrupted 轮尾 row，候选来自整轮 text；不因 URL 出现在早段 text 而把卡片挂到早段 row                                                                                                                                            | accepted |
-| APC03 | assistant text row 处于 `streaming`、`failed`，或目标 row 不是本 turn 最新 text row                                 | 渲染/恢复显示                                           | assistantPreviewCardsTerminalOnly              | 不显示预览卡片，避免把流式半截或失败片段误当成可打开入口                                                                                                                                                                                     | accepted |
-| APC04 | 同一 assistant turn 多段 text 重复提到同一个 localhost URL 或同一路径                                               | 渲染完成或恢复显示                                      | assistantPreviewCardsTurnTextDedupe            | 合并整轮 text 后去重；同一 URL/path 只显示一张卡，且不从任务级 aggregate changed files 衍生额外卡片                                                                                                                                          | accepted |
-| APC05 | 当前 turn 通过 Write/Edit 创建或修改含中文和空格路径的 HTML、Markdown，最终 assistant text 逆序提到两者             | turn 完成后点击两张卡片                                 | assistantPreviewCardsCurrentTurnSourceFiles    | 只显示当前 turn `active` fileChanges 与真实 stat 都命中的 HTML/Markdown 卡片，顺序与正文出现顺序相反；本地 HTML 打开 Browser，Markdown 打开 Preview Pane                                                                                     | accepted |
-| APC06 | workspace 中预先存在 HTML/Markdown，但当前 turn 未修改，或 fileChanges 为 reverted/error                            | turn 完成并输出对应路径                                 | assistantPreviewCardsSourceFileChangeGate      | 即使文件真实存在也不显示 HTML/Markdown 卡片；Office/PDF 候选不受该门控连带抑制                                                                                                                                                               | accepted |
-| APC07 | workspace 预置有效 DOCX/XLSX/PPTX/PDF 与一个不存在的受支持文件，最终 assistant text 按固定顺序提到所有文件          | turn 完成并收敛可见卡片                                 | assistantPreviewCardsOfficePdfAndExistence     | 缺失文件不显示；四种真实文件按正文逆序显示且各只有一张卡；通过校验的 PPTX 按当前 Desktop 完成态逻辑自动打开，Preview Pane 的文件名与 PPTX 目标一致并进入 PPTX renderer；DOCX/XLSX/PDF 的手动打开继续由 focused tests 守住                    | accepted |
-| APC08 | assistant text 含超过 15 个文件候选，前 15 个中存在缺失项，第 16 个以后存在可预览文件                               | turn 完成后校验卡片集合                                 | assistantPreviewCardsCandidateAndDisplayBounds | 只校验逆序前 15 个并最多显示其中通过的 10 个；不足 10 个不从第 16 个以后回填                                                                                                                                                                 | accepted |
-| APC09 | APC05/APC07 已完成并持久化，虚拟行卸载后重挂或 cold resume                                                          | 再次显示同一历史 turn                                   | assistantPreviewCardsRehydrate                 | 卡片集合和打开目标与 live 完成态一致；完成态 fileChanges 详情不会因虚拟行重挂重复 RPC                                                                                                                                                        | accepted |
-| APC10 | assistant text 同时包含有效 DOCX/XLSX/PPTX/PDF `zcode-file-citation`、Markdown citation、额外定位参数与一个缺失文件 | 完成态渲染、点击并恢复历史 turn                         | assistantZCodeFileCitationProjection           | 完整 citation 在正文投影为与 Markdown 文件链接一致的文件入口；只有四种 Office/PDF citation 进入现有逆序、去重、15→10、Host stat 卡片链路；Markdown citation 仅显示正文链接，额外参数不改变行为，缺失文件无卡片；历史恢复由原始文本确定性重建 | accepted |
-| APC11 | 对话 A 的 Preview/文件卡已打开右侧 side pane，用户主动点击顶部收起；workspace 内另一个对话 B 可切换                 | A 收起 → 切换 B → 回到 A；再点击 A 的文件入口或顶部展开 | assistantPreviewSidePaneVisibilityPreference   | A 的 Preview tab 保留但面板继续收起，不因 A 仍有可见 tab 自动展开；B 的偏好独立；A 发生新的显式打开/展开动作后恢复展开；关闭最后 tab 仍按现有规则收起                                                                                        | accepted |
-| APC12 | workspace 预置有效 MP4/WAV，assistant text 提到两者与一个缺失媒体文件                                               | 完成态渲染并点击 WAV 卡片                               | assistantMediaPreviewCards                     | MP4/WAV 进入与 Office/PDF 相同的存在性校验和逆序卡片链路；点击 WAV 使用 workspace-scoped media service 和原生 audio 控件；媒体不触发 Markdown/HTML fileChanges gate                                                                          | accepted |
-| APC13 | Desktop SSH/WSL/Docker workspace 预置大于 8 MiB 的有效 MP4                                                          | 完成态渲染、点击 MP4 卡片并 seek                        | assistantRemoteMediaRangePreview               | Desktop remote attachment 使用 Window Host loopback Range Proxy；播放器收到 `206` 和可 seek 的内容，不上传 OSS，不把媒体字节写入 conversation/replay；手机 `/remote` 不使用该 loopback URL                                                   | planned  |
-| APC14 | completed Office preview card                                                                                       | right-click, dropdown and menu actions                  | assistantPreviewCardMenu                       | Compact Preview/Open context actions without directory entry and unchanged dropdown; scoped preview and native default-app calls; Web/remote capability exclusion covered by focused tests                                                   | accepted |
+| ID    | 前置状态                                                                                                                                                                  | 用户/系统事件                                                                                                | 规则命中                                       | 期望结果                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                     | Review   |
+| ----- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------ | ---------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ | -------- |
+| APC01 | latest assistant text row 为 `complete`，整轮输出包含 `http://localhost:5173`                                                                                             | 渲染完成或恢复显示                                                                                           | assistantPreviewCardsLatestComplete            | 最新 assistant text 下方显示 Website 卡片；早段 assistant text 和非最新 row 不显示卡片；卡片打开复用 browser side pane                                                                                                                                                                                                                                                                                                                                                                                       | accepted |
+| APC02 | latest assistant text row 为 `interrupted`，早段 assistant text 含 localhost URL                                                                                          | stop 后渲染 interrupted turn                                                                                 | assistantPreviewCardsInterruptedTurnTail       | 卡片只挂到 interrupted 轮尾 row，候选来自整轮 text；不因 URL 出现在早段 text 而把卡片挂到早段 row                                                                                                                                                                                                                                                                                                                                                                                                            | accepted |
+| APC03 | assistant text row 处于 `streaming`、`failed`，或目标 row 不是本 turn 最新 text row                                                                                       | 渲染/恢复显示                                                                                                | assistantPreviewCardsTerminalOnly              | 不显示预览卡片，避免把流式半截或失败片段误当成可打开入口                                                                                                                                                                                                                                                                                                                                                                                                                                                     | accepted |
+| APC04 | 同一 assistant turn 多段 text 重复提到同一个 localhost URL 或同一路径                                                                                                     | 渲染完成或恢复显示                                                                                           | assistantPreviewCardsTurnTextDedupe            | 合并整轮 text 后去重；同一 URL/path 只显示一张卡，且不从任务级 aggregate changed files 衍生额外卡片                                                                                                                                                                                                                                                                                                                                                                                                          | accepted |
+| APC05 | 当前 turn 通过 Write/Edit 创建或修改含中文和空格路径的 HTML、Markdown，最终 assistant text 逆序提到两者                                                                   | turn 完成后点击两张卡片                                                                                      | assistantPreviewCardsCurrentTurnSourceFiles    | 只显示当前 turn `active` fileChanges 与真实 stat 都命中的 HTML/Markdown 卡片，顺序与正文出现顺序相反；本地 HTML 打开 Browser，Markdown 打开 Preview Pane                                                                                                                                                                                                                                                                                                                                                     | accepted |
+| APC06 | workspace 中预先存在 HTML/Markdown，但当前 turn 未修改，或 fileChanges 为 reverted/error                                                                                  | turn 完成并输出对应路径                                                                                      | assistantPreviewCardsSourceFileChangeGate      | 即使文件真实存在也不显示 HTML/Markdown 卡片；Office/PDF 候选不受该门控连带抑制                                                                                                                                                                                                                                                                                                                                                                                                                               | accepted |
+| APC07 | workspace 预置有效 DOCX/XLSX/PPTX/PDF 与一个不存在的受支持文件，最终 assistant text 按固定顺序提到所有文件                                                                | turn 完成并收敛可见卡片                                                                                      | assistantPreviewCardsOfficePdfAndExistence     | 缺失文件不显示；四种真实文件按正文逆序显示且各只有一张卡；通过校验的 PPTX 按当前 Desktop 完成态逻辑自动打开，Preview Pane 的文件名与 PPTX 目标一致并进入 PPTX renderer；DOCX/XLSX/PDF 的手动打开继续由 focused tests 守住                                                                                                                                                                                                                                                                                    | accepted |
+| APC08 | assistant text 含超过 15 个文件候选，前 15 个中存在缺失项，第 16 个以后存在可预览文件                                                                                     | turn 完成后校验卡片集合                                                                                      | assistantPreviewCardsCandidateAndDisplayBounds | 只校验逆序前 15 个并最多显示其中通过的 10 个；不足 10 个不从第 16 个以后回填                                                                                                                                                                                                                                                                                                                                                                                                                                 | accepted |
+| APC09 | APC05/APC07 已完成并持久化，虚拟行卸载后重挂或 cold resume                                                                                                                | 再次显示同一历史 turn                                                                                        | assistantPreviewCardsRehydrate                 | 卡片集合和打开目标与 live 完成态一致；完成态 fileChanges 详情不会因虚拟行重挂重复 RPC                                                                                                                                                                                                                                                                                                                                                                                                                        | accepted |
+| APC10 | assistant text 同时包含有效 DOCX/XLSX/PPTX/PDF `zcode-file-citation`、Markdown citation、额外定位参数与一个缺失文件                                                       | 完成态渲染、点击并恢复历史 turn                                                                              | assistantZCodeFileCitationProjection           | 完整 citation 在正文投影为与 Markdown 文件链接一致的文件入口；只有四种 Office/PDF citation 进入现有逆序、去重、15→10、Host stat 卡片链路；Markdown citation 仅显示正文链接，额外参数不改变行为，缺失文件无卡片；历史恢复由原始文本确定性重建                                                                                                                                                                                                                                                                 | accepted |
+| APC11 | 对话 A 的 Preview/文件卡已打开右侧 side pane，用户主动点击顶部收起；workspace 内另一个对话 B 可切换                                                                       | A 收起 → 切换 B → 回到 A；再点击 A 的文件入口或顶部展开                                                      | assistantPreviewSidePaneVisibilityPreference   | A 的 Preview tab 保留但面板继续收起，不因 A 仍有可见 tab 自动展开；B 的偏好独立；A 发生新的显式打开/展开动作后恢复展开；关闭最后 tab 仍按现有规则收起                                                                                                                                                                                                                                                                                                                                                        | accepted |
+| APC12 | workspace 预置有效 MP4/WAV，assistant text 提到两者与一个缺失媒体文件                                                                                                     | 完成态渲染并点击 WAV 卡片                                                                                    | assistantMediaPreviewCards                     | MP4/WAV 进入与 Office/PDF 相同的存在性校验和逆序卡片链路；点击 WAV 使用 workspace-scoped media service 和原生 audio 控件；媒体不触发 Markdown/HTML fileChanges gate                                                                                                                                                                                                                                                                                                                                          | accepted |
+| APC13 | Desktop SSH/WSL/Docker workspace 预置大于 8 MiB 的有效 MP4                                                                                                                | 完成态渲染、点击 MP4 卡片并 seek                                                                             | assistantRemoteMediaRangePreview               | Desktop remote attachment 使用 Window Host loopback Range Proxy；播放器收到 `206` 和可 seek 的内容，不上传 OSS，不把媒体字节写入 conversation/replay；手机 `/remote` 不使用该 loopback URL                                                                                                                                                                                                                                                                                                                   | planned  |
+| APC14 | completed Office preview card                                                                                                                                             | right-click, dropdown and menu actions                                                                       | assistantPreviewCardMenu                       | Unified file applications from getFileApplications: stable IDs, accessible names, explicit default first, 0/1/3/10 candidates and first 3 + More; local dropdown file-manager reveal after the app group and before Save as, one select-file locator IPC on macOS/Windows (parent-directory IPC on Linux), and the same single entry in the right-click menu (behaviour in APC15); scoped preview and selected application IPC target; native launch and Web/remote exclusion remain focused/native evidence | accepted |
+| APC15 | completed DOCX card, plain localhost URL card, localhost card mapped to an HTML written this turn, and reply-body Markdown links to the local DOCX and its folder (macOS) | right-click and Open dropdown reveal entry; click mapped localhost card; right-click body file / folder link | assistantPreviewCardRevealInFileManager        | `在 Finder 中打开` from both menus sends one `OpenInEditor` finder select-file request for the DOCX / mapped HTML; plain URL card has no entry; mapped localhost card still opens its original URL in Browser. Body file link shows the entry once after the app group and before Save as and sends one `OpenInEditor("finder", <path>, {pathKind:"file"})`; body folder link sends one `OpenInFileManager(<dir>)` instead. Windows/Linux labels and remote workspaces are not covered                       | accepted |
+
+Work 文件动作补充回归（浏览器组件候选，2026-10-21）：WORK-FILE-01 在 Web 仅具备保存能力时，从真实产物头部点击「在工作区显示」与「另存为」，分别断言来源路径与下载原字节；WORK-FILE-02 断言下载 Blob URL 在下一轮任务仍可读取、40 秒后释放。入口为 `packages/ui/test/browser/manual-review/pending/workflow-file-actions.test.mjs`，覆盖中英文、深浅主题和 390/1200px。会话 API/正文使用夹具，不据此声称完整手机或实体 Safari 通过。
 
 ### APC 首批 E2E 范围与 fixture 边界（2026-08-04 已确认）
 
@@ -2489,6 +2504,19 @@ local/SSH/WSL/Docker × 退出方式全排列。BTL06-09、BTL13-18、BTL21-23 �
 BTL19/20 保留 remote scope 与 non-live logical tab 的进程内不变量；remote/mobile 只验证
 scope 隔离和“不新建 runtime”。provider replay 只固定模型选择，进程内真实 tab 命令仍走
 `node_repl -> host -> main -> webview/CDP`。
+
+## OMCP-SETTINGS. 设置页官方 MCP 授权路由
+
+MCP 启动诊断补充：MCP-DIAG-01 接受 Python/Node 依赖缺失、命令缺失的真实进程失败
+与 stderr 脱敏展示；MCP-DIAG-02 接受桌面/390px 手机、中英文/深浅主题的详情建议，
+以及依赖 fixture 恢复后刷新成功清除旧诊断。只展示证据，不按文本推断错误类别或自动修环境。
+
+| ID               | 前置与操作                                                                             | 预期                                                   | 决策     |
+| ---------------- | -------------------------------------------------------------------------------------- | ------------------------------------------------------ | -------- |
+| OMCP-SETTINGS-01 | 已登录、受控官方 MCP；无聊天 runtime 时打开设置，再启动聊天 runtime 后刷新             | 两次都取得当前授权头；探测不替换聊天 owner             | accepted |
+| OMCP-SETTINGS-02 | A→B→A 切换并制造重叠刷新；探测进程退出后再次刷新                                       | 回调匹配原工作区，迟到结果不覆盖当前页；重建后重新登记 | accepted |
+| OMCP-SETTINGS-03 | 未登记工作区、同路径不同 identity、非法参数、其他 consumer、旧聊天 client 发起授权回调 | 拒绝且凭证解析器不被调用；不可信 Origin 同样拒绝       | accepted |
+| OMCP-SETTINGS-04 | 手机 `/remote` 连接同一 Host，在设置页探测；退出登录后刷新                             | 手机探测成功且无凭证透传；退出后不复用旧凭证           | accepted |
 
 ## BSM. Browser Stateless MCP / Browser 无状态 MCP
 
@@ -3220,26 +3248,26 @@ shared-host attachment 的物理网络证明。
 仅新 guarded 模式对明确命中增加批准要求；未命中/unsupported 沿 YOLO 基础策略，原模式与默认值不变；最新决定移除 PowerShell，先覆盖当前 POSIX（bash/zsh）、Git Bash、CMD 的有限语法。
 以下 accepted 表示产品合同，不表示已实现；旧版 BPR-P0 的运行结果不得作为本版覆盖。
 
-| ID        | 前置状态                                                                                                         | 事件                                   | 期望结果与证据                                                                                                                                | Review   |
-| --------- | ---------------------------------------------------------------------------------------------------------------- | -------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------- | -------- |
-| DCA-V1-01 | guarded，当前受支持方言下九项规则明确命中的工具命令                                                              | provider 发出工具调用，用户拒绝        | 只可单次批准/拒绝；handler 零执行，provider error tool_result；每类规则有正反例；POSIX/Git Bash/CMD 按实际方言验证                            | accepted |
-| DCA-V1-02 | 原 PowerShell 静态载荷识别用例                                                                                   | 用户明确将 PowerShell 移出 V1          | 保留 ID，不实现其 matcher/parser 或专属 E2E；范围外解释器的既有权限行为由 DCA-V1-04 代表                                                      | pruned   |
-| DCA-V1-03 | 已声明 wrapper/选项形式，含 time -o file；对照 option value / -- / 真正 dry-run                                  | 分析后进入权限判定                     | 明确危险效果的等价形式仍确认，参数值不伪装成选项，readonly/预演反例不新增确认；core + 安全语义 oracle                                         | accepted |
-| DCA-V1-04 | 未命中或超出 V1 语法，包含动态构造、隐式配置、范围外脚本/解释器（含 PowerShell）及无法确定方言的 legacy fallback | 对照原 staging 的权限决策              | 不因 unsupported 统一增加 ask，不标成安全；YOLO 仍可能执行；仅调用判定或受控 handler 验证                                                     | accepted |
-| DCA-V1-05 | 命中且有项目 allow/deny、Hook allow 或伪造 permissionUpdates                                                     | 尝试绕过单次批准                       | 执行层 deny 保留；项目规则不改变 guarded 的 YOLO 基础语义，allow/Hook 不可代批；单次允许不写项目规则；下一次仍询问；store/broker/handler 证据 | accepted |
-| DCA-V1-06 | 普通输入 A 被 Hook 修改为明确危险 B，或 broker 批准修改后的 B，另有非法输入/旧响应                               | 校验、区分来源、用户回应               | Hook B 重判后需要确认时新请求且显示 B；broker 已批准 B 则校验后直接执行一次；无效输入不执行；旧响应不批准新请求；取消/失败清 pending          | accepted |
-| DCA-V1-07 | V4/TUI 消费同一危险请求，手机恢复同一投影                                                                        | 查看选项并拒绝/批准                    | 无项目永久允许；保持 V4 既有 Deny feedback；两端消费同一许可约束，旧请求兼容；protocol/provider/store 证据                                    | accepted |
-| DCA-V1-08 | 显式 guarded 的 manual/automation 与普通 subagent 入口                                                           | 下发危险命令；无人在线后重新连接       | 活 broker 保留 pending，用户批准前零执行；无 broker 返回失败；最终真实 provider result                                                        | accepted |
-| DCA-V1-09 | guarded，checkout 强制或 checkout/restore 全树回退                                                               | 拒绝调用；对照 staged-only restore     | 工作树不变，provider 收到拒绝；仅 staged restore 不命中                                                                                       | accepted |
-| DCA-V1-10 | guarded，git stash clear                                                                                         | 拒绝调用                               | handler 零执行，provider 收到拒绝；stash drop 不扩展到本规则                                                                                  | accepted |
-| DCA-V1-11 | guarded，git worktree remove -f/--force/重复 force                                                               | 拒绝调用                               | handler 零执行，provider 收到拒绝；普通 remove 不命中                                                                                         | accepted |
-| DCA-V1-12 | guarded，rsync delete 系列                                                                                       | 拒绝调用；对照 dry-run/参数值          | handler 零执行，provider 收到拒绝；真实 dry-run 不命中                                                                                        | accepted |
-| DCA-V1-13 | 显式选择 guarded，随后 Plan/切换/保存/恢复                                                                       | 读取权威 mode                          | 模式贯通，退出 Plan 恢复 guarded；默认值/旧记录不迁移；未知模式协议拒绝                                                                       | accepted |
-| DCA-V1-14 | guarded 父任务，普通 child 原为 yolo 或显式 plan/edit；workflow/script child 对照                                | 创建各类 child 并完成用户回应          | 普通/Explore yolo 派生 guarded，其余保留；workflow/script child 仍 yolo、父仍 guarded；普通 child 审批在父投影可见并返回原请求                | accepted |
-| DCA-V1-15 | 同一危险命令的 guarded 与原 yolo 对照                                                                            | guarded 拒绝/单次允许，yolo 受控执行   | 拒绝零执行、批准仅一次、无项目规则写入；原 yolo 不新增确认，provider 收到真实结果                                                             | accepted |
-| DCA-V1-16 | guarded 问答、Hook 改写与单次审批                                                                                | 完成答案、修改命令、重复/迟到/即时响应 | broker 答案或修改后批准不重开；改写 normalize/schema；Hook 不重复执行且重判需要确认时新 ID；终态唯一、handler 0/1 次                          | accepted |
-| DCA-V1-17 | guarded pending，模式/cwd 改变或取消/超时/重启；Shell 固定为会话选择                                             | 用户回应或恢复                         | 批准执行 input/mode/cwd 快照，复用 session Shell、不另建副本；保留错误类型；取消不执行；hydrate 中断旧调用，不复活旧请求                      | accepted |
-| DCA-V1-18 | guarded 创建/恢复/首条输入；Desktop/CLI 包内同版本                                                               | 正常创建或严格 mode 提交/配置应用失败  | 空会话返回原创建 ACK、不补发模式探测、不补写 firstInput.mode；实际配置失败首轮零执行；queued mode 保留；旧 runtime mismatch 排除              | accepted |
+| ID        | 前置状态                                                                                                         | 事件                                   | 期望结果与证据                                                                                                                                        | Review   |
+| --------- | ---------------------------------------------------------------------------------------------------------------- | -------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------- | -------- |
+| DCA-V1-01 | guarded，当前受支持方言下九项规则明确命中的工具命令                                                              | provider 发出工具调用，用户拒绝        | 只可单次批准/拒绝；handler 零执行，provider error tool_result；每类规则有正反例；POSIX/Git Bash/CMD 按实际方言验证                                    | accepted |
+| DCA-V1-02 | 原 PowerShell 静态载荷识别用例                                                                                   | 用户明确将 PowerShell 移出 V1          | 保留 ID，不实现其 matcher/parser 或专属 E2E；范围外解释器的既有权限行为由 DCA-V1-04 代表                                                              | pruned   |
+| DCA-V1-03 | 已声明 wrapper/选项形式，含 time -o file；对照 option value / -- / 真正 dry-run                                  | 分析后进入权限判定                     | 明确危险效果的等价形式仍确认，参数值不伪装成选项，readonly/预演反例不新增确认；core + 安全语义 oracle                                                 | accepted |
+| DCA-V1-04 | 未命中或超出 V1 语法，包含动态构造、隐式配置、范围外脚本/解释器（含 PowerShell）及无法确定方言的 legacy fallback | 对照原 staging 的权限决策              | 不因 unsupported 统一增加 ask，不标成安全；YOLO 仍可能执行；仅调用判定或受控 handler 验证                                                             | accepted |
+| DCA-V1-05 | 命中且有项目 allow/deny、Hook allow 或伪造 permissionUpdates                                                     | 尝试绕过单次批准                       | 执行层 deny 保留；项目规则不改变 guarded 的 YOLO 基础语义，allow/Hook 不可代批；单次允许不写项目规则；下一次仍询问；store/broker/handler 证据         | accepted |
+| DCA-V1-06 | 普通输入 A 被 Hook 修改为明确危险 B，或 broker 批准修改后的 B，另有非法输入/旧响应                               | 校验、区分来源、用户回应               | Hook B 重判后需要确认时新请求且显示 B；broker 已批准 B 则校验后直接执行一次；无效输入不执行；旧响应不批准新请求；取消/失败清 pending                  | accepted |
+| DCA-V1-07 | V4/TUI 消费同一危险请求，手机恢复同一投影                                                                        | 查看选项并拒绝/批准                    | 无项目永久允许；保持 V4 既有 Deny feedback；两端消费同一许可约束，旧请求兼容；protocol/provider/store 证据                                            | accepted |
+| DCA-V1-08 | 显式 guarded 的 manual/automation 与普通 subagent 入口                                                           | 下发危险命令；无人在线后重新连接       | 活 broker 保留 pending，用户批准前零执行；无 broker 返回失败；最终真实 provider result                                                                | accepted |
+| DCA-V1-09 | guarded，checkout 强制或 checkout/restore 全树回退                                                               | 拒绝调用；对照 staged-only restore     | 工作树不变，provider 收到拒绝；仅 staged restore 不命中                                                                                               | accepted |
+| DCA-V1-10 | guarded，git stash clear                                                                                         | 拒绝调用                               | handler 零执行，provider 收到拒绝；stash drop 不扩展到本规则                                                                                          | accepted |
+| DCA-V1-11 | guarded，git worktree remove -f/--force/重复 force                                                               | 拒绝调用                               | handler 零执行，provider 收到拒绝；普通 remove 不命中                                                                                                 | accepted |
+| DCA-V1-12 | guarded，rsync delete 系列                                                                                       | 拒绝调用；对照 dry-run/参数值          | handler 零执行，provider 收到拒绝；真实 dry-run 不命中                                                                                                | accepted |
+| DCA-V1-13 | 显式选择 guarded，随后 Plan/切换/保存/恢复                                                                       | 读取权威 mode                          | 模式贯通，退出 Plan 恢复 guarded；默认值/旧记录不迁移；未知模式协议拒绝                                                                               | accepted |
+| DCA-V1-14 | guarded 父任务，普通 child 原为 yolo 或显式 plan/edit；workflow/script child 对照                                | 创建各类 child 并完成用户回应          | 普通 child 的 yolo 派生 guarded，Explore 继承 guarded，其余保留；workflow/script child 仍 yolo、父仍 guarded；普通 child 审批在父投影可见并返回原请求 | accepted |
+| DCA-V1-15 | 同一危险命令的 guarded 与原 yolo 对照                                                                            | guarded 拒绝/单次允许，yolo 受控执行   | 拒绝零执行、批准仅一次、无项目规则写入；原 yolo 不新增确认，provider 收到真实结果                                                                     | accepted |
+| DCA-V1-16 | guarded 问答、Hook 改写与单次审批                                                                                | 完成答案、修改命令、重复/迟到/即时响应 | broker 答案或修改后批准不重开；改写 normalize/schema；Hook 不重复执行且重判需要确认时新 ID；终态唯一、handler 0/1 次                                  | accepted |
+| DCA-V1-17 | guarded pending，模式/cwd 改变或取消/超时/重启；Shell 固定为会话选择                                             | 用户回应或恢复                         | 批准执行 input/mode/cwd 快照，复用 session Shell、不另建副本；保留错误类型；取消不执行；hydrate 中断旧调用，不复活旧请求                              | accepted |
+| DCA-V1-18 | guarded 创建/恢复/首条输入；Desktop/CLI 包内同版本                                                               | 正常创建或严格 mode 提交/配置应用失败  | 空会话返回原创建 ACK、不补发模式探测、不补写 firstInput.mode；实际配置失败首轮零执行；queued mode 保留；旧 runtime mismatch 排除                      | accepted |
 
 剪枝：不做命令×入口×平台×provider 的全排列；命令形式用 core/adapter，入口用运行时集成，
 GUI 用少量 provider-visible 闭环。Git Bash/CMD 需要 Windows 运行时证据；手机恢复证据不能冒充物理网络 E2E。
@@ -4755,3 +4783,514 @@ SPR01 是连接隔离 Electron 的独立 `node:test` / CDP E2E，保持 pending�
 ## R3A-BLD-07：用户服务探测被跳过（2026-10-19）
 
 沿用 `conversation-session-r3-daemon-detached.test.ts` 的 accepted / pending 场景：独立 Linux SSH 目标首次以 detached 模式连接；桌面断开不杀 daemon。终止 daemon 后，在该目标的非交互 shell 设置 `SYSTEMD_OFFLINE=1`，确认真实 `systemctl --user show --property=Version` 退出 0 但没有属性响应，再通过桌面设备重连。必须进入 ready、`serviceRegistered=false`，Supervisor/Core 均换代，原任务可续发；最后恢复 shell 配置。禁止以替换 systemctl 或直接设置 ZCode 跳过注册开关代替该场景。
+
+## R3A-BLD-08：systemd 装载失败回退 detached fallback（2026-10-23）
+
+规格见 [R3 §5.2 daemon 启动能力判定](architecture/r3-source-server-remote-architecture.md) 与 [问题记录 02](issues/remote-startup-failures-3-16/02-service-registration-failure-fallback.md)。`conversation-session-r3-daemon-service-fallback.test.ts` 的 accepted / pending 场景，只能在 E-SVC 目标运行（`run-local-docker.mjs --systemd`：systemd 为 PID 1，dev 开启 linger，user manager 开机常驻）。`R3_DAEMON_SERVICE_CASE` 选择子场景：
+
+- `stale-group`：manager 启动后才建目录访问组并把 dev 加入，`~/.zcode` 指向只有该组能进的目录。先确认 manager 的 Groups 不含该组。
+- `private-tmp`：user@1000 设 `PrivateTmp=yes` 后重启，`~/.zcode` 指向宿主 `/tmp`。先确认宿主可见、manager 挂载视图里不存在。
+- `registered`：不加 fixture 的正常环境回归。
+
+两个故障场景：桌面首装并打开项目必须成功；`status.json` 为 ready、`serviceRegistered=false`、不含 `serviceFallbackReason`；unit 为 not-found / inactive；连接日志的 fallback 行带 `Failed to register service` 与对应原因（`Access denied`，或脱敏后的 `Unit file`）。断开设备后重连，日志只有复用，Supervisor/Core 的 pid 与启动时间都不变；再经 SSH 直接执行 `serve --daemon --json`，返回同一 pid、`serviceRegistered=false`、无回退原因。`stale-group` 再重启 user@1000 刷新组列表，断开设备并 `stop --wait` 后重连：日志为注册到 OS 用户服务，`serviceRegistered=true`，unit loaded / active，Supervisor/Core 换代。`registered` 场景首连即 `serviceRegistered=true`、unit active，日志没有 fallback 行。所有场景 Window Host 数不变。禁止以 `ZCODE_SERVER_SKIP_SERVICE_REGISTRATION`、替换 systemctl 或伪造探测结果代替真实 manager 故障。
+
+## R3A-BLD-10：设备卡停止远端服务（RDLC-01，2026-10-20）
+
+规格见[停止和重启远端服务](issues/remote-daemon-lifecycle/01-stop-restart-remote-service.md)与[连接 UX RDLC-01](architecture/remote-device-connection-ux-spec.md#停止与重启远端服务rdlc-01)。`conversation-session-r3-stop-remote-service.test.ts` 的 accepted / pending 场景：Linux SSH 目标以 detached 模式首连并打开项目，设备卡在线。打开「更多」，「停止远端服务」位于「复制设备 ID」与「移除设备」之间、为 destructive 且可用；点击后先读取运行中任务，再弹危险确认：说明含中断说明、任务清单段（无任务时一行“此设备当前没有运行中的任务”，远端尚未上报时“设备未提供任务清单”）、其他电脑上的 ZCode 可能重新启动远端服务，以及（启动自动重连默认开启）下次打开 ZCode 会重新启动远端服务（RDLC #05）。确认默认聚焦取消，按回车关闭弹窗且远端 Supervisor 不变。之后等远端 `running-tasks --json` 输出 `[]`（首个 Core 心跳后）再打开确认，任务清单段必须是“此设备当前没有运行中的任务”，不能是“设备未提供任务清单”；在深浅主题 × 宽窗口 / 480×640 窄窗口截图；窄窗口下向说明区追加一段合成长清单（仅作布局探测，截图后移除），断言说明区纵向滚动、长路径不横向溢出、确认按钮仍在视口内。确认停止后，设备卡显示未连接，远端 Supervisor 与 Core 进程全部退出、data-root 锁释放、status 为 `stopped`；本机不再持有到设备的 SSH 会话：远端当前用户的 sshd 会话数（不含探测自身）在 15 秒内回到首连前基线，在线时须高于基线以证明读数有效（2026-10-21 修复停止后 Host 遗留空闲 SSH 连接）；等待一个完整自动重试周期（2/4/8 秒加余量）后进程仍不存在、设备仍未连接。返回后从设置页点“连接”，远端服务照常启动，设备回到已连接，新 Supervisor/Core 的 pid 都已更换，Window Host 数不变。禁止以普通断开、直接 kill 远端进程或在远端执行 `zcode stop` 代替设备卡入口。
+
+## R3A-BLD-11：设备卡重启远端服务（RDLC-01，2026-10-21）
+
+规格见[停止和重启远端服务](issues/remote-daemon-lifecycle/01-stop-restart-remote-service.md)与[连接 UX RDLC-01](architecture/remote-device-connection-ux-spec.md#停止与重启远端服务rdlc-01)。`conversation-session-r3-restart-remote-service.test.ts` 的 accepted / pending 场景：Linux SSH 目标以 detached 模式首连、打开项目并完成一轮对话，设备卡在线。打开「更多」，「重启远端服务」位于「停止远端服务」之前、不是 destructive 且可用；点击后弹出危险确认，确认重启。设备卡状态只经历“连接中”（不出现未连接、连接失败、“更新中”或自动重试计数），随后回到已连接并给出成功提示；远端 Supervisor 与 Core 的 pid 都已更换，status 为 ready、`serviceRegistered=false`、崩溃计数为 0，Window Host 数不变。回到会话后，原 workspace 挂回新的远端会话（`remoteSessionId` 换代），原任务仍在原项目下且可以继续发送并收到回复。禁止以普通断开后重连、直接 kill 远端进程或在远端执行 `zcode restart` 代替设备卡入口。手机端只被动显示断线与恢复，复用 RDUX-08 断线恢复用例，不新增手机用例。
+
+## 数据同步：数据同步页推送技能（DSYNC-04，2026-10-16，pending）
+
+规格见 [数据同步](remote/data-sync.md)、票据 [04](issues/data-sync/04-data-sync-page-skill-push.md)。远端为本机 Docker 远端 runner（`node harness/remote/run-local-docker.mjs <spec>`）或服务器队列提供的 Linux 容器，远端断言用 docker exec 读容器内 `/home/dev/.zcode/skills`。
+
+| ID          | 场景与断言                                                                                                                                                                                                | 自动化                                                                                                         |
+| ----------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------- |
+| DSYNC-04-01 | 本机新技能 + SSH 设备在线 → 设置 → 数据同步 → 设备行「尚未同步」→ 同步弹窗没有会话、记忆分类和方向分段控件 → 新技能「推送」默认勾选 → 推送 → 容器内文件写入，行变「已同步」                               | `conversation-session/manual-review/pending/conversation-session-remote-data-sync-skill-push.test.ts`，Pending |
+| DSYNC-04-02 | 远端同名技能内容不同 → 默认「差异 · 内容不同」不勾选、首次推送不覆盖 → 手动勾选后再次同步才覆盖 → 关闭弹窗后设备行显示「已同步」时间                                                                      | 同上                                                                                                           |
+| DSYNC-04-03 | 本机嵌套技能 `parent` 与 `parent/child`（子技能名称按字母排在前），远端没有 → 两行默认勾选 → 推送 → 容器内两个 SKILL.md 都写入，两行都变「已同步」，无失败汇总                                            | 同上                                                                                                           |
+| DSYNC-04-04 | 接续 04-01/02：小技能与接近 20MB 的技能超过每批上限、分成两批，第二个含本机不可读文件 → 推送 → 第一批写入容器、行变「已同步」，只有第二批的项显示「同步失败」原因，失败汇总「1 项失败」，没有分类级错误条 | 同上                                                                                                           |
+
+行状态、排序、版本比较、三态、推送全部、部分失败、推送中禁止关闭、断线丢弃迟到结果由 `packages/ui/test/dataSyncDialog.test.ts`、`dataSyncSection.test.ts` 覆盖；父子技能分批由 `packages/ui/test/dataSyncCompare.test.ts` 覆盖；服务对（两个临时 HOME，含嵌套技能两种导入顺序、缺省名称、残留禁用状态）由 `packages/services/test/skillDataSync.test.ts` 覆盖。
+
+验证（2026-10-16）：macOS（Apple Silicon）本机 Docker 远端 runner（linux/arm64 容器、test 远端包）DSYNC-04-01/02 连续 2 次通过，工件含中英文 × 深浅主题 × 1440/700px 弹窗截图（`dsync-04/`）。保持 pending；未覆盖 WSL/Docker 传输、Windows/Linux 桌面整机和服务器队列。
+
+验证（2026-10-17，DSYNC-04-03）：同一 runner 上，修复前源码单独运行 DSYNC-04-03 失败（子技能先导入，父技能行报 `target path already exists`，停在「推送」）；修复后与 DSYNC-04-01/02 同批通过，单独运行也通过；rebase 到 DSYNC-04-04 的修复之后与 DSYNC-04-01/02/04 同批通过。保持 pending。
+
+## 数据同步：推送 inline 插件（DSYNC-07，2026-10-16，pending）
+
+规格见 [数据同步](remote/data-sync.md)「插件」、票据 [07](issues/data-sync/07-inline-plugin-category.md)。远端为本机 Docker 远端 runner（`node harness/remote/run-local-docker.mjs <spec>`）或服务器队列提供的 Linux 容器，远端断言用 docker exec 读容器内 `/home/dev/.zcode/plugins` 与 `/home/dev/.zcode/cli/config.json`。
+
+| ID          | 场景与断言                                                                                                                                                                                                                                              | 自动化                                                                                                          |
+| ----------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------- |
+| DSYNC-07-01 | 本机 `plugins.dirs` 登记的 inline 插件（含本机 `data/`）→ 数据同步弹窗「插件」分类显示「推送」并默认勾选 → 推送 → 容器内 `~/.zcode/plugins/<名>` 写入、无 `data/`，远端 `plugins.dirs` 登记该目录，行变「已同步」                                       | `conversation-session/manual-review/pending/conversation-session-remote-data-sync-plugin-push.test.ts`，Pending |
+| DSYNC-07-02 | 远端插件目录写入自己的 `data/` → 本机 manifest 版本 1.0.0 → 1.1.0 → 重新打开弹窗显示「1.0.0 → 1.1.0 · 更新」并默认勾选 → 推送 → 远端原位更新到 1.1.0，`data/` 内容不变，`plugins.dirs` 不重复登记                                                       | 同上                                                                                                            |
+| DSYNC-07-03 | 接续 07-01/02：本机新增约 32MB 的 inline 插件（随机内容）→ 推送 → 行变「已同步」，容器内 `payload.bin` 大小一致，远端 `plugins.dirs` 登记。修复前 RPC 把 Buffer 归档展开成 JSON 数字数组，渲染进程解码时卡住，且超出远端 WebSocket 单条消息 100MiB 上限 | 同上                                                                                                            |
+
+外部目录不可更新、软链与超限不可同步、写 `config.json` 失败回滚目录、安全 options 子集、启用状态与 options 保留、冲突由 `packages/services/test/inlinePluginDataSync.test.ts`（两个临时 HOME）覆盖；插件分类的行状态、版本变化与不能同步原因由 `packages/ui/test/dataSyncDialog.test.ts` 覆盖。
+
+验证（2026-10-16）：macOS（Apple Silicon）本机 Docker 远端 runner（linux/arm64 容器、test 远端包）DSYNC-07-01/02 连续 2 次通过，第二次与 DSYNC-04 同批运行也通过。保持 pending；未覆盖 WSL/Docker 传输、Windows/Linux 桌面整机和服务器队列。
+
+## 数据同步：数据同步页推送子智能体（DSYNC-09，2026-10-16，pending）
+
+规格见 [数据同步](remote/data-sync.md)「子智能体」、票据 [09](issues/data-sync/09-subagent-category-sync-channel.md)。子智能体经新同步通道 `user-config-sync` 推送；远端为本机 Docker 远端 runner 或服务器队列提供的 Linux 容器，远端断言用 docker exec 读容器内 `/home/dev/.zcode/agents`。
+
+| ID          | 场景与断言                                                                                                                                                                                                                                                                                                                                | 自动化                                                                                                            |
+| ----------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------- |
+| DSYNC-09-01 | 本机 `~/.zcode/agents` 有一个带模型、工具、技能、MCP、记忆和未知字段的子智能体 → 设置 → 数据同步 → 同步弹窗概览有子智能体一行 → 分类页该项「推送」默认勾选，行内提示「远端缺少 MCP：…；远端缺少技能：…」（票 12，只列本机有、远端没有的依赖，两端都没有的不列；勾选不变）→ 推送 → 行变「已同步」，提示仍在，容器内文件字节与本机一致      | `conversation-session/manual-review/pending/conversation-session-remote-data-sync-subagent-push.test.ts`，Pending |
+| DSYNC-09-02 | 接 09-01（远程项目 tab 仍打开）→ 本机再放一个子智能体 → 回到远程项目输入 `/E2E-DSync`，候选有 09-01 推送的子智能体、没有新子智能体（建议缓存已加载）→ 设置 → 数据同步 → 推送新子智能体 → 回到同一远程项目再输入 `/E2E-DSync`，不重开项目即出现新子智能体（R6：按该设备已打开项目的服务刷新建议缓存；子智能体候选只在 / 面板，@ 面板不列） | 同上                                                                                                              |
+
+对齐 key、两端存储目录不同、迁移后计算哈希、禁用状态规则、原子替换实际文件与 `expectedTargetHash` 冲突由 `packages/services/test/subagentDataSync.test.ts` 覆盖；推送后按该设备已打开项目的服务刷新斜杠建议、不经 source-settings 服务由 `packages/ui/test/dataSyncCategories.test.ts` 覆盖，取不到服务的项目跳过、不回退本机由 `packages/ui/test/subagentsStore.test.ts` 覆盖；弹窗分类与按 category 调用由 `packages/ui/test/dataSyncDialog.test.ts` 覆盖；依赖提示的名称匹配、合并显示、推送依赖后消失、依赖分类加载失败时不判断由 `packages/ui/test/dataSyncDialogSubagentDependencies.test.ts` 覆盖；新通道进入 RPC 合同、source-settings 集合、bundle 标记且不进手机白名单由 desktop / server Host 单测覆盖。
+
+验证（2026-10-16）：macOS（Apple Silicon）本机 Docker 远端 runner（linux/arm64 容器、test 远端包）DSYNC-09-01 共 3 次通过（第 3 次在 rebase 到 DSYNC-07 之后）；同批 DSYNC-04 单独复跑通过（与 DSYNC-09 同一 runner 连跑时一次在 SSH 连接阶段 remote tab 未收敛，未进入数据同步步骤，属已记录的连接时序 flake）。保持 pending；未覆盖 WSL/Docker 传输、Windows/Linux 桌面整机和服务器队列。
+
+验证（2026-10-16，票 12 追加依赖提示断言）：macOS（Apple Silicon）本机 Docker 远端 runner（linux/arm64 容器、test 远端包）DSYNC-09-01 通过 2 次（第 2 次在 rebase 到 DSYNC-08 之后）。保持 pending。
+
+验证（2026-10-17，票 12b 依赖提示改为只列本机有、远端没有的依赖）：本机准备依赖技能与 MCP，另引用一个两端都没有的依赖并断言不提示；macOS（Apple Silicon）本机 Docker 远端 runner（linux/arm64 容器、test 远端包）DSYNC-09-01 通过。保持 pending。
+
+验证（2026-10-17，DSYNC-09-02）：macOS（Apple Silicon）本机 Docker 远端 runner（linux/arm64 容器、test 远端包）DSYNC-09-01/02 通过 2 次（第 2 次在 rebase 到集成分支最新提交后）。把 `packages/ui/src/data-sync/app/categories.ts` 临时退回修复前再跑一次：DSYNC-09-01 通过，DSYNC-09-02 失败（「已打开的远程项目 / 建议没有 09-01 推送的子智能体」），证明该用例能发现推送后远程项目斜杠建议缓存不刷新的问题。子智能体候选只在 / 面板，@ 面板没有子智能体分类，所以用例用 / 断言。保持 pending。
+
+## 数据同步：推送 MCP 服务器（DSYNC-06，2026-10-16，pending）
+
+规格见 [数据同步](remote/data-sync.md)「MCP 服务器」、票据 [06](issues/data-sync/06-mcp-category.md)。远端为本机 Docker 远端 runner 或服务器队列提供的 Linux 容器，远端断言用 docker exec 读容器内 `/home/dev/.zcode/cli/config.json`。
+
+| ID          | 场景与断言                                                                                                                                                                                                                                        | 自动化                                                                                                       |
+| ----------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------ |
+| DSYNC-06-01 | 本机一个 stdio MCP（大小写混合名称、env、本机 home 下的 args）+ 一个停用的 filesystem MCP → 同步弹窗 MCP 分类两项「推送」默认勾选 → 推送 → 两行变「已同步」→ 远端 stdio 配置原样、filesystem args 改写为 `/home/dev/...`、停用状态保留、文件 0600 | `conversation-session/manual-review/pending/conversation-session-remote-data-sync-mcp-push.test.ts`，Pending |
+
+路径改写后的比较（含 Windows 来源到 POSIX 目标）、非 filesystem 类不改写、覆盖保留目标启用状态、远端只有 `~/.agents` 时整类禁用、损坏配置拒绝写入、`expectedTargetHash` 冲突由 `packages/services/test/mcpDataSync.test.ts` 覆盖；概览行、分类行状态与整类禁用的展示由 `packages/ui/test/dataSyncDialogMcp.test.ts` 覆盖。
+
+验证（2026-10-16）：macOS（Apple Silicon）本机 Docker 远端 runner（linux/arm64 容器、test 远端包）DSYNC-06-01 通过 4 次（其中两次与 DSYNC-04、DSYNC-07、DSYNC-09 同批回归）。保持 pending；未覆盖 WSL/Docker 传输、Windows/Linux 桌面整机和服务器队列。
+
+## 数据同步：数据同步页推送命令（DSYNC-10，2026-10-16，pending）
+
+规格见 [数据同步](remote/data-sync.md)「命令」、票据 [10](issues/data-sync/10-command-category.md)。命令经同步通道 `user-config-sync`（category `commands`）推送；远端为本机 Docker 远端 runner 或服务器队列提供的 Linux 容器，远端断言用 docker exec 读容器内 `/home/dev/.zcode/commands` 与 `/home/dev/.zcode/cli/config.json`。
+
+| ID          | 场景与断言                                                                                                                                                                                                                                                                                                         | 自动化                                                                                                           |
+| ----------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ | ---------------------------------------------------------------------------------------------------------------- |
+| DSYNC-10-01 | 本机 `~/.zcode/commands/e2e-dsync/commit.md`（在 `config.json` 中禁用）与 `~/.agents/commands/e2e-dsync-review.md` → 设置 → 数据同步 → 概览有命令一行 → 分类页两项「推送」默认勾选 → 推送 → 两行变「已同步」，容器内 `~/.zcode/commands` 下文件字节与本机一致，子目录命令在远端 `config.json` 中按远端绝对路径禁用 | `conversation-session/manual-review/pending/conversation-session-remote-data-sync-command-push.test.ts`，Pending |
+
+两个来源目录的合并与 `.zcode` 优先、大小写不敏感的 key、嵌套目录、启用覆盖键换算（含 Windows 来源到 POSIX 目标）、更新保留目标状态、远端同名项位于 `.agents` 或为软链时只禁用该项、`config.json` 损坏时回滚新建文件、路径穿越校验由 `packages/services/test/commandDataSync.test.ts`（两个临时 HOME）覆盖；命令分类的行状态、不能同步原因与按 category 调用由 `packages/ui/test/dataSyncDialog.test.ts` 覆盖。
+
+验证（2026-10-16）：macOS（Apple Silicon）本机 Docker 远端 runner（linux/arm64 容器、test 远端包）DSYNC-10-01 连续 2 次通过（第 2 次在 rebase 到 DSYNC-06 之后，远端包重新构建）。保持 pending；未覆盖 WSL/Docker 传输、Windows/Linux 桌面整机和服务器队列。
+
+## 数据同步：推送 marketplace 插件（DSYNC-08，2026-10-16，pending）
+
+规格见 [数据同步](remote/data-sync.md)「插件 · marketplace 插件」、票据 [08](issues/data-sync/08-marketplace-plugin-category.md)。远端为本机 Docker 远端 runner（`node harness/remote/run-local-docker.mjs <spec>`）或服务器队列提供的 Linux 容器，远端断言用 docker exec 读容器内 `/home/dev/.zcode/cli/plugins` 与 `/home/dev/.zcode/cli/config.json`。覆盖旧插件同步弹窗 WPL-011 的场景（本地目录来源的 marketplace 插件推送到远端）。
+
+| ID          | 场景与断言                                                                                                                                                                                                                                                                                                                       | 自动化                                                                                                                      |
+| ----------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------- |
+| DSYNC-08-01 | 本机添加本地目录 marketplace 并安装其中一个插件、再停用 → 数据同步弹窗「插件」分类显示该插件「推送」并默认勾选 → 推送 → 远端 `known_marketplaces.json` 登记该 marketplace 且来源为 `~/.zcode/plugins/marketplace-sources/` 下的镜像，`installed_plugins.json` 含该插件，远端 `enabledPlugins` 为停用；行变「已同步」，无行内错误 | `conversation-session/manual-review/pending/conversation-session-remote-data-sync-marketplace-plugin-push.test.ts`，Pending |
+
+候选过滤（只取 User scope、Builtin 不列出）、只按版本比较、「更新」需远端来源最新版本等于本机版本、远端较新不可勾选、来源已删除 / 跨 marketplace 依赖 / 不支持的来源类型不能同步、更新后版本核对失败、每项单独失败、按行「停止」调用 `cancelPluginOperation` 由 `packages/ui/test/dataSyncDialogMarketplace.test.ts` 覆盖；镜像预检（跨 marketplace 依赖）与镜像归档导出导入由 `packages/services/test/pluginSyncService.test.ts` 覆盖。
+
+验证（2026-10-16）：macOS（Apple Silicon）本机 Docker 远端 runner（linux/arm64 容器、test 远端包）DSYNC-08-01 单独运行 3 次通过（第 3 次在 rebase 到 DSYNC-06、09、10 之后）；与 DSYNC-07 同批双 worker 运行时两个 spec 都在连接页 `virtual-project-add` 就绪前失败（未进入数据同步流程），分开运行均通过。DSYNC-07 在本票改动后单独回归通过。保持 pending；未覆盖网络来源与更新路径的整机 E2E（由 UI 单测覆盖）、WSL/Docker 传输、Windows/Linux 桌面整机和服务器队列。
+
+## 数据同步：数据同步页推送钩子（DSYNC-11，2026-10-16，pending）
+
+规格见 [数据同步](remote/data-sync.md)「钩子」、票据 [11](issues/data-sync/11-hook-category.md)。钩子经同步通道 `user-config-sync`（category `hooks`）推送；远端为本机 Docker 远端 runner 或服务器队列提供的 Linux 容器，远端断言用 docker exec 读容器内 `/home/dev/.zcode/cli/config.json`。
+
+| ID          | 场景与断言                                                                                                                                                                                                                                                                                                                                                                                                          | 自动化                                                                                                        |
+| ----------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------- |
+| DSYNC-11-01 | 本机 `config.json` 的 `hooks`（根级开启）有一条 `PostToolUse · Bash` 钩子；远端预置根级关闭、`PostToolUse` 的 `Edit` 与 `Bash` 两个分组和一条 `PreToolUse` 钩子 → 设置 → 数据同步 → 概览有钩子一行 → 分类页该钩子「推送」默认勾选，行内显示「PostToolUse · Bash」与完整命令 → 推送 → 该行变「已同步」；远端该钩子追加到 `Bash` 分组末尾，其他分组、钩子、根级 `timeoutMs` 与其他配置字段不变，根级 `enabled` 被打开 | `conversation-session/manual-review/pending/conversation-session-remote-data-sync-hook-push.test.ts`，Pending |
+
+对齐 key（事件 + matcher + 类型 + 命令，process 加 args，command 加 shell）、改命令成为新项、只差 `enabled` 判为已同步且覆盖保留目标端 `enabled`、新建带来源 `enabled`、按 matcher 分组合并、根级 `enabled` 只开不关、只读来源（`~/.agents`、`~/.claude`）不列出、`config.json` 损坏或 `hooks` 不合法时拒绝写入、`expectedTargetHash` 冲突、payload 与 key 不符时拒绝由 `packages/services/test/hookDataSync.test.ts`（两个临时 HOME）覆盖；钩子分类的行内说明、「差异 · 内容不同」与按 category 调用由 `packages/ui/test/dataSyncDialog.test.ts` 覆盖。
+
+验证（2026-10-16）：macOS（Apple Silicon）本机 Docker 远端 runner（linux/arm64 容器、test 远端包）DSYNC-11-01 连续 2 次通过（第 2 次在 rebase 到 DSYNC-08、DSYNC-12 之后，远端包重新构建）。保持 pending；未覆盖 WSL/Docker 传输、Windows/Linux 桌面整机和服务器队列。
+
+## 数据同步：数据同步页设备状态与连接（DSYNC-05，2026-10-17，pending）
+
+规格见 [数据同步](remote/data-sync.md)「设备列表与设备同步状态」、票据 [05](issues/data-sync/05-device-list-status-connect.md)。远端为本机 Docker 远端 runner（`node harness/remote/run-local-docker.mjs <spec>`）或服务器队列提供的 Linux 容器；离线 / 恢复用 `takeRemoteDeviceOffline` / `bringRemoteDeviceOnline`（docker stop / start，端口不变）。
+
+| ID          | 场景与断言                                                                                                                                                                                                                                       | 自动化                                                                                                             |
+| ----------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ | ------------------------------------------------------------------------------------------------------------------ |
+| DSYNC-05-01 | 没有任何设备 → 设置 → 数据同步显示空状态 →「连接远端设备」以设备管理模式打开连接向导 → 填 SSH 密码连接 → 向导关闭后仍在数据同步页（不跳「远程设备」页），新设备分别显示绿点「已连接」、「尚未同步」和实心上传图标「同步配置」                    | `conversation-session/manual-review/pending/conversation-session-remote-data-sync-device-connect.test.ts`，Pending |
+| DSYNC-05-02 | 容器 stop → 设备行变为「未连接」+ 描边插头图标「连接」→ 容器 start 后仍为「未连接」→ 点「连接」在连接向导中完成连接 → 回到数据同步页，同一设备行变为「已连接」+「同步配置」，连接成功不自动打开同步弹窗 → 主动打开同步弹窗并加载概览，无离线提示 | 同上                                                                                                               |
+
+首页规则入口可点击和键盘访问；设备地址、连接状态、同步记录独立展示。DSYNC-05 截图覆盖中英文、深浅主题和宽窄窗口。
+
+五种设备行（在线成功 / 从未同步 / 同步失败与部分失败 / 连接中 / 离线与连接失败）、待处理（需安装 / 需升级 / 待确认身份 / 缺凭据）归入「未连接 + 连接」、过滤规则（未安装、Profile 全部退役、dev-only 直连）、`returnTarget: data-sync`、迟到与取消的连接结果不改变页面由 `packages/ui/test/dataSyncSection.test.ts` 覆盖。
+
+验证（2026-10-17）：macOS（Apple Silicon）本机 Docker 远端 runner（linux/arm64 容器、test 远端包）DSYNC-05-01/02 连续 2 次通过，未复现 followups 第 2 条的 `connectHost` 双调用；工件含「未连接」与「同步」两种设备行的中英文 × 深浅主题截图（`dsync-05/`）。保持 pending；未覆盖 WSL/Docker 传输、待处理（安装 / 升级 / 身份 / 凭据）整机路径（由 UI 单测覆盖）、Windows/Linux 桌面整机和服务器队列。
+
+验证（2026-10-20）：清晰列表更新后的本机 Docker 远端回归 `local-docker-20261020015208-a93458` 通过 DSYNC-05-01/02：连接与重连均返回数据同步页，不自动打开同步弹窗；主动点击「同步配置」后加载原概览。`dsync-05/` 留存中英文 × 深浅主题 × 1200/480 宽度 × 在线/离线共 16 张截图，已复核按钮层级与状态分离。保持 pending；未新增 Windows/Linux 桌面整机或 WSL/Docker 传输验证。
+
+## 数据同步：模型提供商只读分类与失败重试（DSYNC-13，2026-10-17，pending）
+
+规格见 [数据同步](remote/data-sync.md)「模型提供商（只读）」、[R3 §8.3.6](architecture/r3-source-server-remote-architecture.md)、票据 [13](issues/data-sync/13-provider-readonly-retry.md)。最近结果与重试的唯一数据源是 Main 协调器的 Provisioning lane；远端为本机 Docker 远端 runner 或服务器队列提供的 Linux 容器，故障用 docker exec 把容器内 `/home/dev/.zcode/v2` 设为只读制造，远端断言读 `/home/dev/.zcode/v2/provider_config.json`。
+
+| ID          | 场景与断言                                                                                                                                                                                                                                                                                                                                                                | 自动化                                                                                                             |
+| ----------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------ |
+| DSYNC-13-01 | 打开该设备上的项目（lane 注册，首次下发成功）→ 容器内 `~/.zcode/v2` 只读 → 本机设置页新建一个自定义模型提供商（personal-config 下发失败）→ 数据同步弹窗概览中模型提供商勾选框不可用 → 分类页状态为失败并显示「重试」，列表含该提供商名称与端点，API Key 只显示掩码 → 恢复可写后点「重试」→ 状态变为「已自动同步」、「重试」消失，容器内 `provider_config.json` 含该提供商 | `conversation-session/manual-review/pending/conversation-session-remote-data-sync-provider-retry.test.ts`，Pending |
+
+lane 最近结果的记录与按 sourceServerId 查询、无 lane 返回「无 lane」、重试与自动触发并发时合并为一次尾随同步、多线路 lane 的合并由 `packages/desktop/test/providerProvisioningEnvironmentCoordinator.test.ts` 覆盖；Main 把已连接后的失败带阶段码交给 lane、重试以 `user-retry` 下发由 `desktopRemoteSessions.test.ts` 覆盖；Host ↔ Main 请求与 schema 由 `desktopHostProcess.test.ts`、`packages/services/test/hostProviderProvisioningStatus.test.ts`、`packages/shared/test/windowHostControlProtocol.test.ts` 覆盖；成功 / 失败 / 进行中 / 无 lane 四种展示、重试出现条件、Key 掩码与概览行不可勾选由 `packages/ui/test/dataSyncDialogProviders.test.ts` 覆盖。
+
+验证（2026-10-17）：macOS（Apple Silicon）本机 Docker 远端 runner（linux/arm64 容器、test 远端包）DSYNC-13-01 连续 3 次通过（每次远端包都重新构建，第 3 次在 rebase 到 DSYNC-11 之后）；Main 日志显示 `personal-config` 下发以 `target-write-failed` 失败、`user-retry` 下发 `applied`。保持 pending；未覆盖 WSL/Docker 传输、Windows/Linux 桌面整机和服务器队列。
+
+## 数据同步：迁移入口移到数据同步页（DSYNC-16，2026-10-17，pending）
+
+规格见 [数据同步](remote/data-sync.md)「迁移入口」、票据 [16](issues/data-sync/16-migration-entry.md)。只用本机桌面，不需要远端设备。
+
+| ID          | 场景与断言                                                                                                                                                                                                                                                                                           | 自动化                                                                                                       |
+| ----------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------ |
+| DSYNC-16-01 | 设置侧栏没有 Onboarding（引导）入口 → 数据同步页标题右侧只有低强调「迁移数据」，短说明后的信息按钮可打开同步规则 → 点「迁移数据」直接进入迁移向导「会话」步骤（无欢迎页，左下角为「取消」）→「取消」关闭弹窗并停留在数据同步页 →「常规」页「打开引导」仍打开职业引导                                 | `conversation-session/manual-review/pending/conversation-session-data-sync-migration-entry.test.ts`，Pending |
+| DSYNC-16-02 | 本机 `~/.claude/skills` 有一个技能 → 打开设置后关闭全部 workspace tab（没有打开的项目，设置页单独显示）→ 数据同步页「迁移数据」打开向导 → 技能步骤全选、导入到全局 → 开始迁移 → 完成页「设置导入」已导入 1、失败 0，没有「需要导入到项目」提示；技能写入本机 `~/.zcode/skills`；全程没有重新打开项目 | `conversation-session/manual-review/pending/conversation-session-data-sync-migration-entry.test.ts`，Pending |
+
+首次启动自动检测到可迁移内容时直接进入「会话」步骤、没有 workspace 时进入「会话」步骤、其他步骤「上一步」不变由 `packages/ui/test/onboardingDialogEntry.test.ts` 覆盖；「迁移数据」按钮与操作行由 `packages/ui/test/dataSyncSection.test.ts` 覆盖；侧栏入口删除与「打开引导」仍打开职业引导由 `packages/ui/test/settingsPageIntegratedTerminalShell.test.ts` 覆盖。
+
+验证（2026-10-17）：macOS（Apple Silicon）本机桌面 E2E（`pnpm test:e2e:serial`，provider 回放 `common.json`）DSYNC-16-01 通过。保持 pending；未覆盖 Windows/Linux 桌面整机。
+
+没有项目时需要项目的项记为失败并在完成页写明原因、有项目时全部交给导入服务，由 `packages/ui/test/settingsSyncImportWithoutWorkspace.test.ts` 覆盖。验证（2026-10-17，code review 修复）：同一环境 DSYNC-16-01、DSYNC-16-02 通过；DSYNC-16-02 在修复前的导入逻辑上失败（「已导入」为 0）。保持 pending。
+
+验证（2026-10-20）：同一回归 `local-docker-20261020015208-a93458` 通过 DSYNC-16-01/02；新入口仍直接进入原迁移向导，新增规则浮层的点击、Enter 打开和 Escape 关闭断言通过，页面只显示一个标题。保持 pending。
+
+迁移请求竞态补充（pending，规格见 [迁移流程](ui/onboarding-migration-flow.md)）：
+
+| ID          | 场景与断言                                                                                     | 自动化                                                                                          |
+| ----------- | ---------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------- |
+| DSYNC-16-03 | 从职业引导手动打开迁移向导，分别释放已处理和未处理的迟到首启回包；窗口保持打开且可以进入下一步 | `conversation-session/manual-review/pending/conversation-session-migration-dialog-race.test.ts` |
+| DSYNC-16-04 | 手动检测在途时取消迁移，释放旧检测成功回包；窗口保持关闭                                       | 同上                                                                                            |
+| DSYNC-16-05 | 手动检测在途时取消迁移，释放旧检测失败；窗口保持关闭                                           | 同上                                                                                            |
+
+仅对服务回包设置释放屏障，不修改 React 状态或替换向导组件。首启状态、工作区切换和数据导入仍沿既有服务边界。
+
+竞态验收必须记录首启查询、检测和已处理标记的请求开始/结束；释放后等待这些请求全部完成，再断言窗口状态。DSYNC-16-03 还需确认迟到首启回包没有新增检测或已处理写入，避免仅等待渲染帧而漏掉后续 RPC。渲染帧只用于最后的界面提交，不作为业务请求完成信号。
+
+## 数据同步：旧同步入口打开数据同步弹窗（DSYNC-14，2026-10-17，pending）
+
+规格见 [数据同步](remote/data-sync.md)「旧入口」、票据 [14](issues/data-sync/14-route-legacy-sync-entries.md)。远端为本机 Docker 远端 runner（`node harness/remote/run-local-docker.mjs <spec>`）或服务器队列提供的 Linux 容器（SSH 设备）。
+
+| ID          | 场景与断言                                                                                                                                                                                          | 自动化                                                                                                             |
+| ----------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------ |
+| DSYNC-14-01 | 打开 SSH 远端项目后：侧栏项目菜单 → 同步插件；设置页技能、MCP、插件分区的同步按钮 → 每次都打开数据同步弹窗（`remote-sync-dialog`），定位到对应分类，设备行显示该 SSH 设备；关闭后回到原界面继续操作 | `conversation-session/manual-review/pending/conversation-session-remote-data-sync-legacy-entries.test.ts`，Pending |
+
+- Header 更多菜单入口由 WPL-011（`conversation-session-plugin-remote-explicit-sync-workspace.test.ts`）覆盖：Header「同步插件」打开数据同步弹窗的插件分类，推送 marketplace 插件后远端物化。
+- 连接向导「一键同步」只在目录步骤出现；现有项目、设置、输入框入口都以设备管理或项目编辑器完成连接，正常流程到达不了该步骤，由 `packages/ui/test/remoteConnectionDialogContentLayout.test.ts` 覆盖（打开刚连接的设备、带所选目录映射；设备未识别时不显示）。
+- 入口的设备解析（SSH / WSL / Docker 显示，旧格式 identity 与 Direct URL Server 不显示）、设备离线禁用、初始分类、workspace 映射（Header / 侧栏 / 连接向导带映射，设置页不带）与设备同步状态写入由 `packages/ui/test/dataSyncEntry.test.ts`、`workspaceHeaderTitleSection.test.ts`、`projectRemoteSync.test.ts`、`skillsSection.test.ts`、`dataSyncDialogMcp.test.ts` 覆盖；MCP workspace 改写由 `packages/services/test/mcpDataSync.test.ts` 覆盖。
+
+验证：见覆盖矩阵。
+
+## 数据同步：设置页 Scope 菜单按设备分组（DSYNC-15，2026-10-17，pending）
+
+规格见 [数据同步](remote/data-sync.md)「Scope 菜单按设备分组」、票据 [15](issues/data-sync/15-scope-menu-by-device.md)。远端为本机 Docker 远端 runner（`node harness/remote/run-local-docker.mjs <spec>`）或服务器队列提供的 Linux 容器（SSH 设备）；远端断言用 docker exec 读容器内 `/home/dev/.zcode`。
+
+| ID          | 场景与断言                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                 | 自动化                                                                                                              |
+| ----------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------- |
+| DSYNC-15-01 | 打开 SSH 远端项目（远程 tab）→ 设置 → 子智能体：默认选中「该设备 · 用户」（`source-user:<sourceServerId>`），菜单只有「本机」与该设备两个标题、没有「工作区」小标题；第一层只有各设备的「用户」和「项目」入口，打开该设备的「项目」子菜单能看到远端项目（19 号票），触发器为「设备名 · 用户」→ 新建子智能体 → 容器内 `~/.zcode/agents` 有该文件、本机没有，页面不显示「模型列表加载失败」（source-settings 不暴露 model-selection）→ 打开容器内预置的带显式模型与推理档位的子智能体：推理控件显示「推理档位暂不可用」、不显示加载中，保存后容器内文件的 `model` / `thoughtLevel` 不变 → 切到「本机 · 用户」新建 → 本机 storage `agents` 有该文件、远端没有 | `conversation-session/manual-review/pending/conversation-session-remote-data-sync-scope-by-device.test.ts`，Pending |
+| DSYNC-15-02 | 远端设备仍在线时切到本机项目（本地 tab）→ 设置 → 命令：默认选中「本机 · 用户」→ 选择远端设备「用户」（不打开远程项目）→ 新建命令 → 容器内 `~/.zcode/commands/<name>.md` 含该提示词，本机 `~/.zcode/commands` 没有                                                                                                                                                                                                                                                                                                                                                                                                                                          | 同上                                                                                                                |
+| DSYNC-15-03 | 本地 tab → 设置 → MCP：默认「本机 · 用户」→ 选择远端设备「用户」→ 新建 MCP 并关闭开关 → 容器内 `~/.zcode/cli/config.json` 的 `mcp.servers` 有该项且 `enabled: false`，本机 `cli/config.json` 没有 → 切到远程 tab → MCP 页默认「该设备 · 用户」→ 选「本机 · 用户」新建 MCP → 本机 `cli/config.json` 有该项，容器没有                                                                                                                                                                                                                                                                                                                                        | 同上                                                                                                                |
+| DSYNC-15-04 | 接 15-01/15-02（远端设备在线）→ 设置 → 子智能体 → 选「该设备 · 用户」→ 打开 15-01 新建子智能体的编辑表单 → 设备离线（`docker stop`）→ 表单隐藏、显示离线提示 → 列表页切到「本机 · 用户」→ 显示本机列表、不出现旧表单，本机 storage `agents` 没有该文件（R3：表单归属打开它的设备）→ 恢复容器                                                                                                                                                                                                                                                                                                                                                               | 同上                                                                                                                |
+| DSYNC-15-05 | 接 15-01（远端设备在线）→ 设置 → 钩子 → 「本机 · 用户」新建钩子 → 本机 `cli/config.json` 的 `hooks` 有该项 → 选「该设备 · 用户」新建钩子 → 容器内 `~/.zcode/cli/config.json` 有该项（两台设备的用户钩子 ID 都是 `hook-zcode-user-0`）→ 打开远端钩子的编辑表单 → 设备离线（`docker stop`）→ 表单隐藏、显示离线提示 → 列表页切到「本机 · 用户」→ 显示本机列表、不出现旧表单，本机 `cli/config.json` 的 `hooks` 不变（R3：表单归属打开它的设备）→ 恢复容器                                                                                                                                                                                                    | 同上                                                                                                                |
+
+- 分组结构（本机在前、离线设备不列出、没有设备记录的远端只列项目）、默认选中规则（含 Web / 手机没有远端「用户」时选中当前远程项目）、选中项解析（离线 fail-closed、项目关闭回退同设备「用户」）由 `packages/ui/test/settingsScope.test.ts` 覆盖；远端「用户」经 source-settings attachment 与设备 home、离线不申请 attachment、迟到 home 结果不属于新目标由 `packages/ui/test/useSettingsScope.test.ts` 覆盖；触发器「设备 · 用户 / 项目」文案顺序、中英文、分隔点颜色与表单内只列所在设备由 `packages/ui/test/pluginScopeMenuDevices.test.ts` 覆盖；外壳把目标服务、缓存权威、同步按钮条件交给分区与离线 / 连接中提示由 `packages/ui/test/pluginsSectionScopeRouting.test.ts` 覆盖；子智能体按选中目标路由列表、模型、插件初始化与新建，表单归属设备（离线后换设备不带走表单、同设备恢复后写回原设备、同设备内切换「用户」/ 项目与项目关闭回退不关闭表单），远端「用户」改动后按该设备已打开项目刷新斜杠建议由 `packages/ui/test/subagentsSection.test.ts` 覆盖；钩子页表单归属设备（离线后换设备不带走表单、同设备恢复后写回原设备、同设备内切换「用户」/ 项目与项目关闭回退不关闭新建表单）由 `packages/ui/test/hooksSectionFormDevice.test.ts` 覆盖；同步按钮只在选中远端设备「用户」时显示由 `packages/ui/test/dataSyncEntry.test.ts`、`skillsSection.test.ts` 覆盖。
+- MCP store 只按 Scope 目标这一组绑定读写（远端「用户」经该设备 source-settings 服务、本机目标走本机平台并保留旧 common MCP 迁移、远端项目经绑定服务写入、切换目标后不沿用当前 tab 的服务、远端目标未绑定服务时不回退本机）由 `packages/ui/test/mcpStore.test.ts` 覆盖；MCP 设置页不混入当前 tab 的 identity、发给远端的 `mcp/list` 不含本机配置由 `packages/ui/test/mcpSettingsSectionScopeTarget.test.ts` 覆盖。
+- 同 home 的两台远端「用户」命令（请求键、迟到判定、投影匹配都带 authority，推送后项目刷新不写回远端「用户」投影）只由 `packages/ui/test/commandsScopeTarget.test.ts` 覆盖，不做 E2E。原因：本机 Docker 远端 runner 一次只提供一台远端设备，不能同时在线两台 home 相同的设备。
+- 记忆查看页不在本 case 范围内（本期不变，仍只读本机记忆目录）。
+
+验证：见覆盖矩阵。
+
+## 数据同步：推送内容在远端会话中的可用时机（DSYNC-17，2026-10-18，pending）
+
+规格见 [数据同步](remote/data-sync.md)「Seam ③：桌面 E2E」。远端为本机 Docker 远端 runner 提供的 Linux 容器（SSH 设备）；模型请求经 SSH 反向隧道回到本机回放（先例 WPL-011），用回放记录的模型请求判断远端 Agent 看到了哪些推送内容。本机准备：技能、子智能体、命令、用户 MCP（`node -e` 内联的 stdio 服务器）、`UserPromptSubmit` 钩子（在远端 `$HOME` 追加标记行）、带 MCP 的 inline 插件、本地目录 marketplace 安装的插件（WPL-011 的 lifecycle 插件）。
+
+| ID          | 场景与断言                                                                                                                                                                                                                                                                                                                                                                                                                                                                  | 自动化                                                                                                            |
+| ----------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------- |
+| DSYNC-17-01 | 打开 SSH 远端项目并发一轮（task A；对照：模型请求里没有任何推送内容，钩子没执行）→ 同一项目打开新建任务页并选好模型（预热会话已建）→ 设置 → 数据同步 → 只推送子智能体、MCP、命令（这三类推送后不作废预热草稿）→ 回到这个新建任务页发送（task B）→ 模型请求列出子智能体；记录是否暴露 MCP 工具；task B 再发 `/命令` 记录是否展开 → 同一项目再打开一个新建任务页（预热会话已建）→ 只推送钩子 → 回到该页发送（task D）→ 钩子执行（推送钩子作废预热草稿，与本机设置页保存一致） | `conversation-session/manual-review/pending/conversation-session-remote-data-sync-runtime-usage.test.ts`，Pending |
+| DSYNC-17-02 | 接 17-01 → 回到 task A 续发：模型请求列出子智能体；记录 MCP、钩子、命令 → 再推送技能与插件 → task A 续发，记录技能列表与两个插件的 MCP 工具 → task A 按名字调用 `Skill` 工具，记录返回内容 → task A 调用 `Agent`（子智能体），工具结果为子智能体的回复                                                                                                                                                                                                                      | 同上                                                                                                              |
+| DSYNC-17-03 | 接 17-02 → 同一项目新建任务（task C）→ 模型请求列出技能与子智能体，暴露用户 MCP、inline 插件 MCP、marketplace 插件 MCP 三个工具，钩子执行 → `/命令` 展开为命令正文 → 依次调用三个 MCP 工具、`Skill`、`Agent`（子智能体）：工具结果分别为远端 MCP 返回的标记、技能正文、子智能体的回复                                                                                                                                                                                       | 同上                                                                                                              |
+
+- 17-01、17-02 中子智能体是断言：远端 Host 每轮提供子智能体配置，与本机一致（2026-10-18 决定）。17-01 中 task D 的钩子是断言：推送钩子后作废预热草稿，与本机设置页保存钩子一致（2026-10-18 决定）；钩子单独推送，是为了不让重建后的草稿读到 MCP，掩盖「MCP 推送不重建」的事实。其他分类仍是探针：现有 task 和推送前打开的新建任务页应该是什么行为，spec 没有定义，用例只记录事实（工件 `dsync-17/runtime-usage.json`），确认期望后再改为断言。
+- 远端 Core 的监听在文件稳定 1000ms 后读取、再合并 300ms 才发布子智能体快照，Core 的标准输出被 supervisor 丢弃，测试拿不到发布事件。task B 的第一条消息从子智能体推送完成起等足 3 秒再发；工件记录实际间隔。
+- 17-02 必须在 task A 空闲约 10 分钟（会话卸载）之前完成，否则冷恢复会重读配置，掩盖现有会话的行为。
+- 17-03 另断言 task C 的用户 MCP 服务器进程挂在推送前就服务 task A 的同一个远端 Agent 进程下，证明新建 task 不需要重启 Agent。
+
+验证：见覆盖矩阵。
+
+## 数据同步：本机配置变更在本机会话中的生效时机（DSYNC-18，2026-10-18，pending）
+
+DSYNC-17 的本机对照。只用本机桌面（经本机 Docker 远端 runner 运行，回放 fixture 按 spec 名加载，不使用容器）。每个分类单独打开一个新建任务页（选好模型，预热会话已建），再按本机真实途径新建：子智能体、MCP、钩子、命令走设置页「本机 · 用户」；技能和 inline 插件没有设置页新建入口，直接写文件；marketplace 插件走插件商店安装。
+
+| ID          | 场景与断言                                                                                                                                                                                                                                                                           | 自动化                                                                                                        |
+| ----------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ | ------------------------------------------------------------------------------------------------------------- |
+| DSYNC-18-01 | 本机 task A 首发（对照：什么都看不到）→ 逐类：打开新建任务页 → 新建该类 → 在该页发送、再到 task A 续发，记录模型请求可见内容与钩子是否执行；子智能体另回到草稿生成的 task 再发一轮；命令另记录设置页保存后 `/` 菜单是否出现；marketplace 插件只测 task A（商店主视图会卸掉会话面板） | `conversation-session/manual-review/pending/conversation-session-local-config-runtime-usage.test.ts`，Pending |
+| DSYNC-18-02 | task A 按名字调用 `Skill`；调用新建的子智能体，记录结果                                                                                                                                                                                                                              | 同上                                                                                                          |
+| DSYNC-18-03 | 新建 task C → 技能、子智能体、MCP、两个插件的 MCP 都可见，钩子执行，命令展开 → 依次调用三个 MCP 工具、`Skill`、`Agent`，结果符合预期                                                                                                                                                 | 同上                                                                                                          |
+
+- 18-01、18-02 只记录事实（工件 `dsync-18/runtime-usage.json`）；18-03 是断言。
+- 本机子智能体由 Host 文件监听维护缓存（`awaitWriteFinish` 1000ms），保存后约 1–1.5 秒内发出的消息看不到新子智能体。
+
+验证：见覆盖矩阵。
+
+## 数据同步：功能演示走查（DSYNC-DEMO，2026-10-18，pending）
+
+演示型走查，不做视觉断言。在本机 Docker 远端上按用户顺序走完 [数据同步 spec](remote/data-sync.md) 的主要功能。每章录一段窗口视频（页面内叠加字幕，点击前高亮目标），最后用 ffmpeg 拼成 `data-sync-demo/data-sync-demo.mp4`，同时写出 `chapters.txt`（章节时间点）和 `index.json`。连接、安装、离线判定等长时间等待不进视频。断言只保留「流程确实到达了该状态」；某一章失败时记一条失败并继续后面的章节，最终仍判失败。
+
+| ID         | 场景与断言                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                             | 自动化                                                                                                                                                                                                                                               |
+| ---------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| DSYNC-DEMO | 本机预置六类内容（每类有「推送」项，另配更新 / 差异 / 已同步 / 不能同步的对照项）、marketplace 插件和模型提供商 → ① 数据同步页空状态；「迁移」进入「会话」步骤，「取消」关闭 → 连接 SSH 远端并打开项目，远端预置差异、已同步和远端独有项 → ② 设备行「尚未同步」，弹窗概览 → ③ 子智能体缺失依赖提示 → ④ 技能五种状态；全选、取消选择；推送默认项；主动勾选差异项覆盖；子智能体提示随之更新 → ⑤ 插件版本、MCP filesystem 路径改写、命令兼容目录、钩子按定义成行，取消勾选一条 → ⑥ 概览「部分选」，推送全部到「已全部同步」，依赖提示消失 → ⑦ 列表加载后远端写入同名技能，推送提示「远端已变化」，设备行「上次同步失败」→「重试」后按差异覆盖，设备行「今天 HH:MM 已同步」→ ⑧ 远端 `~/.zcode/v2` 只读时新增提供商，分类显示失败和「重试」，恢复可写后重试成功 → ⑨ 远程项目输入 `/demo`，建议列表出现推送的命令、技能和子智能体 → ⑩ 侧栏项目菜单「同步插件」、技能设置页「同步」都打开弹窗并定位分类 → ⑪ 技能页 Scope 默认远端「用户」，菜单按设备分组，远端独有技能仍在，切到「本机 · 用户」；MCP 页同一规则 → ⑫ 深色主题、英文界面 → ⑬ 窄窗口横向分类标签 → ⑭ 弹窗打开时停止容器，弹窗显示离线；恢复后远程项目自动重连，弹窗重新加载列表 | `conversation-session/manual-review/pending/conversation-session-remote-data-sync-demo-walkthrough.test.ts`，Pending；需要 `ZCODE_E2E_SSH_CONTAINER` 和 ffmpeg / ffprobe（可用 `ZCODE_E2E_FFMPEG_PATH` / `ZCODE_E2E_FFPROBE_PATH` 覆盖）；无模型请求 |
+
+验证：见覆盖矩阵。
+
+## 官方版本的请求安全校验（RV-HOST，accepted/pending）
+
+- RV-HOST-01：模型请求明确无需交互时，即使界面进程暂停，Host 仍完成账号鉴权并允许模型重试发出 HTTP；不附带旧的临时校验头。
+- RV-HOST-02：需要交互时，界面使用 Host 绑定的本次配置快照；配置判定与自动鉴权期间晚订阅不补投，取消或 runtime 释放后的迟到结果不复活请求。
+- RV-HOST-01 已纳入现有官方请求安全校验专项候选的两种关闭策略；RV-HOST-02 的取消、快照与晚订阅由主题服务/UI 单测覆盖。保持 pending，不声明正式 CI 准入。
+
+## 远程凭据在本机无法解密（LRCD，2026-10-21，accepted/pending）
+
+| ID      | 场景与断言                                                                                                                                                                                                                                                                      | 测试入口                                                                                                            |
+| ------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------- |
+| LRCD-01 | 3.15 设置中有一条 legacy SSH 远程条目，其密码 key 在本机无法解密 → 升级首启：本地项目仍在侧栏；Source Directory 迁移版本写为 1，生成的 SSH Profile 不带密码引用（连接时走交互凭据）；旧密码记录原值保留。规则见 [R3 §9.1](architecture/r3-source-server-remote-architecture.md) | `conversation-session/manual-review/pending/conversation-session-legacy-remote-credential-decrypt.test.ts`，Pending |
+| LRCD-02 | 已连接 SSH Profile 的密码 key 被换成本机解不开的密文（~/.zcode 换机/换用户）→ 冷启动后从侧栏项目菜单点“连接”：连接屏出现密码框，不显示通用的“连接失败”；补充密码后连上原项目，并覆盖原 key。规则见 [R3 §9.1](architecture/r3-source-server-remote-architecture.md)              | `conversation-session/manual-review/pending/conversation-session-profile-secret-decrypt.test.ts`，Pending           |
+
+### 分享 URI 文本回归（2026-10-22）
+
+SHARE-E2E-03：已完成助手正文以 `file:` 或 `data:` 开头时，分享预检允许进入发布。
+复用 `conversation-session-share-publish-import.test.ts` 和 case-local fixture；手机 remote 无分享入口。
+
+## 图片预览编辑（IPE01–IPE06）
+
+已确认：空白关闭、按实际溢出显示拖拽光标、滚轮缩放；选择/画笔/文字/形状/颜色、整条擦除、撤销/重做；保存为新 PNG 附件并保留草稿、不发送。详见 [共享图片预览](ui/shared-image-preview-dialog.md)。
+
+### 系统目录打开项目
+
+| ID    | 场景                                               | 期望                                       | 决策                        |
+| ----- | -------------------------------------------------- | ------------------------------------------ | --------------------------- |
+| OFP01 | 本地目录首次冷启动打开                             | 创建单 root 项目并绑定草稿                 | accepted                    |
+| OFP02 | 运行中打开新目录并重复打开                         | 首次创建、后续复用同一项目                 | accepted                    |
+| OFP03 | 目录已有项目，草稿没有归属或缓存另一项目           | 复用 Host 项目并显式绑定，保留名称/roots   | accepted                    |
+| OFP04 | 重复、失败、迟到响应；已删或其他 Host 的同目录项目 | 不重复创建，不覆盖较新导航，不复活/串 Host | accepted，Host 与 hook 单测 |
+
+## MRO04 后台失效恢复与任务保留（2026-10-22，accepted / pending）
+
+Spec：[远控后台恢复与原任务导航](web-remote-control/web-remote-control-architecture.md#后台恢复与原任务导航)。
+
+| ID       | 前置与操作                                                                                                                                                                                    | 必须断言                                                                                                                                                                                                                      |
+| -------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| MRO04-01 | 宽屏 Web 独立打开项目任务；受控丢弃旧 bridge 下行 RPC 帧但放行 ACK；Host 完成后等待真实 raw 期限，并丢弃首条失效通知                                                                          | 下次真实 same-socket 补发后恢复；首次失效起 15 秒内原 task/workspace、完成内容和停止按钮收口；重复与旧代通知不重复重建，桌面 continuous 正常完成                                                                              |
+| MRO04-02 | 窄屏 Web 独立打开项目任务；运行中真实切后台至少 46 秒，Host 完成后回前台                                                                                                                      | 15 秒内保留原 task/workspace 并显示完成内容，停止按钮消失；允许任一端先恢复，不把桌面先降级当作业务要求                                                                                                                       |
+| MRO04-03 | 宽、窄屏首次加载和整页刷新；bootstrap 旧导航指向离线远端，同时存在可用本地 workspace                                                                                                          | 自动建立可用 workspace bridge，发布新导航；保留桌面 tabs，不进入 home-only                                                                                                                                                    |
+| MRO04-04 | 宽、窄屏首次加载和整页刷新；bootstrap 旧导航指向缺席 workspace 的已失效任务                                                                                                                   | 回退可用 workspace，不发送旧 taskId/taskHostId，不进入错误页                                                                                                                                                                  |
+| MRO04-05 | 宽、窄屏首次加载和整页刷新；bootstrap 旧导航指向已移除 Host 的缺席 workspace                                                                                                                  | 回退可用 workspace，不启动旧 Host 导航，桌面 tabs 不变                                                                                                                                                                        |
+| MRO04-06 | 窄屏 Web 独立打开项目任务；运行中真实切后台 8 秒（短于 45 秒 raw 期限），后台期间桌面持续下发流式帧，回前台后继续输出                                                                         | 后台期间手机回 ACK、不发新 rpc-frame；回前台不新建 socket、不发 workspace-bridge-open，bridge identity 不变；15 秒内原 task 显示后台与回前台内容并完成                                                                        |
+| MRO04-07 | 窄屏 Web 独立打开项目任务；运行中真实切后台，后台收到一批流式帧时在手机线级模拟 hub 找不到桌面：ACK 不转发并延迟回 INTERNAL，配对回包改为 waiting，下行 data 丢弃；回前台保持 10 秒后结束模拟 | 后台收到 INTERNAL ≥2 次，且首个 INTERNAL 到达前已有 ≥2 个 ACK 在途；后台期间原 socket 不关闭；回前台首次探测发在原 socket；模拟期间原 task 面板保持挂载、不出现失败页；结束模拟后 15 秒内原 task 显示完成内容，workspace 不变 |
+
+MRO04-03～05 在真实 bootstrap 响应边界注入过期导航与离线候选，保留真实版本、认证、可用 workspace
+和后续 bridge/RPC 链路；不模拟 Desktop 删除操作，不产生模型请求。
+
+MRO04-06（2026-10-24，accepted / pending）对应 [挂起保留连接的可靠帧](web-remote-control/relay-v2-pairing.md#手机首次进入与恢复05)。只观察真实线级消息，不丢帧、不改时钟或可见性；回前台后的输出用于暴露后台丢帧造成的序号断档。桌面每次心跳会补发未确认帧，因此只看最终内容不足以区分修复前后，必须同时断言后台 ACK、socket 数与 bridge-open 次数。
+
+MRO04-07（2026-10-24，accepted / pending）对应 [挂起保留连接的可靠帧](web-remote-control/relay-v2-pairing.md#手机首次进入与恢复05) 的「重复 INTERNAL 结果相同」。loopback relay 在桌面断开时发 DEVICE_OFFLINE 并关闭手机 socket，走不到 INTERNAL 路径；因此在手机侧线级按 hub 契约注入（桌面不在时每条 data 回 INTERNAL、不关闭 socket）。桌面与 relay 的真实连接不变；握手与配对查询照常转发，只把回包改为 waiting，保证 relay 侧会话始终已认证。回前台只保持 10 秒，使恢复仍落在 15 秒 recover 窗口内，按原 workspace/task 恢复；修复前后的区分靠首次偏离：修复前第二个 INTERNAL 在后台关闭原 socket，回前台首次探测落在新 socket。修复前的失败页不作为本用例断言：真实 App 中 15 秒 recover 超时后的后台重连和 bridge 降级触发的恢复都会重新计 30 秒 waiting，失败页时间不固定；保持更久还会触发原有的导航丢失（见[覆盖矩阵](testing/conversation-session-e2e-coverage-matrix.md) MRO04-07 长窗口观察）。真实 hub 是否对每个 ACK 回 INTERNAL 需生产 relay 实测确认，本用例不代表该事实。
+
+候选：`packages/desktop/test/e2e/conversation-session/manual-review/pending/conversation-session-web-remote-recovery.test.ts`。采用隔离 Electron、真实 Web、loopback relay 与 case-local 受控回放；使用原生 visibility helper，禁止以伪造 visibility getter/event 代替真实后台。Host 身份隔离、任务不存在与远端 session 换代由定向边界测试补充。本次登记不代表已运行、人工审核或 formal/CI 准入；生产 relay 实机证据另记录具体构建和场景。
+
+## 工作区 MCP 手动信任（WMT，2026-10-23）
+
+- WMT-01：直接工作区 MCP 默认不连接；设置逐行信任不启用，用户刷新后连接；撤销不打断旧会话的调用及自动重连，新会话准入拒绝连接。
+- WMT-02：手机 Web 与 Desktop 使用同一目标 Host/workspaceIdentity 和精确声明记录。
+- WMT-03：删除最后一个 `.zcode` MCP 后，`.agents` fallback 可审核和连接；无效邻项不阻断列表，legacy 环境变量仍传给真实 MCP。
+- WMT-04：未信任 MCP 不阻断聊天，权限旁图标有独立未读点，点击弹层后标已读，关闭保留图标；去审核直达当前工作区设置；忽略仅隐藏当前声明，声明改变后在下一条用户输入被消费时再提示，授权/撤销刷新同会话提示。
+- WMT-05：手机通过同一 Host 快照显示图标弹层，触摸打开、关闭与忽略，并跳转审核；无审核详情的未信任设置行也准确说明原因且不可批准。
+- 范围：`.zcode/config.json`、现有 `.agents/mcp.json` fallback；插件 MCP 暂不修改。
+- pending 证据与平台范围见 `testing/conversation-session-e2e-coverage-matrix.md` 的 WMT 条目。
+
+## SSH-P0-CONN-09：用户名含冒号（2026-10-26）
+
+Accepted。规格见 [R3 身份合同](architecture/r3-source-server-remote-architecture.md#32-workspace-身份的三层结构)。
+从产品向导以本机 Docker SSH 账号加 `:tenant` 发起连接，先输入错误密码。
+必须进入真实 SSH 认证并展示认证失败，不得出现 `remote-project.invalid-host-identity`；
+远程项目目录 RPC 仍成功，保留完整用户名和离线状态。随后仅改为正确密码，原用户名不变，
+完成安装、目录选择和项目打开；入口绑定到稳定 Source，旧地址入口消失且不重复，
+workspace identity 与在线设备一致，tab 不保存凭据，Window Host 数量不变。
+普通账号的成功连接和两项目任务隔离分别由 SSH-P0-CONN-01/02 与 SSH-P0-TASK-01 回归。
+候选：`conversation-session/manual-review/pending/conversation-session-ssh-remote-colon-username.test.ts`，pending，不自动转正。
+
+## 消息流更新隔离（RRI，pending）
+
+规格：[消息渲染性能](chat/message-render-performance.md)。浏览器入口：`packages/ui/test/browser/manual-review/pending/message-render-isolation.test.mjs`。
+
+| ID    | 场景与不变量                                                                                         | 覆盖边界                                                                             |
+| ----- | ---------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------ |
+| RRI01 | 历史轮 + 活动轮逐帧更新、时钟、结束、新轮、窗口裁剪；历史不更新，活动正文与工时更新，位置/终态不冻结 | 真实 turn 组件、派生选择器；桌面/手机布局、深浅主题                                  |
+| RRI02 | 非空 Workflow 联接下普通文本更新；创建/修订/填洞/保存/启动行变化与删除                               | 无关帧不传播；相关图、稿号、保存候选必须更新                                         |
+| RRI03 | 重复空/非空查找回报、结果变更、单命中重复导航                                                        | 被动相同回报不更新（完整桌面 profile）；浏览器验证导航身份，普通桌面构建验证重复导航 |
+| RRI04 | 无关/当前 session 插件固定；无关/同卡跨会话 Highspeed 完成、TPS、删除、淘汰                          | 无关消费者不更新；相关统计、固定状态与移除及时可见                                   |
+
+复核保留原始 profile 与浏览器输出；正式准入须人工复核，未执行的远程传输和 Windows/Linux 整机验证不计入通过。
+
+## SSH-P0-CONN-10：保存连接数量不设硬上限（2026-10-26）
+
+Accepted。规格见 [虚拟项目 G4 / §3.8](superpowers/specs/2026-09-09-virtual-project-design.md#38-取消保存连接数量上限2026-10-26)。
+通过现有 Host RPC 准备 20 条保存连接记录，再从产品向导连接真实 Docker SSH 远端并选择目录。
+断言第 21 条记录绑定稳定 Source、原有 20 条保留；同设备第二个项目复用该 Source，记录数量不增加。
+随后通过真实 Host RPC 验证确认不同 Source 的写入分支也可超过 20 条，保留旧成员和入口。
+前者是完整 SSH/桌面交互，后者是 Source 身份确认的服务边界验证，不代表真实重装回放。
+候选：`conversation-session/manual-review/pending/conversation-session-ssh-remote-host-capacity.test.ts`。
+无模型请求；保存记录通过服务播种，未经真实连接的准备数据不计为设备连接验证。
+
+2026-10-26 本机 Docker SSH 验证通过：`local-docker-20261026084537-78a931`，新例与 SSH P0、
+连接管理 edit 共 3/3 PASS。修改前第 21 条连接被 `host-limit` 拒绝，修改后新增、复用及确认
+新 Source 均通过；详细证据与验证边界见 [覆盖矩阵](testing/conversation-session-e2e-coverage-matrix.md#ssh-p0-conn-10保存连接数量不设硬上限)。
+
+### CFG：请求校验配置读取恢复
+
+Accepted：临时网络失败复用原模型请求预算并显示可取消的恢复状态；成功继续原消息，耗尽保留原消息并允许明确重试。401/403、无效配置立即失败，不自动循环；取消后的迟到配置不再发送模型请求。不接受全局过期配置回退。候选验证入口及 CFG-01～06 见 `docs/testing/conversation-session-e2e-coverage-matrix.md`。
+
+CFG-04 验证官方版本请求安全校验的业务错误、配置无效与缺失字段；CFG-05 验证有效配置及合法关闭路径。字段细节归入主题规格，仍保持 pending。
+
+CFG-06（accepted）：成功响应头后的配置响应体断流、HTML 503 和 `EAI_AGAIN` 临时 DNS 错误均进入既有重试预算，恢复后仅发送一次原消息；401/403 HTML 与完整但无效的 JSON 仍按 CFG-04 立即失败。DNS 仅替换测试 Host 的外部 fetch 出口，不替换 Provider、分类器、RPC 或 Agent。
+
+## 单任务运行实例重启（SLR，accepted / pending）
+
+规格：`docs/session-task-restart.md`。候选位于 conversation-session/manual-review/pending/conversation-session-runtime-restart.test.ts。
+
+| ID    | 场景                                     | 断言                                                                 |
+| ----- | ---------------------------------------- | -------------------------------------------------------------------- |
+| SLR01 | 已完成任务从标题菜单重启                 | 同一 taskId、历史保留、新订阅就绪、可以续发；草稿保留                |
+| SLR02 | /reload 与生成中菜单重启                 | 旧执行取消、无 /reload 模型请求或用户消息、队列不重放，可以续发      |
+| SLR03 | 同任务多视图与其他任务                   | 所有查看者刷新，其他任务不失效，旧 ACK/frame 不污染新投影            |
+| SLR04 | 启动中、启动失败、投影失败与释放失败     | 初始化串行；可恢复失败可重试；释放失败隔离，显式进程恢复             |
+| SLR05 | AppSlashCommand 面板重启与正文、附件共存 | 选择即执行，仅消费搜索 token；其余草稿保留，不新增用户消息或模型请求 |
+
+SLR01/02 使用真实桌面 UI；/reload 验证本地命令消费，运行中重启由手机菜单发起。SLR03 已覆盖 shared-host 桌面和手机同任务同步；另一任务并行运行、分屏、断网重连未在本例执行。SLR04 的资源所有权与竞态由 CLI 定向测试覆盖，故障注入后的 UI 恢复出口尚未实机验证。pending 不自动晋升 CI。
+
+SLR05（2026-10-27）：真实 Linux Electron 与 390×844 触屏 Web 共用 Host，run `desktop-e2e-20261027103341109-p60256-ceec2ba78163072c` 通过。桌面鼠标/Enter 选择保留正文和图片附件，手机触屏选择保留正文；均不增加用户消息或模型请求。与标题菜单、纯文本 /reload、运行中手机菜单合计六次重启后仍能续发。Plan 三项既有 E2E 同时通过。手机附件、实体手机、Windows/macOS、分屏和断网重连未覆盖；候选继续 pending。
+
+## 远程发布回归候选（2026-10-27）
+
+以下行为均为 accepted；三个新增 spec 保持 `manual-review/pending`，人工确认和正式准入前不进入默认 CI。
+用例声明与一次实跑结果分开记录；执行状态见 [覆盖矩阵](testing/conversation-session-e2e-coverage-matrix.md#远程发布回归候选2026-10-27)。
+
+| Case               | 前置、操作与断言                                                                                                                                                                                                                                                                                 | 候选 spec                                                                                                                                           |
+| ------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ | --------------------------------------------------------------------------------------------------------------------------------------------------- |
+| REL3163-UPGRADE-01 | 用真实 `v3.16.3` 业务构建和 Linux archive，在隔离 HOME 通过 SSH 创建两个项目及任务。完整退出后切换当前业务构建，从产品入口更新远端；校验 archive SHA 换代、原项目身份与任务 ID 保留、历史及续聊正确，再完整重启后续聊。两阶段共用 E2E Electron，不代替正式安装器或 Electron 运行时升级验收。     | `conversation-session/manual-review/pending/conversation-session-release-3163-upgrade.test.ts`；需要 `ZCODE_E2E_BASELINE_ROOT` 指向已构建的真实 tag |
+| REL3170-CAP-01     | 保存旧 3.16.3 设备并关闭启动自动重连。3.17.0 候选首次打开时，离线旧设备的停止/重启入口应隐藏或禁用。记录菜单后恢复自动连接，完成真实升级与历史续聊，最后单独断言旧版本能力限制，保留升级本身的结果。                                                                                             | 复用升级 spec；设置 `ZCODE_E2E_EXPECTED_RELEASE_VERSION=3.17.0` 与 `ZCODE_E2E_CHECK_OLD_LIFECYCLE=1`                                                |
+| DSYNC-15-06        | 两个独立 Linux SSH 容器使用同一 home 路径。用真实 FIFO 挂起 A 的用户命令读取，观察 Core 文件描述符后切到 B；B 可独立加载且只显示 B 内容。释放 A 后迟到响应不覆盖 B；切换 B 命令开关只改 B 配置，A 字节不变。                                                                                     | `conversation-session/manual-review/pending/conversation-session-remote-command-authority-race.test.ts`                                             |
+| DSYNC-SAFE-01      | 在上述双远端隔离场景后，把 B 的 config.json 截成损坏 JSON，再通过 B 命令开关保存。界面明确报错，B 的损坏字节与 A 配置均不被覆盖；结束后恢复夹具文件。                                                                                                                                            | 复用命令隔离 spec                                                                                                                                   |
+| RDUX-13-LIST-01    | 一条真实 SSH 设备加十六条离线持久化记录；在进程退出后写入通过生产 schema 的夹具，再冷启动。验证名称、主机名、地址、项目四类搜索、空结果与清空、展开/收起、最近使用排序及同一面板内顺序冻结；连接返回重建面板后按最近使用排序。保存中英文、深浅主题和窄窗口截图，不把准备记录算作十七台真实连接。 | `conversation-session/manual-review/pending/conversation-session-remote-device-search-list.test.ts`                                                 |
+
+既有回归沿用现行交互：终端等真实 Shell 提示符；Git 从新标签页审查卡片进入；
+项目输入框操作前关闭悬停浮层；生命周期菜单顺序包含重装；设置 Scope 按设备身份断言；
+离线场景恢复后等设备实际在线；日志对比度叠加半透明祖先背景，阈值仍为 4.5。
+项目编辑器 Escape 关闭失败时直接保留失败，不通过取消按钮继续后续路径。
+
+## 草稿、目录与导航更新隔离（RRI05–08，pending）
+
+| ID    | 场景与不变量                                                                                                                         | 验收入口                                                                                                                                                  |
+| ----- | ------------------------------------------------------------------------------------------------------------------------------------ | --------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| RRI05 | 千轮导航中尾轮流式更新不重绘未变预览；hover 只更新变化项；历史修订和裁剪仍更新                                                       | browser/manual-review/pending/render-boundaries.test.mjs                                                                                                  |
+| RRI06 | 项目排序身份稳定；分组无关任务行、工作区选择器不随任务活动更新；项目重命名与最新选择参数仍更新；选中切换只更新相关行                 | browser/manual-review/pending/new-task-rendering.test.mjs 与完整 Electron profile                                                                         |
+| RRI07 | 草稿保存不刷新整页；模式切换保留正文、发送失败恢复、继续输入不被旧结算清空、旧 scope 回调被拒绝；关闭分组后自动保存/卸载不恢复旧归属 | browser/manual-review/pending/render-boundaries.test.mjs 与完整 Electron 草稿输入/发送                                                                    |
+| RRI08 | 长历史查找匹配数、首次定位和上下项正确；普通构建采集 CPU 与布局测量                                                                  | PERF04：首次定位、多命中上下项、单命中离窗回环与可选耗时预算；RRI08 浏览器：历史修订、评论投影、单行大量命中遍历预算、CR-01 无 Range 请求终止及未挂载正例 |
+
+规格：[消息渲染性能](chat/message-render-performance.md)。浏览器路径相对于 `packages/ui/test`；手机布局不等同于远程传输，未运行平台不记为通过。
+
+## 无项目工作区共享 CLI（STCLI）
+
+设计与场景定义见 [shared-task-cli](shared-task-cli.md)。STCLI01–07 已按本期边界接受；本地实跑结果与未覆盖项见 [覆盖矩阵](testing/conversation-session-e2e-coverage-matrix.md#无项目工作区共享-cli-stcli)。用例状态仍为 pending；远端新建无项目和项目移回任务区没有产品入口，不新增。候选 E2E：`manual-review/pending/conversation-session-shared-cli.test.ts`，尚未人工转正或加入 CI。
+
+## SLR06–08 所属工作整体关闭（2026-10-28，accepted / pending）
+
+| 场景  | 前置与操作                                                                 | 断言与验证层                                                                        |
+| ----- | -------------------------------------------------------------------------- | ----------------------------------------------------------------------------------- |
+| SLR06 | 父任务已 idle、后台 Agent 仍运行；桌面与手机分别重启                       | 两端后台计数清零，历史保留、新代 ready、可续发；真实关闭完成由 CLI barrier 回归确认 |
+| SLR07 | 新/旧 workflow 运行中，或 run terminal 但 actor 清理尚未完成；关闭 session | 取消脚本及 actor，等真实收尾后返回；CLI 实例与真实脚本进程测试                      |
+| SLR08 | 创建/恢复子任务与关闭并发，或清理失败                                      | 关闭后拒绝新启动；等待已登记工作；失败不允许新实例，独立 owner 不受影响；CLI 测试   |
+
+本轮不新增生命周期状态或持久 schema。SLR06 复用原 runtime-restart pending E2E，不能用此前通过记录
+证明新场景；SLR07/08 的 CLI 证据不声称覆盖对应 workflow UI。分屏、实体手机与跨机断线仍未覆盖。
+
+SLR06 实跑通过：`desktop-e2e-20261028034551147-p100750-24abd4a9969d2d48`（Linux Electron + 触屏 Web），父 idle/child running 时分别由桌面、手机重启；两端后台计数归零、用户历史保留、新代 ready，并实际收到续发的新回复。SLR07/08 的 CLI 验证及限制见 [实施计划](plans/session-task-restart-implementation.md)。候选仍为 pending。
+
+## SLR09 标题请求在飞时重启（accepted / pending）
+
+前置：首轮正文已完成，标题旁路请求仍在等待响应。动作：桌面标题菜单重启。
+断言：请求证据确认点击时旁路仍未完成；桌面与手机恢复到新 generation 的 ready，历史与草稿保留。
+复用 runtime-restart pending 用例，标题合成响应延迟只用于建立窗口，测试按实际请求状态判断前置；
+不使用延迟作为关闭成功信号。标题取消的信号与真实 drain 由 CLI 回归补充验证。
+
+SLR09 已实跑通过：`desktop-e2e-20261028044310791-p116682-50c5abe8b4f1cc6f`，Linux Electron + 触屏 Web。
+请求捕获确认点击前标题请求 pending，重启后新代 ready、历史/草稿保留，并完成后续对话。
+同轮覆盖 SLR06；shared CLI 另跑 `desktop-e2e-20261028044521734-p118965-9cf426d4f75cd1bc`，1/1。
+证据保留在测试环境，未远端归档；候选仍 pending。
+
+## Composer 首发结算（CST，2026-10-28）
+
+语义 accepted，自动化保持 pending；规格见 `docs/ui/task-scoped-composer-drafts.md` 与
+`docs/ui/chat-composer-placeholder.md`。只改变真实 RPC 的先后顺序，不伪造 CLI 接纳或投影。
+
+| ID    | 前置与动作                                           | 断言                                                                                 |
+| ----- | ---------------------------------------------------- | ------------------------------------------------------------------------------------ |
+| CST01 | 项目草稿输入英文，原生单次 Enter，自然发送           | 一条 sendText，正文清空；清空后不闪新任务提示；同一编辑器节点                        |
+| CST02 | 暂挂真实 sendText，等真实 query 返回 unknown，再释放 | unknown 不结束提交；成功后正文清空，消息仅一条                                       |
+| CST03 | 同 CST02，等待期间改为下一条正文                     | 接纳后保留下一条正文，不恢复或清除它                                                 |
+| CST04 | 暂挂首发，切到新草稿并输入，再释放旧发送             | 旧接纳不修改新草稿；回到原任务无已发送正文残留                                       |
+| CST05 | 实际手机 Web 配对后新建草稿，Enter 换行，再点击发送  | Enter 不发送；按钮首发完成后正文清空，placeholder 不闪回新任务；深浅主题仍可继续输入 |
+
+候选：`packages/desktop/test/e2e/conversation-session/manual-review/pending/conversation-session-composer-settlement.test.ts`。
+既有 A01/PD08 继续验证预热创建单飞；R3A-B-07 继续验证 ACK 丢失与卸载重挂。
+
+### 远控侧栏主导航边界（2026-10-29）
+
+- RSNAV01（accepted / pending）：390/1024px、深浅主题、中英文，home-only 与 workspace bridge 的首次连接、切换设备和刷新后，自动化及插件市场入口均不存在；设备切换、新建任务保留。复用 `packages/web/test/e2e/manual-review/pending/remote-device-switch.mjs`。
+- SNAV01（accepted / pending）：桌面深浅主题、中英文，自动化及插件市场入口均可见，点击后目标导航保持选中，新建任务保留。候选 `packages/desktop/test/e2e/ui-shell/manual-review/pending/sidebar-primary-navigation.test.ts`。
+
+规格：`docs/web-remote-control/mobile-task-home-design.md`。本组不扩大远控能力，不改变桌面导航或 continuous/replayable 边界；不计入 formal / Docker 准入。
+
+## SLR10–11 浏览器释放与命令展示（accepted / pending，2026-10-29）
+
+- SLR10：真实浏览器建页后桌面/手机重启同一任务，旧控制资源释放，标签页保留，新实例可继续操作；
+  自动回收、失败重试和子会话路由由 CLI 回归覆盖，不把 CLI 证据算作对应 GUI 验收。
+  control scope 回归补充明确拒绝/未知响应、释放幂等、关闭屏障、跨路由隔离及子 owner 重试；
+  GUI 使用 user.openTabs/claimTab 重新认领保留的页面，不另建同 URL 的替代页面。
+- SLR11：/reload 名称固定、说明英文，/plan 名称固定；starting/stopping 不显示输入框上方提示，
+  操作限制与失败入口保留。复用 runtime-restart pending 桌面/手机场景。
+
+状态：covered / pending-review。Linux Electron + 390×844 触屏 Chromium 的综合用例通过（`desktop-e2e-20261029080057362-p147032-98e71993dd2030ce`，1 passed / 0 skipped），覆盖菜单、/reload、后台子代理关闭、历史与同一网页保留、重新认领、深浅主题命令展示及无阶段横幅。真实链路日志确认 openScope/releaseScope 到达 Main。前期 renderer preflight 失败因未启用容器运行配置；手机观察器另修复了 evaluate 序列化中的命名函数问题。最终构建曾有一次自动轮尾截图连续超时，导致整例超时；同一构建复跑通过，截图偶发超时根因尚未确认，不归为已解决。CLI/owner/SDK 定向测试 214 项通过，工程 affected 334 passed / 2 skipped。原始证据保留在专用开发节点，MR 附呈现截图；没有验证实体手机、macOS/Windows 或真实远端 workspace。候选未晋升 formal/CI。
+
+SLR10 review 补充（covered / pending-review）：Agent 建立受控页面后、不重启，桌面续发一轮并核对真实 provider 请求含 ambient 浏览器页数和当前 URL；Main 集成同时验证 desktop/mobile 路由，既有手机重启 E2E 继续回归。CLI 覆盖建立响应未知后同 ID 重试、并发共享与关闭竞争，Main 覆盖只读视图和跨实例/会话隔离。
+验证：`desktop-e2e-20261029084156790-p152699-ef4ebbc0f71fa91c`，Linux Electron + 触屏 Chromium，综合用例 1 passed / 0 skipped；新断言确认真实 provider 请求包含 `ambient-ui-state`、1 tab 和 fixture 当前 URL，且仍是同一 guest。Main/broker/resident/workflow 定向 80 项通过；包括两种 clientMode 的读取隔离、无控制 ID 不得激活页面、同 ID 重试与关闭竞争。未扩展真机或真实远端覆盖。
+
+## 会话切换稳定性 SSV（2026-10-29，accepted / pending）
+
+| ID    | 前置与动作                                                            | 断言                                                                                                                        |
+| ----- | --------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------- |
+| SSV01 | 后台受控流运行，离开超过 UI lease 保留期，再从草稿或其他会话切回      | 每帧及 DOM 变化不出现新任务提示；草稿与编辑器身份保留，恢复后仍能停止                                                       |
+| SSV02 | 同一 Host 模型目录已就绪，切换任务触发 selection View 重读            | 历史名称不闪回 Provider ID；工具栏不显示默认模型或恢复滚动动画；跨 owner 不复用旧目录                                       |
+| SSV03 | 尾部 60 行含部分首轮，补齐长历史；跟随与离底阅读                      | 补齐后的每帧相邻轮次不重叠，保持用户滚动归属；桌面/手机与深浅主题                                                           |
+| SSV04 | 从草稿、其他会话和其他工作区切回后台任务；桌面/手机、深浅主题及中英文 | 顶部标题逐帧与 DOM 变化均不出现 UI 默认“新建任务”/“New task”；Host 标题未返回时留空，返回后显示真实标题，不沿用其他任务标题 |
+
+SSV01/02/04 使用真实 Electron、Host 与 CLI；SSV03 同时保留 Electron 冷恢复和共享 Timeline 浏览器验收。候选保持 pending，不计入 formal/CI。
+
+2026-10-26 SAT30 / R3A-TASK-06：父会话真实 Bash cd 后启动 Agent，child 持久化稳定 workspace 身份；退出远端 CLI 与桌面后重新打开原 child，检查新进程身份与原历史正文；随后验证 fork 立即打开及再次重启恢复。macOS Electron + Linux SSH Source、受控模型回放通过，两个重启边界均核对 PID/startTicks 换代。CLI 同时覆盖旧 child 错误 cwd 的两代冷恢复、continuous/replayable 及外部身份拒绝。Host 回归覆盖同目录双项目 fork、facts/ACK 两种顺序、重复交接不覆盖移动、历史远端 NULL 迁移和本地 NULL 保留。未覆盖 Windows 原生运行或实体手机，用例继续保持 pending。
+
+## HF01 / SLR 启动归属修复验收（2026-10-30）
+
+covered，候选不自动晋升 formal/CI：HF01 的持久 root 使用带末尾分隔符的旧路径，Host 保持当前路径；
+真实冷打开先显示历史，初始化完成可续发，随后菜单重启保持同一会话和历史。
+SQLite 路径字段在打开、续发、重启后保持不变。SLR 综合例回归桌面 continuous 与手机 replayable
+的菜单、/reload、所属工作关闭与浏览器重用。CLI 补充上下文冲突、旧协议、父链、慢关闭和必要收尾失败。
+不把 CLI 的路径兼容测试宣称为 Windows 原生 UI 证据。
+
+本轮 Linux 容器真实 Electron + 390×844 触屏 Chromium：2 个 spec、3 项用例全部通过，
+无 skipped、无自动重试；深浅主题、菜单、/reload、所属工作关闭与网页保留均通过。
+HF02 注入的是实例 ready 后的快照读取错误；重试应恢复投影并复用实例，不重新执行 resume hook。
+已将过时的“必须重跑 hook”断言改为 generation 与 hook 次数不变，同时保留历史、草稿和滚动断言。
+运行 ID：`desktop-e2e-20261030130734643-p171148-b5576a1c78002a0f`；原始截图、日志保留在运行环境，
+尚未作为仓库附件归档。持久复验入口为上述 E2E 及其受控 provider fixture。
+本轮未实跑 Windows/macOS 原生 GUI、实体手机或 SSH 远端。
+
+### HF / SLR 启动入口补全回归（2026-11-02）
+
+原 HF01–02、SLR 综合交互预期不变。CLI 增加：continuous/replayable 冷恢复期间异工作区
+ensureReady/restart/resume 必须被拒，同工作区共享一次启动；两种旧 WSL NULL identity 形态
+分别经带 workspace 的普通恢复、ensureReady、restart、V4 订阅成功修复，其他用户 identity
+不能通过且不写库。资源关闭超过 30 秒只记录未完成 owner，不提前成功或失败。
+这些协议与资源断言由 CLI 场景测试负责，不声称覆盖原生 WSL 或跨机 UI。
+
+HF / SLR 激活隔离补充：已有远程实例就绪后，仅替换或删除 workspaceIdentity、保持其他字段不变，
+ensureReady/restart 必须拒绝，原实例不关闭且 generation 不变；正确身份继续可用。由 CLI 协议
+回归直接构造矛盾参数覆盖，正常桌面/手机入口继续沿用 HF/SLR E2E，不增加 UI 行为。

@@ -6,14 +6,14 @@
 
 `Agent` 不是一个普通函数调用，而是一个小型 agent runtime 入口。它根据输入选择一种执行形态：
 
-| 形态 | 触发条件 | 说明 |
-| --- | --- | --- |
-| fresh subagent | 指定 `subagent_type`，或未启用 fork 时省略 `subagent_type` | 新建独立 agent 对话，只拿到本次 `prompt` 和该 agent 自己的 system prompt |
-| fork subagent | fork gate 开启且省略 `subagent_type` | 子 agent 继承父会话历史、system prompt 和精确 tool pool，用于 prompt cache 共享 |
-| background subagent | `run_in_background`、agent 定义 `background: true`、coordinator、assistant mode、fork gate 或 proactive 强制 | 立即返回 task 引用，完成后以通知重新进入主会话 |
-| worktree subagent | `isolation: "worktree"` 或 agent 定义自带 worktree isolation | 在临时 git worktree 中运行，完成后无变更自动清理，有变更保留路径和 branch |
-| remote agent | `isolation: "remote"` | 远程环境执行；ZCode 当前不支持 |
-| teammate spawn | `team_name` 和 `name` 同时存在 | 这是 agent team/swarm，不是普通 subagent，应作为独立工具或独立模式处理 |
+| 形态                | 触发条件                                                                                                     | 说明                                                                            |
+| ------------------- | ------------------------------------------------------------------------------------------------------------ | ------------------------------------------------------------------------------- |
+| fresh subagent      | 指定 `subagent_type`，或未启用 fork 时省略 `subagent_type`                                                   | 新建独立 agent 对话，只拿到本次 `prompt` 和该 agent 自己的 system prompt        |
+| fork subagent       | fork gate 开启且省略 `subagent_type`                                                                         | 子 agent 继承父会话历史、system prompt 和精确 tool pool，用于 prompt cache 共享 |
+| background subagent | `run_in_background`、agent 定义 `background: true`、coordinator、assistant mode、fork gate 或 proactive 强制 | 立即返回 task 引用，完成后以通知重新进入主会话                                  |
+| worktree subagent   | `isolation: "worktree"` 或 agent 定义自带 worktree isolation                                                 | 在临时 git worktree 中运行，完成后无变更自动清理，有变更保留路径和 branch       |
+| remote agent        | `isolation: "remote"`                                                                                        | 远程环境执行；ZCode 当前不支持                                                  |
+| teammate spawn      | `team_name` 和 `name` 同时存在                                                                               | 这是 agent team/swarm，不是普通 subagent，应作为独立工具或独立模式处理          |
 
 关键边界：普通 subagent 不是 OS 子进程，而是在同一进程内创建新的子执行上下文，再运行新的 query loop。外部进程、tmux、in-process teammate 和 remote agent 属于 agent team 或 remote task 分支，不应和普通 subagent 混成一个概念。
 
@@ -21,12 +21,12 @@
 
 模型可见基础输入：
 
-| 字段 | 类型 | 必填 | 说明 |
-| --- | --- | --- | --- |
-| `description` | `string` | 是 | 3 到 5 个词的短描述，用于 UI、task 状态、activity 文案 |
-| `prompt` | `string` | 是 | 给子 agent 的任务正文 |
-| `subagent_type` | `string` | 否 | 要使用的 agent 类型。fork gate 关闭时省略则默认为 `general-purpose`，开启时省略则触发 fork |
-| `run_in_background` | `boolean` | 否 | 请求后台运行。后台任务禁用或 fork gate 开启时 schema 会隐藏该字段 |
+| 字段                | 类型      | 必填 | 说明                                                                                       |
+| ------------------- | --------- | ---- | ------------------------------------------------------------------------------------------ |
+| `description`       | `string`  | 是   | 3 到 5 个词的短描述，用于 UI、task 状态、activity 文案                                     |
+| `prompt`            | `string`  | 是   | 给子 agent 的任务正文                                                                      |
+| `subagent_type`     | `string`  | 否   | 要使用的 agent 类型。fork gate 关闭时省略则默认为 `general-purpose`，开启时省略则触发 fork |
+| `run_in_background` | `boolean` | 否   | 请求后台运行。后台任务禁用或 fork gate 开启时 schema 会隐藏该字段                          |
 
 `Agent` 模型可见输入不包含 invocation 级 `model` 覆盖。旧 transcript 可以保留历史
 `model` 字段，但当前输入 schema 会忽略该字段；child runtime 只消费 Settings 或 Markdown
@@ -34,13 +34,13 @@
 
 扩展输入：
 
-| 字段 | 类型 | 适用范围 | 说明 |
-| --- | --- | --- | --- |
-| `name` | `string` | background subagent 或 teammate | 给 spawned agent 起可寻址名称。background subagent 可通过 `SendMessage({ to: name })` 继续 |
-| `team_name` | `string` | agent team | 与 `name` 一起触发 teammate spawn。省略时可使用当前 team context |
-| `mode` | permission mode | agent team | 主要用于 spawned teammate，例如 `plan` 模式。普通 subagent 不应把它当作子 agent permission override |
-| `isolation` | `"worktree" \| "remote"` | subagent | `worktree` 创建临时 git worktree。`remote` 当前不支持 |
-| `cwd` | `string` | gated | 让子 agent 在指定 cwd 中运行。要求绝对路径，并且与 `isolation: "worktree"` 互斥 |
+| 字段        | 类型                     | 适用范围                        | 说明                                                                                                |
+| ----------- | ------------------------ | ------------------------------- | --------------------------------------------------------------------------------------------------- |
+| `name`      | `string`                 | background subagent 或 teammate | 给 spawned agent 起可寻址名称。background subagent 可通过 `SendMessage({ to: name })` 继续          |
+| `team_name` | `string`                 | agent team                      | 与 `name` 一起触发 teammate spawn。省略时可使用当前 team context                                    |
+| `mode`      | permission mode          | agent team                      | 主要用于 spawned teammate，例如 `plan` 模式。普通 subagent 不应把它当作子 agent permission override |
+| `isolation` | `"worktree" \| "remote"` | subagent                        | `worktree` 创建临时 git worktree。`remote` 当前不支持                                               |
+| `cwd`       | `string`                 | gated                           | 让子 agent 在指定 cwd 中运行。要求绝对路径，并且与 `isolation: "worktree"` 互斥                     |
 
 ZCode 需要把 schema gating 做成能力协商结果，而不是在 tool 内散落 feature flag。`cwd` 的绝对路径和与 worktree 的互斥关系也应进入 `validateInput`，不能只放在 prompt description。
 
@@ -48,29 +48,29 @@ ZCode 需要把 schema gating 做成能力协商结果，而不是在 tool 内�
 
 公开 output schema 主要有两类：
 
-| `status` | 字段 | 说明 |
-| --- | --- | --- |
-| `completed` | `prompt` 加 `agentToolResultSchema` | 同步完成，返回子 agent 最终文本、usage、tool use 数、耗时和 `agentId` |
-| `async_launched` | `agentId`、`description`、`prompt`、`outputFile`、`canReadOutputFile` | 后台启动成功，结果稍后通过 task notification 返回 |
+| `status`         | 字段                                                                  | 说明                                                                  |
+| ---------------- | --------------------------------------------------------------------- | --------------------------------------------------------------------- |
+| `completed`      | `prompt` 加 `agentToolResultSchema`                                   | 同步完成，返回子 agent 最终文本、usage、tool use 数、耗时和 `agentId` |
+| `async_launched` | `agentId`、`description`、`prompt`、`outputFile`、`canReadOutputFile` | 后台启动成功，结果稍后通过 task notification 返回                     |
 
 内部还有两个分支：
 
-| `status` | 说明 |
-| --- | --- |
-| `teammate_spawned` | team/swarm 分支，返回 teammate id、name、team、pane 等信息 |
-| `remote_launched` | remote 分支，返回 remote task id、session URL 和 output file |
+| `status`           | 说明                                                         |
+| ------------------ | ------------------------------------------------------------ |
+| `teammate_spawned` | team/swarm 分支，返回 teammate id、name、team、pane 等信息   |
+| `remote_launched`  | remote 分支，返回 remote task id、session URL 和 output file |
 
 `agentToolResultSchema`：
 
-| 字段 | 类型 | 说明 |
-| --- | --- | --- |
-| `agentId` | `string` | 子 agent ID，也是 transcript/task/output 的关联键 |
-| `agentType` | `string?` | agent 类型。用于 one-shot 内建 agent 跳过 continuation trailer |
-| `content` | `{ type: "text"; text: string }[]` | 子 agent 最终文本块 |
-| `totalToolUseCount` | `number` | 子 agent 内部 tool use 总数 |
-| `totalDurationMs` | `number` | 总耗时 |
-| `totalTokens` | `number` | 最后一条 assistant usage 汇总出的 token 数 |
-| `usage` | provider usage object | input、output、cache、server tool use、service tier 等 |
+| 字段                | 类型                               | 说明                                                           |
+| ------------------- | ---------------------------------- | -------------------------------------------------------------- |
+| `agentId`           | `string`                           | 子 agent ID，也是 transcript/task/output 的关联键              |
+| `agentType`         | `string?`                          | agent 类型。用于 one-shot 内建 agent 跳过 continuation trailer |
+| `content`           | `{ type: "text"; text: string }[]` | 子 agent 最终文本块                                            |
+| `totalToolUseCount` | `number`                           | 子 agent 内部 tool use 总数                                    |
+| `totalDurationMs`   | `number`                           | 总耗时                                                         |
+| `totalTokens`       | `number`                           | 最后一条 assistant usage 汇总出的 token 数                     |
+| `usage`             | provider usage object              | input、output、cache、server tool use、service tier 等         |
 
 模型可见序列化不是原样 JSON：
 
@@ -98,34 +98,34 @@ ZCode 的用户／项目自定义 Markdown 仅从各自 `agents` 根目录直接
 
 agent definition 有三类来源：
 
-| 来源 | 说明 |
-| --- | --- |
-| built-in | 代码内建，system prompt 动态生成 |
-| custom | 用户、项目、policy、flag settings 中的 markdown 或 JSON agent |
-| plugin | plugin 提供的 agent，agent type 会带 plugin namespace |
+| 来源     | 说明                                                          |
+| -------- | ------------------------------------------------------------- |
+| built-in | 代码内建，system prompt 动态生成                              |
+| custom   | 用户、项目、policy、flag settings 中的 markdown 或 JSON agent |
+| plugin   | plugin 提供的 agent，agent type 会带 plugin namespace         |
 
 agent definition 的核心字段：
 
-| 字段 | 说明 |
-| --- | --- |
-| `agentType` | 模型调用 `subagent_type` 时使用的稳定名称 |
-| `whenToUse` | 写入 Agent tool prompt 的选择说明 |
-| `getSystemPrompt` | 子 agent system prompt |
-| `tools` | 允许 tool spec。省略或 `["*"]` 表示可用全集经过 filter 后全部允许 |
-| `disallowedTools` | 在允许全集上再次剔除 |
-| `model` | agent 默认模型，`inherit` 表示继承父模型 |
-| `effort` | 推理 effort 覆盖 |
-| `permissionMode` | agent 内部工具权限模式。普通 worker 默认使用 `acceptEdits` |
-| `maxTurns` | agent 内部 query loop 最大轮数 |
-| `skills` | 启动时预加载的 prompt skill |
-| `mcpServers` | child 可见的 parent MCP server 范围；设计上可支持引用或 inline config，ZCode 当前只接受 parent server name 列表 |
-| `requiredMcpServers` | agent 可用性前置条件，必须有匹配 server 且有工具 |
-| `hooks` | agent 生命周期内注册的 session scoped hooks |
-| `background` | agent 总是后台运行 |
-| `initialPrompt` | agent 初始 prompt 扩展 |
-| `memory` | user/project/local agent memory |
-| `isolation` | agent 默认隔离模式 |
-| `injectAgentsMd` | 是否向 child 注入 AGENTS.md；只读内建 agent 默认不注入以省 token，见下文 |
+| 字段                 | 说明                                                                                                                                                                                                                                                           |
+| -------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `agentType`          | 模型调用 `subagent_type` 时使用的稳定名称                                                                                                                                                                                                                      |
+| `whenToUse`          | 写入 Agent tool prompt 的选择说明                                                                                                                                                                                                                              |
+| `getSystemPrompt`    | 子 agent system prompt                                                                                                                                                                                                                                         |
+| `tools`              | 允许 tool spec。省略或 `["*"]` 表示可用全集经过 filter 后全部允许                                                                                                                                                                                              |
+| `disallowedTools`    | 在允许全集上再次剔除                                                                                                                                                                                                                                           |
+| `model`              | agent 默认模型，`inherit` 表示继承父模型                                                                                                                                                                                                                       |
+| `effort`             | 推理 effort 覆盖                                                                                                                                                                                                                                               |
+| `permissionMode`     | agent 内部工具权限模式。ZCode 省略时继承父会话模式与 Plan 状态（内置 Explore 相同）；父为 guarded 时，yolo（含 `bypassPermissions`、`dontAsk`）一律收紧为 guarded。用户级 profile 按声明生效，项目级 profile 忽略，插件 profile 只能收紧，见「ZCode 当前实现」 |
+| `maxTurns`           | agent 内部 query loop 最大轮数                                                                                                                                                                                                                                 |
+| `skills`             | 启动时预加载的 prompt skill                                                                                                                                                                                                                                    |
+| `mcpServers`         | child 可见的 parent MCP server 范围；设计上可支持引用或 inline config，ZCode 当前只接受 parent server name 列表                                                                                                                                                |
+| `requiredMcpServers` | agent 可用性前置条件，必须有匹配 server 且有工具                                                                                                                                                                                                               |
+| `hooks`              | agent 生命周期内注册的 session scoped hooks                                                                                                                                                                                                                    |
+| `background`         | agent 总是后台运行                                                                                                                                                                                                                                             |
+| `initialPrompt`      | agent 初始 prompt 扩展                                                                                                                                                                                                                                         |
+| `memory`             | user/project/local agent memory                                                                                                                                                                                                                                |
+| `isolation`          | agent 默认隔离模式                                                                                                                                                                                                                                             |
+| `injectAgentsMd`     | 是否向 child 注入 AGENTS.md；只读内建 agent 默认不注入以省 token，见下文                                                                                                                                                                                       |
 
 加载优先级是 built-in、plugin、user、project、flag、managed 逐组覆盖，同名 agent 后面的源会覆盖前面的源。解析失败的 markdown 只在看起来像 agent 文件时进入 `failedFiles`。
 
@@ -133,11 +133,11 @@ agent definition 的核心字段：
 
 ZCode 的 custom agent Markdown 额外支持可选 frontmatter 字段 `injectAgentsMd: boolean`。它只控制 child request 是否注入父 runtime 已解析的 AGENTS.md，不改变 agent system prompt：
 
-| Profile | `injectAgentsMd` 缺省行为 |
-| --- | --- |
-| 内建 `general-purpose` | 注入 |
-| 内建 `Explore` | 不注入 |
-| custom | 注入；显式设为 `false` 时关闭 |
+| Profile                | `injectAgentsMd` 缺省行为     |
+| ---------------------- | ----------------------------- |
+| 内建 `general-purpose` | 注入                          |
+| 内建 `Explore`         | 不注入                        |
+| custom                 | 注入；显式设为 `false` 时关闭 |
 
 child runtime 只接收父 runtime `contextSourceSnapshot.userInstructions` 的快照；父级没有 snapshot 时不注入，也不在 child 中重新读取文件或构造 fallback。provider-visible 位置与 Main 相同，复用 Main 的 Request User Context formatter：
 
@@ -170,7 +170,7 @@ child 的初始 context snapshot 只由父级传下的配置组成（envInfo、�
 
 子 agent 不是简单继承父工具。普通 subagent 使用：
 
-1. 用 agent 的 `permissionMode` 生成 worker permission context，默认 `acceptEdits`。
+1. 用 agent 的 `permissionMode` 生成 worker permission context。ZCode 省略时继承父会话模式，按来源的规则见「ZCode 当前实现」。
 2. 按 worker permission context 和当前 MCP tools 组装候选工具。
 3. 应用 agent 的 `tools`、`disallowedTools` 和全局 subagent 过滤（区分同步与后台 agent）。
 4. agent 专属 MCP server 初始化后，其 MCP tools 与 resolved tools 合并并按 name 去重。
@@ -245,16 +245,16 @@ sync 转 background：
 
 子执行上下文默认隔离所有可变状态：
 
-| 状态 | 默认行为 |
-| --- | --- |
-| read file state | 从 parent clone，结束时 clear |
-| abort controller | 新 child controller。同步 Agent 可以显式共享 parent controller，后台 agent 使用独立 controller |
-| app state 读取 | 默认标记为避免权限弹窗，防止后台 agent 弹交互权限 |
-| app state 写入 | 默认 no-op。需要 task 注册和 kill 时只通过 task 专用入口写 root store |
-| response length | 可选择共享，让子 agent 计入父响应 metrics |
-| memory/skill/dynamic triggers | fresh Set |
-| content replacement state | clone parent，fork 用于保持 cache replacement 决策一致 |
-| query tracking | 新 chain id，depth 在 parent 基础上加一 |
+| 状态                          | 默认行为                                                                                       |
+| ----------------------------- | ---------------------------------------------------------------------------------------------- |
+| read file state               | 从 parent clone，结束时 clear                                                                  |
+| abort controller              | 新 child controller。同步 Agent 可以显式共享 parent controller，后台 agent 使用独立 controller |
+| app state 读取                | 默认标记为避免权限弹窗，防止后台 agent 弹交互权限                                              |
+| app state 写入                | 默认 no-op。需要 task 注册和 kill 时只通过 task 专用入口写 root store                          |
+| response length               | 可选择共享，让子 agent 计入父响应 metrics                                                      |
+| memory/skill/dynamic triggers | fresh Set                                                                                      |
+| content replacement state     | clone parent，fork 用于保持 cache replacement 决策一致                                         |
+| query tracking                | 新 chain id，depth 在 parent 基础上加一                                                        |
 
 child 运行时还会：
 
@@ -276,11 +276,11 @@ ZCode 不再写入独立的 `transcript.jsonl` 文件。子 agent 的 messages/p
 
 metadata 至少保存：
 
-| 字段 | 说明 |
-| --- | --- |
-| `agentType` | resume 时恢复原 agent 类型。fork resume 需要知道它是 `fork` |
-| `worktreePath` | worktree agent resume 时恢复 cwd |
-| `description` | notification 用原始描述 |
+| 字段           | 说明                                                        |
+| -------------- | ----------------------------------------------------------- |
+| `agentType`    | resume 时恢复原 agent 类型。fork resume 需要知道它是 `fork` |
+| `worktreePath` | worktree agent resume 时恢复 cwd                            |
+| `description`  | notification 用原始描述                                     |
 
 `SendMessage` 可以继续一个已 spawned subagent：
 
@@ -301,13 +301,13 @@ transcript sidecar。
 
 ZCode 建议拆成两层声明：
 
-| 维度 | 建议 |
-| --- | --- |
-| `orchestrationReadOnly` | `true`，spawn 本身不直接写文件、跑命令或联网 |
-| `effectiveReadOnly` | 动态，取决于 agent tool pool、permission mode、prompt intent、isolation 和 background |
-| `sideEffectScope` | `session`、`workspace`、`git`、`network`、`system`、`userInteraction` 的并集 |
-| `concurrencySafe` | spawn 编排可并发，但同一 worktree/cwd 的写工具仍需由底层工具和 file locks 保护 |
-| `destructive` | 如果 agent 可用写入、shell、git 或 network tool，则应提升为潜在 destructive |
+| 维度                    | 建议                                                                                  |
+| ----------------------- | ------------------------------------------------------------------------------------- |
+| `orchestrationReadOnly` | `true`，spawn 本身不直接写文件、跑命令或联网                                          |
+| `effectiveReadOnly`     | 动态，取决于 agent tool pool、permission mode、prompt intent、isolation 和 background |
+| `sideEffectScope`       | `session`、`workspace`、`git`、`network`、`system`、`userInteraction` 的并集          |
+| `concurrencySafe`       | spawn 编排可并发，但同一 worktree/cwd 的写工具仍需由底层工具和 file locks 保护        |
+| `destructive`           | 如果 agent 可用写入、shell、git 或 network tool，则应提升为潜在 destructive           |
 
 权限规则：
 
@@ -315,6 +315,7 @@ ZCode 建议拆成两层声明：
 - auto mode 下直接 allow。
 - 子 agent 不应自动继承父 agent 的 tool 限制；它通过自己的 tool pool 和 permission mode 重新组装。
 - 但当父权限模式是 `bypassPermissions`、`acceptEdits` 或 `auto` 时，子 agent 会继承该能力边界，不允许 agent definition 覆盖成更低权限。这是高风险点。
+- ZCode 当前规则与上一条不同：子会话模式按 profile 来源决定，插件声明只能收紧，见「ZCode 当前实现」。
 - async agent 默认避免弹权限 prompt，除非 permission mode 是 `bubble` 或显式允许显示 prompt。
 - `AskUserQuestion` 在 subagent 内默认不可用，避免子 agent 直接向用户发起交互。
 
@@ -397,8 +398,8 @@ ZCode 应把 hook/MCP/skill 都视为外部 I/O 或扩展边界，必须带 trac
   broad file/code search。Windows CMD 或 legacy shell fallback 无法注入 Bash function 时，
   才回到 non-embedded/direct 分支并暴露 `Glob/Grep`。
 - child tool pool 按 embedded search branch 切换：默认为 `Bash`、`Read`、`WebFetch`、`WebSearch`、`TodoWrite`；direct fallback branch 额外包含 `Glob`、`Grep`。它始终显式排除 `Agent`、`Write`、`Edit`、`ApplyPatch`、`Skill`、`AskUserQuestion` 等递归、写入或用户交互能力。
-- `Agent` 自身声明为编排层 read-only、`sideEffectScope: session`、不需要审批；实际文件读取仍由 child 的 read-only tool 走各自 schema、权限和 trace。`Bash` 是 child tool pool 中唯一可能产生副作用的入口，其只读约束由 Explore system prompt 的 read-only 禁令和缺失文件写工具共同承担。
-- child runtime 使用 `yolo` mode 和专用 Explore system prompt；`plan` mode 会因 Bash 非 read-only 而拦截 Explore 的只读 shell 查询，因此该阶段通过 tool allowlist 和 Explore system prompt 约束只读语义。业务代码通过 `SubagentPort` 调度，不直接依赖 runtime 内部实现。
+- `Agent` 自身声明为编排层 read-only、`sideEffectScope: session`、不需要审批；实际文件读取仍由 child 的 read-only tool 走各自 schema、权限和 trace。`Bash` 是 child tool pool 中唯一可能产生副作用的入口；它的只读约束由权限层（继承父会话模式与 Plan 状态，shell AST 判定只读，见下一条）、Explore system prompt 的 read-only 禁令和缺失文件写工具共同承担。
+- child runtime 继承父会话的权限模式、Plan 状态和权限服务（allowedTools、disallowedTools、会话内授权），配专用 Explore system prompt。Bash 是否只读由 shell AST 判定：只读命令放行；非只读命令在父会话 build/edit 下请求审批（代理回父会话），在 Plan 下拒绝，在 yolo 下放行，在 guarded 下命中危险命令规则时单次确认、其余放行；WebFetch 同样按父会话模式判定。修复原因：Explore 曾固定以 yolo 和独立权限服务运行，只靠 prompt 约束只读，提示注入后模型可经 `Agent(Explore)` 在 build 或 Plan 父会话下免审批执行任意 Bash。业务代码通过 `SubagentPort` 调度，不直接依赖 runtime 内部实现。
 
 后台 subagent 的原始设计来源见 [Background Subagent 第一版实施规划（历史）](./07-subagent-background-plan.md)。该文档用于解释第一版 lifecycle 取舍，不覆盖本节和 `RespondToCoordinator` 当前契约。
 
@@ -416,7 +417,9 @@ ZCode 应把 hook/MCP/skill 都视为外部 I/O 或扩展边界，必须带 trac
 - 模型可见工具名仍为 `Agent`；`subagent_type` 省略时默认 `general-purpose`，显式值通过当前 runtime 已加载的 agent profile 解析。
 - profile-backed agent 支持同步运行和 `run_in_background: true`。后台任务继续使用 `RuntimeTaskRegistry`、child session、completion notification 和 runtime command queue，不建立第二套任务状态。
 - runtime 仅在 `SubagentPort.sendMessage` 可用时注册模型可见 `SendMessage`；当前 profile-backed child 固定关闭 subagent 能力且不注入该 port，因此不会注册 `SendMessage`。若未来 child 提供该 port，tool allowlist/disallowlist 仍会继续过滤模型可见工具。
-- 内建 agent 包含默认的 `general-purpose` 和只读搜索用的 `Explore`；project/user profile 可以覆盖 system prompt、tool policy、model、permission mode、skills 和 background 设置。profile 的 `tools: ["*"]` 仍需经过全局 child tool filter、profile `disallowedTools` 和 runtime allow/disallow 规则收敛。
+- 内建 agent 包含默认的 `general-purpose` 和只读搜索用的 `Explore`；project/user profile 可以覆盖 system prompt、tool policy、model、skills 和 background 设置，permission mode 见下一条。profile 的 `tools: ["*"]` 仍需经过全局 child tool filter、profile `disallowedTools` 和 runtime allow/disallow 规则收敛。
+- 子会话权限模式：profile 省略 `permissionMode` 时继承父会话模式与 Plan 状态，内置 Explore 相同；父为 guarded 时，任何来源的 yolo（含 `bypassPermissions`、`dontAsk`）都收紧为 guarded。用户级 profile 按声明生效；项目级 profile 的声明在解析时剥离；插件 profile（官方与第三方同一规则）只在比父会话模式更严格时生效，严格程度从严到宽为 plan、build、edit、guarded、yolo，`auto` 未实现，按继承处理。规则与威胁边界见 [项目配置信任边界](../../../../../../docs/security/deep-link-project-trust-boundary.md)。
+- 用 `SendMessage` 恢复已结束的子会话时，按父会话**当前**的模式与 Plan 状态重新计算子会话模式（规则同上），覆盖子会话落盘时的执行状态。修复原因：恢复路径曾沿用子会话落盘的模式，父会话从 yolo 改为 build 后恢复的子会话仍以 yolo 运行，升级前落盘为 yolo 的 Explore 与插件 bypass 子会话也不受上述规则约束，父会话开启 Plan 后恢复的子会话也不在 Plan。
 - provider-visible `TaskStop` 可以停止当前 runtime 中已经 background 的 `local_agent` / `local_bash`；`local_agent` 的 result `command` 使用短 `description`，不得回退为完整 `prompt`。
 
 ### Built-in Explore 身份边界

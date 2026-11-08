@@ -19,20 +19,24 @@ provider-visible output 以本文“模型 result 映射规则”为基线。
 
 `Bash` 输入是严格对象：
 
-| 字段 | 类型 | 必填 | 说明 |
-| --- | --- | --- | --- |
-| `command` | `string` | 是 | 要执行的命令 |
-| `timeout` | `number` | 否 | 前台等待预算，毫秒，受最大值限制；任务提交到后台后该预算立即失效 |
-| `description` | `string` | 否 | 人类可读的主动语态说明，用于 UI 和权限说明 |
-| `run_in_background` | `boolean` | 否 | 是否转为后台任务。启动结果返回任务 ID 和输出文件路径；完成后向模型注入短通知 |
-| `dangerouslyDisableSandbox` | `boolean` | 否 | 请求绕过 sandbox，受策略控制 |
+| 字段                        | 类型      | 必填 | 说明                                                                         |
+| --------------------------- | --------- | ---- | ---------------------------------------------------------------------------- |
+| `command`                   | `string`  | 是   | 要执行的命令                                                                 |
+| `timeout`                   | `number`  | 否   | 前台等待预算，毫秒，受最大值限制；任务提交到后台后该预算立即失效             |
+| `description`               | `string`  | 否   | 人类可读的主动语态说明，用于 UI 和权限说明                                   |
+| `run_in_background`         | `boolean` | 否   | 是否转为后台任务。启动结果返回任务 ID 和输出文件路径；完成后向模型注入短通知 |
+| `dangerouslyDisableSandbox` | `boolean` | 否   | 请求绕过 sandbox，受策略控制                                                 |
 
 `timeout`、`run_in_background` 和 `dangerouslyDisableSandbox` 在 provider-facing JSON Schema
 中仍分别是 `number` / `boolean`，但 runtime validation 兼容常见 semantic 输出，例如
 `"30000"`、`"true"`、`"false"`、`"1"`、`"0"`。
 
 `argv`、`cwd` 和 `env` 不属于 Bash tool 的模型可见输入。模型只负责拼 shell command；工作目录
-来自 session cwd，环境变量使用执行 adapter 的默认继承策略。`ExecutionPort` 可以继续保留
+来自 session cwd，环境变量使用执行 adapter 的默认继承策略，并在其上固定设置会话上下文变量：
+`CLAUDE_CODE_SESSION_ID`、`CLAUDE_SESSION_ID`、`ZCODE_SESSION_ID` 为当前会话 ID，
+`CLAUDE_PROJECT_DIR`、`ZCODE_PROJECT_DIR` 为会话工作区根目录（会话创建时的工作目录，不随 `cd`
+变化）。这组变量与 hooks 的插件环境一致，自定义命令 `!` 块转交给 Bash 后、以及插件脚本在
+自身进程里读取时都依赖它们。`ExecutionPort` 可以继续保留
 `argv/cwd/env` 给 hooks、内部 runner 或后续非模型调用使用，但不得通过 Bash tool schema 暴露给模型。
 
 `_simulatedSedEdit` 一类内部字段不进入模型 schema。ZCode 如支持内部扩展字段，必须与模型可见 schema 分离，防止绕过权限或 sandbox。
@@ -41,23 +45,23 @@ provider-visible output 以本文“模型 result 映射规则”为基线。
 
 输出：
 
-| 字段 | 类型 | 说明 |
-| --- | --- | --- |
-| `stdout` | `string` | Bash command 的 stdout/stderr 按 Node `data` 回调顺序合并后的输出 |
-| `stderr` | `string` | execution framework 错误、timeout/cancel 信息或 shell reset 提示 |
-| `rawOutputPath` | `string?` | 大 MCP 输出原始路径 |
-| `interrupted` | `boolean` | 是否被中断 |
-| `isImage` | `boolean?` | stdout 是否是图片数据 |
-| `backgroundTaskId` | `string?` | 后台任务 ID |
-| `backgroundedByUser` | `boolean?` | 是否用户手动后台化 |
-| `assistantAutoBackgrounded` | `boolean?` | 是否被 assistant mode 自动后台化 |
-| `dangerouslyDisableSandbox` | `boolean?` | 是否请求绕过 sandbox |
-| `returnCodeInterpretation` | `string?` | 特殊返回码解释 |
-| `noOutputExpected` | `boolean?` | 成功时是否预期无输出 |
-| `structuredContent` | `any[]?` | 结构化内容块 |
-| `persistedOutputPath` | `string?` | 大输出落盘路径 |
-| `persistedOutputSize` | `number?` | 大输出原始大小 |
-| `ghRateLimitHint` | `string?` | 未失败的前台 `gh` 结果的原始 stdout 命中 rate limit 时，追加给模型的 system-reminder |
+| 字段                        | 类型       | 说明                                                                                 |
+| --------------------------- | ---------- | ------------------------------------------------------------------------------------ |
+| `stdout`                    | `string`   | Bash command 的 stdout/stderr 按 Node `data` 回调顺序合并后的输出                    |
+| `stderr`                    | `string`   | execution framework 错误、timeout/cancel 信息或 shell reset 提示                     |
+| `rawOutputPath`             | `string?`  | 大 MCP 输出原始路径                                                                  |
+| `interrupted`               | `boolean`  | 是否被中断                                                                           |
+| `isImage`                   | `boolean?` | stdout 是否是图片数据                                                                |
+| `backgroundTaskId`          | `string?`  | 后台任务 ID                                                                          |
+| `backgroundedByUser`        | `boolean?` | 是否用户手动后台化                                                                   |
+| `assistantAutoBackgrounded` | `boolean?` | 是否被 assistant mode 自动后台化                                                     |
+| `dangerouslyDisableSandbox` | `boolean?` | 是否请求绕过 sandbox                                                                 |
+| `returnCodeInterpretation`  | `string?`  | 特殊返回码解释                                                                       |
+| `noOutputExpected`          | `boolean?` | 成功时是否预期无输出                                                                 |
+| `structuredContent`         | `any[]?`   | 结构化内容块                                                                         |
+| `persistedOutputPath`       | `string?`  | 大输出落盘路径                                                                       |
+| `persistedOutputSize`       | `number?`  | 大输出原始大小                                                                       |
+| `ghRateLimitHint`           | `string?`  | 未失败的前台 `gh` 结果的原始 stdout 命中 rate limit 时，追加给模型的 system-reminder |
 
 模型可见结果需要处理：
 
@@ -233,31 +237,31 @@ flowchart LR
 
 输入语义：
 
-| 字段 | 说明 |
-| --- | --- |
-| `command.mode = "shell"` | Bash tool 使用的执行模式。模型提供的 `command` 作为 shell command 执行 |
-| `command.mode = "argv"` | ExecutionPort 的内部执行模式。hooks、配置 runner 或后续非模型调用可用，不暴露给 Bash tool schema |
-| `cwd` | Bash tool 必须传入 session cwd 解析出的绝对路径；不得从 tool input 接收 cwd，也不允许 adapter 隐式回退宿主进程当前目录 |
-| `env` | Bash tool 不从模型输入接收 env overlay。ExecutionPort 仍保留该字段给内部调用，adapter 负责 Windows 环境变量大小写差异 |
-| `timeoutMs` | 普通 `run()` 的单次执行超时；Bash background lifecycle 会把它解释为前台等待预算，并在后台提交时清除 |
-| `signal` | 取消信号。取消必须进入结构化 `cancelled` 状态并触发进程树清理 |
-| `sandbox` | sandbox 策略请求。第一版可以是 no-op，但字段必须贯穿 trace 和审计 |
-| `outputLimit` | generic execution 仍按 stdout/stderr 双流预算；Bash 使用单一合并输出预算，运行期每 5 秒检查严格大于 `5GiB` 的软阈值，正常前台保留完整文件。超出 inline 预算后只返回前缀并标记 `truncated` |
-| `onEvent` | 流式事件回调，Bash 覆盖 `started`、`progress`、`completed`、`failed`，不产生逐 chunk 事件；通用执行保留 `stdout`/`stderr` |
-| `close()` | 可选 adapter 生命周期方法。宿主 app/session 正常关闭时调用；必须尽力取消并清理该 adapter 仍持有的前台/后台 shell 进程树 |
+| 字段                     | 说明                                                                                                                                                                                              |
+| ------------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `command.mode = "shell"` | Bash tool 使用的执行模式。模型提供的 `command` 作为 shell command 执行                                                                                                                            |
+| `command.mode = "argv"`  | ExecutionPort 的内部执行模式。hooks、配置 runner 或后续非模型调用可用，不暴露给 Bash tool schema                                                                                                  |
+| `cwd`                    | Bash tool 必须传入 session cwd 解析出的绝对路径；不得从 tool input 接收 cwd，也不允许 adapter 隐式回退宿主进程当前目录                                                                            |
+| `env`                    | Bash tool 不从模型输入接收 env overlay。handler 固定设置会话 ID 与会话工作区根目录变量（见上文），其余继承默认策略。ExecutionPort 仍保留该字段给内部调用，adapter 负责 Windows 环境变量大小写差异 |
+| `timeoutMs`              | 普通 `run()` 的单次执行超时；Bash background lifecycle 会把它解释为前台等待预算，并在后台提交时清除                                                                                               |
+| `signal`                 | 取消信号。取消必须进入结构化 `cancelled` 状态并触发进程树清理                                                                                                                                     |
+| `sandbox`                | sandbox 策略请求。第一版可以是 no-op，但字段必须贯穿 trace 和审计                                                                                                                                 |
+| `outputLimit`            | generic execution 仍按 stdout/stderr 双流预算；Bash 使用单一合并输出预算，运行期每 5 秒检查严格大于 `5GiB` 的软阈值，正常前台保留完整文件。超出 inline 预算后只返回前缀并标记 `truncated`         |
+| `onEvent`                | 流式事件回调，Bash 覆盖 `started`、`progress`、`completed`、`failed`，不产生逐 chunk 事件；通用执行保留 `stdout`/`stderr`                                                                         |
+| `close()`                | 可选 adapter 生命周期方法。宿主 app/session 正常关闭时调用；必须尽力取消并清理该 adapter 仍持有的前台/后台 shell 进程树                                                                           |
 
 后台与大输出策略：
 
-| 场景      | 行为                                                                                                                                                    |
-| --------- | ------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| 前台 Bash | 默认等待预算 `120000ms`，默认最大值 `600000ms`；eligible 命令到达预算后提交为后台任务，首 token 为 `sleep` 的命令则返回结构化 `timed_out`；tool executor 的外层 timeout 只保留清理宽限期 |
-| 后台 Bash | `run_in_background=true` 在进程启动成功后立即提交后台；无论是否显式传入 `timeout`，提交动作都必须清除前台 deadline 并解绑 parent turn abort，不能把前台预算误当后台任务寿命 |
+| 场景      | 行为                                                                                                                                                                                             |
+| --------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| 前台 Bash | 默认等待预算 `120000ms`，默认最大值 `600000ms`；eligible 命令到达预算后提交为后台任务，首 token 为 `sleep` 的命令则返回结构化 `timed_out`；tool executor 的外层 timeout 只保留清理宽限期         |
+| 后台 Bash | `run_in_background=true` 在进程启动成功后立即提交后台；无论是否显式传入 `timeout`，提交动作都必须清除前台 deadline 并解绑 parent turn abort，不能把前台预算误当后台任务寿命                      |
 | 大输出    | Bash 默认 inline limit 为 `30000` bytes，`BASH_MAX_OUTPUT_LENGTH` 按十进制 `parseInt` 解析，非法或非正数回退 `30000`，最大 `150000`；普通前台 retained file 保留完整原始输出，返回读取时观测大小 |
-| 后台事件  | 后台任务启动、状态更新和完成必须转成 session event。TUI/GUI 只消费 session event，不直接读取 adapter 内部状态                                           |
-| 模型通知  | 后台任务完成类事件只注入短通知和日志路径；      原始日志留在输出文件中，模型需要时通过 `Read` 获取                                                   |
-| compact   | 后台任务原始日志不进入模型消息正文，避免 compact 把长日志写入对话上下文；compact 只保留短通知、事件投影视图和 artifact 引用                             |
-| resume    | 第一阶段只恢复事件与消息中已持久化的后台任务信息；如果进程属于上一 CLI 进程的内存任务且无法重新连接，必须在产品语义上视为 lost/orphaned，不假装仍可控制 |
-| shutdown  | 宿主 app/session 关闭时，必须先调用 `ExecutionPort.close()`。adapter 需要尽力停止自己拉起且仍可追踪的前台/后台进程树，再释放内部状态；只有无法重新连接的旧进程才允许落成 `lost/orphaned` |
+| 后台事件  | 后台任务启动、状态更新和完成必须转成 session event。TUI/GUI 只消费 session event，不直接读取 adapter 内部状态                                                                                    |
+| 模型通知  | 后台任务完成类事件只注入短通知和日志路径； 原始日志留在输出文件中，模型需要时通过 `Read` 获取                                                                                                    |
+| compact   | 后台任务原始日志不进入模型消息正文，避免 compact 把长日志写入对话上下文；compact 只保留短通知、事件投影视图和 artifact 引用                                                                      |
+| resume    | 第一阶段只恢复事件与消息中已持久化的后台任务信息；如果进程属于上一 CLI 进程的内存任务且无法重新连接，必须在产品语义上视为 lost/orphaned，不假装仍可控制                                          |
+| shutdown  | 宿主 app/session 关闭时，必须先调用 `ExecutionPort.close()`。adapter 需要尽力停止自己拉起且仍可追踪的前台/后台进程树，再释放内部状态；只有无法重新连接的旧进程才允许落成 `lost/orphaned`         |
 
 UI / ZCode app-server 后台任务面板契约：
 
@@ -330,7 +334,7 @@ ZCode 的 Bash v2 按本项目的 `ExecutionPort`、session event、permission s
   全文件落入尾读时直接计数，否则按原始字节比例估算并保持估计值不下降。
   同一 Node 进程/内部周期共用进度 interval；约 2 秒后订阅，下一 tick 尾读，最后一个订阅退出即释放。
   慢读取不叠加且不阻塞其他任务；终态/后台移交拒绝迟到结果。大小 watchdog 仍逐任务管理。
-  ExecutionEvent -> ToolCallProgress -> V4 ToolCallRow.outputPreview  -> Execute renderer；
+  ExecutionEvent -> ToolCallProgress -> V4 ToolCallRow.outputPreview -> Execute renderer；
   桌面 continuous 与手机 replayable 复用现有各自通道；后台移交或终态清除预览。
 - direct file output：子进程直接写同一 canonical 文件；无 collector、WriteStream 或 data listener。
   通用 argv/Hook 仍为双 pipe。Windows 按宿主使用 "w"，POSIX append/no-follow，路径只打开一次。
@@ -365,13 +369,13 @@ ZCode 的 Bash v2 按本项目的 `ExecutionPort`、session event、permission s
 
 输出语义：
 
-| 字段 | 说明 |
-| --- | --- |
-| `status` | `completed`、`failed`、`timed_out`、`cancelled` 或 `spawn_error` |
+| 字段                  | 说明                                                             |
+| --------------------- | ---------------------------------------------------------------- |
+| `status`              | `completed`、`failed`、`timed_out`、`cancelled` 或 `spawn_error` |
 | `exitCode` / `signal` | 子进程真实退出状态。非零退出码不抛异常，由调用方按 tool 语义解释 |
-| `stdout` / `stderr` | 每路输出包含 `text`、`bytes`、`truncated` 和可选 artifact 引用 |
-| `durationMs` | 从 spawn 请求到进程完成或被清理完成的耗时 |
-| `error` | 仅用于启动失败、sandbox 失败、不可恢复 I/O 异常等结构化错误 |
+| `stdout` / `stderr`   | 每路输出包含 `text`、`bytes`、`truncated` 和可选 artifact 引用   |
+| `durationMs`          | 从 spawn 请求到进程完成或被清理完成的耗时                        |
+| `error`               | 仅用于启动失败、sandbox 失败、不可恢复 I/O 异常等结构化错误      |
 
 第一阶段落地范围：
 

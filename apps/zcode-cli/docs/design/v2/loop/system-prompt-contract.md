@@ -36,10 +36,10 @@ mode; selecting another work mode exits Beta and clears legacy fusion behavior.
 
 ## Stable Sections
 
-| Section              | Purpose                                                                                                       |
-| -------------------- | ------------------------------------------------------------------------------------------------------------- |
-| Static Default Body  | ZCode role, authorized-security boundary, and compact harness guidance.                                       |
-| Dynamic Default Body | Code style, pronouns, risk guidance, session guidance, memory, and context management.                        |
+| Section              | Purpose                                                                                |
+| -------------------- | -------------------------------------------------------------------------------------- |
+| Static Default Body  | ZCode role, authorized-security boundary, and compact harness guidance.                |
+| Dynamic Default Body | Code style, pronouns, risk guidance, session guidance, memory, and context management. |
 
 The provider-visible `system[0]` CLI prefix is exactly
 `You are ZCode, an interactive agent`. The provider-visible static
@@ -77,7 +77,7 @@ never decides the wording a request sends. With MCS it is exactly:
 Without MCS, dynamic context arrives as user-side `<system-reminder>` blocks, and
 the bullet is exactly:
 
-`` - `<system-reminder>` tags in messages and tool results are injected by the harness, not the user. Hooks may intercept tool calls; treat hook output as user feedback. ``
+``- `<system-reminder>` tags in messages and tool results are injected by the harness, not the user. Hooks may intercept tool calls; treat hook output as user feedback.``
 
 The static block ends at the final `# Harness` bullet. Code-style and
 risk/reporting paragraphs must not be emitted in `system[1]`.
@@ -105,11 +105,11 @@ boundary is:
 3. Risk/reporting paragraph for irreversible or outward-facing actions,
    external publishing, inspect-before-delete/overwrite, and truthful validation
    reporting.
-3. `# Session-specific guidance` for user-run interactive shell commands,
+4. `# Session-specific guidance` for user-run interactive shell commands,
    slash skill invocation, and guidance for actually exposed built-in tools.
-4. Optional `# Memory` when a memory summary is loaded.
-5. `# Environment` for current cwd/platform/shell/OS/model/git-repo boolean.
-6. Optional `# Session Execution Environment` when the session's active execution
+5. Optional `# Memory` when a memory summary is loaded.
+6. `# Environment` for current cwd/platform/shell/OS/model/git-repo boolean.
+7. Optional `# Session Execution Environment` when the session's active execution
    binding is WSL Linux. It states binding-enforced command routing (Bash/background/
    hooks/subagents in Linux; MCP/Browser/Computer Use on Windows; Windows-only
    commands are outside that routing) as environment facts, and appends measured
@@ -118,11 +118,11 @@ boundary is:
    and the text avoids prohibitions such as "Never" or "Do not". Local or
    unconfigured sessions must not emit this source at all. Minimal, workflow-child
    and subagent prompts use a compact variant.
-7. Optional active `# Output Style` when a non-empty output style is configured.
-8. `# Context management` for long-context summary/continuation behavior,
+8. Optional active `# Output Style` when a non-empty output style is configured.
+9. `# Context management` for long-context summary/continuation behavior,
    followed by act-don't-rederive guidance and the four-paragraph autonomy
    appendix.
-9. Optional `gitStatus:` snapshot when the cwd is a git repository.
+10. Optional `gitStatus:` snapshot when the cwd is a git repository.
 
 Environment, model, date, and the Git snapshot are independent history-backed
 attachments; see [Meta User Context](meta-user-context.md).
@@ -266,14 +266,17 @@ wrapper tool, and its handler performs the provider-native `web_search` side
 request only when the current provider supports native search. `Skill` only
 registers when the child runtime is given a `skillPort`.
 
-Read-only enforcement model: unlike the main agent's `plan`-mode hard gate, the
-Explore child runs in `yolo` mode so that `Bash` (a non-read-only capability)
-can execute at all. Read-only behavior is therefore enforced by the system
-prompt's CRITICAL section rather than by the permission layer. The allowlist
-still excludes every file-mutating tool (`Write`/`Edit`/`ApplyPatch`), so `Bash`
-is the only mutation vector and the prompt must forbid mutating shell commands
-explicitly. This is a deliberate tradeoff: it adopts a prompt-only read-only
-model and weakens the previous physical isolation.
+Read-only enforcement model: the Explore child inherits the parent session's
+permission mode, Plan state, and permission service. The shell AST classifies
+each `Bash` command: read-only commands run without approval; other commands
+ask for approval under a build/edit parent, are denied under Plan, run under
+a yolo parent, and ask once under a guarded parent when they match a dangerous
+command rule (otherwise they run). The allowlist still excludes every file-mutating tool
+(`Write`/`Edit`/`ApplyPatch`), and the prompt's CRITICAL section still forbids
+mutating shell commands, so the prompt and the permission layer both apply.
+(Until 2026-10-31 the child ran in `yolo` with a separate permission service and
+relied on the prompt alone, which let a prompt-injected model run any command
+through `Agent(Explore)` without approval.)
 
 Required Explore prompt behavior:
 
