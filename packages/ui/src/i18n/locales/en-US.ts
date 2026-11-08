@@ -5253,6 +5253,9 @@ const enUS: Record<string, string> = {
   "chat.externalAgent.bindReprobe": "Detect again",
   "chat.externalAgent.installed": "Installed",
   "chat.externalAgent.notInstalled": "Not found",
+  "chat.externalAgent.probeFailed": "Probe failed, retry",
+  "chat.externalAgent.probeAllFailed":
+    "Cannot detect local installations right now (the session runtime may still be starting). Try “Detect again” in a moment, or fill in the command manually.",
   "chat.externalAgent.probeUnavailable":
     "Could not detect local installations. Fill in the command manually.",
   "chat.externalAgent.bindModel": "Model",

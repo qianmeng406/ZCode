@@ -306,6 +306,15 @@ export interface ExternalAgentPresetStatus {
   installed: boolean;
   /** `--version` 首行；未安装时缺席。 */
   version?: string;
+  /**
+   * 探测**本身**失败了（不是"没装"）：执行端口还没装配、CLI 进程起不来、
+   * 命令超时等。有值时 `installed:false` 只代表"没探测到"，不代表"没安装"。
+   *
+   * 存在的理由：两者在 UI 上曾经长得一模一样，都是"未检测到"——用户以为自
+   * 己没装 OpenCode，其实是会话冷启动时探测链路还没就绪。区分开之后，UI 对该
+   * 预设显示"探测失败（可重试）"，而不是断言"未安装"。
+   */
+  probeError?: string;
   /** 模型候选；空 = 该 CLI 不支持枚举，UI 应退回自由输入。 */
   models: string[];
   /** 逐模型档位事实（CLI 自带模型目录）；空 = 读不到，退回静态兜底表。 */

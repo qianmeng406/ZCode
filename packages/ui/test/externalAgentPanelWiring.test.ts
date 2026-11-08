@@ -253,6 +253,34 @@ const LINKS: Array<{ file: string; pattern: RegExp; why: string }> = [
     pattern: /value:\s*"opencode-exec"/,
     why: "手填表单的驱动下拉要能选 opencode-exec",
   },
+  // ── 探测失败 ≠ 未安装（2026-11-08）──
+  // 事故：冷启动时执行端口未装配，两条预设都显示"未检测到"，用户以为没装。
+  // 三处必须齐：CLI 侧带 probeError、对话框分辨它、失败结果不进缓存（否则重试失效）。
+  {
+    file: "../../apps/zcode-cli/packages/bootstrap/src/zcode-protocol/external-agent-probe.ts",
+    pattern: /failure: classifyFailure\(result\)/,
+    why: "端口回执行级错误（ENOENT / timeout / spawn_error）时要记下失败原因",
+  },
+  {
+    file: "../../apps/zcode-cli/packages/bootstrap/src/zcode-protocol/external-agent-probe.ts",
+    pattern: /probeError: versionProbe\.failure/,
+    why: "版本探测失败时把原因透给 UI，而不是只说 installed:false",
+  },
+  {
+    file: "src/v4/composer/ExternalAgentBindDialog.tsx",
+    pattern: /status\.probeError/,
+    why: "对话框要区分「探测失败（可重试）」与「未检测到」，否则会误导用户去重装",
+  },
+  {
+    file: "src/v4/composer/externalAgentProbe.ts",
+    pattern: /every\(\(agent\) => agent\.probeError\)[\s\S]{0,40}?probeCache\.set/,
+    why: "全失败的结果不写缓存，否则后续重试命中缓存、重试形同虚设",
+  },
+  {
+    file: "src/v4/SessionPane.tsx",
+    pattern: /return !snapshot\.result\.agents\.every\(\(agent\) => agent\.probeError\)/,
+    why: "冷启动重试不能因为 RPC 成功就停下——全 probeError 时要继续退避重试",
+  },
 ];
 
 function readSurface(relativePath: string): string {

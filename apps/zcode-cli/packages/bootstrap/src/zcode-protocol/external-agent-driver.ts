@@ -90,6 +90,25 @@ export interface ExternalAgentDriver {
 }
 
 /**
+ * 外部 agent spawn 的 env：把 `PWD` 钉到本次执行的 cwd。
+ *
+ * 根因（2026-11-08 实测）：`PWD` 是启动链（shell → 主进程 → host → CLI agent）的
+ * 遗产，永远停在 app 启动目录，不随会话工作区变。opencode 这类客户端 CLI 读
+ * `PWD`（而不是进程真实 cwd）决定 project 目录——结果委派从 QQ-Agent 工作区发起，
+ * agent 却落在 app 启动目录的 project 里干活；`session list/export/delete` 的
+ * project 过滤同样错位。对齐之后行为与「进程真实 cwd」一致。
+ *
+ * `binding.env`（扁平 Record）归入 overlay 的 `set`：以前它被摊在 overlay 顶层，
+ * 端口根本读不到——顺带修正这个透传失效。
+ */
+export function withPwdAlignedToCwd(
+  bindingEnv: Record<string, string> | undefined,
+  cwd: string,
+): { set: Record<string, string> } {
+  return { set: { ...(bindingEnv ?? {}), PWD: cwd } };
+}
+
+/**
  * 停滞判定缺省值：连续 10 分钟没有任何进度事件才算异常。
  *
  * 取 10 分钟是因为它正好是出问题的那个量级——多轮施工单里"跑一条长命令"或
@@ -214,7 +233,7 @@ export function createOneShotExternalAgentDriver(input: {
             },
             cwd,
             ...(invocation.stdin !== undefined ? { stdin: invocation.stdin } : {}),
-            ...(binding.env ? { env: { ...binding.env } } : {}),
+            env: withPwdAlignedToCwd(binding.env, cwd),
             timeoutMs: binding.timeoutMs ?? defaultTimeoutMs,
             // 外部 agent 的输出可能很长（-p 全量模式），放宽 inline 上限并落盘。
             outputLimit: {

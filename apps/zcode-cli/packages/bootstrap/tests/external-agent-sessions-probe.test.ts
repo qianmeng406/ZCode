@@ -18,6 +18,7 @@ import {
   parseModelListLines,
   parseOpencodeModelCatalog,
   parseOpencodeSessionListProbe,
+  probeExternalAgents,
   readExternalAgentSessionTranscript,
 } from "../src/zcode-protocol/external-agent-probe.js";
 import { cwdToProjectDirName } from "@zcode/shared";
@@ -270,6 +271,9 @@ describe("会话探测的 driver 分派", () => {
     };
     expect(request.command.file).toBe("opencode");
     expect(request.command.args).toEqual(["session", "list", "--format", "json", "-n", "100"]);
+    // PWD 对齐 cwd：opencode 按 PWD 过滤 project，陈旧 PWD 会让列表落在错误的
+    // project（实测：委派 cwd=QQ-Agent，列表却来自 app 启动目录的 project）。
+    expect(request.env).toEqual({ set: { PWD: WORKSPACE } });
   });
 
   it("claude-family（含 driver 缺省）: 仍走 node -e 脚本，不碰 opencode", async () => {
@@ -489,5 +493,49 @@ describe("parseOpencodeModelCatalog（models.json → 逐模型档位）", () =>
       "low",
       "high",
     ]);
+  });
+});
+
+// 探测失败 ≠ 没装。
+//
+// 实测事故（2026-11-07 21:58）：会话冷启动时执行端口还没装配，probeCommand 抛错被
+// catch 成 ok:false，两条预设都报 installed:false —— 绑定对话框把明明装着的
+// CodeBuddy / OpenCode 都显示成"未检测到"。根因是把"问不到"断言成了"没有"。
+describe("探测失败与未安装的区分（probeError）", () => {
+  const throwingPort = {
+    run: vi.fn(async () => {
+      throw new Error("session execution port is not assembled for this session");
+    }),
+  } as never;
+
+  it("端口抛错 → installed:false 且带 probeError（不是断然'未安装'）", async () => {
+    const result = await probeExternalAgents({ executionPort: throwingPort, cwd: WORKSPACE });
+    expect(result.agents.length).toBeGreaterThan(0);
+    for (const agent of result.agents) {
+      expect(agent.installed).toBe(false);
+      expect(agent.probeError).toContain("session execution port is not assembled");
+      expect(agent.models).toEqual([]);
+    }
+  });
+
+  it("ENOENT（命令不在 PATH）也算 probeError：同样无法区分'没装'与'PATH 没带过去'", async () => {
+    const port = stubPort(() => ({
+      status: "spawn_error",
+      error: { type: "spawn_error", message: "spawn codebuddy ENOENT", cause: { code: "ENOENT" } },
+    }));
+    const result = await probeExternalAgents({ executionPort: port, cwd: WORKSPACE });
+    for (const agent of result.agents) {
+      expect(agent.probeError).toMatch(/spawn_error/);
+      expect(agent.probeError).toContain("ENOENT");
+    }
+  });
+
+  it("命令跑完但非零退出（如 --version 不被支持）→ 不带 probeError（是真的探不到）", async () => {
+    const port = stubPort(() => okResult("", 2));
+    const result = await probeExternalAgents({ executionPort: port, cwd: WORKSPACE });
+    for (const agent of result.agents) {
+      expect(agent.installed).toBe(false);
+      expect(agent.probeError).toBeUndefined();
+    }
   });
 });

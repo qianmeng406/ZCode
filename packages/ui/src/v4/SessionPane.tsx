@@ -5241,7 +5241,10 @@ export function SessionPane({
         );
         if (snapshot) {
           setExternalAgentProbe(snapshot.result.agents);
-          return true;
+          // "拿到了结果"与"探测真的成功了"是两件事：执行端口还没装配时 CLI 侧会
+          // 正常回一组 probeError（installed:false），RPC 本身是成功的。这种结果
+          // 不该终止重试——否则冷启动慢一点就永久停在"探测失败"。
+          return !snapshot.result.agents.every((agent) => agent.probeError);
         }
         return false;
       } catch {
@@ -5267,14 +5270,19 @@ export function SessionPane({
     // 冷恢复竞态：UI 已经拿到 sessionId，CLI 侧可能还没登记这个会话，探测会
     // unavailable。只试一次的话模型/档位菜单会永久缺失（用户只能解绑重绑），
     // 所以这里退避重试几次；组件/会话切换即取消。
+    //
+    // 次数与间隔按实测定：会话冷启动到 runtime 可探测约 6–9 秒（日志里 22:43 那组
+    // 探测在 6.3s 才成功），原先是 4 次、间隔 1.2s×n（合计约 7.2s）——刚好卡在边界
+    // 上，慢一点的机器就停在"探测失败"。放宽到 6 次、单次上限 5s（合计约 15s），
+    // 覆盖冷启动，又不会让对话框一直转圈。
     let cancelled = false;
     let attempt = 0;
     let retryTimer: ReturnType<typeof setTimeout> | undefined;
     const attemptProbe = async (): Promise<void> => {
       attempt += 1;
       const ok = await runExternalAgentProbe();
-      if (cancelled || ok || attempt >= 4) return;
-      retryTimer = setTimeout(() => void attemptProbe(), 1_200 * attempt);
+      if (cancelled || ok || attempt >= 6) return;
+      retryTimer = setTimeout(() => void attemptProbe(), Math.min(1_200 * attempt, 5_000));
     };
     void attemptProbe();
     return () => {

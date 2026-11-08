@@ -176,6 +176,16 @@ function ExternalAgentBindDialogImpl({
             ) : null}
           </div>
           <div className="flex flex-col gap-1.5" data-testid="external-agent-preset-list">
+            {statuses.length > 0 && statuses.every((status) => status.probeError) ? (
+              // 全部预设都是"探测失败"：此时逐条渲染"未检测到"等于断言用户没装任何 CLI。
+              // 顶部给一句整体提示（详情在每条的 tooltip 里），重试按钮就在上面。
+              <p
+                className="rounded-lg border border-warning/30 bg-warning/5 px-3 py-2 text-ui-sm text-warning"
+                data-testid="external-agent-probe-all-failed"
+              >
+                {intl.formatMessage({ id: "chat.externalAgent.probeAllFailed" })}
+              </p>
+            ) : null}
             {statuses.map((status) => {
               const { preset } = status;
               const selected = draft.presetId === preset.id;
@@ -207,6 +217,16 @@ function ExternalAgentBindDialogImpl({
                         <span className="rounded bg-surface-raised px-1.5 py-0.5 text-ui-xs text-foreground-subtle">
                           {status.version ??
                             intl.formatMessage({ id: "chat.externalAgent.installed" })}
+                        </span>
+                      ) : status.probeError ? (
+                        // 探测链路失败 ≠ 没装：说成"未检测到"会让用户去重装一个
+                        // 明明装着的 CLI（实测冷启动时端口未装配就会落到这里）。
+                        <span
+                          className="rounded bg-warning/10 px-1.5 py-0.5 text-ui-xs text-warning"
+                          title={status.probeError}
+                          data-testid={`external-agent-preset-probe-error-${preset.id}`}
+                        >
+                          {intl.formatMessage({ id: "chat.externalAgent.probeFailed" })}
                         </span>
                       ) : (
                         <span className="rounded bg-warning/10 px-1.5 py-0.5 text-ui-xs text-warning">

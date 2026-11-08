@@ -27,6 +27,11 @@ const presetStatusSchema = z
     installed: z.boolean(),
     /** `--version` 首行；未安装时缺席。 */
     version: z.string().optional(),
+    /**
+     * 探测本身失败（执行端口未就绪 / 起不来 / 超时）：`installed:false` 此时只代表
+     * "没探测到"，不代表"没安装"。可选是线上兼容取向——旧执行机不发这个字段。
+     */
+    probeError: z.string().optional(),
     /** 模型候选；空 = 该 CLI 不支持枚举，UI 应退回自由输入。 */
     models: z.array(z.string()),
     /**

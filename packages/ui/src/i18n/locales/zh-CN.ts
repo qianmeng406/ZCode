@@ -4940,6 +4940,9 @@ const zhCN: Record<string, string> = {
   "chat.externalAgent.bindReprobe": "重新检测",
   "chat.externalAgent.installed": "已安装",
   "chat.externalAgent.notInstalled": "未检测到",
+  "chat.externalAgent.probeFailed": "探测失败，可重试",
+  "chat.externalAgent.probeAllFailed":
+    "当前无法探测本机安装情况（会话执行环境可能还没就绪）。稍后点「重新检测」，或手动填写命令。",
   "chat.externalAgent.probeUnavailable": "无法检测本机安装情况，请手动填写命令。",
   "chat.externalAgent.bindModel": "模型",
   "chat.externalAgent.modelDefault": "使用该 CLI 的默认模型",

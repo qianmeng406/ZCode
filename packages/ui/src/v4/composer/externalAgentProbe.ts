@@ -55,7 +55,11 @@ export async function loadExternalAgentProbe(
       const result = await send(workspaceId);
       if (!result) return null;
       const snapshot = { result, probedAt: Date.now() };
-      probeCache.set(workspaceId, snapshot);
+      // 全失败（每条都带 probeError）不写缓存：这是"问不到"，不是"问到了没装"。
+      // 写进去会让后续重试命中缓存直接返回同一份失败结果，重试形同虚设。
+      if (!result.agents.every((agent) => agent.probeError)) {
+        probeCache.set(workspaceId, snapshot);
+      }
       return snapshot;
     } catch {
       return null;

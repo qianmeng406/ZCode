@@ -253,6 +253,25 @@ describe("createExternalAgentPort", () => {
     });
     expect(request.stdin).toBe("修 lint");
     expect(request.cwd).toBe("/tmp");
+    // PWD 必须钉到本次 cwd：opencode 这类客户端 CLI 读 PWD 决定 project，
+    // 继承启动链的陈旧 PWD 会让 agent 落到 app 启动目录的 project（实测事故）。
+    expect(request.env).toMatchObject({ set: { PWD: "/tmp" } });
+  });
+
+  it("委派 spawn 的 env.PWD 始终对齐 cwd（即使 binding.env 缺席）", async () => {
+    const { createExternalAgentPort } =
+      await import("../src/zcode-protocol/external-agent-port-impl.js");
+    const run = vi.fn(async () => ({
+      streams: { stdout: { text: "OK" }, stderr: { text: "" } },
+      exitCode: 0,
+    }));
+    const port = createExternalAgentPort({
+      executionPort: { run } as never,
+      readBinding: async () => opencodeBinding,
+    });
+    await port.delegate({ sessionId: "s" as never, task: "t", cwd: "C:\\ws\\demo" });
+    const request = (run.mock.calls[0] as unknown as [Record<string, unknown>])[0];
+    expect(request.env).toEqual({ set: { PWD: "C:\\ws\\demo" } });
   });
 });
 

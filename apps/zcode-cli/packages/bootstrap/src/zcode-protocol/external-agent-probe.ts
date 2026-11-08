@@ -72,12 +72,15 @@ async function probeCommand(
   args: string[],
   cwd: string,
   outputLimit?: { maxInlineBytes: number; maxBufferBytes: number },
-): Promise<{ ok: boolean; stdout: string }> {
+): Promise<ProbeCommandResult> {
   try {
     const result = (await executionPort.run(
       {
         command: { mode: "argv", file, args },
         cwd,
+        // PWD 对齐 cwd：opencode 的 session list/export/delete 按 PWD 过滤 project，
+        // 继承启动链的陈旧 PWD 会让会话列表落在错误的 project 上（同 driver 的注释）。
+        env: { set: { PWD: cwd } },
         timeoutMs: PROBE_TIMEOUT_MS,
         outputLimit: {
           maxInlineBytes: outputLimit?.maxInlineBytes ?? 64_000,
@@ -90,16 +93,64 @@ async function probeCommand(
     )) as unknown;
     // spawn 失败时端口**不抛错**，而是回一个带 error 的结果且 exitCode 缺席。
     // 只看 exitCode 会把"命令不存在"判成成功——探测的整个意义就没了。
-    if (hasExecutionError(result)) return { ok: false, stdout: "" };
+    if (hasExecutionError(result))
+      return { ok: false, stdout: "", failure: classifyFailure(result) };
     const exitCode =
       typeof (result as { exitCode?: number }).exitCode === "number"
         ? (result as { exitCode: number }).exitCode
         : 0;
     return { ok: exitCode === 0, stdout: readStdout(result) };
-  } catch {
-    // 命令不存在 / 不可执行 / 超时：一律按"未安装"处理。
-    return { ok: false, stdout: "" };
+  } catch (error) {
+    // 抛出（执行端口未装配 / 远程通道断开）：命令本体根本没跑起来，
+    // 这不是"没装"，是"问不到"。区分开才能让 UI 说"探测失败，可重试"。
+    return { ok: false, stdout: "", failure: describeThrow(error) };
   }
+}
+
+/** 一条探测命令的结果：失败时带上"是不是基础设施问题"的判据。 */
+interface ProbeCommandResult {
+  ok: boolean;
+  stdout: string;
+  /**
+   * 失败是基础设施层面的（端口未装配 / 通道断、起不来、超时），而不是命令自己
+   * 跑完后非零退出。"命令不存在"（ENOENT）也归到这里：它同样无法区分"没装"
+   * 与"PATH 没带过去"，把它断言成"未安装"正是之前那个误判的来源。
+   */
+  failure?: string;
+}
+
+/**
+ * 端口回的执行级错误 → 判定它是不是"问不到"。
+ *
+ * ENOENT / spawn_error / timeout / cancelled / output_limit 一律算基础设施问题：
+ * 命令自己跑完但退出码非零才是 `ok:false` 且不带 failure 的唯一情形。
+ * 但这一步只在 `hasExecutionError` 已经为真时走到，所以返回字符串即可。
+ */
+export function classifyFailure(result: unknown): string {
+  const record = (result && typeof result === "object" ? result : {}) as {
+    status?: unknown;
+    error?: { type?: unknown; message?: unknown; cause?: { code?: unknown } };
+  };
+  const message =
+    typeof record.error?.message === "string" && record.error.message.trim()
+      ? record.error.message.trim()
+      : undefined;
+  const code = typeof record.error?.cause?.code === "string" ? record.error.cause.code : undefined;
+  const status = typeof record.status === "string" ? record.status : undefined;
+  if (status === "spawn_error" || code === "ENOENT") {
+    // 命令不存在时端口给的是 ENOENT：这条最容易被误读成"没安装"，如实标出来。
+    return message ? `spawn_error (${code ?? "unknown"}): ${message}` : "spawn_error";
+  }
+  if (status === "timed_out" || record.error?.type === "timeout") return "timeout";
+  if (status === "cancelled" || record.error?.type === "cancelled") return "cancelled";
+  if (record.error?.type === "output_limit") return "output_limit";
+  return message ?? status ?? "execution_error";
+}
+
+/** 端口自己抛出时的失败描述（远程通道断开、端口未装配…）。 */
+function describeThrow(error: unknown): string {
+  const message = error instanceof Error ? error.message : String(error);
+  return message.trim() || "probe_threw";
 }
 
 /**
@@ -265,7 +316,16 @@ async function probePreset(
 ): Promise<ExternalAgentPresetStatus> {
   const versionProbe = await probeCommand(executionPort, preset.command, ["--version"], cwd);
   if (!versionProbe.ok) {
-    return { preset, installed: false, models: [], modelCatalog: [] };
+    // 探测链路本身出错时如实带上 probeError：`installed:false` 此时只表示"没探到"。
+    // 少了这个字段，UI 会把它渲染成"未检测到（未安装）"——实测会话冷启动时端口
+    // 还没装配，用户看到的就是"我的 OpenCode 明明装了，对话框说没装"。
+    return {
+      preset,
+      installed: false,
+      models: [],
+      modelCatalog: [],
+      ...(versionProbe.failure ? { probeError: versionProbe.failure } : {}),
+    };
   }
   const version = versionProbe.stdout.trim().split(/\r?\n/u)[0]?.trim() || undefined;
   const base = { preset, installed: true, ...(version ? { version } : {}) };
