@@ -15,7 +15,7 @@ This repository is a personal customization of ZCode, an AI coding workspace wit
 
 ## Upstream Version and Sync Status
 
-- **2026-11-08**: Merged the official v3.17.2 baseline ([`a9fe401e`](https://github.com/zai-org/ZCode/commit/a9fe401eede6e6e5e01be9048679c206fe6f02d9)) while keeping the existing customizations.
+- **2026-11-08**: **External agent orchestration**: bind a chat session to an external CLI agent (CodeBuddy and OpenCode, both full drivers) and supervise read-only while delegating execution. This batch adds **full OpenCode CLI support** (the second full driver — result parsing, activity stream, continuation, and transcript; reasoning levels ride the `--model provider/model#variant` suffix with per-model probing from the local model cache), a three-state binding probe (distinguishing "not installed" from "probe failed, retryable"), a **progress watchdog** for external agent timeouts (healthy output keeps the run alive; only stalls terminate), user-pinned continuation semantics, and delegation cwd aligned to the real session workspace (fixes a stale `PWD` landing the external agent in the wrong project). The official v3.17.2 baseline ([`a9fe401e`](https://github.com/zai-org/ZCode/commit/a9fe401eede6e6e5e01be9048679c206fe6f02d9)) was merged in the same batch while keeping the existing customizations.
 - **2026-11-01**: Input prediction rework — candidates now ride on the main turn's reply instead of a separate model call (the Settings toggle only controls prompt injection; the prediction model picker was removed). Added **session handoff export** (last-3-turns material window, entry in the session context menu). Fixes: missing "first token" metric on tool-call-only steps, shared-runtime task routing capability negotiation (an upstream-merge miss), the prediction directive corrupting messages with attachments, and the prediction display threshold lowered from 0.8 to 0.6; the GLM builtin-tool rewriter no longer swallows bold-opening text.
 - **2026-10-31**: Merged the official v3.17.1 baseline ([`a60ba6a7`](https://github.com/zai-org/ZCode/commit/a60ba6a7e5a06742270ca605f5d2cc2766afa7e1)) while keeping the existing customizations; also fixed Windows path comparison and permission-rule matching so the `@zcode/core` suite is green on Windows.
 - **2026-10-22**: Merged the official v3.16.2 baseline while keeping the existing customizations.
@@ -34,7 +34,7 @@ This repository is a personal customization of ZCode, an AI coding workspace wit
 
 ## Fork Customizations
 
-This fork adds dual-model review (Oracle), execution-model selection during plan approval, turn navigation, goal controls, per-subagent stop, permission modes, prompt optimization, and a per-session WSL execution environment. See [README.md](README.md) for details.
+This fork adds external agent orchestration (bind a session to an external CLI agent — CodeBuddy or OpenCode — and supervise read-only while delegating), dual-model review (Oracle), execution-model selection during plan approval, turn navigation, goal controls, per-subagent stop, permission modes, prompt optimization, and a per-session WSL execution environment. See [README.md](README.md) for details.
 
 **Beta mode (prompt-fusion mode test version)** is an independent, mutually exclusive work mode (`mode=beta`) in the composer menu, alongside the confirmation, autonomous, research, and full-access modes. It combines progress within authorization, minimal complete changes, purposeful delegation, and evidence-based verification while retaining skills, memory, and project instructions. It uses full-access permissions with fewer confirmations. Plan remains an independent switch (read-only while on); selecting another work mode exits Beta. See the [Beta mode specification](apps/zcode-cli/docs/design/v2/loop/fusion-context-profile.md).
 
@@ -60,7 +60,7 @@ This fork adds dual-model review (Oracle), execution-model selection during plan
 
 **Streaming render performance settings** add a dedicated Settings → Performance page for streaming-render optimizations. **Every toggle is off by default**; when off, the render path is identical to the standard one, and each option can be enabled individually: streaming Markdown incremental parsing (only the tail block being generated is re-parsed; finished paragraphs are reused), render-unit reuse (unchanged turns are not rebuilt), scoped run-clock refresh (the per-second timer only refreshes the turn that is actually working; best enabled together with render-unit reuse), coalesced bottom-follow scrolling (multiple scroll writes within one frame merge into one), and coalesced delta frames (multiple streaming deltas arriving within one render frame commit once; text may lag by at most one frame). Parsing/render cost per frame drops noticeably for long replies and long sessions, with no change to the displayed result.
 
-These customizations are described relative to the official v3.17.1 baseline, not as a claim of exclusive features. Later official versions may offer similar capabilities.
+These customizations are described relative to the official v3.17.2 baseline, not as a claim of exclusive features. Later official versions may offer similar capabilities.
 
 The development and packaging instructions below describe this fork's current commands, including its runtime asset preparation changes; they are not a complete mirror of the latest official README.
 
@@ -263,7 +263,7 @@ Open `http://127.0.0.1:3030` to validate the complete flow, with one backend ser
 
 ## Repository Structure
 
-The following lists this fork's main directories, not the complete latest upstream source tree. Fork additions are identified relative to the v3.17.1 baseline.
+The following lists this fork's main directories, not the complete latest upstream source tree. Fork additions are identified relative to the v3.17.2 baseline.
 
 | Directory                                            | Responsibility                                                                          |
 | ---------------------------------------------------- | --------------------------------------------------------------------------------------- |
