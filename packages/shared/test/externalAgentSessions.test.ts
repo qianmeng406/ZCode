@@ -488,6 +488,96 @@ test("Command Code transcript：用户/助手/工具调用/工具结果按落盘
   assert.equal(page.entries[4]?.text, "改好了");
 });
 
+test("Command Code V3 真实形状：message 包装 + Anthropic content", () => {
+  // 2026-11-09 用免费模型 reflection/beam:free 实跑落盘：
+  // 条目是 {type:"message",message:{role,content,meta}}，content 是 Anthropic 形状
+  // （thinking / tool_use / tool_result），不是旧版扁平的 role/content。
+  const content = [
+    {
+      type: "session",
+      version: 3,
+      id: "sess-v3",
+      timestamp: "2026-11-09T15:42:53.145Z",
+      cwd: "/workspace",
+    },
+    {
+      type: "message",
+      id: "e1",
+      parentId: null,
+      timestamp: "2026-11-09T15:42:57.294Z",
+      message: {
+        role: "user",
+        content: [{ type: "text", text: "用 bash 执行 echo hello" }],
+        meta: { source: "user" },
+      },
+    },
+    {
+      type: "message",
+      id: "e2",
+      parentId: "e1",
+      timestamp: "2026-11-09T15:42:57.295Z",
+      message: {
+        role: "assistant",
+        content: [
+          { type: "thinking", thinking: "想想", signature: "" },
+          {
+            type: "tool_use",
+            id: "call-1",
+            name: "shell_command",
+            input: { command: "echo hello" },
+          },
+        ],
+        meta: { source: "model" },
+      },
+    },
+    {
+      type: "message",
+      id: "e3",
+      parentId: "e2",
+      timestamp: "2026-11-09T15:42:58.000Z",
+      message: {
+        role: "user",
+        content: [
+          {
+            type: "tool_result",
+            tool_use_id: "call-1",
+            content: [{ type: "text", text: "hello\n" }],
+          },
+        ],
+        meta: { source: "tool" },
+      },
+    },
+    {
+      type: "message",
+      id: "e4",
+      parentId: "e3",
+      timestamp: "2026-11-09T15:42:59.000Z",
+      message: {
+        role: "assistant",
+        content: [{ type: "text", text: "hello" }],
+        meta: { source: "model" },
+      },
+    },
+  ]
+    .map((entry) => JSON.stringify(entry))
+    .join("\n");
+
+  const summary = scanCommandCodeSessionFile(content, "file-id", 0);
+  assert.equal(summary?.sessionId, "sess-v3");
+  assert.equal(summary?.title, "用 bash 执行 echo hello");
+
+  const page = parseCommandCodeTranscript(content, { sessionId: "sess-v3" });
+  assert.deepEqual(
+    page.entries.map((entry) => [entry.kind, entry.name, entry.text]),
+    [
+      ["user", undefined, "用 bash 执行 echo hello"],
+      ["tool", "shell_command", "shell_command: echo hello"],
+      ["tool_result", "shell_command", "hello"],
+      ["assistant", undefined, "hello"],
+    ],
+  );
+});
+
 test("Command Code transcript：分页与其他驱动同语义，meta 条目不进上下文", () => {
   const lines: Array<Record<string, unknown>> = [
     commandCodeHeader,

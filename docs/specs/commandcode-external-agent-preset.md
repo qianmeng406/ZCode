@@ -42,13 +42,14 @@
   slug 规则是 `@sindresorhus/slugify`：小写、音标折叠、非 `[a-z0-9]` 连续段折叠为 `-`，
   空结果回 `root`。
 - 首行是头：`{"type":"session","version":3,"id","timestamp","cwd"}`。
-- 其后每行一个条目：`{id, timestamp, sessionId, parentId, role, content, metadata}`；
-  `metadata.isMeta === true` 是 CLI 注入元数据，列表与上下文都跳过。
-- `content` 为 V2 part 数组：
-  - `{type:"text",text}` / `{type:"reasoning",text}`；
-  - `{type:"tool-call",toolCallId,toolName,input}`；
-  - `role:"tool"` 的消息里是 `{type:"tool-result",toolCallId,toolName,output}`，
-    `output` 形如 `{type:"text",value}`。
+- 其后每行一个条目（V3，免费模型实跑落盘）：`{"type":"message","id","parentId",
+  "timestamp","message":{"role","content","meta"}}`；`message.meta.isMeta === true`
+  是 CLI 注入元数据，列表与上下文都跳过。旧版扁平 `{role,content,metadata}` 也兼容。
+- `content` 是 Anthropic 形状的 part 数组：
+  - `{type:"text",text}` / `{type:"thinking",thinking}`；
+  - `{type:"tool_use",id,name,input}`；
+  - 工具结果挂在 user 消息里：`{type:"tool_result",tool_use_id,content:[{type:"text",text}]}`。
+  - 旧版 V2 的 `{type:"reasoning"/"tool-call"/"tool-result",...}` 也兼容。
 - 时间戳可能是 ISO 字符串或 epoch ms；列表的 `updatedAt` 统一换算为 epoch ms，
   读不到时回落文件 mtime。
 - 会话列表只收 transcript：`<id>.checkpoints.jsonl` / `<id>.prompts.jsonl` 是侧车，
@@ -76,11 +77,9 @@
 
 ## 未验证项
 
-- 本环境无 Command Code 账号，未做真实 `-p` 调用（会消耗额度）；输出形状来自官方
-  headless 文档与 CLI 1.88.5 bundle 的实测代码路径。
-- 已用免费模型 `reflection/beam:free` 实测：CLI 在模型调用前就要求登录（退出码 3，
-  result 帧 `subtype:"error"`，`error:"Not authenticated. Please run \"cmd login\" first."`），
-  因此免费模型同样需要账号凭据。
+- 已用免费模型 `reflection/beam:free` 完成真实 `-p` 调用（两次：纯文本回复与一次
+  `shell_command` 工具调用），验证了 result 帧、活动流与 V3 会话落盘解析。免费模型
+  同样需要账号凭据（`COMMAND_CODE_API_KEY`）。
 - `-r <sessionId>` 指向已失效 id 时 CLI 是报错还是自动新开会话未实测；按文档只
   确认了裸 `--resume` 在 headless 会报错。
 - 服务端模型目录会变化，缓存过期后以 CLI 重新拉取的目录为准。

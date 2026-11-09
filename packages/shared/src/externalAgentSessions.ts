@@ -166,12 +166,51 @@ function readCommandCodeTimestamp(value: unknown): number | undefined {
 
 /** `metadata.isMeta` 的条目是 CLI 注入的内部记录，不属于对话内容。 */
 function isCommandCodeMetaEntry(record: Record<string, unknown>): boolean {
-  const metadata = record.metadata;
+  const message = record.message;
+  const nestedMeta =
+    message && typeof message === "object"
+      ? (message as { meta?: unknown }).meta
+      : undefined;
+  const metadata = nestedMeta ?? record.metadata;
   return Boolean(
     metadata &&
-    typeof metadata === "object" &&
-    (metadata as { isMeta?: unknown }).isMeta === true,
+      typeof metadata === "object" &&
+      (metadata as { isMeta?: unknown }).isMeta === true,
   );
+}
+
+/**
+ * 取出对话消息本体。
+ *
+ * Command Code 当前落盘是 V3：`{type:"message",message:{role,content,meta}}`；
+ * 旧版本是扁平的 `{role,content,metadata}`。两种都要支持，否则新会话在列表与
+ * 上下文面板里会整条消失（2026-11-09 用免费模型实测发现的形状）。
+ */
+function readCommandCodeMessage(record: Record<string, unknown>): {
+  role: unknown;
+  content: unknown;
+  meta: Record<string, unknown> | undefined;
+} {
+  const message = record.message;
+  if (message && typeof message === "object") {
+    const value = message as { role?: unknown; content?: unknown; meta?: unknown };
+    return {
+      role: value.role,
+      content: value.content,
+      meta:
+        value.meta && typeof value.meta === "object"
+          ? (value.meta as Record<string, unknown>)
+          : undefined,
+    };
+  }
+  return {
+    role: record.role,
+    content: record.content,
+    meta:
+      record.metadata && typeof record.metadata === "object"
+        ? (record.metadata as Record<string, unknown>)
+        : undefined,
+  };
 }
 
 /**
@@ -213,8 +252,9 @@ export function scanCommandCodeSessionFile(
     const at = readCommandCodeTimestamp(record.timestamp);
     if (at !== undefined && at > latestTimestamp) latestTimestamp = at;
     if (isCommandCodeMetaEntry(record)) continue;
-    if (record.role !== "user" || !Array.isArray(record.content)) continue;
-    const text = readContentText(record.content);
+    const message = readCommandCodeMessage(record);
+    if (message.role !== "user" || !Array.isArray(message.content)) continue;
+    const text = readContentText(message.content);
     // CLI 注入的提示（<command-*> / system-reminder）不是用户首句。
     if (text && !text.startsWith("<")) firstUser = firstUser || text;
   }
@@ -605,8 +645,11 @@ export function parseCommandCodeTranscript(
     if (record.type === "session") continue;
     if (isCommandCodeMetaEntry(record)) continue;
     const at = readCommandCodeTimestamp(record.timestamp);
-    const parts = Array.isArray(record.content) ? record.content : [];
-    const role = record.role;
+    // V3 把消息包在 message 里（`{type:"message",message:{role,content}}`）；
+    // 旧版是扁平 role/content。两种都解。
+    const message = readCommandCodeMessage(record);
+    const parts = Array.isArray(message.content) ? message.content : [];
+    const role = message.role;
 
     if (role === "assistant") {
       for (const rawPart of parts) {
@@ -614,7 +657,10 @@ export function parseCommandCodeTranscript(
         const part = rawPart as {
           type?: unknown;
           text?: unknown;
+          thinking?: unknown;
+          id?: unknown;
           toolCallId?: unknown;
+          name?: unknown;
           toolName?: unknown;
           input?: unknown;
         };
@@ -626,13 +672,25 @@ export function parseCommandCodeTranscript(
           });
           continue;
         }
-        if (part.type === "reasoning") {
+        if (part.type === "thinking" || part.type === "reasoning") {
           // 思考过程不进行转录（与其他驱动一致：量大且易误导）。
           continue;
         }
-        if (part.type !== "tool-call") continue;
-        const name = typeof part.toolName === "string" && part.toolName ? part.toolName : "tool";
-        const toolCallId = typeof part.toolCallId === "string" ? part.toolCallId : "";
+        // V3 落 Anthropic 形状（tool_use{id,name,input}）；V2 是
+        // tool-call{toolCallId,toolName,input}。两种都收。
+        if (part.type !== "tool_use" && part.type !== "tool-call") continue;
+        const name =
+          typeof part.name === "string" && part.name
+            ? part.name
+            : typeof part.toolName === "string" && part.toolName
+              ? part.toolName
+              : "tool";
+        const toolCallId =
+          typeof part.id === "string"
+            ? part.id
+            : typeof part.toolCallId === "string"
+              ? part.toolCallId
+              : "";
         if (toolCallId) toolNames.set(toolCallId, name);
         entries.push({
           kind: "tool",
@@ -650,19 +708,46 @@ export function parseCommandCodeTranscript(
     if (role === "user") {
       for (const rawPart of parts) {
         if (!rawPart || typeof rawPart !== "object") continue;
-        const part = rawPart as { type?: unknown; text?: unknown };
-        if (part.type !== "text" || typeof part.text !== "string" || !part.text.trim()) continue;
-        // CLI 注入的提示（<command-*> / system-reminder）不是用户上下文。
-        if (part.text.trimStart().startsWith("<")) continue;
+        const part = rawPart as {
+          type?: unknown;
+          text?: unknown;
+          tool_use_id?: unknown;
+          toolCallId?: unknown;
+          content?: unknown;
+          output?: unknown;
+        };
+        if (part.type === "text" && typeof part.text === "string" && part.text.trim()) {
+          // CLI 注入的提示（<command-*> / system-reminder）不是用户上下文。
+          if (part.text.trimStart().startsWith("<")) continue;
+          entries.push({
+            kind: "user",
+            ...clipTranscriptText(part.text.trim(), TRANSCRIPT_TEXT_LIMITS.user),
+            ...(at !== undefined ? { at } : {}),
+          });
+          continue;
+        }
+        // V3 的工具结果挂在 user 消息里：`{type:"tool_result",tool_use_id,content}`。
+        if (part.type !== "tool_result") continue;
+        const toolCallId =
+          typeof part.tool_use_id === "string"
+            ? part.tool_use_id
+            : typeof part.toolCallId === "string"
+              ? part.toolCallId
+              : "";
+        const name = toolNames.get(toolCallId) ?? "tool";
+        const text = readCommandCodeToolOutput(part.output ?? part.content);
+        if (!text) continue;
         entries.push({
-          kind: "user",
-          ...clipTranscriptText(part.text.trim(), TRANSCRIPT_TEXT_LIMITS.user),
+          kind: "tool_result",
+          name,
+          ...clipTranscriptText(text, TRANSCRIPT_TEXT_LIMITS.tool_result),
           ...(at !== undefined ? { at } : {}),
         });
       }
       continue;
     }
 
+    // 旧版 V2 把工具结果放在独立的 role:"tool" 消息里。
     if (role === "tool") {
       for (const rawPart of parts) {
         if (!rawPart || typeof rawPart !== "object") continue;
@@ -692,9 +777,11 @@ export function parseCommandCodeTranscript(
   return paginateTranscript(entries, entries.length, options);
 }
 
-/** Command Code 工具结果正文：`{type:"text",value}` 或纯字符串。 */
+/** Command Code 工具结果正文：`{type:"text",value}`、纯字符串或 Anthropic content 数组。 */
 function readCommandCodeToolOutput(output: unknown): string {
   if (typeof output === "string") return output.trim();
+  // V3 的 tool_result 直接给 content 数组（`[{type:"text",text}]`），不是信封对象。
+  if (Array.isArray(output)) return readContentText(output);
   if (!output || typeof output !== "object") return "";
   const record = output as { value?: unknown; text?: unknown; content?: unknown };
   if (typeof record.value === "string") return record.value.trim();
