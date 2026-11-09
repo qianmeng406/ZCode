@@ -38,6 +38,8 @@ import {
   probeExternalAgents,
   readExternalAgentSessionTranscript,
 } from "../zcode-protocol/external-agent-probe.js";
+import { readSessionExternalAgent } from "../zcode-protocol/session-external-agent.js";
+import { resolveExternalAgentSessionHomeDir } from "@zcode/shared";
 import { getLocaleConfigPath } from "./locale-selection.js";
 import type { ProviderRegistryModelSource } from "./provider-registry-model-runtime.js";
 import {
@@ -159,6 +161,17 @@ export function createSessionFacade(deps: CreateSessionFacadeDeps): SessionFacad
   let currentLocale = resolveLocale(deps.configResult.config.ui.locale);
   // App-Provided Tools：本会话当前登记在 ToolRegistry 里的模型侧名字（整体替换时先注销）。
   let appProvidedToolNames: string[] = [];
+  // 外部 agent 会话扫描的落盘根（list/delete/transcript 三条共用）：按本会话绑定
+  // 的预设解析。qoder 的 CN CLI 落在 `~/.qoder-cn` 而不是 `~/.codebuddy`——RPC 链路
+  // 只带 driver（UI→services 层就丢了），所以这里从 session entry 自读绑定，
+  // 不给协议加字段。读取失败按未绑定处理：退回缺省 `.codebuddy`，无害。
+  const externalAgentSessionHomeDir = async (): Promise<{ sessionHomeDir: string }> => {
+    const binding = await readSessionExternalAgent({
+      sessionId: deps.sessionId,
+      sessionStore: deps.sessionStore,
+    });
+    return { sessionHomeDir: resolveExternalAgentSessionHomeDir(binding?.presetId) };
+  };
   const currentRegistrySelection = ():
     | { owned: false }
     | {
@@ -616,6 +629,7 @@ export function createSessionFacade(deps: CreateSessionFacadeDeps): SessionFacad
         executionPort: deps.executionPort,
         cwd: deps.workingDirectory,
         ...(input?.driver !== undefined ? { driver: input.driver } : {}),
+        ...(await externalAgentSessionHomeDir()),
       }),
     deleteExternalAgentSession: async (externalSessionId, input) =>
       deleteExternalAgentSession({
@@ -623,6 +637,7 @@ export function createSessionFacade(deps: CreateSessionFacadeDeps): SessionFacad
         cwd: deps.workingDirectory,
         externalSessionId,
         ...(input?.driver !== undefined ? { driver: input.driver } : {}),
+        ...(await externalAgentSessionHomeDir()),
       }),
     readExternalAgentSessionTranscript: async (input) =>
       readExternalAgentSessionTranscript({
@@ -632,6 +647,7 @@ export function createSessionFacade(deps: CreateSessionFacadeDeps): SessionFacad
         ...(input.before !== undefined ? { before: input.before } : {}),
         ...(input.limit !== undefined ? { limit: input.limit } : {}),
         ...(input.driver !== undefined ? { driver: input.driver } : {}),
+        ...(await externalAgentSessionHomeDir()),
       }),
     setMode: async (mode: CollaborationMode) => {
       const previousMode = deps.runtime.getMode();

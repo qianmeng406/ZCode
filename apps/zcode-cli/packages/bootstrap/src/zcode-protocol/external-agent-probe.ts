@@ -335,7 +335,14 @@ async function probePreset(
   // probeOpencodeModelCatalog）——那是唯一逐模型的 reasoning 能力事实。
   if (preset.modelSource === "command" && preset.modelListCommand?.length) {
     const listed = await probeCommand(executionPort, preset.command, preset.modelListCommand, cwd);
-    const models = listed.ok ? parseModelListLines(listed.stdout) : [];
+    // qoder 的 `--list-models` 首行是表头 `MODEL`（预设 modelListSkipHeader 声明）：
+    // 不跳过它会被当成一个叫 "MODEL" 的模型混进候选。
+    const stdout = listed.ok
+      ? preset.modelListSkipHeader
+        ? listed.stdout.split(/\r?\n/u).slice(1).join("\n")
+        : listed.stdout
+      : "";
+    const models = listed.ok ? parseModelListLines(stdout) : [];
     return {
       ...base,
       models,
@@ -513,6 +520,11 @@ export async function listExternalAgentSessions(options: {
   limit?: number;
   /** 缺省 claude-family：旧调用方不带该字段时行为与以前完全一致。 */
   driver?: ExternalAgentDriverKind;
+  /**
+   * 会话落盘的 home 一级目录名；缺省 `.codebuddy`。由调用方按绑定的预设解析
+   * （resolveExternalAgentSessionHomeDir）：qoder 的 CN CLI 落在 `~/.qoder-cn`。
+   */
+  sessionHomeDir?: string;
 }): Promise<ExternalAgentSessionSummary[]> {
   const limit = options.limit ?? 30;
   if (options.driver === "opencode-exec") {
@@ -531,7 +543,7 @@ export async function listExternalAgentSessions(options: {
   const read = await probeCommand(
     options.executionPort,
     "node",
-    ["-e", buildExternalAgentSessionsScript(options.cwd)],
+    ["-e", buildExternalAgentSessionsScript(options.cwd, options.sessionHomeDir)],
     options.cwd,
     { maxInlineBytes: 8_000_000, maxBufferBytes: 8_000_000 },
   );
@@ -579,10 +591,10 @@ export function parseOpencodeSessionListProbe(stdout: string): ExternalAgentSess
  * 明显，因为命令行是单字符串），整条探测静默返回空列表——会话列表永远是空的。
  * 输出流里用 NUL 分隔仍然安全（JSONL 正文不会出现裸 NUL）。
  */
-export function buildExternalAgentSessionsScript(cwd: string): string {
+export function buildExternalAgentSessionsScript(cwd: string, sessionHomeDir?: string): string {
   return [
     "const fs=require('fs'),path=require('path'),os=require('os');",
-    `const dir=path.join(os.homedir(),'.codebuddy','projects',${JSON.stringify(cwdToProjectDirName(cwd))});`,
+    `const dir=path.join(os.homedir(),${JSON.stringify(sessionHomeDir ?? ".codebuddy")},'projects',${JSON.stringify(cwdToProjectDirName(cwd))});`,
     "let files=[];",
     "try{files=fs.readdirSync(dir).filter(f=>f.endsWith('.jsonl'));}catch{process.exit(0);}",
     "const stats=files.map(f=>{try{return {f,m:fs.statSync(path.join(dir,f)).mtimeMs};}catch{return null;}}).filter(Boolean);",
@@ -641,10 +653,11 @@ const TRANSCRIPT_READ_LIMIT_BYTES = 4_000_000;
 export function buildDeleteExternalAgentSessionScript(
   cwd: string,
   externalSessionId: string,
+  sessionHomeDir?: string,
 ): string {
   return [
     "const fs=require('fs'),path=require('path'),os=require('os');",
-    `const dir=path.join(os.homedir(),'.codebuddy','projects',${JSON.stringify(cwdToProjectDirName(cwd))});`,
+    `const dir=path.join(os.homedir(),${JSON.stringify(sessionHomeDir ?? ".codebuddy")},'projects',${JSON.stringify(cwdToProjectDirName(cwd))});`,
     `const id=${JSON.stringify(externalSessionId)};`,
     "const targets=[path.join(dir,id+'.jsonl'),path.join(dir,id)];",
     "const existed=targets.some(t=>{try{return fs.existsSync(t);}catch{return false;}});",
@@ -660,6 +673,8 @@ export async function deleteExternalAgentSession(options: {
   externalSessionId: string;
   /** 缺省 claude-family：旧调用方不带该字段时行为与以前完全一致。 */
   driver?: ExternalAgentDriverKind;
+  /** 会话落盘的 home 一级目录名；缺省 `.codebuddy`（同 listExternalAgentSessions）。 */
+  sessionHomeDir?: string;
 }): Promise<boolean> {
   // id 会被拼进 argv/路径：两种驱动都先过同一道白名单。不合法直接 false，
   // 语义与"本来就不存在"一致（幂等、不抛错）。
@@ -677,7 +692,10 @@ export async function deleteExternalAgentSession(options: {
   const read = await probeCommand(
     options.executionPort,
     "node",
-    ["-e", buildDeleteExternalAgentSessionScript(options.cwd, options.externalSessionId)],
+    [
+      "-e",
+      buildDeleteExternalAgentSessionScript(options.cwd, options.externalSessionId, options.sessionHomeDir),
+    ],
     options.cwd,
   );
   return read.ok && read.stdout.trim() === "1";
@@ -689,10 +707,14 @@ export async function deleteExternalAgentSession(options: {
  * 首行是 `1`/`0`（源文件是否被截断），其后是原始 JSONL——不套 JSON 信封，
  * 避免大文件的转义开销。
  */
-export function buildExternalAgentTranscriptScript(cwd: string, externalSessionId: string): string {
+export function buildExternalAgentTranscriptScript(
+  cwd: string,
+  externalSessionId: string,
+  sessionHomeDir?: string,
+): string {
   return [
     "const fs=require('fs'),path=require('path'),os=require('os');",
-    `const dir=path.join(os.homedir(),'.codebuddy','projects',${JSON.stringify(cwdToProjectDirName(cwd))});`,
+    `const dir=path.join(os.homedir(),${JSON.stringify(sessionHomeDir ?? ".codebuddy")},'projects',${JSON.stringify(cwdToProjectDirName(cwd))});`,
     `const file=path.join(dir,${JSON.stringify(externalSessionId)}+'.jsonl');`,
     `const MAX=${TRANSCRIPT_READ_LIMIT_BYTES};`,
     "let content='',truncated=false;",
@@ -719,6 +741,8 @@ export async function readExternalAgentSessionTranscript(options: {
   limit?: number;
   /** 缺省 claude-family：旧调用方不带该字段时行为与以前完全一致。 */
   driver?: ExternalAgentDriverKind;
+  /** 会话落盘的 home 一级目录名；缺省 `.codebuddy`（同 listExternalAgentSessions）。 */
+  sessionHomeDir?: string;
 }): Promise<ExternalAgentTranscriptPage> {
   const empty: ExternalAgentTranscriptPage = {
     sessionId: options.externalSessionId,
@@ -747,7 +771,10 @@ export async function readExternalAgentSessionTranscript(options: {
   const read = await probeCommand(
     options.executionPort,
     "node",
-    ["-e", buildExternalAgentTranscriptScript(options.cwd, options.externalSessionId)],
+    [
+      "-e",
+      buildExternalAgentTranscriptScript(options.cwd, options.externalSessionId, options.sessionHomeDir),
+    ],
     options.cwd,
     {
       maxInlineBytes: TRANSCRIPT_READ_LIMIT_BYTES + 1_000_000,

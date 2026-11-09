@@ -1,4 +1,5 @@
-import { extname, win32 } from "node:path";
+import { readdirSync } from "node:fs";
+import { extname, join as joinPath, win32 } from "node:path";
 
 const DEFAULT_WINDOWS_PATHEXT = [".COM", ".EXE", ".BAT", ".CMD"];
 
@@ -62,4 +63,83 @@ function getWindowsPathExts(env: NodeJS.ProcessEnv): string[] {
 
 function hasWindowsPathSeparator(value: string): boolean {
   return value.includes("\\") || value.includes("/");
+}
+
+/**
+ * 已知桌面应用的 CLI 安装位置（PATH 之外的兜底）。
+ *
+ * 有些 AI coding CLI 不往 PATH 上装，只藏在桌面版自己的 resources 里（与
+ * WorkBuddy 内置 codebuddy 同款模式）。按裸名 spawn 时 PATH 全部未命中，这里
+ * 给出最后的落点，探测（`--version`）与委派因此共享同一份解析。
+ *
+ * pattern 语义：首段是环境变量名（取值缺失则整条跳过），`*` 段匹配该层目录下的
+ * 任一子目录（多版本共存时取数值语义最大的——版本目录如 `1.0.6-26091603`）。
+ */
+const KNOWN_WINDOWS_INSTALL_LOCATIONS: ReadonlyArray<{
+  name: string;
+  pattern: readonly string[];
+}> = [
+  {
+    // 阿里 Qoder CLI CN：QwenWork 桌面版内置，实测 1.1.32（2026-11-09）。
+    name: "qoderclicn",
+    pattern: ["LOCALAPPDATA", "Programs", "QwenWorkCN", "*", "resources", "bin", "qoderclicn.exe"],
+  },
+];
+
+/**
+ * 从已知安装位置展开裸命令的候选绝对路径（PATH 候选之后追加）。
+ *
+ * 只处理表里登记的裸名；带路径分隔符/绝对路径的 file 一律返回空。`listDir` 可
+ * 注入以便测试。展开失败（env 缺失、目录不存在）逐段静默跳过——兜底路径永远
+ * 不该让正常 spawn 报错。
+ */
+export function windowsKnownInstallCandidates(
+  file: string,
+  env: NodeJS.ProcessEnv,
+  listDir: (path: string) => readonly string[] = (path) => readdirSync(path),
+): string[] {
+  if (hasWindowsPathSeparator(file) || extname(file)) return [];
+  const entry = KNOWN_WINDOWS_INSTALL_LOCATIONS.find((candidate) => candidate.name === file);
+  if (!entry) return [];
+  const [envKey, ...rest] = entry.pattern;
+  const base = envKey ? getWindowsEnvValue(env, envKey) : undefined;
+  if (!base || rest.length === 0) return [];
+  const wildcardIndex = rest.indexOf("*");
+  const beforeWildcard = wildcardIndex >= 0 ? rest.slice(0, wildcardIndex) : rest;
+  const suffix = wildcardIndex >= 0 ? rest.slice(wildcardIndex + 1) : [];
+  // 前缀段逐一 join：任一段不是目录（env 根不存在等）就整条放弃。
+  let prefix = base;
+  for (const segment of beforeWildcard) {
+    prefix = joinPath(prefix, segment);
+    if (!isDirectory(prefix, listDir)) return [];
+  }
+  const joinTail = (directory: string): string => {
+    let current = directory;
+    for (const segment of suffix) current = joinPath(current, segment);
+    return current;
+  };
+  if (wildcardIndex < 0) return [joinTail(prefix)];
+  let children: readonly string[];
+  try {
+    children = listDir(prefix);
+  } catch {
+    return [];
+  }
+  // 只展开子目录（安装根下还有 Updater.exe 这类文件，locale 排序里字母 > 数字，
+  // 不过滤会排到版本目录前面变成首候选）。
+  const directories = children.filter((child) => isDirectory(joinPath(prefix, child), listDir));
+  // 版本目录数值语义取最大（"1.0.10" > "1.0.9"；同前缀时后缀段大者优先）。
+  const ordered = [...directories].sort((left, right) =>
+    right.localeCompare(left, undefined, { numeric: true }),
+  );
+  return ordered.map((child) => joinTail(joinPath(prefix, child)));
+}
+
+function isDirectory(path: string, listDir: (path: string) => readonly string[]): boolean {
+  try {
+    listDir(path);
+    return true;
+  } catch {
+    return false;
+  }
 }

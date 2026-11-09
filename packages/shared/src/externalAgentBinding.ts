@@ -127,7 +127,9 @@ function resolveModelFlag(binding: ExternalAgentBinding): string | undefined {
 
 /**
  * 推理档位的传参。按驱动族决定形状：
- * - claude-family：`--effort <level>`（两家实测都支持）；
+ * - claude-family：`--effort <level>`（claude / codebuddy 实测；qoder 的同义 flag
+ *   是 `--reasoning-effort`，由预设的 `effortFlag` 声明——它的解析器不校验未知
+ *   选项，传 `--effort` 会被静默吞掉，档位永远不生效）；
  * - codex-exec：**没有** effort flag，只能 `-c model_reasoning_effort="<level>"`；
  * - opencode-exec：没有 effort flag，档位是模型串的后缀 `--model provider/model#<level>`
  *   （实测 v2.2.5；传错档位报 `Variant unavailable`）。
@@ -142,7 +144,10 @@ function resolveModelFlag(binding: ExternalAgentBinding): string | undefined {
 function resolveEffortArgs(binding: ExternalAgentBinding): string[] {
   const effort = binding.effortsByModel?.[binding.model ?? ""];
   if (!effort) return [];
-  if (binding.driver === "claude-family") return ["--effort", effort];
+  if (binding.driver === "claude-family") {
+    const flag = findExternalAgentPreset(binding.presetId)?.effortFlag ?? "--effort";
+    return [flag, effort];
+  }
   if (binding.driver === "codex-exec") {
     // codex 的 -c 值是 TOML 片段，字符串要带引号；整体作为一个 argv 元素传给 CLI。
     return ["-c", `model_reasoning_effort="${effort}"`];

@@ -98,8 +98,27 @@ export const externalAgentPresetSchema = z.object({
   modelListCommand: z.array(z.string().max(200)).max(10).optional(),
   /** modelSource=static 时的候选。 */
   models: z.array(z.string()).default([]),
+  /**
+   * modelSource=`command` 时子命令输出的第一行是不是表头（如 qoder 的
+   * `--list-models` 先打一行 `MODEL`）。缺省 false：opencode 的 models 输出
+   * 没有表头，逐行都是模型 id。（optional 而非 default：预设数组是 as const
+   * 字面量，default 会把它变成必填、逼着所有旧预设补字段。）
+   */
+  modelListSkipHeader: z.boolean().optional(),
+  /**
+   * 会话落盘根目录（home 下的一级目录名，transcript 扫描/删除用）。
+   * 缺省 `.codebuddy`：claude-family 族的既有事实，老预设不带这个字段。
+   * qoder 的 CN CLI 用 `~/.qoder-cn`（与 IDE 的 `~/.qoder` 是两棵树）。
+   */
+  sessionHomeDir: z.string().max(60).optional(),
   /** 推理档位的传参形状；none = 该 CLI 没有这个概念。 */
   effortDelivery: z.enum(EXTERNAL_AGENT_EFFORT_DELIVERIES).default("none"),
+  /**
+   * effortDelivery=`flag` 时的 argv flag 名。缺省 `--effort`（claude/codebuddy）；
+   * qoder 的同义 flag 是 `--reasoning-effort`，传 `--effort` 会被静默吞掉
+   * （它不做严格选项校验），档位于是永远不生效。
+   */
+  effortFlag: z.string().max(40).optional(),
   /**
    * 每个模型的档位候选（model id → levels）。
    *
@@ -279,11 +298,54 @@ export const EXTERNAL_AGENT_PRESETS: readonly ExternalAgentPreset[] = [
     effortDelivery: "variant",
     effortLevelsByModel: {},
   },
+  {
+    id: "qodercli-cn",
+    label: "Qoder CLI CN",
+    description: "阿里 Qoder CLI CN（QwenWork 桌面版内置，claude-family 同构）。",
+    adaptation: "full",
+    // 调用形状 2026-11-09 本机实测（qoderclicn 1.1.32）：
+    // - `-p -o stream-json` 输出与 claude-family 逐字段同构（init/assistant/result、
+    //   result.result/is_error/session_id），另有 hook_started/hook_progress/hook_response
+    //   等 system 事件——现有解析器只认 assistant/user/result，天然忽略；
+    // - 推理档位是 `--reasoning-effort`（CLI 级值域 none/low/medium/high/xhigh/max）；
+    // - 权限档位值用下划线：bypass_permissions（不是 claude 的驼峰）；
+    // - `--list-models` 首行是表头 `MODEL`，其后逐行一个模型名；
+    // - 会话落盘 `~/.qoder-cn/projects/<cwd 编码>/<id>.jsonl`（CN CLI 的 config root，
+    //   与 IDE 的 `~/.qoder` 是两棵树），布局与 claude-family 同构；
+    // - 不在 PATH 上：藏在 %LOCALAPPDATA%\Programs\QwenWorkCN\<版本>\resources\bin\，
+    //   解析兜底见 adapters/windows-executable.ts 的已知安装位置表。
+    // prompt 经 stdin 交付（与 claude-family 同源，-p + 管道 stdin；避免 Windows
+    // 命令行 8191 字符上限）。
+    driver: "claude-family",
+    command: "qoderclicn",
+    args: ["-p", "--output-format", "stream-json", "--include-partial-messages"],
+    promptDelivery: "stdin",
+    permissionMode: "bypass_permissions",
+    modelFlag: "--model",
+    modelSource: "command",
+    modelListCommand: ["--list-models"],
+    modelListSkipHeader: true,
+    models: [],
+    effortDelivery: "flag",
+    effortFlag: "--reasoning-effort",
+    effortLevelsByModel: { "": ["low", "medium", "high", "xhigh", "max"] },
+    sessionHomeDir: ".qoder-cn",
+  },
 ] as const;
 
 export function findExternalAgentPreset(id: string | undefined): ExternalAgentPreset | undefined {
   if (!id) return undefined;
   return EXTERNAL_AGENT_PRESETS.find((preset) => preset.id === id);
+}
+
+/**
+ * claude-family 会话落盘的 home 一级目录名。
+ *
+ * 缺省 `.codebuddy`：既有 claude/codebuddy 预设不带 `sessionHomeDir` 字段，行为
+ * 与新增之前逐字一致。qoder 的 CN CLI 落在 `~/.qoder-cn`，由预设声明。
+ */
+export function resolveExternalAgentSessionHomeDir(presetId: string | undefined): string {
+  return findExternalAgentPreset(presetId)?.sessionHomeDir ?? ".codebuddy";
 }
 
 /**

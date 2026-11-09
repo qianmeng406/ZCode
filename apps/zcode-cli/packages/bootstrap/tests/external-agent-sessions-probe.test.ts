@@ -59,6 +59,41 @@ describe("buildExternalAgentSessionsScript", () => {
     expect(script).toContain(JSON.stringify(SLUG));
     expect(SLUG).toBe(cwdToProjectDirName(WORKSPACE));
   });
+
+  it("sessionHomeDir 参数化落盘根：缺省 .codebuddy，qoder 用 .qoder-cn", () => {
+    expect(buildExternalAgentSessionsScript(WORKSPACE)).toContain('".codebuddy"');
+    expect(buildExternalAgentSessionsScript(WORKSPACE, ".codebuddy")).toContain('".codebuddy"');
+    // qoder 的 CN CLI config root（与 IDE 的 ~/.qoder 是两棵树）。
+    const qoder = buildExternalAgentSessionsScript(WORKSPACE, ".qoder-cn");
+    expect(qoder).toContain('".qoder-cn"');
+    expect(qoder).not.toContain('".codebuddy"');
+  });
+
+  it("在隔离的 home 下真的能列出 qoder 会话（sessionHomeDir 走真实 spawn 路径）", () => {
+    const home = mkdtempSync(path.join(os.tmpdir(), "zcode-probe-qoder-"));
+    tempDirs.push(home);
+    const projectDir = path.join(home, ".qoder-cn", "projects", SLUG);
+    mkdirSync(projectDir, { recursive: true });
+    writeFileSync(path.join(projectDir, "q.jsonl"), `${sessionLine()}\n`, "utf8");
+    const previousHome = process.env.USERPROFILE;
+    const previousHomePosix = process.env.HOME;
+    process.env.USERPROFILE = home;
+    process.env.HOME = home;
+    try {
+      const stdout = execFileSync(process.execPath, [
+        "-e",
+        buildExternalAgentSessionsScript(WORKSPACE, ".qoder-cn"),
+      ]).toString();
+      const result = parseExternalAgentSessionsProbe(stdout);
+      expect(result).toHaveLength(1);
+      expect(result[0]?.sessionId).toBe("session-1");
+    } finally {
+      if (previousHome === undefined) delete process.env.USERPROFILE;
+      else process.env.USERPROFILE = previousHome;
+      if (previousHomePosix === undefined) delete process.env.HOME;
+      else process.env.HOME = previousHomePosix;
+    }
+  });
 });
 
 describe("parseExternalAgentSessionsProbe", () => {
@@ -501,6 +536,27 @@ describe("parseOpencodeModelCatalog（models.json → 逐模型档位）", () =>
 // 实测事故（2026-11-07 21:58）：会话冷启动时执行端口还没装配，probeCommand 抛错被
 // catch 成 ok:false，两条预设都报 installed:false —— 绑定对话框把明明装着的
 // CodeBuddy / OpenCode 都显示成"未检测到"。根因是把"问不到"断言成了"没有"。
+// qoder 的模型探测：`--list-models` 首行是表头 MODEL，预设 modelListSkipHeader
+// 声明跳过——不跳会把表头当成一个叫 "MODEL" 的模型混进候选（2026-11-09 实测输出）。
+describe("qodercli-cn 的模型探测（--list-models 表头跳过）", () => {
+  it("跳过 MODEL 表头，只留模型名；--version 用裸命令走执行层解析", async () => {
+    const port = stubPort((request) => {
+      const args = request.command.args;
+      if (args.includes("--version")) return okResult("1.1.32");
+      if (args.includes("--list-models")) {
+        return okResult("MODEL\nAuto\nQwen3.8-Max\nDeepSeek-Flash\n");
+      }
+      throw new Error(`unexpected probe command: ${JSON.stringify(args)}`);
+    });
+    const result = await probeExternalAgents({ executionPort: port, cwd: WORKSPACE });
+    const qoder = result.agents.find((agent) => agent.preset.id === "qodercli-cn");
+    expect(qoder).toBeDefined();
+    expect(qoder?.installed).toBe(true);
+    expect(qoder?.version).toBe("1.1.32");
+    expect(qoder?.models).toEqual(["Auto", "Qwen3.8-Max", "DeepSeek-Flash"]);
+  });
+});
+
 describe("探测失败与未安装的区分（probeError）", () => {
   const throwingPort = {
     run: vi.fn(async () => {

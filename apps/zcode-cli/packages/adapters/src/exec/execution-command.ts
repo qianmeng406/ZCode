@@ -7,7 +7,7 @@ import {
   type BashShellProvider,
 } from "./bash-shell-provider.js";
 import { applyExecutionTextEnv } from "./outputEncoding.js";
-import { windowsExecutableCandidates } from "./windows-executable.js";
+import { windowsExecutableCandidates, windowsKnownInstallCandidates } from "./windows-executable.js";
 import type {
   ExecutionCommand,
   ExecutionEnvOverlay,
@@ -231,7 +231,12 @@ function resolveWindowsExecutable(
   },
 ): string {
   const exists = options.exists ?? existsSync;
-  const candidates = windowsExecutableCandidates(file, options.env, options.cwd);
+  // PATH 候选优先；全部未命中时按已知安装位置兜底（qoderclicn 这类只藏在
+  // 桌面版 resources 里的 CLI，见 windows-executable.ts 的位置表）。
+  const candidates = [
+    ...windowsExecutableCandidates(file, options.env, options.cwd),
+    ...windowsKnownInstallCandidates(file, options.env),
+  ];
   return candidates.find((candidate) => exists(candidate)) ?? file;
 }
 

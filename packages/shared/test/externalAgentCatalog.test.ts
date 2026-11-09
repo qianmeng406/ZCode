@@ -9,6 +9,7 @@ import {
   parseModelListFromHelp,
   parseServerModelCache,
   resolveEffortLevels,
+  resolveExternalAgentSessionHomeDir,
 } from "../src/externalAgentCatalog.js";
 import {
   createClaudeStreamParser,
@@ -52,7 +53,7 @@ test("EXTERNAL_AGENT_BINDABLE_PRESETS: 只列完整适配的", () => {
   // codex / claude-code 目前只验证过最基本的调用形状，列出来用户会以为能完整用。
   assert.deepEqual(
     EXTERNAL_AGENT_BINDABLE_PRESETS.map((preset) => preset.id),
-    ["codebuddy", "opencode"],
+    ["codebuddy", "opencode", "qodercli-cn"],
   );
   // 目录里不删它们：老绑定还要靠 findExternalAgentPreset 回显 label 与调用参数。
   for (const id of ["claude-code", "codex"]) {
@@ -60,6 +61,70 @@ test("EXTERNAL_AGENT_BINDABLE_PRESETS: 只列完整适配的", () => {
     assert.ok(preset);
     assert.equal(preset.adaptation, "partial");
   }
+});
+
+test("qodercli-cn 预设：claude-family 同构 + 预设级覆盖项", () => {
+  // 2026-11-09 本机实测（qoderclicn 1.1.32）：stream-json 输出与 claude-family
+  // 逐字段同构，差异全部收敛在预设字段里。
+  const preset = findExternalAgentPreset("qodercli-cn")!;
+  assert.equal(preset.driver, "claude-family");
+  assert.equal(preset.adaptation, "full");
+  assert.equal(preset.command, "qoderclicn");
+  assert.deepEqual(preset.args, [
+    "-p",
+    "--output-format",
+    "stream-json",
+    "--include-partial-messages",
+  ]);
+  // 权限档位值用下划线（不是 claude 的驼峰）。
+  assert.equal(preset.permissionMode, "bypass_permissions");
+  // 档位 flag 不同名：传 --effort 会被静默吞掉。
+  assert.equal(preset.effortFlag, "--reasoning-effort");
+  assert.deepEqual(resolveEffortLevels(preset, undefined), [
+    "low",
+    "medium",
+    "high",
+    "xhigh",
+    "max",
+  ]);
+  // 会话落盘在 ~/.qoder-cn（CN CLI 的 config root，与 IDE 的 ~/.qoder 是两棵树）。
+  assert.equal(preset.sessionHomeDir, ".qoder-cn");
+  assert.equal(resolveExternalAgentSessionHomeDir("qodercli-cn"), ".qoder-cn");
+  // 老预设不带字段时保持既有事实：.codebuddy。
+  assert.equal(resolveExternalAgentSessionHomeDir("codebuddy"), ".codebuddy");
+  assert.equal(resolveExternalAgentSessionHomeDir(undefined), ".codebuddy");
+});
+
+test("qodercli-cn 绑定的调用形状：档位 flag、权限值、stdin 与续接", () => {
+  const binding = externalAgentBindingSchema.parse({
+    label: "Qoder CLI CN",
+    driver: "claude-family",
+    command: "qoderclicn",
+    args: ["-p", "--output-format", "stream-json", "--include-partial-messages"],
+    promptDelivery: "stdin",
+    presetId: "qodercli-cn",
+    model: "Qwen3.8-Max",
+    effortsByModel: { "Qwen3.8-Max": "high" },
+    externalSessionId: "abc-123",
+  });
+  const invocation = buildExternalAgentInvocation(binding, "任务书");
+  // 预设 argv 跟随代码；档位用预设声明的 --reasoning-effort（--effort 会被静默吞掉）。
+  assert.deepEqual(invocation.args, [
+    "-p",
+    "--output-format",
+    "stream-json",
+    "--include-partial-messages",
+    "--model",
+    "Qwen3.8-Max",
+    "--reasoning-effort",
+    "high",
+    "--permission-mode",
+    "bypass_permissions",
+    "-r",
+    "abc-123",
+  ]);
+  // prompt 走 stdin（claude-family 分支固定）。
+  assert.equal(invocation.stdin, "任务书");
 });
 
 test("codex 预设用 codex-exec 族与 exec 子命令", () => {
