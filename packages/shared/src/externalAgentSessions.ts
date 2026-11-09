@@ -47,6 +47,22 @@ export function cwdToProjectDirName(cwd: string): string {
 }
 
 /**
+ * Qoder CLI（国际版/CN 同为 `C--Users-...` 规则）的 cwd → project 目录名。
+ *
+ * 与 claude/codebuddy 的差别（2026-11-10 实测 `~/.qoder/projects` 与 `~/.qoder-cn/projects`）：
+ * - 盘符**保留原大小写**，且冒号**不丢弃**而是也折叠成 `-`：`C:\Users\x` → `C--Users-x`；
+ * - 分隔符折叠为 `-`；
+ * - 首尾的 `-` 不裁剪（posix `/Users/x` → `-Users-x`，与实测目录形态一致）。
+ *
+ * 用错规则不会报错，只会指向一个不存在的目录 → 续接列表与上下文面板静默为空。
+ */
+export function cwdToQoderProjectDirName(cwd: string): string {
+  // 逐字符折叠（不是把 `:\` 连续段折叠成一个 `-`）：`C:\Users` 的两个分隔符
+  // 各产生一个 `-`，才是实测的 `C--Users`。
+  return cwd.replace(/[:\\/]/gu, "-");
+}
+
+/**
  * 从一段 stdout/文件内容里扫描会话概要。
  *
  * 纯函数便于单测；执行机侧的探针脚本逐文件读出内容后喂进来。
@@ -168,14 +184,10 @@ function readCommandCodeTimestamp(value: unknown): number | undefined {
 function isCommandCodeMetaEntry(record: Record<string, unknown>): boolean {
   const message = record.message;
   const nestedMeta =
-    message && typeof message === "object"
-      ? (message as { meta?: unknown }).meta
-      : undefined;
+    message && typeof message === "object" ? (message as { meta?: unknown }).meta : undefined;
   const metadata = nestedMeta ?? record.metadata;
   return Boolean(
-    metadata &&
-      typeof metadata === "object" &&
-      (metadata as { isMeta?: unknown }).isMeta === true,
+    metadata && typeof metadata === "object" && (metadata as { isMeta?: unknown }).isMeta === true,
   );
 }
 

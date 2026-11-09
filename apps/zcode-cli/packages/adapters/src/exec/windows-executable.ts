@@ -3,10 +3,7 @@ import { extname, join as joinPath, win32 } from "node:path";
 
 const DEFAULT_WINDOWS_PATHEXT = [".COM", ".EXE", ".BAT", ".CMD"];
 
-export function getWindowsEnvValue(
-  env: NodeJS.ProcessEnv,
-  key: string,
-): string | undefined {
+export function getWindowsEnvValue(env: NodeJS.ProcessEnv, key: string): string | undefined {
   const lowerKey = key.toLowerCase();
   const match = Object.keys(env).find((envKey) => envKey.toLowerCase() === lowerKey);
   return match ? env[match] : undefined;
@@ -84,6 +81,12 @@ const KNOWN_WINDOWS_INSTALL_LOCATIONS: ReadonlyArray<{
     name: "qoderclicn",
     pattern: ["LOCALAPPDATA", "Programs", "QwenWorkCN", "*", "resources", "bin", "qoderclicn.exe"],
   },
+  {
+    // Qoder CLI 国际版：独立安装器落在用户主目录，实测 1.1.86（2026-11-10）。
+    // 同目录还有 qodercli-<version>.exe，稳定名 qodercli.exe 优先。
+    name: "qodercli",
+    pattern: ["USERPROFILE", ".qoder", "bin", "qodercli", "qodercli.exe"],
+  },
 ];
 
 /**
@@ -105,8 +108,9 @@ export function windowsKnownInstallCandidates(
   const base = envKey ? getWindowsEnvValue(env, envKey) : undefined;
   if (!base || rest.length === 0) return [];
   const wildcardIndex = rest.indexOf("*");
-  const beforeWildcard = wildcardIndex >= 0 ? rest.slice(0, wildcardIndex) : rest;
-  const suffix = wildcardIndex >= 0 ? rest.slice(wildcardIndex + 1) : [];
+  // 无通配段时最后一段是**文件名**，不能拿去当目录校验（否则整条候选被丢弃）。
+  const beforeWildcard = wildcardIndex >= 0 ? rest.slice(0, wildcardIndex) : rest.slice(0, -1);
+  const suffix = wildcardIndex >= 0 ? rest.slice(wildcardIndex + 1) : rest.slice(-1);
   // 前缀段逐一 join：任一段不是目录（env 根不存在等）就整条放弃。
   let prefix = base;
   for (const segment of beforeWildcard) {

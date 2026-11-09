@@ -58,7 +58,7 @@ test("EXTERNAL_AGENT_BINDABLE_PRESETS: 只列完整适配的", () => {
   // codex / claude-code 目前只验证过最基本的调用形状，列出来用户会以为能完整用。
   assert.deepEqual(
     EXTERNAL_AGENT_BINDABLE_PRESETS.map((preset) => preset.id),
-    ["codebuddy", "opencode", "qodercli-cn", "commandcode"],
+    ["codebuddy", "opencode", "qodercli-cn", "qodercli", "commandcode"],
   );
   // 目录里不删它们：老绑定还要靠 findExternalAgentPreset 回显 label 与调用参数。
   for (const id of ["claude-code", "codex"]) {
@@ -116,6 +116,57 @@ test("qodercli-cn 预设：claude-family 同构 + 预设级覆盖项", () => {
   assert.equal(resolveExternalAgentSessionHomeDir(undefined), ".codebuddy");
 });
 
+test("qodercli 预设：国际版与 CN 版是两份独立预设", () => {
+  // 2026-11-10 本机实测（qodercli 1.1.86）：同一 CLI 代码，但 config root、
+  // project slug、模型集合都不同，必须分两份预设。
+  const intl = findExternalAgentPreset("qodercli")!;
+  const cn = findExternalAgentPreset("qodercli-cn")!;
+  assert.equal(intl.label, "Qoder CLI");
+  assert.equal(intl.command, "qodercli");
+  assert.equal(intl.adaptation, "full");
+  assert.equal(intl.driver, "claude-family");
+  assert.equal(intl.effortFlag, "--reasoning-effort");
+  assert.equal(intl.permissionMode, "bypass_permissions");
+  // 国际版 config root 是 ~/.qoder；CN 是 ~/.qoder-cn。
+  assert.equal(intl.sessionHomeDir, ".qoder");
+  assert.equal(cn.sessionHomeDir, ".qoder-cn");
+  assert.equal(resolveExternalAgentSessionHomeDir("qodercli"), ".qoder");
+  // projects 目录名两个版本都是 qoder 规则（C:\x → C--x）。
+  assert.equal(intl.projectDirSlug, "qoder");
+  assert.equal(cn.projectDirSlug, "qoder");
+  // 逐模型档位（/model + /effort 面板枚举）：国际版多出 Ultimate/Sonus/Cantus。
+  assert.deepEqual(resolveEffortLevels(intl, "Ultimate"), [
+    "none",
+    "low",
+    "medium",
+    "high",
+    "xhigh",
+    "max",
+    "ultracode",
+  ]);
+  assert.deepEqual(resolveEffortLevels(intl, "Sonus"), [
+    "none",
+    "low",
+    "medium",
+    "high",
+    "xhigh",
+    "max",
+    "ultracode",
+  ]);
+  assert.deepEqual(resolveEffortLevels(intl, "Qwen3.8-Max"), [
+    "none",
+    "low",
+    "medium",
+    "xhigh",
+    "ultracode",
+  ]);
+  assert.deepEqual(resolveEffortLevels(intl, "DeepSeek-V4-Pro"), ["none", "high", "max"]);
+  // 元模型没有档位入口。
+  assert.deepEqual(resolveEffortLevels(intl, "Auto"), []);
+  assert.deepEqual(resolveEffortLevels(intl, "Fast"), []);
+  assert.deepEqual(resolveEffortLevels(intl, "Efficient"), []);
+});
+
 test("qodercli-cn 绑定的调用形状：档位 flag、权限值、stdin 与续接", () => {
   const binding = externalAgentBindingSchema.parse({
     label: "Qoder CLI CN",
@@ -156,13 +207,7 @@ test("commandcode 预设：headless NDJSON + 目录缓存 + 会话落盘", () =>
   assert.equal(preset.adaptation, "full");
   // Windows 上 cmd 是系统 shell，必须用全名（或 cmdc）。
   assert.equal(preset.command, "command-code");
-  assert.deepEqual(preset.args, [
-    "-p",
-    "--output-format",
-    "json",
-    "--trust",
-    "--skip-onboarding",
-  ]);
+  assert.deepEqual(preset.args, ["-p", "--output-format", "json", "--trust", "--skip-onboarding"]);
   assert.equal(preset.promptDelivery, "stdin");
   // headless 解除写文件/执行 shell 限制的开关是 --yolo（invocation 翻译）。
   assert.equal(preset.permissionMode, "yolo");
@@ -243,9 +288,7 @@ test("commandcode 结果解析：result 帧的 finalText / subtype / sessionId",
   });
   // 失败结果：finalText 为空时退回 error 文本。
   assert.deepEqual(
-    parseCommandCodeResult(
-      JSON.stringify({ type: "result", subtype: "error", error: "额度不足" }),
-    ),
+    parseCommandCodeResult(JSON.stringify({ type: "result", subtype: "error", error: "额度不足" })),
     { text: "额度不足", isError: true },
   );
   // max_turns 也是没跑完。

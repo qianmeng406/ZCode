@@ -123,6 +123,15 @@ export const externalAgentPresetSchema = z.object({
    * qoder 的 CN CLI 用 `~/.qoder-cn`（与 IDE 的 `~/.qoder` 是两棵树）。
    */
   sessionHomeDir: z.string().max(60).optional(),
+  /**
+   * projects 目录名的 slug 规则族。
+   *
+   * - 缺省 `default`：claude/codebuddy 规则（盘符小写、冒号丢弃：`c:\x` → `c-x`）；
+   * - `qoder`：qoder 规则（盘符保留大小写、冒号也折叠：`C:\x` → `C--x`）。
+   *
+   * 用错规则不会报错，只会扫到不存在的目录——续接列表静默为空。
+   */
+  projectDirSlug: z.enum(["default", "qoder"]).optional(),
   /** 推理档位的传参形状；none = 该 CLI 没有这个概念。 */
   effortDelivery: z.enum(EXTERNAL_AGENT_EFFORT_DELIVERIES).default("none"),
   /**
@@ -374,6 +383,67 @@ export const EXTERNAL_AGENT_PRESETS: readonly ExternalAgentPreset[] = [
       "": [],
     },
     sessionHomeDir: ".qoder-cn",
+    // 两个 qoder 的 project 目录名都是 `C--Users-...`（不是 claude 的 `c-Users-...`），
+    // 用默认 slug 规则会扫到不存在的目录——续接列表与上下文面板静默为空。
+    projectDirSlug: "qoder",
+  },
+  {
+    id: "qodercli",
+    label: "Qoder CLI",
+    description: "Qoder CLI 国际版（qoder.ai，claude-family 同构，config root ~/.qoder）。",
+    adaptation: "full",
+    // 调用形状 2026-11-10 本机实测（qodercli 1.1.86）：
+    // - 与 CN 版同一份 CLI 代码：`-p -o stream-json` 输出同构（init/assistant/result、
+    //   result.result/is_error/session_id；hook_* system 事件解析器天然忽略）；
+    // - 推理档位 `--reasoning-effort`，**逐模型**支持集合不同（见下面的表，用 CLI
+    //   自己的 /model + /effort 面板枚举，零模型调用）。国际版比 CN 多四个元模型：
+    //   Ultimate/Sonus/Cantus 带完整档位，Auto/Fast/Efficient 没有档位入口；
+    // - 权限值同样用下划线：bypass_permissions（不是 claude 的驼峰）；
+    // - `--list-models` 首行是表头 `MODEL`，其后逐行一个模型名；
+    // - 会话落盘 `~/.qoder/projects/<slug>/<id>.jsonl`：国际版 config root 是
+    //   `~/.qoder`（CN 是 `~/.qoder-cn`），project 目录名同样是 qoder 规则
+    //   `C:\x` → `C--x`（projectDirSlug）；
+    // - 不在 PATH 时在 %USERPROFILE%\.qoder\bin\qodercli\（独立安装器），解析兜底见
+    //   adapters/windows-executable.ts 的已知安装位置表。
+    // prompt 经 stdin 交付（与 claude-family 同源；避免 Windows 命令行 8191 上限）。
+    driver: "claude-family",
+    command: "qodercli",
+    args: ["-p", "--output-format", "stream-json", "--include-partial-messages"],
+    promptDelivery: "stdin",
+    permissionMode: "bypass_permissions",
+    modelFlag: "--model",
+    modelSource: "command",
+    modelListCommand: ["--list-models"],
+    modelListSkipHeader: true,
+    models: [],
+    effortDelivery: "flag",
+    effortFlag: "--reasoning-effort",
+    // 逐模型档位：2026-11-10 用 CLI 自己的 /model + /effort 面板逐模型枚举
+    // （qodercli 1.1.86，零模型调用；标签 → 值：None→none、Low→low、
+    // Medium→medium、High→high、Extra High→xhigh、Max→max、Ultracode→ultracode）。
+    // 服务端模型目录调整后此表会过时，重采即可（见记忆里的面板枚举技法）。
+    effortLevelsByModel: {
+      // 元模型：自动选模 / 快速档 / 经济档，面板没有档位入口。
+      Auto: [],
+      Fast: [],
+      Efficient: [],
+      Ultimate: ["none", "low", "medium", "high", "xhigh", "max", "ultracode"],
+      Sonus: ["none", "low", "medium", "high", "xhigh", "max", "ultracode"],
+      Cantus: ["none", "low", "medium", "high", "xhigh", "max", "ultracode"],
+      "Qwen3.8-Max": ["none", "low", "medium", "xhigh", "ultracode"],
+      "Qwen3.8-Flash": ["none", "low", "medium", "xhigh", "ultracode"],
+      "Kimi-K3.1-Pro": ["none", "low", "high", "max"],
+      "Kimi-K2.8-Preview": ["none", "low", "high", "max"],
+      "GLM-5.3": ["none", "low", "high", "max"],
+      "GLM-5.3-Flash": ["none", "high", "max"],
+      "DeepSeek-V4-Pro": ["none", "high", "max"],
+      "DeepSeek-Flash": ["none", "low", "high", "max"],
+      "MiniMax-M3.1-Flash": ["none", "low", "medium", "high", "xhigh", "max", "ultracode"],
+      // 未知/新模型：不给档位入口。
+      "": [],
+    },
+    sessionHomeDir: ".qoder",
+    projectDirSlug: "qoder",
   },
   {
     id: "commandcode",
@@ -675,9 +745,7 @@ export function parseCommandCodeModelCatalog(raw: unknown): ExternalAgentModelIn
     });
   }
   // display.order 是 CLI 自己的展示顺序（先 Open Source、再闭源族…）；缺失的保持原序。
-  return parsed
-    .sort((left, right) => left.order - right.order)
-    .map((entry) => entry.info);
+  return parsed.sort((left, right) => left.order - right.order).map((entry) => entry.info);
 }
 
 /**

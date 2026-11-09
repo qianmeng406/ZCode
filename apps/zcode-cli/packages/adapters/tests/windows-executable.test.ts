@@ -48,6 +48,21 @@ describe("windowsKnownInstallCandidates", () => {
     ]);
   });
 
+  it("qodercli 国际版：%USERPROFILE%\\.qoder\\bin\\qodercli（无通配段）", () => {
+    const userEnv = { USERPROFILE: "C:\\Users\\u" } as unknown as NodeJS.ProcessEnv;
+    const userDirs = fakeListDir({
+      "C:\\Users\\u": [".qoder"],
+      "C:\\Users\\u\\.qoder": ["bin"],
+      "C:\\Users\\u\\.qoder\\bin": ["qodercli"],
+      "C:\\Users\\u\\.qoder\\bin\\qodercli": ["qodercli.exe", "qodercli-1.1.86.exe", "version.txt"],
+    });
+    expect(windowsKnownInstallCandidates("qodercli", userEnv, userDirs)).toEqual([
+      "C:\\Users\\u\\.qoder\\bin\\qodercli\\qodercli.exe",
+    ]);
+    // env 缺失时静默空。
+    expect(windowsKnownInstallCandidates("qodercli", {}, userDirs)).toEqual([]);
+  });
+
   it("非版本子目录混入也不崩（顺序无承诺，exists 会逐个试）", () => {
     const mixed = fakeListDir({
       "C:\\u\\AppData\\Local\\Programs": ["QwenWorkCN"],
@@ -78,10 +93,10 @@ describe("windowsKnownInstallCandidates", () => {
 
 describe("windowsExecutableCandidates 回归", () => {
   it("PATHEXT 优先于裸名（裸名是跑不起来的 POSIX sh 脚本）", () => {
-    const candidates = windowsExecutableCandidates(
-      "codebuddy",
-      { PATH: "C:\\a;C:\\b", PATHEXT: ".EXE;.CMD" } as unknown as NodeJS.ProcessEnv,
-    );
+    const candidates = windowsExecutableCandidates("codebuddy", {
+      PATH: "C:\\a;C:\\b",
+      PATHEXT: ".EXE;.CMD",
+    } as unknown as NodeJS.ProcessEnv);
     expect(candidates).toEqual([
       "C:\\a\\codebuddy.exe",
       "C:\\a\\codebuddy.cmd",

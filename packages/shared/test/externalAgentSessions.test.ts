@@ -3,6 +3,7 @@ import test from "node:test";
 import {
   cwdToCommandCodeProjectDirName,
   cwdToProjectDirName,
+  cwdToQoderProjectDirName,
   parseClaudeFamilyTranscript,
   parseCommandCodeTranscript,
   parseOpencodeSessionExport,
@@ -10,6 +11,20 @@ import {
   scanClaudeFamilySessionsFromLines,
   scanCommandCodeSessionFile,
 } from "../src/externalAgentSessions.js";
+
+test("cwdToQoderProjectDirName: 盘符保留大小写、冒号也折叠（C:\\x → C--x）", () => {
+  // 2026-11-10 实测 ~/.qoder/projects 与 ~/.qoder-cn/projects 的真实目录名。
+  assert.equal(cwdToQoderProjectDirName("C:\\Users\\qianmengyys"), "C--Users-qianmengyys");
+  assert.equal(
+    cwdToQoderProjectDirName("C:\\Users\\q\\Desktop\\agent"),
+    "C--Users-q-Desktop-agent",
+  );
+  // 与默认规则必须产生不同结果（否则两个 qoder 预设会扫到 codebuddy 的目录）。
+  assert.notEqual(
+    cwdToQoderProjectDirName("C:\\Users\\q\\Desktop\\agent"),
+    cwdToProjectDirName("C:\\Users\\q\\Desktop\\agent"),
+  );
+});
 
 test("cwdToProjectDirName: 盘符冒号丢弃、分隔符换成 - 且去掉首尾", () => {
   assert.equal(cwdToProjectDirName("c:\\Users\\q\\Desktop\\agent"), "c-Users-q-Desktop-agent");

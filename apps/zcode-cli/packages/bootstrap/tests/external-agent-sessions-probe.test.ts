@@ -60,6 +60,19 @@ describe("buildExternalAgentSessionsScript", () => {
     expect(SLUG).toBe(cwdToProjectDirName(WORKSPACE));
   });
 
+  it("projectDirSlug=qoder：目录名按 qoder 规则（盘符双横线），缺省仍走 codebuddy 规则", () => {
+    // 2026-11-10 实测：qoder 国际版（~/.qoder）与 CN 版（~/.qoder-cn）的 projects
+    // 目录名都是 C--Users-...；用默认 slug 会扫到不存在的目录，列表静默为空。
+    const qoder = buildExternalAgentSessionsScript(WORKSPACE, ".qoder", undefined, "qoder");
+    expect(qoder).toContain('"C--Users-someone-Desktop-repo"');
+    expect(qoder).toContain('".qoder"');
+    const cn = buildExternalAgentSessionsScript(WORKSPACE, ".qoder-cn", undefined, "qoder");
+    expect(cn).toContain('"C--Users-someone-Desktop-repo"');
+    expect(cn).toContain('".qoder-cn"');
+    // 缺省（claude/codebuddy）保持原规则。
+    expect(buildExternalAgentSessionsScript(WORKSPACE)).toContain('"c-Users-someone-Desktop-repo"');
+  });
+
   it("sessionHomeDir 参数化落盘根：缺省 .codebuddy，qoder 用 .qoder-cn", () => {
     expect(buildExternalAgentSessionsScript(WORKSPACE)).toContain('".codebuddy"');
     expect(buildExternalAgentSessionsScript(WORKSPACE, ".codebuddy")).toContain('".codebuddy"');
@@ -643,11 +656,7 @@ function commandCodeSessionContent(): string {
 
 describe("Command Code 会话目录与解析分派", () => {
   it("脚本用 slugify 规则的项目目录名（小写、空格/下划线折叠）", () => {
-    const script = buildExternalAgentSessionsScript(
-      WORKSPACE,
-      ".commandcode",
-      "commandcode-exec",
-    );
+    const script = buildExternalAgentSessionsScript(WORKSPACE, ".commandcode", "commandcode-exec");
     expect(script).toContain(JSON.stringify(COMMAND_CODE_SLUG));
     expect(script).toContain('".commandcode"');
     // 同一个 cwd 的 claude-family 目录名保留大小写，两者不能混用。

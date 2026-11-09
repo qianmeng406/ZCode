@@ -39,7 +39,7 @@ import {
   readExternalAgentSessionTranscript,
 } from "../zcode-protocol/external-agent-probe.js";
 import { readSessionExternalAgent } from "../zcode-protocol/session-external-agent.js";
-import { resolveExternalAgentSessionHomeDir } from "@zcode/shared";
+import { findExternalAgentPreset, resolveExternalAgentSessionHomeDir } from "@zcode/shared";
 import { getLocaleConfigPath } from "./locale-selection.js";
 import type { ProviderRegistryModelSource } from "./provider-registry-model-runtime.js";
 import {
@@ -165,12 +165,21 @@ export function createSessionFacade(deps: CreateSessionFacadeDeps): SessionFacad
   // 的预设解析。qoder 的 CN CLI 落在 `~/.qoder-cn` 而不是 `~/.codebuddy`——RPC 链路
   // 只带 driver（UI→services 层就丢了），所以这里从 session entry 自读绑定，
   // 不给协议加字段。读取失败按未绑定处理：退回缺省 `.codebuddy`，无害。
-  const externalAgentSessionHomeDir = async (): Promise<{ sessionHomeDir: string }> => {
+  const externalAgentSessionHomeDir = async (): Promise<{
+    sessionHomeDir: string;
+    projectDirSlug?: "default" | "qoder";
+  }> => {
     const binding = await readSessionExternalAgent({
       sessionId: deps.sessionId,
       sessionStore: deps.sessionStore,
     });
-    return { sessionHomeDir: resolveExternalAgentSessionHomeDir(binding?.presetId) };
+    const preset = findExternalAgentPreset(binding?.presetId);
+    return {
+      sessionHomeDir: resolveExternalAgentSessionHomeDir(binding?.presetId),
+      // projects 目录名的 slug 规则也是预设事实：qoder 的 `C:\x` → `C--x` 与
+      // claude/codebuddy 的 `c-x` 不同，用错只会扫到不存在的目录。
+      ...(preset?.projectDirSlug ? { projectDirSlug: preset.projectDirSlug } : {}),
+    };
   };
   const currentRegistrySelection = ():
     | { owned: false }

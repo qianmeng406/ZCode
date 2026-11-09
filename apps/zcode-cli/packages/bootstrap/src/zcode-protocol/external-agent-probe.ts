@@ -11,6 +11,7 @@ import {
   EXTERNAL_AGENT_BINDABLE_PRESETS,
   cwdToCommandCodeProjectDirName,
   cwdToProjectDirName,
+  cwdToQoderProjectDirName,
   parseClaudeFamilyTranscript,
   parseCommandCodeModelCatalog,
   parseCommandCodeModelList,
@@ -589,6 +590,8 @@ export async function listExternalAgentSessions(options: {
    * （resolveExternalAgentSessionHomeDir）：qoder 的 CN CLI 落在 `~/.qoder-cn`。
    */
   sessionHomeDir?: string;
+  /** projects 目录名的 slug 规则族；缺省 default（claude/codebuddy 规则）。 */
+  projectDirSlug?: ExternalAgentProjectDirSlug;
 }): Promise<ExternalAgentSessionSummary[]> {
   const limit = options.limit ?? 30;
   if (options.driver === "opencode-exec") {
@@ -607,7 +610,15 @@ export async function listExternalAgentSessions(options: {
   const read = await probeCommand(
     options.executionPort,
     "node",
-    ["-e", buildExternalAgentSessionsScript(options.cwd, options.sessionHomeDir, options.driver)],
+    [
+      "-e",
+      buildExternalAgentSessionsScript(
+        options.cwd,
+        options.sessionHomeDir,
+        options.driver,
+        options.projectDirSlug,
+      ),
+    ],
     options.cwd,
     { maxInlineBytes: 8_000_000, maxBufferBytes: 8_000_000 },
   );
@@ -659,11 +670,9 @@ export function buildExternalAgentSessionsScript(
   cwd: string,
   sessionHomeDir?: string,
   driver?: ExternalAgentDriverKind,
+  projectDirSlug?: ExternalAgentProjectDirSlug,
 ): string {
-  const projectDirName =
-    driver === "commandcode-exec"
-      ? cwdToCommandCodeProjectDirName(cwd)
-      : cwdToProjectDirName(cwd);
+  const projectDirName = resolveExternalAgentProjectDirName(cwd, driver, projectDirSlug);
   return [
     "const fs=require('fs'),path=require('path'),os=require('os');",
     `const dir=path.join(os.homedir(),${JSON.stringify(sessionHomeDir ?? ".codebuddy")},'projects',${JSON.stringify(projectDirName)});`,
@@ -713,6 +722,26 @@ export function parseExternalAgentSessionsProbe(
 // 两条都必须在**执行机**上做（远程会话的 CLI home 在远端），与列表扫描同源：
 // 用 `node -e` 内联脚本操作同一个 projects 目录。
 
+/** projects 目录名的 slug 规则族（预设 projectDirSlug）。 */
+export type ExternalAgentProjectDirSlug = "default" | "qoder";
+
+/**
+ * 解析 projects 目录名。三个 CLI 族各有 slug 规则：
+ * - commandcode：slugify（小写、音标折叠）；
+ * - qoder（国际版与 CN 版）：`C:\x` → `C--x`（盘符保留大小写、冒号也折叠）；
+ * - 其余（claude/codebuddy）：`C:\x` → `c-x`（盘符小写、冒号丢弃）。
+ * 用错规则只会指向不存在的目录，列表静默为空。
+ */
+function resolveExternalAgentProjectDirName(
+  cwd: string,
+  driver?: ExternalAgentDriverKind,
+  projectDirSlug?: ExternalAgentProjectDirSlug,
+): string {
+  if (projectDirSlug === "qoder") return cwdToQoderProjectDirName(cwd);
+  if (driver === "commandcode-exec") return cwdToCommandCodeProjectDirName(cwd);
+  return cwdToProjectDirName(cwd);
+}
+
 /** 会话 id 会被拼进执行机上的路径：只允许文件名安全字符（uuid/hex 足够）。 */
 const SAFE_EXTERNAL_SESSION_ID = /^[A-Za-z0-9_-]{1,128}$/;
 
@@ -734,12 +763,10 @@ export function buildDeleteExternalAgentSessionScript(
   externalSessionId: string,
   sessionHomeDir?: string,
   driver?: ExternalAgentDriverKind,
+  projectDirSlug?: ExternalAgentProjectDirSlug,
 ): string {
   const home = sessionHomeDir ?? ".codebuddy";
-  const projectDirName =
-    driver === "commandcode-exec"
-      ? cwdToCommandCodeProjectDirName(cwd)
-      : cwdToProjectDirName(cwd);
+  const projectDirName = resolveExternalAgentProjectDirName(cwd, driver, projectDirSlug);
   // Command Code 的会话由 transcript + 多个侧车文件组成；只删 .jsonl 会让
   // meta/checkpoint 等残留。file-history 在 home 下的独立目录，也一并清理。
   const sidecars =
@@ -779,6 +806,8 @@ export async function deleteExternalAgentSession(options: {
   driver?: ExternalAgentDriverKind;
   /** 会话落盘的 home 一级目录名；缺省 `.codebuddy`（同 listExternalAgentSessions）。 */
   sessionHomeDir?: string;
+  /** projects 目录名的 slug 规则族；缺省 default。 */
+  projectDirSlug?: ExternalAgentProjectDirSlug;
 }): Promise<boolean> {
   // id 会被拼进 argv/路径：两种驱动都先过同一道白名单。不合法直接 false，
   // 语义与"本来就不存在"一致（幂等、不抛错）。
@@ -803,6 +832,7 @@ export async function deleteExternalAgentSession(options: {
         options.externalSessionId,
         options.sessionHomeDir,
         options.driver,
+        options.projectDirSlug,
       ),
     ],
     options.cwd,
@@ -821,11 +851,9 @@ export function buildExternalAgentTranscriptScript(
   externalSessionId: string,
   sessionHomeDir?: string,
   driver?: ExternalAgentDriverKind,
+  projectDirSlug?: ExternalAgentProjectDirSlug,
 ): string {
-  const projectDirName =
-    driver === "commandcode-exec"
-      ? cwdToCommandCodeProjectDirName(cwd)
-      : cwdToProjectDirName(cwd);
+  const projectDirName = resolveExternalAgentProjectDirName(cwd, driver, projectDirSlug);
   return [
     "const fs=require('fs'),path=require('path'),os=require('os');",
     `const dir=path.join(os.homedir(),${JSON.stringify(sessionHomeDir ?? ".codebuddy")},'projects',${JSON.stringify(projectDirName)});`,
@@ -857,6 +885,8 @@ export async function readExternalAgentSessionTranscript(options: {
   driver?: ExternalAgentDriverKind;
   /** 会话落盘的 home 一级目录名；缺省 `.codebuddy`（同 listExternalAgentSessions）。 */
   sessionHomeDir?: string;
+  /** projects 目录名的 slug 规则族；缺省 default。 */
+  projectDirSlug?: ExternalAgentProjectDirSlug;
 }): Promise<ExternalAgentTranscriptPage> {
   const empty: ExternalAgentTranscriptPage = {
     sessionId: options.externalSessionId,
@@ -892,6 +922,7 @@ export async function readExternalAgentSessionTranscript(options: {
         options.externalSessionId,
         options.sessionHomeDir,
         options.driver,
+        options.projectDirSlug,
       ),
     ],
     options.cwd,
