@@ -80,13 +80,29 @@ test("qodercli-cn 预设：claude-family 同构 + 预设级覆盖项", () => {
   assert.equal(preset.permissionMode, "bypass_permissions");
   // 档位 flag 不同名：传 --effort 会被静默吞掉。
   assert.equal(preset.effortFlag, "--reasoning-effort");
-  assert.deepEqual(resolveEffortLevels(preset, undefined), [
+  // 逐模型档位来自 CLI /model + /effort 面板枚举（1.1.85）：集合各不相同，
+  // 不能拿 CLI 级值域套所有模型。
+  assert.deepEqual(resolveEffortLevels(preset, "Qwen3.8-Max"), [
+    "none",
+    "low",
+    "medium",
+    "xhigh",
+    "ultracode",
+  ]);
+  assert.deepEqual(resolveEffortLevels(preset, "DeepSeek-V4-Pro"), ["none", "high", "max"]);
+  assert.deepEqual(resolveEffortLevels(preset, "MiniMax-M3.1-Flash"), [
+    "none",
     "low",
     "medium",
     "high",
     "xhigh",
     "max",
+    "ultracode",
   ]);
+  // 元模型（Auto/Fast）与未知模型都没有档位入口。
+  assert.deepEqual(resolveEffortLevels(preset, "Auto"), []);
+  assert.deepEqual(resolveEffortLevels(preset, undefined), []);
+  assert.deepEqual(resolveEffortLevels(preset, "brand-new-model"), []);
   // 会话落盘在 ~/.qoder-cn（CN CLI 的 config root，与 IDE 的 ~/.qoder 是两棵树）。
   assert.equal(preset.sessionHomeDir, ".qoder-cn");
   assert.equal(resolveExternalAgentSessionHomeDir("qodercli-cn"), ".qoder-cn");
@@ -104,7 +120,7 @@ test("qodercli-cn 绑定的调用形状：档位 flag、权限值、stdin 与续
     promptDelivery: "stdin",
     presetId: "qodercli-cn",
     model: "Qwen3.8-Max",
-    effortsByModel: { "Qwen3.8-Max": "high" },
+    effortsByModel: { "Qwen3.8-Max": "xhigh" },
     externalSessionId: "abc-123",
   });
   const invocation = buildExternalAgentInvocation(binding, "任务书");
@@ -117,7 +133,7 @@ test("qodercli-cn 绑定的调用形状：档位 flag、权限值、stdin 与续
     "--model",
     "Qwen3.8-Max",
     "--reasoning-effort",
-    "high",
+    "xhigh",
     "--permission-mode",
     "bypass_permissions",
     "-r",

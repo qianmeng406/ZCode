@@ -303,17 +303,19 @@ export const EXTERNAL_AGENT_PRESETS: readonly ExternalAgentPreset[] = [
     label: "Qoder CLI CN",
     description: "阿里 Qoder CLI CN（QwenWork 桌面版内置，claude-family 同构）。",
     adaptation: "full",
-    // 调用形状 2026-11-09 本机实测（qoderclicn 1.1.32）：
+    // 调用形状 2026-11-09 本机实测（qoderclicn 1.1.32 / 1.1.85）：
     // - `-p -o stream-json` 输出与 claude-family 逐字段同构（init/assistant/result、
     //   result.result/is_error/session_id），另有 hook_started/hook_progress/hook_response
     //   等 system 事件——现有解析器只认 assistant/user/result，天然忽略；
-    // - 推理档位是 `--reasoning-effort`（CLI 级值域 none/low/medium/high/xhigh/max）；
+    // - 推理档位是 `--reasoning-effort`（CLI 级可接受值域 auto/none/low/medium/high/
+    //   xhigh/max/ultracode，但**逐模型**支持集合不同，见下面的表）；
     // - 权限档位值用下划线：bypass_permissions（不是 claude 的驼峰）；
     // - `--list-models` 首行是表头 `MODEL`，其后逐行一个模型名；
     // - 会话落盘 `~/.qoder-cn/projects/<cwd 编码>/<id>.jsonl`（CN CLI 的 config root，
     //   与 IDE 的 `~/.qoder` 是两棵树），布局与 claude-family 同构；
-    // - 不在 PATH 上：藏在 %LOCALAPPDATA%\Programs\QwenWorkCN\<版本>\resources\bin\，
-    //   解析兜底见 adapters/windows-executable.ts 的已知安装位置表。
+    // - 不在 PATH 上时藏在 %LOCALAPPDATA%\Programs\QwenWorkCN\<版本>\resources\bin\，
+    //   解析兜底见 adapters/windows-executable.ts 的已知安装位置表（独立安装版的
+    //   `qoderclicn` 会进 PATH，优先级更高）。
     // prompt 经 stdin 交付（与 claude-family 同源，-p + 管道 stdin；避免 Windows
     // 命令行 8191 字符上限）。
     driver: "claude-family",
@@ -328,7 +330,29 @@ export const EXTERNAL_AGENT_PRESETS: readonly ExternalAgentPreset[] = [
     models: [],
     effortDelivery: "flag",
     effortFlag: "--reasoning-effort",
-    effortLevelsByModel: { "": ["low", "medium", "high", "xhigh", "max"] },
+    // 逐模型档位：2026-11-09 用 CLI 自己的 /model + /effort 面板逐模型枚举
+    // （qoderclicn 1.1.85，零模型调用；面板标签 → 值：None/Disabled→none、
+    // Low→low、Medium→medium、High→high、Extra High→xhigh、Max→max、
+    // Ultracode→ultracode）。**不要用 CLI 级值域套所有模型**——旧的
+    // low..max 兜底在 Qwen3.8-* 上会把不存在的 high/max 显示出来。
+    // 服务端模型目录调整后此表会过时：探测不可用时它是唯一来源，届时重采。
+    effortLevelsByModel: {
+      // 元模型：服务端自动选模型 / 快速档，面板没有档位入口。
+      Auto: [],
+      Fast: [],
+      "Qwen3.8-Max": ["none", "low", "medium", "xhigh", "ultracode"],
+      "Qwen3.8-Flash": ["none", "low", "medium", "xhigh", "ultracode"],
+      "DeepSeek-V4-Pro": ["none", "high", "max"],
+      "DeepSeek-Flash": ["none", "low", "high", "max"],
+      "GLM-5.3": ["none", "low", "high", "max"],
+      "GLM-5.3-Flash": ["none", "high", "max"],
+      "Kimi-K3.1-Pro": ["none", "low", "high", "max"],
+      "Kimi-K2.8-Preview": ["none", "low", "high", "max"],
+      "Step-5-Preview": ["none", "low", "high", "max"],
+      "MiniMax-M3.1-Flash": ["none", "low", "medium", "high", "xhigh", "max", "ultracode"],
+      // 未知/新模型：不给档位（宁可没有入口，也不显示一组可能是错的候选）。
+      "": [],
+    },
     sessionHomeDir: ".qoder-cn",
   },
 ] as const;
