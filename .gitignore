@@ -83,3 +83,6 @@ __pycache__/
 /gate*.cmd
 /gate-*.cjs
 /dev-gate.cmd
+
+# Trae 云端工作区上传的临时附件（平台会自动快照工作区；入库会污染历史）
+/.uploads/
