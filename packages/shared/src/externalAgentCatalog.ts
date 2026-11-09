@@ -23,6 +23,9 @@ import { z } from "zod";
  * - `command`：跑 preset.modelListCommand（如 `opencode models`）逐行读模型 id。
  *   opencode 的 `--help` 不列模型，模型清单只存在于这条子命令的输出里，既不能
  *   从帮助文本解析，也不会像 codebuddy 那样带逐模型档位信息。
+ * - `catalog-cache`：CLI 自己把服务端模型目录缓存在本地（Command Code 的
+ *   `~/.commandcode/cache/model-catalog/v1/catalog-*.json`）。缓存同时给出模型 id
+ *   与逐模型 `reasoningEfforts`，是 Command Code 唯一不用登录就能读到的权威目录。
  * - `free-text`：完全手填。
  */
 export const EXTERNAL_AGENT_MODEL_SOURCES = [
@@ -30,6 +33,7 @@ export const EXTERNAL_AGENT_MODEL_SOURCES = [
   "server-cache",
   "help-probe",
   "command",
+  "catalog-cache",
   "free-text",
 ] as const;
 export type ExternalAgentModelSource = (typeof EXTERNAL_AGENT_MODEL_SOURCES)[number];
@@ -73,7 +77,15 @@ export const externalAgentPresetSchema = z.object({
    */
   adaptation: z.enum(["full", "partial"]).default("full"),
   // opencode-exec：`opencode run` 的 stdout 是逐行 JSON 事件流，prompt 走 stdin。
-  driver: z.enum(["claude-family", "codex-exec", "opencode-exec", "generic-template"]),
+  driver: z.enum([
+    "claude-family",
+    "codex-exec",
+    "opencode-exec",
+    // 与 externalAgentBinding 的 EXTERNAL_AGENT_DRIVER_KINDS 保持同步：catalog 不能
+    // 反向 import binding（binding 依赖 catalog 的 findExternalAgentPreset）。
+    "commandcode-exec",
+    "generic-template",
+  ]),
   command: z.string().min(1),
   /** 不含 prompt 的固定前缀参数。 */
   args: z.array(z.string()).default([]),
@@ -174,7 +186,15 @@ export function resolveEffortLevels(
   const probed = probedModels?.find((entry) => entry.id === model);
   if (probed) {
     if (probed.supportedEfforts.length > 0) return probed.supportedEfforts;
-    return preset.effortDelivery === "variant" ? [] : [...CLI_PICKER_DEFAULT_EFFORTS];
+    // 空候选的语义按驱动族区分：
+    // - variant（opencode）：档位在模型串里，传错档位直接报错；
+    // - commandcode-exec：没有 reasoningEfforts 的模型收到 --effort 不会得到有效档位，
+    //   显示档位入口只会让用户以为生效了。
+    // 两者都返回空。claude-family/codex 的固定档模型则回落到 CLI 选择器缺省档
+    // （codebuddy 的 EffortPanel 就是这么做的，隐藏入口反而让人以为不支持）。
+    return preset.effortDelivery === "variant" || preset.driver === "commandcode-exec"
+      ? []
+      : [...CLI_PICKER_DEFAULT_EFFORTS];
   }
   const exact = preset.effortLevelsByModel[model ?? ""];
   if (exact) return exact;
@@ -354,6 +374,42 @@ export const EXTERNAL_AGENT_PRESETS: readonly ExternalAgentPreset[] = [
       "": [],
     },
     sessionHomeDir: ".qoder-cn",
+  },
+  {
+    id: "commandcode",
+    label: "Command Code",
+    description: "Command Code CLI（npm `command-code`；Windows 用 `cmdc`，`cmd` 是系统 shell）。",
+    adaptation: "full",
+    // 调用形状 2026-11-09 本机实测（command-code 1.88.5）：
+    // - 非交互入口是 `-p`（`--print [query]`），prompt 可走 argv 或管道 stdin；这里
+    //   固定 stdin（多行 prompt 经 Windows .cmd shim 会被截断，且命令行有 8191 上限）；
+    // - `--output-format json` 是 NDJSON：事件帧 `{type:"event",event:{...}}` + 最后
+    //   一条 `{type:"result",subtype,finalText,sessionId?}`；
+    // - 模型 `--model <id>`；档位 `--effort <level>`，但**逐模型**能力不同，来源见
+    //   modelSource=catalog-cache；
+    // - headless 默认拒绝写文件/执行 shell，必须 `--yolo`（`--permission-mode yolo`
+    //   在 headless 下不解除限制）；`--trust` 跳过项目信任提示，
+    //   `--skip-onboarding` 跳过 taste onboarding（自动化运行）；
+    // - 续接用 `-r <sessionId>`（headless 只接受显式 id，裸 `--resume` 会报错）；
+    // - 会话落盘 `~/.commandcode/projects/<slug>/<id>.jsonl`，slug 规则见
+    //   shared 的 cwdToCommandCodeProjectDirName。
+    // Windows 上不能用 `cmd`（系统 shell），必须用全名 command-code 或 cmdc。
+    driver: "commandcode-exec",
+    command: "command-code",
+    args: ["-p", "--output-format", "json", "--trust", "--skip-onboarding"],
+    promptDelivery: "stdin",
+    // invocation 把该值翻译成 `--yolo`（不是 --permission-mode 的取值）。
+    permissionMode: "yolo",
+    modelFlag: "--model",
+    // 模型目录与逐模型档位都在 CLI 的服务端目录缓存里，探测直接读缓存。
+    modelSource: "catalog-cache",
+    models: [],
+    effortDelivery: "flag",
+    effortFlag: "--effort",
+    // 逐模型档位来自缓存探测；读不到缓存时不提供档位入口，绝不套 CLI 级缺省表
+    // （Command Code 里没有 reasoningEfforts 的模型收到 --effort 不会得到有效档位）。
+    effortLevelsByModel: { "": [] },
+    sessionHomeDir: ".commandcode",
   },
 ] as const;
 
@@ -560,4 +616,94 @@ export function parseModelCatalogFromProductJson(raw: unknown): ExternalAgentMod
     });
   }
   return parsed;
+}
+
+// ── Command Code 模型目录 ──
+//
+// Command Code 把服务端 `/model/list` 的结果整份缓存在
+// `~/.commandcode/cache/model-catalog/v1/catalog-*.json`。形状（1.88.5 实测）：
+//   {cacheVersion, scope, fetchedAt, renderedAt, body: {catalogVersion, data: [...]}}
+// 每个 data 项带 `id`、`name`、`hidden`、`display.label`、`display.order`、
+// `reasoningEfforts[]`。这份缓存是"不用登录也能读到的权威逐模型档位"：
+// `--list-models` 只打印模型名（还会把 id 小写、按 group 分段），`--help` 的
+// `--effort` 只是 CLI 级值域。
+//
+// 缓存里的模型 id 大小写是权威的（如 `moonshotai/Kimi-K3.1-Pro`），必须原样保留：
+// `--list-models` 的展示行会把 id 小写，拿它拼 `--model` 依赖 CLI 的大小写归一，
+// 不是稳定契约。
+export function parseCommandCodeModelCatalog(raw: unknown): ExternalAgentModelInfo[] {
+  const body = (raw as { body?: unknown } | null)?.body;
+  const data = Array.isArray(body)
+    ? body
+    : body && typeof body === "object" && Array.isArray((body as { data?: unknown }).data)
+      ? (body as { data: unknown[] }).data
+      : Array.isArray(raw)
+        ? raw
+        : [];
+  const parsed: Array<{ info: ExternalAgentModelInfo; order: number }> = [];
+  for (const entry of data) {
+    if (!entry || typeof entry !== "object") continue;
+    const record = entry as {
+      id?: unknown;
+      name?: unknown;
+      hidden?: unknown;
+      reasoningEfforts?: unknown;
+      display?: unknown;
+    };
+    if (typeof record.id !== "string" || !record.id) continue;
+    // 缓存里含服务端保留但 CLI 不展示的模型（实测 110 条里 14 条 hidden，
+    // `--list-models` 正好是剩下的 96 条）。不过滤会让绑定列表出现选不到的模型。
+    if (record.hidden === true) continue;
+    const display =
+      record.display && typeof record.display === "object"
+        ? (record.display as { label?: unknown; order?: unknown })
+        : undefined;
+    const supported = Array.isArray(record.reasoningEfforts)
+      ? record.reasoningEfforts.filter(
+          (value): value is string => typeof value === "string" && value.length > 0,
+        )
+      : [];
+    const label =
+      typeof display?.label === "string" && display.label.trim()
+        ? display.label.trim()
+        : typeof record.name === "string" && record.name.trim()
+          ? record.name.trim()
+          : record.id;
+    parsed.push({
+      info: { id: record.id, name: label, supportedEfforts: supported },
+      order: typeof display?.order === "number" ? display.order : Number.POSITIVE_INFINITY,
+    });
+  }
+  // display.order 是 CLI 自己的展示顺序（先 Open Source、再闭源族…）；缺失的保持原序。
+  return parsed
+    .sort((left, right) => left.order - right.order)
+    .map((entry) => entry.info);
+}
+
+/**
+ * 解析 `cmd --list-models` 的人类可读表格（缓存读不到时的兜底）。
+ *
+ * 输出形如：
+ *   Available models  ·  96 models
+ *
+ *   Open Source
+ *
+ *   deepseek/deepseek-v4-pro                hybrid-attention long-context reasoning
+ *
+ * 每行模型是「id + 2 个以上空格 + 描述」；分组标题只有单词，没有双空格分隔。
+ * 只取 id（无逐模型档位）。要求 id 至少含 `/`、`.`、`-` 之一，避免把
+ * `Available` 之类的标题词当成模型。
+ */
+export function parseCommandCodeModelList(stdout: string): string[] {
+  const seen = new Set<string>();
+  const models: string[] = [];
+  for (const line of stdout.split(/\r?\n/u)) {
+    const match = /^(\S+)\s{2,}\S/u.exec(line);
+    const id = match?.[1]?.trim();
+    if (!id || id.length > 120 || !/[./-]/u.test(id) || seen.has(id)) continue;
+    seen.add(id);
+    models.push(id);
+    if (models.length >= 200) break;
+  }
+  return models;
 }

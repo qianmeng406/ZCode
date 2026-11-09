@@ -1,11 +1,14 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 import {
+  cwdToCommandCodeProjectDirName,
   cwdToProjectDirName,
   parseClaudeFamilyTranscript,
+  parseCommandCodeTranscript,
   parseOpencodeSessionExport,
   scanClaudeFamilySessionFile,
   scanClaudeFamilySessionsFromLines,
+  scanCommandCodeSessionFile,
 } from "../src/externalAgentSessions.js";
 
 test("cwdToProjectDirName: 盘符冒号丢弃、分隔符换成 - 且去掉首尾", () => {
@@ -16,6 +19,21 @@ test("cwdToProjectDirName: 盘符冒号丢弃、分隔符换成 - 且去掉首�
 
 test("cwdToProjectDirName: 盘符大小写归一（CLI 落盘用小写盘符）", () => {
   assert.equal(cwdToProjectDirName("C:\\Users\\q\\Desktop\\agent"), "c-Users-q-Desktop-agent");
+});
+
+test("cwdToCommandCodeProjectDirName: 与 @sindresorhus/slugify 一致", () => {
+  // 2026-11-09 实测 Command Code 的目录名规则（@sindresorhus/slugify）：
+  // 小写、非拉丁字符丢弃、非字母数字连续段折叠为 -、空结果回 root。
+  assert.equal(cwdToCommandCodeProjectDirName("/tmp/slugtest/Sub_Dir"), "tmp-slugtest-sub-dir");
+  assert.equal(
+    cwdToCommandCodeProjectDirName("/tmp/slug test/Sub_Dir_2"),
+    "tmp-slug-test-sub-dir-2",
+  );
+  assert.equal(cwdToCommandCodeProjectDirName("C:\\Users\\Foo\\Bar"), "c-users-foo-bar");
+  assert.equal(cwdToCommandCodeProjectDirName("/tmp/foo.bar/baz@qux"), "tmp-foo-bar-baz-qux");
+  assert.equal(cwdToCommandCodeProjectDirName("/home/Café"), "home-cafe");
+  assert.equal(cwdToCommandCodeProjectDirName("/Users/张三/项目/测试"), "users");
+  assert.equal(cwdToCommandCodeProjectDirName("/"), "root");
 });
 
 test("扫描：summary 优先于 ai-title，sessionId 取 meta 里的（可能与文件名不同）", () => {
@@ -354,4 +372,141 @@ test("opencode export: 损坏的 JSON 返回空页而不是抛错", () => {
   assert.deepEqual(page.entries, []);
   assert.equal(page.total, 0);
   assert.equal(page.hasMore, false);
+});
+
+// ── Command Code 会话 ──
+// 落盘形状与 claude-family 完全不同：首行 session 头，条目是 {role, content} 的
+// V2 消息（工具结果还是独立的 role:"tool" 消息），所以单独一组用例。
+
+const commandCodeHeader = {
+  type: "session",
+  version: 3,
+  id: "sess-1",
+  timestamp: "2026-11-09T10:00:00.000Z",
+  cwd: "/workspace",
+};
+
+test("Command Code 扫描：头部 id、ISO 时间与首条用户正文", () => {
+  const content = [
+    commandCodeHeader,
+    {
+      id: "e1",
+      timestamp: "2026-11-09T10:00:01.000Z",
+      sessionId: "sess-1",
+      role: "user",
+      content: [{ type: "text", text: "帮我改 bug" }],
+    },
+    {
+      id: "e2",
+      timestamp: "2026-11-09T10:00:02.000Z",
+      role: "assistant",
+      content: [{ type: "text", text: "好" }],
+    },
+  ]
+    .map((entry) => JSON.stringify(entry))
+    .join("\n");
+  const summary = scanCommandCodeSessionFile(content, "file-id", 123);
+  assert.ok(summary);
+  assert.equal(summary.sessionId, "sess-1");
+  assert.equal(summary.title, "帮我改 bug");
+  assert.equal(summary.preview, "帮我改 bug");
+  assert.equal(summary.updatedAt, Date.parse("2026-11-09T10:00:02.000Z"));
+});
+
+test("Command Code 扫描：跳过 metadata.isMeta 条目与注入提示", () => {
+  const content = [
+    commandCodeHeader,
+    {
+      role: "user",
+      metadata: { isMeta: true },
+      content: [{ type: "text", text: "内部注入" }],
+    },
+    {
+      role: "user",
+      content: [{ type: "text", text: "<system-reminder>ignore</system-reminder>" }],
+    },
+    { role: "user", content: [{ type: "text", text: "真实首句" }] },
+  ]
+    .map((entry) => JSON.stringify(entry))
+    .join("\n");
+  const summary = scanCommandCodeSessionFile(content, "file-id", 999);
+  assert.equal(summary?.title, "真实首句");
+  // 条目没有时间戳时用头部创建时间；完全没有时间才回落文件 mtime。
+  assert.equal(summary?.updatedAt, Date.parse(commandCodeHeader.timestamp));
+});
+
+test("Command Code transcript：用户/助手/工具调用/工具结果按落盘顺序还原", () => {
+  const content = [
+    commandCodeHeader,
+    {
+      role: "user",
+      timestamp: "2026-11-09T10:00:01.000Z",
+      content: [{ type: "text", text: "修一下" }],
+    },
+    {
+      role: "assistant",
+      timestamp: "2026-11-09T10:00:02.000Z",
+      content: [
+        { type: "reasoning", text: "思考过程不展示" },
+        { type: "text", text: "我先看文件" },
+        { type: "tool-call", toolCallId: "t1", toolName: "bash", input: { command: "ls" } },
+      ],
+    },
+    {
+      role: "tool",
+      timestamp: "2026-11-09T10:00:03.000Z",
+      content: [
+        {
+          type: "tool-result",
+          toolCallId: "t1",
+          toolName: "",
+          output: { type: "text", value: "a.txt" },
+        },
+      ],
+    },
+    {
+      role: "assistant",
+      timestamp: "2026-11-09T10:00:04.000Z",
+      content: [{ type: "text", text: "改好了" }],
+    },
+  ]
+    .map((entry) => JSON.stringify(entry))
+    .join("\n");
+  const page = parseCommandCodeTranscript(content, { sessionId: "sess-1" });
+  assert.equal(page.total, 5);
+  assert.deepEqual(
+    page.entries.map((entry) => entry.kind),
+    ["user", "assistant", "tool", "tool_result", "assistant"],
+  );
+  assert.equal(page.entries[0]?.text, "修一下");
+  assert.equal(page.entries[1]?.text, "我先看文件");
+  // tool-result 的 toolName 为空：用 toolCallId 回查到 bash。
+  assert.equal(page.entries[2]?.name, "bash");
+  assert.equal(page.entries[2]?.text, "bash: ls");
+  assert.equal(page.entries[3]?.name, "bash");
+  assert.equal(page.entries[3]?.text, "a.txt");
+  assert.equal(page.entries[4]?.text, "改好了");
+});
+
+test("Command Code transcript：分页与其他驱动同语义，meta 条目不进上下文", () => {
+  const lines: Array<Record<string, unknown>> = [
+    commandCodeHeader,
+    { role: "user", metadata: { isMeta: true }, content: [{ type: "text", text: "隐藏" }] },
+  ];
+  for (let index = 0; index < 5; index += 1) {
+    lines.push({ role: "user", content: [{ type: "text", text: `第 ${index} 条` }] });
+  }
+  const content = lines.map((entry) => JSON.stringify(entry)).join("\n");
+  const page = parseCommandCodeTranscript(content, { sessionId: "sess-1", limit: 2 });
+  assert.equal(page.total, 5);
+  assert.deepEqual(
+    page.entries.map((entry) => entry.text),
+    ["第 3 条", "第 4 条"],
+  );
+  assert.equal(page.hasMore, true);
+  assert.equal(
+    parseCommandCodeTranscript(content, { sessionId: "sess-1", before: 2, limit: 2 }).entries[0]
+      ?.text,
+    "第 0 条",
+  );
 });

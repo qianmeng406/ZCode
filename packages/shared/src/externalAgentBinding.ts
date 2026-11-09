@@ -20,6 +20,10 @@ export const EXTERNAL_AGENT_DRIVER_KINDS = [
   // （part.text / part.tool / part.state.input）与 codex、claude 都不同；
   // prompt 走 stdin（不进 argv）。字段不同、错误行语义也不同，所以独立成族。
   "opencode-exec",
+  // commandcode：`command-code -p --output-format json` 输出 NDJSON，事件被包在
+  // `{type:"event",event:{...}}` 里，最后一条是 `{type:"result",subtype,finalText}`。
+  // 与 claude/codex/opencode 的事件字段都不同；权限也特殊（headless 必须 --yolo）。
+  "commandcode-exec",
   "generic-template",
 ] as const;
 export type ExternalAgentDriverKind = (typeof EXTERNAL_AGENT_DRIVER_KINDS)[number];
@@ -113,6 +117,8 @@ const CLAUDE_FAMILY_DEFAULT_ARGS = ["-p", "--output-format", "stream-json"] as c
 const CODEX_EXEC_DEFAULT_ARGS = ["exec"] as const;
 // --format json 是活动卡实时过程的唯一来源；缺了它就只能等一次性结果。
 const OPENCODE_RUN_DEFAULT_ARGS = ["run", "--format", "json"] as const;
+// Command Code 的 -p 是 headless 入口，--output-format json 给 NDJSON 事件流。
+const COMMAND_CODE_DEFAULT_ARGS = ["-p", "--output-format", "json"] as const;
 
 /**
  * 模型 flag：按驱动族给默认值，绑定时用户显式选过 preset 则用 preset 的。
@@ -122,6 +128,7 @@ function resolveModelFlag(binding: ExternalAgentBinding): string | undefined {
   if (binding.driver === "codex-exec") return "-m";
   if (binding.driver === "claude-family") return "--model";
   if (binding.driver === "opencode-exec") return "--model";
+  if (binding.driver === "commandcode-exec") return "--model";
   return undefined;
 }
 
@@ -144,7 +151,7 @@ function resolveModelFlag(binding: ExternalAgentBinding): string | undefined {
 function resolveEffortArgs(binding: ExternalAgentBinding): string[] {
   const effort = binding.effortsByModel?.[binding.model ?? ""];
   if (!effort) return [];
-  if (binding.driver === "claude-family") {
+  if (binding.driver === "claude-family" || binding.driver === "commandcode-exec") {
     const flag = findExternalAgentPreset(binding.presetId)?.effortFlag ?? "--effort";
     return [flag, effort];
   }
@@ -262,6 +269,35 @@ export function buildExternalAgentInvocation(
     // 会在第一个换行处被截断，长任务书还会撞 8191 字符命令行上限；stdin 两者都没有。
     return { command: binding.command, args, stdin: prompt };
   }
+  if (binding.driver === "commandcode-exec") {
+    // 与 claude-family 同一取向：预设 argv 跟随代码，老绑定落库的 args 不覆盖
+    // `-p --output-format json`——少了它就拿不到逐事件过程，只剩最后一坨结果。
+    const presetArgs = findExternalAgentPreset(binding.presetId)?.args;
+    const base =
+      presetArgs && presetArgs.length > 0
+        ? [...presetArgs]
+        : binding.args.length > 0
+          ? [...binding.args]
+          : [...COMMAND_CODE_DEFAULT_ARGS];
+    const args = [...base];
+    const modelFlag = resolveModelFlag(binding);
+    if (binding.model && modelFlag) args.push(modelFlag, binding.model);
+    args.push(...resolveEffortArgs(binding));
+    // headless 默认拒绝写文件与执行 shell；解除限制的开关是 `--yolo`，不是
+    // `--permission-mode yolo`（后者在 headless 下不生效）。权限值跟随预设代码走，
+    // 手填命令仍用绑定自己的值。
+    const permissionMode =
+      findExternalAgentPreset(binding.presetId)?.permissionMode ?? binding.permissionMode;
+    if (permissionMode) args.push("--yolo");
+    // 续接与 claude-family 同语义：headless 只接受显式 id（裸 --resume 会报错），
+    // 有 externalSessionId 就永远钉死它。失效 id 是报错还是自动新开未实测
+    // （见 docs/specs/commandcode-external-agent-preset.md 的未验证项）。
+    if (binding.externalSessionId) {
+      args.push("-r", binding.externalSessionId);
+    }
+    // prompt 一律走 stdin（多行与长度限制同 claude-family）。
+    return { command: binding.command, args, stdin: prompt };
+  }
   // generic-template：只有 args 参与，{prompt} 显式占位。
   const args = binding.args.map((arg) =>
     arg.includes(PROMPT_PLACEHOLDER) ? arg.split(PROMPT_PLACEHOLDER).join(prompt) : arg,
@@ -339,6 +375,66 @@ export function parseOpencodeRunResult(stdout: string): {
   return { text, isError: false, ...(sessionId ? { sessionId } : {}) };
 }
 
+/**
+ * 解析 `command-code -p --output-format json` 的 NDJSON 输出。
+ *
+ * 形状（官方 headless 文档 + 1.88.5 bundle 实测）：
+ * - 事件帧：`{"type":"event","event":{...}}`（过程，不进最终回答）；
+ * - 最后一行：`{"type":"result","subtype":"success|error|max_turns","finalText",
+ *   "sessionId"?,"error"?}`。
+ *
+ * `subtype` 不是 success 一律算失败（max_turns 也是没跑完）；`finalText` 是权威正文，
+ * 错误且正文为空时退回 `error` 文本。一条 result 都没有（CLI 崩溃 / 旧版本）时返回
+ * 原文：宁可把原始输出交给用户，也不能吞成空报告。
+ */
+export function parseCommandCodeResult(stdout: string): {
+  text: string;
+  isError: boolean;
+  sessionId?: string;
+} {
+  let result:
+    | {
+        subtype?: unknown;
+        finalText?: unknown;
+        sessionId?: unknown;
+        error?: unknown;
+      }
+    | undefined;
+  for (const line of stdout.split(/\r?\n/u)) {
+    const trimmed = line.trim();
+    if (!trimmed.startsWith("{")) continue;
+    let entry: unknown;
+    try {
+      entry = JSON.parse(trimmed);
+    } catch {
+      // 半个事件（进程被杀 / 输出截断）：跳过。
+      continue;
+    }
+    if (!entry || typeof entry !== "object") continue;
+    if ((entry as { type?: unknown }).type === "result") {
+      result = entry as typeof result;
+    }
+  }
+  if (!result) return { text: stdout, isError: false };
+  const finalText = typeof result.finalText === "string" ? result.finalText : "";
+  const errorText =
+    typeof result.error === "string"
+      ? result.error.trim()
+      : result.error && typeof result.error === "object"
+        ? JSON.stringify(result.error)
+        : "";
+  const sessionId =
+    typeof result.sessionId === "string" && result.sessionId.length > 0
+      ? result.sessionId
+      : undefined;
+  const isError = result.subtype !== "success";
+  return {
+    text: finalText.trim().length > 0 ? finalText : errorText,
+    isError,
+    ...(sessionId ? { sessionId } : {}),
+  };
+}
+
 /** 读取某个模型当前的推理档位（undefined = 用该 CLI 默认档位）。 */
 export function readModelEffort(
   binding: ExternalAgentBinding,
@@ -387,6 +483,7 @@ export function parseExternalAgentResult(
     // opencode 的 stdout 是 JSONL 事件流，原始文本直接当报告是给用户看一堆 JSON；
     // 必须先在「非 claude-family 一律返回原文」这条短路之前分流。
     if (binding.driver === "opencode-exec") return parseOpencodeRunResult(stdout);
+    if (binding.driver === "commandcode-exec") return parseCommandCodeResult(stdout);
     return { text: stdout, isError: false };
   }
   // stream-json：每行一个事件，最后一条 type=result 才是最终结果。

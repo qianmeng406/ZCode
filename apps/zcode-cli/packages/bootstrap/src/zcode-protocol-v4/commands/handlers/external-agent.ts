@@ -242,8 +242,9 @@ function fallbackEffortPreset(binding: ExternalAgentBinding): ExternalAgentPrese
     // claude-family 的 --effort 合法值集合（实测）；generic-template 为空 = 不提供档位。
     // opencode 的逐模型档位来自探测（models.json），静态兜底给一组最常见的最小值集合：
     // 只放实测三个模型都接受的 low/high/max——多放的档位会被 CLI 报 Variant unavailable。
+    // commandcode 的档位逐模型来自 CLI 目录缓存；缓存读不到时宁可没有入口，也不套 CLI 级表。
     effortLevelsByModel:
-      binding.driver === "generic-template"
+      binding.driver === "generic-template" || binding.driver === "commandcode-exec"
         ? {}
         : binding.driver === "opencode-exec"
           ? { "": ["low", "high", "max"] }

@@ -226,3 +226,117 @@ export function createOpencodeStreamParser(): ClaudeStreamParser {
     },
   };
 }
+
+// ── Command Code（`command-code -p --output-format json`，NDJSON）──
+//
+// 事件被包在 `{type:"event",event:{...}}` 里，最后一条是 `{type:"result",...}`。
+// 过程事件（1.88.5 bundle 实测）：
+//   text_delta{delta} / thinking_delta{delta} / thinking_end{text}
+//   tool_running{toolName,description} / message_start / model_request_* / …
+//
+// 与 claude 族的差别：正文/思考是**增量**事件，没有“每轮一条完整 assistant 消息”。
+// 所以这里把 delta 累积到缓冲区，在工具开始、新一轮消息或收口时整段产出——直接
+// 逐 delta 产条目会让面板变成一屏幕碎片。
+//
+// 与其他驱动相同的纪律：半行 JSON 留在缓冲里；收口时用全量 stdout 重解析。
+export function parseCommandCodeStreamActivities(stdout: string): ExternalAgentActivityEntry[] {
+  const parser = createCommandCodeStreamParser();
+  return [...parser.push(stdout), ...parser.flush()];
+}
+
+export function createCommandCodeStreamParser(): ClaudeStreamParser {
+  let buffer = "";
+  let textBuffer = "";
+  let reasoningBuffer = "";
+
+  const takeReasoning = (): ExternalAgentActivityEntry[] => {
+    const text = reasoningBuffer.trim();
+    reasoningBuffer = "";
+    return text ? [{ kind: "reasoning", text }] : [];
+  };
+  const takeText = (): ExternalAgentActivityEntry[] => {
+    const text = textBuffer.trim();
+    textBuffer = "";
+    return text ? [{ kind: "text", text }] : [];
+  };
+
+  const parseLine = (rawLine: string): ExternalAgentActivityEntry[] => {
+    const line = rawLine.trim();
+    if (!line) return [];
+    let entry: unknown;
+    try {
+      entry = JSON.parse(line);
+    } catch {
+      return [];
+    }
+    if (!entry || typeof entry !== "object") return [];
+    const record = entry as { type?: unknown; event?: unknown };
+    if (record.type === "result") return [...takeReasoning(), ...takeText()];
+    if (record.type !== "event" || !record.event || typeof record.event !== "object") return [];
+    const event = record.event as {
+      type?: unknown;
+      delta?: unknown;
+      text?: unknown;
+      toolName?: unknown;
+      description?: unknown;
+    };
+    if (event.type === "text_delta") {
+      if (typeof event.delta === "string" && event.delta) textBuffer += event.delta;
+      return [];
+    }
+    if (event.type === "thinking_delta") {
+      if (typeof event.delta === "string" && event.delta) reasoningBuffer += event.delta;
+      return [];
+    }
+    if (event.type === "thinking_end") {
+      // thinking_end 带整段文本：优先用它（比拼 delta 更抗丢帧）。
+      if (typeof event.text === "string" && event.text.trim()) {
+        reasoningBuffer = event.text;
+      }
+      return takeReasoning();
+    }
+    if (event.type === "message_start") {
+      // 新一轮模型输出：上一轮的尾巴先落位，避免两轮正文粘成一段。
+      return [...takeReasoning(), ...takeText()];
+    }
+    if (event.type === "tool_running") {
+      const name = typeof event.toolName === "string" && event.toolName ? event.toolName : "tool";
+      // 工具开始前先把已累积的正文/思考产出，保持“先说再做”的顺序。
+      const entries = [...takeReasoning(), ...takeText()];
+      const description = event.description;
+      if (typeof description === "string" && description.trim()) {
+        const detail = description.replace(/\s+/gu, " ").trim();
+        entries.push({
+          kind: "tool",
+          text: `${name}: ${
+            detail.length > MAX_TOOL_DETAIL ? `${detail.slice(0, MAX_TOOL_DETAIL)}…` : detail
+          }`,
+        });
+      } else {
+        entries.push({ kind: "tool", text: describeToolUse(name, description) });
+      }
+      return entries;
+    }
+    // model_request_* / message_update / tool_completed / notice 等不是过程文本。
+    return [];
+  };
+
+  const consume = (text: string): ExternalAgentActivityEntry[] => {
+    buffer += text;
+    const lines = buffer.split(/\r?\n/u);
+    buffer = lines.pop() ?? "";
+    return lines.flatMap(parseLine);
+  };
+
+  return {
+    push(chunk) {
+      return consume(chunk);
+    },
+    flush() {
+      const rest = buffer;
+      buffer = "";
+      const parsed = rest ? parseLine(rest) : [];
+      return [...parsed, ...takeReasoning(), ...takeText()];
+    },
+  };
+}

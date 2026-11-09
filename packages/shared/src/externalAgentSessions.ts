@@ -141,6 +141,99 @@ export function scanClaudeFamilySessionFile(
   );
 }
 
+/** Command Code 的 cwd → project 目录名（`@sindresorhus/slugify` 实测规则）。 */
+export function cwdToCommandCodeProjectDirName(cwd: string): string {
+  const slug = cwd
+    // 音标折叠：Café → cafe（slugify 的 transliterate 行为）；中文等非拉丁字符在
+    // 下一步整体折叠成一个 `-`（与 slugify 一致：`/Users/张三/项目` → `users`）。
+    .normalize("NFKD")
+    .replace(/[\u0300-\u036f]/gu, "")
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/gu, "-")
+    .replace(/^-+|-+$/gu, "");
+  return slug || "root";
+}
+
+/** 时间戳兼容：Command Code 存 ISO 字符串，旧数据可能是 epoch ms。 */
+function readCommandCodeTimestamp(value: unknown): number | undefined {
+  if (typeof value === "number" && Number.isFinite(value)) return value;
+  if (typeof value === "string" && value.trim()) {
+    const parsed = Date.parse(value);
+    return Number.isFinite(parsed) ? parsed : undefined;
+  }
+  return undefined;
+}
+
+/** `metadata.isMeta` 的条目是 CLI 注入的内部记录，不属于对话内容。 */
+function isCommandCodeMetaEntry(record: Record<string, unknown>): boolean {
+  const metadata = record.metadata;
+  return Boolean(
+    metadata &&
+    typeof metadata === "object" &&
+    (metadata as { isMeta?: unknown }).isMeta === true,
+  );
+}
+
+/**
+ * 扫描 Command Code 会话 JSONL 的概要。
+ *
+ * 形状（1.88.5 实测/源码）：
+ * - 首行头 `{type:"session",version:3,id,timestamp,cwd}`；
+ * - 其后条目 `{id,timestamp,sessionId,parentId,role,content,metadata}`；
+ * - `content` 是 V2 part 数组，用户正文是 `{type:"text",text}`。
+ *
+ * 标题没有独立的 summary/ai-title 事件（headless 会话本来就不命名），用首条用户
+ * 正文兜底；续接 id 优先用头里的 `id`。
+ */
+export function scanCommandCodeSessionFile(
+  content: string,
+  fallbackSessionId: string,
+  updatedAtFallback: number,
+): ExternalAgentSessionSummary | null {
+  let sessionId = "";
+  let firstUser = "";
+  let latestTimestamp = 0;
+  for (const line of content.split(/\r?\n/u)) {
+    const trimmed = line.trim();
+    if (!trimmed.startsWith("{")) continue;
+    let entry: unknown;
+    try {
+      entry = JSON.parse(trimmed);
+    } catch {
+      continue;
+    }
+    if (!entry || typeof entry !== "object") continue;
+    const record = entry as Record<string, unknown>;
+    if (record.type === "session" && typeof record.id === "string" && record.id) {
+      sessionId = sessionId || record.id;
+    }
+    if (typeof record.sessionId === "string" && record.sessionId) {
+      sessionId = sessionId || record.sessionId;
+    }
+    const at = readCommandCodeTimestamp(record.timestamp);
+    if (at !== undefined && at > latestTimestamp) latestTimestamp = at;
+    if (isCommandCodeMetaEntry(record)) continue;
+    if (record.role !== "user" || !Array.isArray(record.content)) continue;
+    const text = readContentText(record.content);
+    // CLI 注入的提示（<command-*> / system-reminder）不是用户首句。
+    if (text && !text.startsWith("<")) firstUser = firstUser || text;
+  }
+  const resolvedId = sessionId || fallbackSessionId;
+  if (!resolvedId) return null;
+  const titleSource = firstUser;
+  const title = titleSource
+    ? titleSource.length > TITLE_MAX_CHARS
+      ? `${titleSource.slice(0, TITLE_MAX_CHARS)}…`
+      : titleSource
+    : resolvedId;
+  return {
+    sessionId: resolvedId,
+    title,
+    updatedAt: latestTimestamp || updatedAtFallback,
+    ...(firstUser ? { preview: firstUser.slice(0, TITLE_MAX_CHARS) } : {}),
+  };
+}
+
 // ── 外部会话的完整上下文（transcript）──
 //
 // 续接菜单只能看到标题；用户想"进到那个外部会话里看全部上下文"时，需要把
@@ -471,6 +564,143 @@ export function parseOpencodeSessionExport(
     flushText();
   }
   return paginateTranscript(entries, entries.length, options);
+}
+
+/**
+ * 从 `command-code` 的会话 JSONL 还原一条会话。
+ *
+ * 条目形状（V2 落盘，源码 `toStoredEntry` / `toV2` 实测）：
+ * - `role:"assistant"`：`{type:"text",text}` / `{type:"reasoning",text}` /
+ *   `{type:"tool-call",toolCallId,toolName,input}`；
+ * - `role:"user"`：`{type:"text",text}` / `{type:"image",...}`；
+ * - `role:"tool"`：`{type:"tool-result",toolCallId,toolName,output:{type:"text",value}}`。
+ *
+ * 与 claude-family 的逐行事件不同：这里没有 `type:"message"`，工具结果也是独立
+ * 消息。所以必须单独解析，不能复用 claude-family 的 transcript 解析器。
+ */
+export function parseCommandCodeTranscript(
+  content: string,
+  options: {
+    sessionId: string;
+    before?: number;
+    limit?: number;
+    sourceTruncated?: boolean;
+  },
+): ExternalAgentTranscriptPage {
+  const entries: ExternalAgentTranscriptEntry[] = [];
+  // tool-result 自己不总带工具名（V2 里 toolName 常为空串）：用 toolCallId 回查。
+  const toolNames = new Map<string, string>();
+  for (const line of content.split(/\r?\n/u)) {
+    const trimmed = line.trim();
+    if (!trimmed.startsWith("{")) continue;
+    let value: unknown;
+    try {
+      value = JSON.parse(trimmed);
+    } catch {
+      continue;
+    }
+    if (!value || typeof value !== "object") continue;
+    const record = value as Record<string, unknown>;
+    // 首行头不是对话条目。
+    if (record.type === "session") continue;
+    if (isCommandCodeMetaEntry(record)) continue;
+    const at = readCommandCodeTimestamp(record.timestamp);
+    const parts = Array.isArray(record.content) ? record.content : [];
+    const role = record.role;
+
+    if (role === "assistant") {
+      for (const rawPart of parts) {
+        if (!rawPart || typeof rawPart !== "object") continue;
+        const part = rawPart as {
+          type?: unknown;
+          text?: unknown;
+          toolCallId?: unknown;
+          toolName?: unknown;
+          input?: unknown;
+        };
+        if (part.type === "text" && typeof part.text === "string" && part.text.trim()) {
+          entries.push({
+            kind: "assistant",
+            ...clipTranscriptText(part.text.trim(), TRANSCRIPT_TEXT_LIMITS.assistant),
+            ...(at !== undefined ? { at } : {}),
+          });
+          continue;
+        }
+        if (part.type === "reasoning") {
+          // 思考过程不进行转录（与其他驱动一致：量大且易误导）。
+          continue;
+        }
+        if (part.type !== "tool-call") continue;
+        const name = typeof part.toolName === "string" && part.toolName ? part.toolName : "tool";
+        const toolCallId = typeof part.toolCallId === "string" ? part.toolCallId : "";
+        if (toolCallId) toolNames.set(toolCallId, name);
+        entries.push({
+          kind: "tool",
+          name,
+          ...clipTranscriptText(
+            describeFunctionCall(name, part.input),
+            TRANSCRIPT_TEXT_LIMITS.tool,
+          ),
+          ...(at !== undefined ? { at } : {}),
+        });
+      }
+      continue;
+    }
+
+    if (role === "user") {
+      for (const rawPart of parts) {
+        if (!rawPart || typeof rawPart !== "object") continue;
+        const part = rawPart as { type?: unknown; text?: unknown };
+        if (part.type !== "text" || typeof part.text !== "string" || !part.text.trim()) continue;
+        // CLI 注入的提示（<command-*> / system-reminder）不是用户上下文。
+        if (part.text.trimStart().startsWith("<")) continue;
+        entries.push({
+          kind: "user",
+          ...clipTranscriptText(part.text.trim(), TRANSCRIPT_TEXT_LIMITS.user),
+          ...(at !== undefined ? { at } : {}),
+        });
+      }
+      continue;
+    }
+
+    if (role === "tool") {
+      for (const rawPart of parts) {
+        if (!rawPart || typeof rawPart !== "object") continue;
+        const part = rawPart as {
+          type?: unknown;
+          toolCallId?: unknown;
+          toolName?: unknown;
+          output?: unknown;
+        };
+        if (part.type !== "tool-result") continue;
+        const toolCallId = typeof part.toolCallId === "string" ? part.toolCallId : "";
+        const name =
+          typeof part.toolName === "string" && part.toolName
+            ? part.toolName
+            : (toolNames.get(toolCallId) ?? "tool");
+        const text = readCommandCodeToolOutput(part.output);
+        if (!text) continue;
+        entries.push({
+          kind: "tool_result",
+          name,
+          ...clipTranscriptText(text, TRANSCRIPT_TEXT_LIMITS.tool_result),
+          ...(at !== undefined ? { at } : {}),
+        });
+      }
+    }
+  }
+  return paginateTranscript(entries, entries.length, options);
+}
+
+/** Command Code 工具结果正文：`{type:"text",value}` 或纯字符串。 */
+function readCommandCodeToolOutput(output: unknown): string {
+  if (typeof output === "string") return output.trim();
+  if (!output || typeof output !== "object") return "";
+  const record = output as { value?: unknown; text?: unknown; content?: unknown };
+  if (typeof record.value === "string") return record.value.trim();
+  if (typeof record.text === "string") return record.text.trim();
+  if (Array.isArray(record.content)) return readContentText(record.content);
+  return "";
 }
 
 /**

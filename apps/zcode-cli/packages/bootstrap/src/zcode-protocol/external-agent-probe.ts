@@ -9,13 +9,18 @@
 import type { ExecutionPort } from "@zcode/contracts";
 import {
   EXTERNAL_AGENT_BINDABLE_PRESETS,
+  cwdToCommandCodeProjectDirName,
   cwdToProjectDirName,
   parseClaudeFamilyTranscript,
+  parseCommandCodeModelCatalog,
+  parseCommandCodeModelList,
+  parseCommandCodeTranscript,
   parseModelCatalogFromProductJson,
   parseModelListFromHelp,
   parseOpencodeSessionExport,
   parseServerModelCache,
   scanClaudeFamilySessionFile,
+  scanCommandCodeSessionFile,
   type ExternalAgentBinding,
   type ExternalAgentModelInfo,
   type ExternalAgentPreset,
@@ -308,6 +313,42 @@ async function probeServerModelCache(
   }
 }
 
+/**
+ * 读 Command Code 的模型目录缓存（`~/.commandcode/cache/model-catalog/v1/catalog-*.json`）。
+ *
+ * 这份缓存由 CLI 自己从服务端拉取并落盘，同时给出模型 id 与逐模型
+ * `reasoningEfforts`——是唯一不用登录就能拿到的权威目录。多份缓存按 mtime 取最新，
+ * 解析失败/目录不存在一律回空数组（调用方退回 `--list-models` 文本兜底）。
+ */
+async function probeCatalogCache(
+  executionPort: ExecutionPort,
+  preset: ExternalAgentPreset,
+  cwd: string,
+): Promise<ExternalAgentModelInfo[]> {
+  const cacheHome = preset.sessionHomeDir ?? ".commandcode";
+  const script = [
+    "const fs=require('fs'),path=require('path'),os=require('os');",
+    `const base=path.join(os.homedir(),${JSON.stringify(cacheHome)},'cache','model-catalog','v1');`,
+    "let files=[];try{files=fs.readdirSync(base).filter(f=>f.startsWith('catalog-')&&f.endsWith('.json'));}catch{process.exit(3);}",
+    "if(!files.length)process.exit(4);",
+    "let best=null;",
+    "for(const f of files){try{const p=path.join(base,f);const m=fs.statSync(p).mtimeMs;if(!best||m>best.m)best={p,m};}catch{}}",
+    "if(!best)process.exit(5);",
+    "process.stdout.write(fs.readFileSync(best.p,'utf8'));",
+  ].join("");
+  const read = await probeCommand(executionPort, "node", ["-e", script], cwd, {
+    // 整份目录实测约 67KB；给足上限，避免截断后 JSON.parse 失败被误判成"没有目录"。
+    maxInlineBytes: 4_000_000,
+    maxBufferBytes: 4_000_000,
+  });
+  if (!read.ok || !read.stdout.trim()) return [];
+  try {
+    return parseCommandCodeModelCatalog(JSON.parse(read.stdout));
+  } catch {
+    return [];
+  }
+}
+
 /** 单个预设的探测：先版本，装了才查模型与档位目录。 */
 async function probePreset(
   executionPort: ExecutionPort,
@@ -329,6 +370,29 @@ async function probePreset(
   }
   const version = versionProbe.stdout.trim().split(/\r?\n/u)[0]?.trim() || undefined;
   const base = { preset, installed: true, ...(version ? { version } : {}) };
+
+  // Command Code 的模型目录（含逐模型档位）在 CLI 自己的缓存里；缓存还没生成时
+  // 跑一次 `--list-models` 让 CLI 拉取并落缓存，再读一次。两次都读不到才退回
+  // 文本解析（只有 id，没有档位）——不让首次打开对话框变成"没有模型"。
+  if (preset.modelSource === "catalog-cache") {
+    const cached = await probeCatalogCache(executionPort, preset, cwd);
+    if (cached.length > 0) {
+      return { ...base, models: cached.map((entry) => entry.id), modelCatalog: cached };
+    }
+    const listed = await probeCommand(executionPort, preset.command, ["--list-models"], cwd, {
+      maxInlineBytes: 2_000_000,
+      maxBufferBytes: 2_000_000,
+    });
+    const refreshed = await probeCatalogCache(executionPort, preset, cwd);
+    if (refreshed.length > 0) {
+      return { ...base, models: refreshed.map((entry) => entry.id), modelCatalog: refreshed };
+    }
+    return {
+      ...base,
+      models: listed.ok ? parseCommandCodeModelList(listed.stdout) : [],
+      modelCatalog: [],
+    };
+  }
 
   // 模型清单来自 CLI 自己的子命令（opencode 的 `models`）：--help 不列模型，
   // 只能跑一次拿逐行输出。档位另取 opencode 的本地模型缓存（见
@@ -543,12 +607,12 @@ export async function listExternalAgentSessions(options: {
   const read = await probeCommand(
     options.executionPort,
     "node",
-    ["-e", buildExternalAgentSessionsScript(options.cwd, options.sessionHomeDir)],
+    ["-e", buildExternalAgentSessionsScript(options.cwd, options.sessionHomeDir, options.driver)],
     options.cwd,
     { maxInlineBytes: 8_000_000, maxBufferBytes: 8_000_000 },
   );
   if (!read.ok || !read.stdout.trim()) return [];
-  return parseExternalAgentSessionsProbe(read.stdout).slice(0, limit);
+  return parseExternalAgentSessionsProbe(read.stdout, options.driver).slice(0, limit);
 }
 
 /**
@@ -591,12 +655,22 @@ export function parseOpencodeSessionListProbe(stdout: string): ExternalAgentSess
  * 明显，因为命令行是单字符串），整条探测静默返回空列表——会话列表永远是空的。
  * 输出流里用 NUL 分隔仍然安全（JSONL 正文不会出现裸 NUL）。
  */
-export function buildExternalAgentSessionsScript(cwd: string, sessionHomeDir?: string): string {
+export function buildExternalAgentSessionsScript(
+  cwd: string,
+  sessionHomeDir?: string,
+  driver?: ExternalAgentDriverKind,
+): string {
+  const projectDirName =
+    driver === "commandcode-exec"
+      ? cwdToCommandCodeProjectDirName(cwd)
+      : cwdToProjectDirName(cwd);
   return [
     "const fs=require('fs'),path=require('path'),os=require('os');",
-    `const dir=path.join(os.homedir(),${JSON.stringify(sessionHomeDir ?? ".codebuddy")},'projects',${JSON.stringify(cwdToProjectDirName(cwd))});`,
+    `const dir=path.join(os.homedir(),${JSON.stringify(sessionHomeDir ?? ".codebuddy")},'projects',${JSON.stringify(projectDirName)});`,
     "let files=[];",
-    "try{files=fs.readdirSync(dir).filter(f=>f.endsWith('.jsonl'));}catch{process.exit(0);}",
+    // 只收 transcript：Command Code 的 checkpoints/prompts 也是 .jsonl 侧车，
+    // 不过滤会把它们当成两个"会话"混进续接列表（CLI 自己的扫描也排除这三类）。
+    "try{files=fs.readdirSync(dir).filter(f=>f.endsWith('.jsonl')&&!f.includes('.checkpoints.')&&!f.includes('.prompts.')&&!f.includes('.v2.bak'));}catch{process.exit(0);}",
     "const stats=files.map(f=>{try{return {f,m:fs.statSync(path.join(dir,f)).mtimeMs};}catch{return null;}}).filter(Boolean);",
     "stats.sort((a,b)=>b.m-a.m);",
     "const NUL=String.fromCharCode(0);",
@@ -609,7 +683,12 @@ export function buildExternalAgentSessionsScript(cwd: string, sessionHomeDir?: s
 }
 
 /** 宿主侧解析探测输出（与 `buildExternalAgentSessionsScript` 的线格式配对）。 */
-export function parseExternalAgentSessionsProbe(stdout: string): ExternalAgentSessionSummary[] {
+export function parseExternalAgentSessionsProbe(
+  stdout: string,
+  driver?: ExternalAgentDriverKind,
+): ExternalAgentSessionSummary[] {
+  const scan =
+    driver === "commandcode-exec" ? scanCommandCodeSessionFile : scanClaudeFamilySessionFile;
   const summaries: ExternalAgentSessionSummary[] = [];
   for (const block of stdout.split("\u0000END\u0000")) {
     const parts = block.split("\u0000FILE\u0000");
@@ -619,7 +698,7 @@ export function parseExternalAgentSessionsProbe(stdout: string): ExternalAgentSe
     const mtimeMs = Number(rest[1] ?? 0);
     const content = rest.slice(2).join("\u0000");
     if (!fileName || !content) continue;
-    const summary = scanClaudeFamilySessionFile(
+    const summary = scan(
       content,
       fileName.slice(0, -".jsonl".length),
       Number.isFinite(mtimeMs) ? mtimeMs : 0,
@@ -654,12 +733,37 @@ export function buildDeleteExternalAgentSessionScript(
   cwd: string,
   externalSessionId: string,
   sessionHomeDir?: string,
+  driver?: ExternalAgentDriverKind,
 ): string {
+  const home = sessionHomeDir ?? ".codebuddy";
+  const projectDirName =
+    driver === "commandcode-exec"
+      ? cwdToCommandCodeProjectDirName(cwd)
+      : cwdToProjectDirName(cwd);
+  // Command Code 的会话由 transcript + 多个侧车文件组成；只删 .jsonl 会让
+  // meta/checkpoint 等残留。file-history 在 home 下的独立目录，也一并清理。
+  const sidecars =
+    driver === "commandcode-exec"
+      ? [
+          ".meta.json",
+          ".share.json",
+          ".checkpoints.jsonl",
+          ".prompts.jsonl",
+          ".scheduled-tasks.json",
+          ".v2.bak",
+        ]
+      : [];
   return [
     "const fs=require('fs'),path=require('path'),os=require('os');",
-    `const dir=path.join(os.homedir(),${JSON.stringify(sessionHomeDir ?? ".codebuddy")},'projects',${JSON.stringify(cwdToProjectDirName(cwd))});`,
+    `const dir=path.join(os.homedir(),${JSON.stringify(home)},'projects',${JSON.stringify(projectDirName)});`,
     `const id=${JSON.stringify(externalSessionId)};`,
     "const targets=[path.join(dir,id+'.jsonl'),path.join(dir,id)];",
+    ...(sidecars.length > 0
+      ? [`for(const suffix of ${JSON.stringify(sidecars)}) targets.push(path.join(dir,id+suffix));`]
+      : []),
+    ...(driver === "commandcode-exec"
+      ? [`targets.push(path.join(os.homedir(),${JSON.stringify(home)},'file-history',id));`]
+      : []),
     "const existed=targets.some(t=>{try{return fs.existsSync(t);}catch{return false;}});",
     "for(const t of targets){try{fs.rmSync(t,{recursive:true,force:true});}catch{}}",
     "process.stdout.write(existed?'1':'0');",
@@ -694,7 +798,12 @@ export async function deleteExternalAgentSession(options: {
     "node",
     [
       "-e",
-      buildDeleteExternalAgentSessionScript(options.cwd, options.externalSessionId, options.sessionHomeDir),
+      buildDeleteExternalAgentSessionScript(
+        options.cwd,
+        options.externalSessionId,
+        options.sessionHomeDir,
+        options.driver,
+      ),
     ],
     options.cwd,
   );
@@ -711,10 +820,15 @@ export function buildExternalAgentTranscriptScript(
   cwd: string,
   externalSessionId: string,
   sessionHomeDir?: string,
+  driver?: ExternalAgentDriverKind,
 ): string {
+  const projectDirName =
+    driver === "commandcode-exec"
+      ? cwdToCommandCodeProjectDirName(cwd)
+      : cwdToProjectDirName(cwd);
   return [
     "const fs=require('fs'),path=require('path'),os=require('os');",
-    `const dir=path.join(os.homedir(),${JSON.stringify(sessionHomeDir ?? ".codebuddy")},'projects',${JSON.stringify(cwdToProjectDirName(cwd))});`,
+    `const dir=path.join(os.homedir(),${JSON.stringify(sessionHomeDir ?? ".codebuddy")},'projects',${JSON.stringify(projectDirName)});`,
     `const file=path.join(dir,${JSON.stringify(externalSessionId)}+'.jsonl');`,
     `const MAX=${TRANSCRIPT_READ_LIMIT_BYTES};`,
     "let content='',truncated=false;",
@@ -773,7 +887,12 @@ export async function readExternalAgentSessionTranscript(options: {
     "node",
     [
       "-e",
-      buildExternalAgentTranscriptScript(options.cwd, options.externalSessionId, options.sessionHomeDir),
+      buildExternalAgentTranscriptScript(
+        options.cwd,
+        options.externalSessionId,
+        options.sessionHomeDir,
+        options.driver,
+      ),
     ],
     options.cwd,
     {
@@ -785,10 +904,15 @@ export async function readExternalAgentSessionTranscript(options: {
   const newline = read.stdout.indexOf("\n");
   if (newline < 0) return empty;
   const truncated = read.stdout.slice(0, newline).trim() === "1";
-  return parseClaudeFamilyTranscript(read.stdout.slice(newline + 1), {
+  const content = read.stdout.slice(newline + 1);
+  const parseOptions = {
     sessionId: options.externalSessionId,
     sourceTruncated: truncated,
     ...(options.before !== undefined ? { before: options.before } : {}),
     ...(options.limit !== undefined ? { limit: options.limit } : {}),
-  });
+  };
+  // Command Code 的落盘是 V2 条目（role/content），与 claude-family 的逐行事件不同。
+  return options.driver === "commandcode-exec"
+    ? parseCommandCodeTranscript(content, parseOptions)
+    : parseClaudeFamilyTranscript(content, parseOptions);
 }

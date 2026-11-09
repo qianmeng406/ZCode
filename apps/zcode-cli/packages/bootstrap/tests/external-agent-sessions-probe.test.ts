@@ -595,3 +595,159 @@ describe("探测失败与未安装的区分（probeError）", () => {
     }
   });
 });
+
+// ── Command Code 落盘（2026-11-09）──
+// 目录名规则与 claude-family 不同：@sindresorhus/slugify 会小写并把非字母数字段
+// 折叠成 -；会话内容也是 {role,content} 的 V2 条目，不是逐行事件。这里钉住
+// 脚本里的目录名与宿主侧解析器分派。
+const COMMAND_CODE_SLUG = "c-users-someone-desktop-repo";
+
+function commandCodeSessionContent(): string {
+  return [
+    {
+      type: "session",
+      version: 3,
+      id: "cc-session-1",
+      timestamp: "2026-11-09T10:00:00.000Z",
+      cwd: WORKSPACE,
+    },
+    {
+      role: "user",
+      timestamp: "2026-11-09T10:00:01.000Z",
+      content: [{ type: "text", text: "修一下 lint" }],
+    },
+    {
+      role: "assistant",
+      timestamp: "2026-11-09T10:00:02.000Z",
+      content: [
+        { type: "text", text: "先看报错" },
+        { type: "tool-call", toolCallId: "t1", toolName: "bash", input: { command: "pnpm lint" } },
+      ],
+    },
+    {
+      role: "tool",
+      timestamp: "2026-11-09T10:00:03.000Z",
+      content: [
+        {
+          type: "tool-result",
+          toolCallId: "t1",
+          toolName: "",
+          output: { type: "text", value: "3 errors" },
+        },
+      ],
+    },
+  ]
+    .map((entry) => JSON.stringify(entry))
+    .join("\n");
+}
+
+describe("Command Code 会话目录与解析分派", () => {
+  it("脚本用 slugify 规则的项目目录名（小写、空格/下划线折叠）", () => {
+    const script = buildExternalAgentSessionsScript(
+      WORKSPACE,
+      ".commandcode",
+      "commandcode-exec",
+    );
+    expect(script).toContain(JSON.stringify(COMMAND_CODE_SLUG));
+    expect(script).toContain('".commandcode"');
+    // 同一个 cwd 的 claude-family 目录名保留大小写，两者不能混用。
+    expect(buildExternalAgentSessionsScript(WORKSPACE)).toContain(JSON.stringify(SLUG));
+  });
+
+  it("宿主侧按 driver 选 Command Code 解析器（sessionId 取头部 id）", () => {
+    const output = wireBlock("cc.jsonl", 5, commandCodeSessionContent());
+    expect(parseExternalAgentSessionsProbe(output, "commandcode-exec")).toEqual([
+      {
+        sessionId: "cc-session-1",
+        title: "修一下 lint",
+        updatedAt: Date.parse("2026-11-09T10:00:03.000Z"),
+        preview: "修一下 lint",
+      },
+    ]);
+  });
+
+  it("真实 spawn：从 ~/.commandcode/projects/<slug> 读会话", () => {
+    const home = mkdtempSync(path.join(os.tmpdir(), "zcode-probe-commandcode-"));
+    tempDirs.push(home);
+    const projectDir = path.join(home, ".commandcode", "projects", COMMAND_CODE_SLUG);
+    mkdirSync(projectDir, { recursive: true });
+    writeFileSync(path.join(projectDir, "cc.jsonl"), commandCodeSessionContent(), "utf8");
+    // 侧车也是 .jsonl：不能被当成两个额外会话混进续接列表。
+    writeFileSync(path.join(projectDir, "cc.checkpoints.jsonl"), "{}", "utf8");
+    writeFileSync(path.join(projectDir, "cc.prompts.jsonl"), "{}", "utf8");
+    const stdout = execFileSync(
+      process.execPath,
+      ["-e", buildExternalAgentSessionsScript(WORKSPACE, ".commandcode", "commandcode-exec")],
+      {
+        encoding: "utf8",
+        env: { ...process.env, USERPROFILE: home, HOME: home },
+        cwd: home,
+        maxBuffer: 8_000_000,
+      },
+    );
+    const result = parseExternalAgentSessionsProbe(stdout, "commandcode-exec");
+    expect(result.map((item) => item.sessionId)).toEqual(["cc-session-1"]);
+  });
+
+  it("transcript：脚本用同一目录名，宿主按 driver 还原 V2 条目", async () => {
+    const home = mkdtempSync(path.join(os.tmpdir(), "zcode-probe-commandcode-"));
+    tempDirs.push(home);
+    const projectDir = path.join(home, ".commandcode", "projects", COMMAND_CODE_SLUG);
+    mkdirSync(projectDir, { recursive: true });
+    const content = commandCodeSessionContent();
+    writeFileSync(path.join(projectDir, "cc-session-1.jsonl"), content, "utf8");
+
+    const script = buildExternalAgentTranscriptScript(
+      WORKSPACE,
+      "cc-session-1",
+      ".commandcode",
+      "commandcode-exec",
+    );
+    expect(script).toContain(JSON.stringify(COMMAND_CODE_SLUG));
+    const stdout = runScript(home, script);
+    expect(stdout.startsWith("0\n")).toBe(true);
+
+    const port = stubPort(() => okResult(stdout));
+    const page = await readExternalAgentSessionTranscript({
+      executionPort: port,
+      cwd: WORKSPACE,
+      externalSessionId: "cc-session-1",
+      sessionHomeDir: ".commandcode",
+      driver: "commandcode-exec",
+      limit: 10,
+    });
+    expect(page.entries.map((entry) => [entry.kind, entry.text])).toEqual([
+      ["user", "修一下 lint"],
+      ["assistant", "先看报错"],
+      ["tool", "bash: pnpm lint"],
+      ["tool_result", "3 errors"],
+    ]);
+  });
+
+  it("delete：清理 transcript、侧车文件与 file-history", () => {
+    const home = mkdtempSync(path.join(os.tmpdir(), "zcode-probe-commandcode-"));
+    tempDirs.push(home);
+    const projectDir = path.join(home, ".commandcode", "projects", COMMAND_CODE_SLUG);
+    mkdirSync(projectDir, { recursive: true });
+    const sessionId = "cc-session-1";
+    writeFileSync(path.join(projectDir, `${sessionId}.jsonl`), "{}");
+    writeFileSync(path.join(projectDir, `${sessionId}.meta.json`), "{}");
+    writeFileSync(path.join(projectDir, `${sessionId}.checkpoints.jsonl`), "{}");
+    mkdirSync(path.join(home, ".commandcode", "file-history", sessionId), { recursive: true });
+
+    const stdout = runScript(
+      home,
+      buildDeleteExternalAgentSessionScript(
+        WORKSPACE,
+        sessionId,
+        ".commandcode",
+        "commandcode-exec",
+      ),
+    );
+    expect(stdout).toBe("1");
+    expect(existsSync(path.join(projectDir, `${sessionId}.jsonl`))).toBe(false);
+    expect(existsSync(path.join(projectDir, `${sessionId}.meta.json`))).toBe(false);
+    expect(existsSync(path.join(projectDir, `${sessionId}.checkpoints.jsonl`))).toBe(false);
+    expect(existsSync(path.join(home, ".commandcode", "file-history", sessionId))).toBe(false);
+  });
+});

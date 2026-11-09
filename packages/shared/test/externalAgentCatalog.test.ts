@@ -5,6 +5,8 @@ import {
   EXTERNAL_AGENT_BINDABLE_PRESETS,
   EXTERNAL_AGENT_PRESETS,
   findExternalAgentPreset,
+  parseCommandCodeModelCatalog,
+  parseCommandCodeModelList,
   parseModelCatalogFromProductJson,
   parseModelListFromHelp,
   parseServerModelCache,
@@ -13,13 +15,16 @@ import {
 } from "../src/externalAgentCatalog.js";
 import {
   createClaudeStreamParser,
+  createCommandCodeStreamParser,
   createOpencodeStreamParser,
   parseClaudeFamilyStreamActivities,
+  parseCommandCodeStreamActivities,
   parseOpencodeStreamActivities,
 } from "../src/externalAgentStream.js";
 import {
   buildExternalAgentInvocation,
   externalAgentBindingSchema,
+  parseCommandCodeResult,
   parseExternalAgentResult,
   parseOpencodeRunResult,
   readModelEffort,
@@ -53,7 +58,7 @@ test("EXTERNAL_AGENT_BINDABLE_PRESETS: 只列完整适配的", () => {
   // codex / claude-code 目前只验证过最基本的调用形状，列出来用户会以为能完整用。
   assert.deepEqual(
     EXTERNAL_AGENT_BINDABLE_PRESETS.map((preset) => preset.id),
-    ["codebuddy", "opencode", "qodercli-cn"],
+    ["codebuddy", "opencode", "qodercli-cn", "commandcode"],
   );
   // 目录里不删它们：老绑定还要靠 findExternalAgentPreset 回显 label 与调用参数。
   for (const id of ["claude-code", "codex"]) {
@@ -141,6 +146,221 @@ test("qodercli-cn 绑定的调用形状：档位 flag、权限值、stdin 与续
   ]);
   // prompt 走 stdin（claude-family 分支固定）。
   assert.equal(invocation.stdin, "任务书");
+});
+
+test("commandcode 预设：headless NDJSON + 目录缓存 + 会话落盘", () => {
+  // 2026-11-09 实测 command-code 1.88.5：`-p --output-format json` 是 NDJSON，
+  // 模型目录与逐模型档位在 CLI 自己拉取的服务端缓存里。
+  const preset = findExternalAgentPreset("commandcode")!;
+  assert.equal(preset.driver, "commandcode-exec");
+  assert.equal(preset.adaptation, "full");
+  // Windows 上 cmd 是系统 shell，必须用全名（或 cmdc）。
+  assert.equal(preset.command, "command-code");
+  assert.deepEqual(preset.args, [
+    "-p",
+    "--output-format",
+    "json",
+    "--trust",
+    "--skip-onboarding",
+  ]);
+  assert.equal(preset.promptDelivery, "stdin");
+  // headless 解除写文件/执行 shell 限制的开关是 --yolo（invocation 翻译）。
+  assert.equal(preset.permissionMode, "yolo");
+  assert.equal(preset.modelSource, "catalog-cache");
+  assert.equal(preset.effortDelivery, "flag");
+  assert.equal(preset.effortFlag, "--effort");
+  assert.equal(preset.sessionHomeDir, ".commandcode");
+  assert.equal(resolveExternalAgentSessionHomeDir("commandcode"), ".commandcode");
+
+  // 探测不可用时不提供档位入口（不能套 CLI 级 low..max 表）。
+  assert.deepEqual(resolveEffortLevels(preset, "deepseek/deepseek-v4.1-flash"), []);
+  assert.deepEqual(
+    resolveEffortLevels(preset, "deepseek/deepseek-v4.1-flash", [
+      {
+        id: "deepseek/deepseek-v4.1-flash",
+        name: "DeepSeek V4.1 Flash",
+        supportedEfforts: ["off", "low", "high", "max"],
+      },
+    ]),
+    ["off", "low", "high", "max"],
+  );
+  // 缓存目录里没有 reasoningEfforts 的模型：空候选 = 没有档位入口（与 opencode 同）。
+  assert.deepEqual(
+    resolveEffortLevels(preset, "moonshotai/Kimi-K2.7-Code", [
+      { id: "moonshotai/Kimi-K2.7-Code", name: "Kimi K2.7 Code", supportedEfforts: [] },
+    ]),
+    [],
+  );
+});
+
+test("commandcode 绑定的调用形状：--yolo、模型/档位、-r 与 stdin", () => {
+  const preset = findExternalAgentPreset("commandcode")!;
+  const binding = externalAgentBindingSchema.parse({
+    label: "Command Code",
+    driver: "commandcode-exec",
+    command: preset.command,
+    args: [...preset.args],
+    promptDelivery: "stdin",
+    presetId: preset.id,
+    model: "deepseek/deepseek-v4.1-flash",
+    effortsByModel: { "deepseek/deepseek-v4.1-flash": "high" },
+    externalSessionId: "sess-1",
+  });
+  const invocation = buildExternalAgentInvocation(binding, "任务书");
+  assert.equal(invocation.command, "command-code");
+  assert.deepEqual(invocation.args, [
+    "-p",
+    "--output-format",
+    "json",
+    "--trust",
+    "--skip-onboarding",
+    "--model",
+    "deepseek/deepseek-v4.1-flash",
+    "--effort",
+    "high",
+    "--yolo",
+    "-r",
+    "sess-1",
+  ]);
+  // prompt 走 stdin（多行与 Windows 命令行长度的共同防线）。
+  assert.equal(invocation.stdin, "任务书");
+});
+
+test("commandcode 结果解析：result 帧的 finalText / subtype / sessionId", () => {
+  const success = [
+    JSON.stringify({ type: "event", event: { type: "text_delta", delta: "过程" } }),
+    JSON.stringify({
+      type: "result",
+      subtype: "success",
+      sessionId: "sess-9",
+      finalText: "完成",
+    }),
+  ].join("\n");
+  assert.deepEqual(parseCommandCodeResult(success), {
+    text: "完成",
+    isError: false,
+    sessionId: "sess-9",
+  });
+  // 失败结果：finalText 为空时退回 error 文本。
+  assert.deepEqual(
+    parseCommandCodeResult(
+      JSON.stringify({ type: "result", subtype: "error", error: "额度不足" }),
+    ),
+    { text: "额度不足", isError: true },
+  );
+  // max_turns 也是没跑完。
+  assert.deepEqual(
+    parseCommandCodeResult(
+      JSON.stringify({ type: "result", subtype: "max_turns", finalText: "半截" }),
+    ),
+    { text: "半截", isError: true },
+  );
+  // 没有 result 帧：原文兜底，不能吞成空报告。
+  assert.deepEqual(parseCommandCodeResult("plain output"), {
+    text: "plain output",
+    isError: false,
+  });
+
+  // 绑定层分流：commandcode-exec 走上面的解析，而不是原文短路。
+  const binding = externalAgentBindingSchema.parse({
+    label: "Command Code",
+    driver: "commandcode-exec",
+    command: "command-code",
+    promptDelivery: "stdin",
+    presetId: "commandcode",
+  });
+  assert.equal(parseExternalAgentResult(binding, success).text, "完成");
+});
+
+test("parseCommandCodeStreamActivities: delta 累积到边界，tool_running 产出工具", () => {
+  const stdout = [
+    { type: "event", event: { type: "thinking_delta", delta: "想" } },
+    { type: "event", event: { type: "thinking_end", text: "想清楚了" } },
+    { type: "event", event: { type: "text_delta", delta: "先" } },
+    { type: "event", event: { type: "text_delta", delta: "说" } },
+    { type: "event", event: { type: "tool_running", toolName: "bash", description: "ls -la" } },
+    { type: "event", event: { type: "text_delta", delta: "结果" } },
+    { type: "result", subtype: "success", finalText: "结果" },
+  ]
+    .map((entry) => JSON.stringify(entry))
+    .join("\n");
+  assert.deepEqual(parseCommandCodeStreamActivities(stdout), [
+    { kind: "reasoning", text: "想清楚了" },
+    { kind: "text", text: "先说" },
+    { kind: "tool", text: "bash: ls -la" },
+    { kind: "text", text: "结果" },
+  ]);
+});
+
+test("commandcode 流解析：半行 JSON 留缓冲，flush 时产出", () => {
+  const parser = createCommandCodeStreamParser();
+  const line = JSON.stringify({
+    type: "event",
+    event: { type: "text_delta", delta: "你好" },
+  });
+  assert.deepEqual(parser.push(line.slice(0, 12)), []);
+  assert.deepEqual(parser.push(`${line.slice(12)}\n`), []);
+  assert.deepEqual(parser.flush(), [{ kind: "text", text: "你好" }]);
+  // 空输出不产出。
+  assert.deepEqual(parseCommandCodeStreamActivities(""), []);
+});
+
+test("parseCommandCodeModelCatalog: 读缓存 body.data 的逐模型档位并按 order 排序", () => {
+  const raw = {
+    body: {
+      data: [
+        {
+          id: "moonshotai/Kimi-K3.1-Pro",
+          name: "Kimi K3.1 Pro",
+          display: { label: "Kimi K3.1 Pro", order: 2 },
+          reasoningEfforts: ["low", "high", "max"],
+        },
+        {
+          id: "moonshotai/Kimi-K2.7-Code",
+          name: "Kimi K2.7 Code",
+          display: { label: "Kimi K2.7 Code", order: 1 },
+          // 没有 reasoningEfforts 的模型保持空候选。
+        },
+        {
+          id: "hidden/model",
+          name: "Hidden",
+          hidden: true,
+          display: { label: "Hidden", order: 0 },
+          reasoningEfforts: ["low"],
+        },
+      ],
+    },
+  };
+  assert.deepEqual(parseCommandCodeModelCatalog(raw), [
+    { id: "moonshotai/Kimi-K2.7-Code", name: "Kimi K2.7 Code", supportedEfforts: [] },
+    {
+      id: "moonshotai/Kimi-K3.1-Pro",
+      name: "Kimi K3.1 Pro",
+      supportedEfforts: ["low", "high", "max"],
+    },
+  ]);
+  assert.deepEqual(parseCommandCodeModelCatalog(null), []);
+  assert.deepEqual(parseCommandCodeModelCatalog({ body: { data: "nope" } }), []);
+});
+
+test("parseCommandCodeModelList: 从人类可读表格取 id，跳过标题与分组", () => {
+  const stdout = [
+    "Available models  ·  96 models",
+    "",
+    "Open Source",
+    "",
+    "deepseek/deepseek-v4-pro                hybrid-attention long-context reasoning",
+    "MiniMaxAI/MiniMax-M3                    frontier coding",
+    "",
+    "Anthropic",
+    "claude-sonnet-5-5                       best combo of speed & intelligence",
+  ].join("\n");
+  assert.deepEqual(parseCommandCodeModelList(stdout), [
+    "deepseek/deepseek-v4-pro",
+    "MiniMaxAI/MiniMax-M3",
+    "claude-sonnet-5-5",
+  ]);
+  assert.deepEqual(parseCommandCodeModelList(""), []);
 });
 
 test("codex 预设用 codex-exec 族与 exec 子命令", () => {

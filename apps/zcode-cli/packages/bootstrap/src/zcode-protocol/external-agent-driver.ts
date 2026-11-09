@@ -10,8 +10,10 @@ import { readFileSync, statSync } from "node:fs";
 import {
   buildExternalAgentInvocation,
   createClaudeStreamParser,
+  createCommandCodeStreamParser,
   createOpencodeStreamParser,
   parseClaudeFamilyStreamActivities,
+  parseCommandCodeStreamActivities,
   parseExternalAgentResult,
   parseOpencodeStreamActivities,
   type ExternalAgentActivityEntry,
@@ -47,6 +49,12 @@ const STREAMING_DRIVERS: Partial<
   "opencode-exec": {
     createParser: createOpencodeStreamParser,
     parseActivities: parseOpencodeStreamActivities,
+  },
+  // Command Code 的 `-p --output-format json` 也是逐行 JSON（事件帧 + result），
+  // 但正文/思考是增量 delta，解析器内部会累积后在边界产出。
+  "commandcode-exec": {
+    createParser: createCommandCodeStreamParser,
+    parseActivities: parseCommandCodeStreamActivities,
   },
 };
 
