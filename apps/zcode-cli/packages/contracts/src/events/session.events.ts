@@ -1211,6 +1211,10 @@ export type ExternalAgentBindingChangedPayload = {
   effort?: string;
   /** 当前模型可选的档位；空 = 该模型没有已知档位能力。 */
   effortLevels?: string[];
+  /** 当前模型的显式上下文窗口（token 数；缺省 = CLI/服务端默认窗口）。 */
+  contextWindow?: number;
+  /** 当前模型可选的上下文窗口（token 数）；空 = 不提供该入口。 */
+  contextWindowLevels?: number[];
   /** 当前续接的外部会话 id（缺省 = 每次委派由 CLI 开新会话）。 */
   externalSessionId?: string;
   readOnly: true;
