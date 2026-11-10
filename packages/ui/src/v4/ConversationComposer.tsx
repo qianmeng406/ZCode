@@ -572,6 +572,8 @@ export interface ConversationComposerProps {
    * 模型菜单做成"模型 → 档位"子菜单后走这条，保证两者原子落定。
    */
   onChangeExternalAgentModelEffort?: (model: string | null, effort: string | null) => Promise<void>;
+  /** 切换外部 agent 当前模型的上下文窗口（null = CLI/服务端默认窗口）。 */
+  onChangeExternalAgentContextWindow?: (tokens: number | null) => Promise<void>;
   /**
    * 切换已绑定外部 agent 的推理档位（null = 回到 CLI 默认）。
    * 与换模型分开：合法值域随 CLI 不同（claude 无 minimal、codebuddy 有）。
@@ -725,6 +727,7 @@ function ConversationComposerImpl({
   onBindExternalAgent,
   onChangeExternalAgentModel,
   onChangeExternalAgentModelEffort,
+  onChangeExternalAgentContextWindow,
   onChangeExternalAgentEffort,
   onChangeExternalAgentSession,
   onLoadExternalAgentSessions,
@@ -3145,6 +3148,12 @@ function ConversationComposerImpl({
     [snapshot?.externalAgent?.effortLevels],
   );
 
+  // 上下文窗口候选同样由 CLI 侧按当前模型解析后下发（空 = 不显示入口）。
+  const externalAgentContextWindowOptions = useMemo(
+    () => snapshot?.externalAgent?.contextWindowLevels ?? [],
+    [snapshot?.externalAgent?.contextWindowLevels],
+  );
+
   // 会话子菜单的数据由徽标在展开时拉取（onOpenSessions 回调），composer 只转发；
   // 列表落在执行机上（远程会话的 CLI 历史在远端），缺席 = 不显示会话入口。
   const externalAgentSessionsLoader = onLoadExternalAgentSessions;
@@ -3186,6 +3195,12 @@ function ConversationComposerImpl({
               ? {
                   modelEfforts: externalAgentModelEfforts,
                   onChangeModelEffort: onChangeExternalAgentModelEffort,
+                }
+              : {})}
+            {...(onChangeExternalAgentContextWindow
+              ? {
+                  contextWindowOptions: externalAgentContextWindowOptions,
+                  onChangeContextWindow: onChangeExternalAgentContextWindow,
                 }
               : {})}
             {...(onChangeExternalAgentSession
@@ -3267,7 +3282,9 @@ function ConversationComposerImpl({
       externalAgentModelOptions,
       externalAgentModelEfforts,
       onChangeExternalAgentModelEffort,
+      onChangeExternalAgentContextWindow,
       externalAgentEffortOptions,
+      externalAgentContextWindowOptions,
       workspaceIdentity,
       workspacePath,
     ],

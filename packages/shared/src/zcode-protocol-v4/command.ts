@@ -289,6 +289,8 @@ export const commandPayloadSchemas = {
       model: z.string().max(200).optional(),
       /** 推理档位；作用于**本次选定的模型**（缺省 = 该模型用 CLI 默认档位）。 */
       effort: z.string().max(40).optional(),
+      /** 显式上下文窗口（token 数）；缺省 = CLI/服务端默认窗口。 */
+      contextWindow: z.number().int().positive().optional(),
       env: z.record(z.string(), z.string()).optional(),
       timeoutMs: z.number().int().positive().max(3_600_000).optional(),
       /** 绑定时指定的外部会话 id（续接从它开始；缺省 = 由 CLI 开新会话）。 */
@@ -305,11 +307,17 @@ export const commandPayloadSchemas = {
     .object({
       model: z.string().max(200).nullable(),
       effort: z.string().max(40).nullable().optional(),
+      // 与 effort 同理：模型、档位、上下文窗口在 UI 里是一次选择，一条命令原子落定。
+      contextWindow: z.number().int().positive().nullable().optional(),
     })
     .strict(),
   // 切换推理档位。与换模型同构，但独立成命令：两者互不依赖，
   // 且档位是**模型能力**——值域随模型变化，命令只落"当前模型这一档"。
   setExternalAgentEffort: z.object({ effort: z.string().max(40).nullable() }).strict(),
+  // 切换当前模型的上下文窗口（token 数；null = 恢复 CLI/服务端默认窗口）。
+  setExternalAgentContextWindow: z
+    .object({ contextWindow: z.number().int().positive().nullable() })
+    .strict(),
   // 切换续接的外部会话（null = 清除，回到"每次委派开新会话"）。
   // 与换模型同构：只改 externalSessionId 字段，不动只读契约、授权与 previous* 快照。
   setExternalAgentSession: z.object({ sessionId: z.string().max(200).nullable() }).strict(),
@@ -382,6 +390,7 @@ export const COMMANDS_REQUIRING_BASE_REVISION: ReadonlySet<CommandType> = new Se
   "unbindExternalAgent",
   "setExternalAgentModel",
   "setExternalAgentEffort",
+  "setExternalAgentContextWindow",
   "setExternalAgentSession",
   "setFollowupMode",
   "pauseGoal",

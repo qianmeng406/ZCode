@@ -66,6 +66,10 @@ export interface ExternalAgentReadOnlyBadgeProps {
   onChangeEffort?: (effort: string | null) => Promise<void>;
   /** 可选推理档位；空 = 该 CLI 没有这个维度，不显示分区。 */
   effortOptions?: string[];
+  /** 切换当前模型的上下文窗口（null = CLI/服务端默认窗口）。 */
+  onChangeContextWindow?: (tokens: number | null) => Promise<void>;
+  /** 当前模型可选的上下文窗口（token 数）；空 = 不显示分区。 */
+  contextWindowOptions?: number[];
   /** 切换续接的外部会话（null = 清除，回到每次开新会话）。 */
   onChangeSession?: (sessionId: string | null) => Promise<void>;
   /** 拉取历史会话列表；菜单展开时调用。缺席 = 不显示会话子菜单。 */
@@ -86,6 +90,13 @@ interface SessionEntry {
   updatedAt: number;
 }
 
+/** 上下文窗口展示标签：200000 → 200K，1000000 → 1M。 */
+function formatContextWindow(tokens: number): string {
+  if (tokens >= 1_000_000 && tokens % 1_000_000 === 0) return `${tokens / 1_000_000}M`;
+  if (tokens >= 1_000 && tokens % 1_000 === 0) return `${tokens / 1_000}K`;
+  return String(tokens);
+}
+
 function formatSessionTime(ms: number): string {
   const date = new Date(ms);
   const pad = (value: number): string => String(value).padStart(2, "0");
@@ -101,6 +112,8 @@ function ExternalAgentReadOnlyBadgeImpl({
   onChangeModelEffort,
   onChangeEffort,
   effortOptions,
+  onChangeContextWindow,
+  contextWindowOptions,
   onChangeSession,
   onLoadSessions,
   onDeleteSession,
@@ -140,6 +153,17 @@ function ExternalAgentReadOnlyBadgeImpl({
       void onChangeModelEffort(model, effort).finally(() => setSwitching(false));
     },
     [onChangeModelEffort, switching],
+  );
+
+  const handleChangeContextWindow = useCallback(
+    (value: string) => {
+      if (switching || !onChangeContextWindow) return;
+      setSwitching(true);
+      void onChangeContextWindow(value === "" ? null : Number(value)).finally(() =>
+        setSwitching(false),
+      );
+    },
+    [onChangeContextWindow, switching],
   );
 
   const handleChangeEffort = useCallback(
@@ -216,6 +240,7 @@ function ExternalAgentReadOnlyBadgeImpl({
     binding.label,
     binding.model,
     binding.effort ? `effort: ${binding.effort}` : undefined,
+    binding.contextWindow ? `ctx: ${formatContextWindow(binding.contextWindow)}` : undefined,
   ]
     .filter(Boolean)
     .join(" · ");
@@ -228,8 +253,11 @@ function ExternalAgentReadOnlyBadgeImpl({
   // 模型-档位绑定菜单优先：提供 per-model 档位时，模型与档位合成一个两级菜单。
   const hasModelEfforts = Boolean(onChangeModelEffort) && (modelEfforts?.length ?? 0) > 0;
   const hasEffortMenu = Boolean(onChangeEffort) && (effortOptions?.length ?? 0) > 0;
+  const hasContextWindowMenu =
+    Boolean(onChangeContextWindow) && (contextWindowOptions?.length ?? 0) > 0;
   const hasSessionMenu = Boolean(onChangeSession && onLoadSessions);
-  const showMenu = hasModelEfforts || hasModelMenu || hasEffortMenu || hasSessionMenu;
+  const showMenu =
+    hasModelEfforts || hasModelMenu || hasEffortMenu || hasContextWindowMenu || hasSessionMenu;
 
   const badge = (
     <Button
@@ -392,9 +420,30 @@ function ExternalAgentReadOnlyBadgeImpl({
             </DropdownMenuRadioGroup>
           </>
         ) : null}
-        {hasSessionMenu ? (
+        {hasContextWindowMenu ? (
           <>
             {(hasModelMenu || hasEffortMenu) && <DropdownMenuSeparator />}
+            <DropdownMenuLabel className="text-ui-sm text-foreground-subtle">
+              {intl.formatMessage({ id: "chat.externalAgent.contextWindowMenuLabel" })}
+            </DropdownMenuLabel>
+            <DropdownMenuRadioGroup
+              value={binding.contextWindow ? String(binding.contextWindow) : ""}
+              onValueChange={handleChangeContextWindow}
+            >
+              <DropdownMenuRadioItem value="">
+                {intl.formatMessage({ id: "chat.externalAgent.contextWindowDefault" })}
+              </DropdownMenuRadioItem>
+              {contextWindowOptions?.map((tokens) => (
+                <DropdownMenuRadioItem key={tokens} value={String(tokens)}>
+                  {formatContextWindow(tokens)}
+                </DropdownMenuRadioItem>
+              ))}
+            </DropdownMenuRadioGroup>
+          </>
+        ) : null}
+        {hasSessionMenu ? (
+          <>
+            {(hasModelMenu || hasEffortMenu || hasContextWindowMenu) && <DropdownMenuSeparator />}
             <DropdownMenuLabel className="text-ui-sm text-foreground-subtle">
               {intl.formatMessage({ id: "chat.externalAgent.sessionMenuLabel" })}
             </DropdownMenuLabel>

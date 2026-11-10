@@ -67,6 +67,13 @@ export const externalAgentBindingSchema = z
      * 值为空 = 该模型用 CLI 默认档位。
      */
     effortsByModel: z.record(z.string().max(200), z.string().max(40)).optional(),
+    /**
+     * 每个模型各自记住的上下文窗口（model key → token 数）。
+     *
+     * 与档位同理：窗口是**模型能力**，换模型各记各的。值为空 = 不传
+     * `--context-window`，用 CLI/服务端默认窗口。
+     */
+    contextWindowByModel: z.record(z.string().max(200), z.number().int().positive()).optional(),
     /** 额外环境变量（如 CODEBUDDY_FORCE_LITE_WB_BUNDLE）。 */
     env: z.record(z.string(), z.string()).optional(),
     /**
@@ -163,6 +170,21 @@ function resolveEffortArgs(binding: ExternalAgentBinding): string[] {
 }
 
 /**
+ * 显式上下文窗口的传参。
+ *
+ * 只有预设声明了 `contextWindowFlag` 的 CLI 才产出（qoder 的 `--context-window`）；
+ * 值取 `contextWindowByModel[当前模型]`，是正整数 token 数（CLI 校验原文：
+ * "Must be a positive integer"）。值为空 = 不传，用 CLI/服务端默认窗口。
+ */
+function resolveContextWindowArgs(binding: ExternalAgentBinding): string[] {
+  const contextWindow = binding.contextWindowByModel?.[binding.model ?? ""];
+  if (!contextWindow) return [];
+  const flag = findExternalAgentPreset(binding.presetId)?.contextWindowFlag;
+  if (!flag) return [];
+  return [flag, String(contextWindow)];
+}
+
+/**
  * opencode 的模型串：把档位拼成 `#<variant>` 后缀。
  *
  * 模型为空时不拼——没有模型就没有档位可挂（用 CLI 默认）。
@@ -204,6 +226,7 @@ export function buildExternalAgentInvocation(
     const modelFlag = resolveModelFlag(binding);
     if (binding.model && modelFlag) args.push(modelFlag, binding.model);
     args.push(...resolveEffortArgs(binding));
+    args.push(...resolveContextWindowArgs(binding));
     // 预设自带的权限档位跟随代码走：绑定落库时抄的是当时的预设值，预设升级
     // （如 acceptEdits 改 bypassPermissions）后旧绑定必须跟着生效，否则用户会
     // 得到一个"能改文件但跑不了命令"的半残执行器。手填命令仍用绑定自己的值。
@@ -462,6 +485,34 @@ export function withModelEffort(
   const next: ExternalAgentBinding = { ...binding };
   if (Object.keys(existing).length > 0) next.effortsByModel = existing;
   else delete next.effortsByModel;
+  return next;
+}
+
+/** 读取某个模型当前的上下文窗口（undefined = 用 CLI 默认窗口）。 */
+export function readModelContextWindow(
+  binding: ExternalAgentBinding,
+  model: string | undefined,
+): number | undefined {
+  return binding.contextWindowByModel?.[model ?? ""];
+}
+
+/**
+ * 返回"把某个模型的上下文窗口设为 tokens"后的新绑定（null = 清除该模型的设置）。
+ *
+ * 与 withModelEffort 同构：窗口按模型分开记，换模型不会串。
+ */
+export function withModelContextWindow(
+  binding: ExternalAgentBinding,
+  model: string | undefined,
+  tokens: number | null,
+): ExternalAgentBinding {
+  const key = model ?? "";
+  const existing = { ...binding.contextWindowByModel };
+  if (tokens && Number.isInteger(tokens) && tokens > 0) existing[key] = tokens;
+  else delete existing[key];
+  const next: ExternalAgentBinding = { ...binding };
+  if (Object.keys(existing).length > 0) next.contextWindowByModel = existing;
+  else delete next.contextWindowByModel;
   return next;
 }
 

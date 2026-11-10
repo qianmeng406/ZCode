@@ -150,8 +150,40 @@ export const externalAgentPresetSchema = z.object({
    * 键 `""` 表示"未指定模型 / 用 CLI 默认模型"时的候选。
    */
   effortLevelsByModel: z.record(z.string().max(200), z.array(z.string())).default({}),
+  /**
+   * 显式上下文窗口的 argv flag（如 qoder 的 `--context-window <tokens>`）。
+   * 声明 = 该 CLI 允许用户按模型指定窗口大小；缺席 = 不提供该入口。
+   */
+  contextWindowFlag: z.string().max(40).optional(),
+  /**
+   * 每个模型可选的上下文窗口（model id → token 数）。
+   *
+   * 与档位同理：窗口是模型能力，同一 CLI 里不同模型的候选集合不同。只放实测值；
+   * 键 `""` 是"未指定模型"的兜底。缺省空 = 不提供上下文大小选择。
+   */
+  contextWindowLevelsByModel: z
+    .record(z.string().max(200), z.array(z.number().int().positive()))
+    .optional(),
 });
 export type ExternalAgentPreset = z.infer<typeof externalAgentPresetSchema>;
+
+/**
+ * 推断某个模型可选的上下文窗口（token 数）。
+ *
+ * 与 resolveEffortLevels 同构：精确模型键优先，退 `""` 键，再退空。
+ * 空 = 该模型没有可选的窗口入口（不要给一组可能是错的候选）。
+ */
+export function resolveContextWindowLevels(
+  preset: ExternalAgentPreset,
+  model: string | undefined,
+): number[] {
+  const levels = preset.contextWindowLevelsByModel;
+  if (!levels) return [];
+  const exact = levels[model ?? ""];
+  if (exact) return exact;
+  if (model && levels[""]) return levels[""];
+  return levels[""] ?? [];
+}
 
 /**
  * 单个模型的推理能力（从模型目录读回来的事实）。
@@ -386,6 +418,9 @@ export const EXTERNAL_AGENT_PRESETS: readonly ExternalAgentPreset[] = [
     // 两个 qoder 的 project 目录名都是 `C--Users-...`（不是 claude 的 `c-Users-...`），
     // 用默认 slug 规则会扫到不存在的目录——续接列表与上下文面板静默为空。
     projectDirSlug: "qoder",
+    // 上下文窗口与国际化版同源（/model 面板 space→context 枚举）：200K/400K/1M。
+    contextWindowFlag: "--context-window",
+    contextWindowLevelsByModel: { "": [200000, 400000, 1000000] },
   },
   {
     id: "qodercli",
@@ -444,6 +479,10 @@ export const EXTERNAL_AGENT_PRESETS: readonly ExternalAgentPreset[] = [
     },
     sessionHomeDir: ".qoder",
     projectDirSlug: "qoder",
+    // 上下文窗口：CLI 的 /model 面板 space 切到 context 后逐模型枚举（1.1.86），
+    // 全部模型都是 200K/400K/1M 三层，`--context-window` 收正整数 token 数。
+    contextWindowFlag: "--context-window",
+    contextWindowLevelsByModel: { "": [200000, 400000, 1000000] },
   },
   {
     id: "commandcode",

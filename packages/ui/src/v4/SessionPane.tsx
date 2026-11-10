@@ -5450,6 +5450,23 @@ export function SessionPane({
     [dispatchCommand, sessionId],
   );
 
+  // 换上下文窗口：与换档位同构（值域随模型不同，由 CLI 侧下发候选）。
+  const handleChangeExternalAgentContextWindow = useCallback(
+    async (contextWindow: number | null) => {
+      if (!sessionId) return;
+      const ack = await dispatchCommand(
+        "setExternalAgentContextWindow",
+        { contextWindow },
+        sessionId,
+        snapshotRef.current?.revision,
+      );
+      if (ack.status !== "accepted" && ack.status !== "noop") {
+        throw new Error(ack.reasonCode ?? ack.status);
+      }
+    },
+    [dispatchCommand, sessionId],
+  );
+
   // 拉取绑定的外部 CLI 的历史会话（续接子菜单）。失败必须抛给调用方：
   // 菜单把"拉不到"呈现成空列表会把故障伪装成"没有会话"。
   //
@@ -6823,6 +6840,7 @@ export function SessionPane({
       onChangeExternalAgentModel={handleChangeExternalAgentModel}
       onChangeExternalAgentModelEffort={handleChangeExternalAgentModelEffort}
       onChangeExternalAgentEffort={handleChangeExternalAgentEffort}
+      onChangeExternalAgentContextWindow={handleChangeExternalAgentContextWindow}
       onChangeExternalAgentSession={handleChangeExternalAgentSession}
       onLoadExternalAgentSessions={handleLoadExternalAgentSessions}
       onDeleteExternalAgentSession={handleDeleteExternalAgentSession}

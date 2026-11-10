@@ -16,8 +16,11 @@ import type {
 import type { ExternalAgentBinding, ExternalAgentPreset } from "@zcode/shared";
 import {
   findExternalAgentPreset,
+  readModelContextWindow,
   readModelEffort,
+  resolveContextWindowLevels,
   resolveEffortLevels,
+  withModelContextWindow,
   withModelEffort,
 } from "@zcode/shared";
 import { createSessionEvent, SessionEventType } from "@zcode/contracts";
@@ -90,8 +93,11 @@ async function bindExternalAgent(
     ...(payload.permissionMode ? { permissionMode: payload.permissionMode } : {}),
     ...(payload.presetId ? { presetId: payload.presetId } : {}),
     ...(payload.model ? { model: payload.model } : {}),
-    // 档位挂在"这次选的模型"名下：换模型后各记各的，不互相污染。
+    // 档位/上下文窗口挂在"这次选的模型"名下：换模型后各记各的，不互相污染。
     ...(payload.effort ? { effortsByModel: { [payload.model ?? ""]: payload.effort } } : {}),
+    ...(payload.contextWindow
+      ? { contextWindowByModel: { [payload.model ?? ""]: payload.contextWindow } }
+      : {}),
     ...(payload.externalSessionId ? { externalSessionId: payload.externalSessionId } : {}),
     ...(payload.env ? { env: payload.env } : {}),
     ...(payload.timeoutMs ? { timeoutMs: payload.timeoutMs } : {}),
@@ -129,6 +135,7 @@ async function bindExternalAgent(
     record,
     binding,
     await resolveEffortLevelsForBinding(record, binding),
+    resolveContextWindowLevelsForBinding(binding),
   );
   return undefined;
 }
@@ -274,11 +281,24 @@ export async function resolveEffortLevelsForBinding(
   }
 }
 
+/**
+ * 解析"当前模型能选哪些上下文窗口"。
+ *
+ * 与档位不同，窗口候选目前只来自预设静态表（qoder 的 200K/400K/1M，面板枚举实测）；
+ * CLI 探测目录里没有窗口事实，所以这里不依赖 probe。
+ */
+export function resolveContextWindowLevelsForBinding(binding: ExternalAgentBinding): number[] {
+  const preset = findExternalAgentPreset(binding.presetId);
+  if (!preset?.contextWindowFlag) return [];
+  return resolveContextWindowLevels(preset, binding.model);
+}
+
 /** 发一条 ExternalAgentBindingChanged：payload 只带 UI 需要的事实。 */
 export async function publishBindingChanged(
   record: V4SessionRecordView,
   binding: ExternalAgentBinding | null,
   effortLevels: string[] = [],
+  contextWindowLevels: number[] = [],
 ): Promise<void> {
   const event = createSessionEvent(
     SessionEventType.ExternalAgentBindingChanged,
@@ -297,6 +317,11 @@ export async function publishBindingChanged(
             ? { effort: readModelEffort(binding, binding.model) }
             : {}),
           effortLevels,
+          // 上下文窗口与档位同口径：当前模型的值 + 候选都由 CLI 侧解析后下发。
+          ...(readModelContextWindow(binding, binding.model)
+            ? { contextWindow: readModelContextWindow(binding, binding.model) }
+            : {}),
+          contextWindowLevels,
           // 续接会话跟着绑定走：UI 的会话子菜单据此回显当前项。
           ...(binding.externalSessionId ? { externalSessionId: binding.externalSessionId } : {}),
           readOnly: true as const,
@@ -355,15 +380,21 @@ async function setExternalAgentModel(
   // 模型与档位一次落定：档位是模型能力，UI 在同一个菜单里选"模型 + 该模型的档位"。
   // 拆两条命令会产生"新模型 + 旧档位"的中间态，还会让后一条误判 noop。
   const hasEffort = payload.effort !== undefined;
+  const hasContextWindow = payload.contextWindow !== undefined;
   const modelChanged = binding.model !== model;
   let next: ExternalAgentBinding = { ...binding };
   if (model) next.model = model;
   else delete next.model;
   if (hasEffort) next = withModelEffort(next, model, payload.effort?.trim() || null);
+  if (hasContextWindow) next = withModelContextWindow(next, model, payload.contextWindow ?? null);
   const effortChanged =
     hasEffort &&
     JSON.stringify(next.effortsByModel ?? {}) !== JSON.stringify(binding.effortsByModel ?? {});
-  if (!modelChanged && !effortChanged) {
+  const contextWindowChanged =
+    hasContextWindow &&
+    JSON.stringify(next.contextWindowByModel ?? {}) !==
+      JSON.stringify(binding.contextWindowByModel ?? {});
+  if (!modelChanged && !effortChanged && !contextWindowChanged) {
     throw new V4CommandNoopError(BINDING_UNCHANGED);
   }
   await persistSessionExternalAgent({
@@ -372,7 +403,12 @@ async function setExternalAgentModel(
     binding: next,
     logger: warningLogger(host),
   });
-  await publishBindingChanged(record, next, await resolveEffortLevelsForBinding(record, next));
+  await publishBindingChanged(
+    record,
+    next,
+    await resolveEffortLevelsForBinding(record, next),
+    resolveContextWindowLevelsForBinding(next),
+  );
   return undefined;
 }
 
@@ -400,7 +436,46 @@ async function setExternalAgentEffort(
     binding: next,
     logger: warningLogger(host),
   });
-  await publishBindingChanged(record, next, await resolveEffortLevelsForBinding(record, next));
+  await publishBindingChanged(
+    record,
+    next,
+    await resolveEffortLevelsForBinding(record, next),
+    resolveContextWindowLevelsForBinding(next),
+  );
+  return undefined;
+}
+
+/**
+ * 切换**当前模型**的上下文窗口（token 数；null = 恢复 CLI/服务端默认）。
+ *
+ * 与档位同构：只动 contextWindowByModel[当前模型]，不动只读契约与授权。
+ */
+async function setExternalAgentContextWindow(
+  host: V4CommandCoreHost,
+  envelope: CommandEnvelope,
+): Promise<CommandResult | undefined> {
+  const payload = envelope.payload as CommandPayloadMap["setExternalAgentContextWindow"];
+  const record = requireRecord(host, envelope.sessionId);
+  const { binding, sessionStore } = await requireBoundExternalAgent(host, record);
+  const next = withModelContextWindow(binding, binding.model, payload.contextWindow ?? null);
+  if (
+    JSON.stringify(next.contextWindowByModel ?? {}) ===
+    JSON.stringify(binding.contextWindowByModel ?? {})
+  ) {
+    throw new V4CommandNoopError(BINDING_UNCHANGED);
+  }
+  await persistSessionExternalAgent({
+    sessionId: record.app.sessionId,
+    sessionStore,
+    binding: next,
+    logger: warningLogger(host),
+  });
+  await publishBindingChanged(
+    record,
+    next,
+    await resolveEffortLevelsForBinding(record, next),
+    resolveContextWindowLevelsForBinding(next),
+  );
   return undefined;
 }
 
@@ -432,7 +507,12 @@ async function setExternalAgentSession(
     binding: next,
     logger: warningLogger(host),
   });
-  await publishBindingChanged(record, next, await resolveEffortLevelsForBinding(record, next));
+  await publishBindingChanged(
+    record,
+    next,
+    await resolveEffortLevelsForBinding(record, next),
+    resolveContextWindowLevelsForBinding(next),
+  );
   return undefined;
 }
 
@@ -441,5 +521,6 @@ export const externalAgentHandlers = {
   unbindExternalAgent,
   setExternalAgentModel,
   setExternalAgentEffort,
+  setExternalAgentContextWindow,
   setExternalAgentSession,
 };

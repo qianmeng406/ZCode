@@ -1,6 +1,7 @@
 // 绑定外部 coding agent 的对话框。
 //
-// 表单刻意只有三件事：选哪个预设、用哪个模型、用哪一档推理。
+// 表单刻意只有四件事：选哪个预设、用哪个模型、用哪一档推理、用多大上下文窗口
+// （窗口只在预设声明了候选时出现，如 qoder 的 200K/400K/1M）。
 // 可执行命令与权限档位由预设自动带出（驱动/默认 argv/permissionMode 都实测过），
 // 不暴露给用户——能改对的场景预设里已写好，能改错的场景用户无从判断。
 //
@@ -26,7 +27,11 @@ import {
 import { cn } from "@/components/lib/utils.js";
 import { CheckIcon, DownloadIcon, LoaderIcon } from "lucide-react";
 import { useZCodeIntl } from "@/i18n/IntlProvider.js";
-import { CLI_PICKER_DEFAULT_EFFORTS, resolveEffortLevels } from "@zcode/shared";
+import {
+  CLI_PICKER_DEFAULT_EFFORTS,
+  resolveContextWindowLevels,
+  resolveEffortLevels,
+} from "@zcode/shared";
 import type { ExternalAgentPreset, ExternalAgentPresetStatus } from "@zcode/shared";
 import type { BindExternalAgentPayload } from "@/v4/composer/externalAgentCommands.js";
 
@@ -48,6 +53,8 @@ interface BindDraft {
   command: string;
   model: string;
   effort: string;
+  /** 显式上下文窗口（token 数字串；"" = 用默认窗口）。 */
+  contextWindow: string;
 }
 
 function draftFromPreset(preset: ExternalAgentPreset): BindDraft {
@@ -56,12 +63,26 @@ function draftFromPreset(preset: ExternalAgentPreset): BindDraft {
     command: preset.command,
     // 预设给了静态候选就默认第一个；否则留空（用该 CLI 的默认模型）。
     model: preset.models[0] ?? "",
-    // 档位刻意不预选：默认档是该 CLI 自己的判断，替用户钉死一个反而改变了行为。
+    // 档位/上下文窗口刻意不预选：默认值是 CLI 自己的判断，替用户钉死反而改变了行为。
     effort: "",
+    contextWindow: "",
   };
 }
 
-const EMPTY_DRAFT: BindDraft = { presetId: null, command: "", model: "", effort: "" };
+const EMPTY_DRAFT: BindDraft = {
+  presetId: null,
+  command: "",
+  model: "",
+  effort: "",
+  contextWindow: "",
+};
+
+/** 上下文窗口的展示标签：200000 → 200K，1000000 → 1M。 */
+function formatContextWindow(tokens: number): string {
+  if (tokens >= 1_000_000 && tokens % 1_000_000 === 0) return `${tokens / 1_000_000}M`;
+  if (tokens >= 1_000 && tokens % 1_000 === 0) return `${tokens / 1_000}K`;
+  return String(tokens);
+}
 
 /** Radix 的 SelectItem 不允许空串 value，"默认"档用这个哨兵承载，提交时还原成空。 */
 const DEFAULT_OPTION = "__default__";
@@ -108,6 +129,13 @@ function ExternalAgentBindDialogImpl({
     [selectedPreset, selectedStatus, draft.model],
   );
 
+  // 上下文窗口候选同样按当前模型解析（qoder: 200K/400K/1M）；空 = 不显示该入口。
+  const contextWindowOptions = useMemo(
+    () =>
+      selectedPreset ? resolveContextWindowLevels(selectedPreset, draft.model || undefined) : [],
+    [selectedPreset, draft.model],
+  );
+
   const selectPreset = useCallback((preset: ExternalAgentPreset) => {
     setDraft(draftFromPreset(preset));
   }, []);
@@ -131,6 +159,7 @@ function ExternalAgentBindDialogImpl({
       ...(preset ? { presetId: preset.id } : {}),
       ...(draft.model.trim() ? { model: draft.model.trim() } : {}),
       ...(draft.effort.trim() ? { effort: draft.effort.trim() } : {}),
+      ...(draft.contextWindow.trim() ? { contextWindow: Number(draft.contextWindow) } : {}),
     })
       .then(() => onOpenChange(false))
       .catch((cause: unknown) => {
@@ -254,8 +283,13 @@ function ExternalAgentBindDialogImpl({
                 <Select
                   value={draft.model || DEFAULT_OPTION}
                   onValueChange={(value) =>
-                    // 换模型时清空档位：旧档位属于旧模型，带过去可能根本无效。
-                    setDraft({ ...draft, model: value === DEFAULT_OPTION ? "" : value, effort: "" })
+                    // 换模型时清空档位与上下文窗口：旧值属于旧模型，带过去可能根本无效。
+                    setDraft({
+                      ...draft,
+                      model: value === DEFAULT_OPTION ? "" : value,
+                      effort: "",
+                      contextWindow: "",
+                    })
                   }
                 >
                   <SelectTrigger
@@ -315,6 +349,38 @@ function ExternalAgentBindDialogImpl({
                 </SelectContent>
               </Select>
             </Field>
+            {contextWindowOptions.length > 0 ? (
+              <Field label={intl.formatMessage({ id: "chat.externalAgent.bindContextWindow" })}>
+                <Select
+                  value={draft.contextWindow || DEFAULT_OPTION}
+                  onValueChange={(value) =>
+                    setDraft({ ...draft, contextWindow: value === DEFAULT_OPTION ? "" : value })
+                  }
+                >
+                  <SelectTrigger
+                    className="w-full"
+                    size="lg"
+                    data-testid="external-agent-bind-context-window"
+                  >
+                    <SelectValue
+                      placeholder={intl.formatMessage({
+                        id: "chat.externalAgent.contextWindowDefault",
+                      })}
+                    />
+                  </SelectTrigger>
+                  <SelectContent className="max-h-72">
+                    <SelectItem value={DEFAULT_OPTION}>
+                      {intl.formatMessage({ id: "chat.externalAgent.contextWindowDefault" })}
+                    </SelectItem>
+                    {contextWindowOptions.map((tokens) => (
+                      <SelectItem key={tokens} value={String(tokens)}>
+                        {formatContextWindow(tokens)}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </Field>
+            ) : null}
           </section>
         ) : statuses.length === 0 && !probing ? (
           // 探测不可用：退回手填命令（此时没有任何预设可带出执行参数）。

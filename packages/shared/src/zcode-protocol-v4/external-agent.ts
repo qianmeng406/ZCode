@@ -25,6 +25,10 @@ export const externalAgentStateSchema = z.object({
    * 由 CLI 侧按"当前模型"解析后下发：档位是模型能力，UI 不该自己拼一张全局表。
    */
   effortLevels: z.array(z.string()).default([]),
+  /** 当前模型显式指定的上下文窗口（token 数；缺省 = 用 CLI/服务端默认窗口）。 */
+  contextWindow: z.number().int().positive().optional(),
+  /** 当前模型可选的上下文窗口（token 数，空 = 不显示该入口）。同样由 CLI 侧解析。 */
+  contextWindowLevels: z.array(z.number().int().positive()).default([]),
   /** 当前续接的外部会话 id（缺省 = 每次委派由 CLI 开新会话）。 */
   externalSessionId: z.string().optional(),
   /** 绑定强制开启了只读主控：UI 据此显示只读徽标并禁用模式切换。 */

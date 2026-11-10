@@ -12,6 +12,7 @@ import {
   parseServerModelCache,
   resolveEffortLevels,
   resolveExternalAgentSessionHomeDir,
+  resolveContextWindowLevels,
 } from "../src/externalAgentCatalog.js";
 import {
   createClaudeStreamParser,
@@ -27,7 +28,9 @@ import {
   parseCommandCodeResult,
   parseExternalAgentResult,
   parseOpencodeRunResult,
+  readModelContextWindow,
   readModelEffort,
+  withModelContextWindow,
   withModelEffort,
 } from "../src/externalAgentBinding.js";
 
@@ -177,6 +180,7 @@ test("qodercli-cn 绑定的调用形状：档位 flag、权限值、stdin 与续
     presetId: "qodercli-cn",
     model: "Qwen3.8-Max",
     effortsByModel: { "Qwen3.8-Max": "xhigh" },
+    contextWindowByModel: { "Qwen3.8-Max": 1000000 },
     externalSessionId: "abc-123",
   });
   const invocation = buildExternalAgentInvocation(binding, "任务书");
@@ -190,6 +194,8 @@ test("qodercli-cn 绑定的调用形状：档位 flag、权限值、stdin 与续
     "Qwen3.8-Max",
     "--reasoning-effort",
     "xhigh",
+    "--context-window",
+    "1000000",
     "--permission-mode",
     "bypass_permissions",
     "-r",
@@ -197,6 +203,58 @@ test("qodercli-cn 绑定的调用形状：档位 flag、权限值、stdin 与续
   ]);
   // prompt 走 stdin（claude-family 分支固定）。
   assert.equal(invocation.stdin, "任务书");
+});
+
+test("qoder 预设：上下文窗口逐模型候选（200K/400K/1M，token 数）", () => {
+  // 2026-11-10 用 CLI 的 /model 面板 space→context 逐模型枚举：
+  // 两个 qoder 版本的全部模型都是这三层（Step-5-Preview 未能选中，按兜底）。
+  for (const id of ["qodercli", "qodercli-cn"]) {
+    const preset = findExternalAgentPreset(id)!;
+    assert.equal(preset.contextWindowFlag, "--context-window");
+    assert.deepEqual(resolveContextWindowLevels(preset, "Qwen3.8-Max"), [200000, 400000, 1000000]);
+    assert.deepEqual(resolveContextWindowLevels(preset, undefined), [200000, 400000, 1000000]);
+  }
+  // 非 qoder 预设不提供上下文窗口入口。
+  const codebuddy = findExternalAgentPreset("codebuddy")!;
+  assert.equal(codebuddy.contextWindowFlag, undefined);
+  assert.deepEqual(resolveContextWindowLevels(codebuddy, "hy3"), []);
+});
+
+test("withModelContextWindow/readModelContextWindow：窗口按模型分开记", () => {
+  const base = externalAgentBindingSchema.parse({
+    label: "Qoder CLI",
+    driver: "claude-family",
+    command: "qodercli",
+    args: [],
+    promptDelivery: "stdin",
+    presetId: "qodercli",
+    model: "Qwen3.8-Max",
+  });
+  const withWindow = withModelContextWindow(base, "Qwen3.8-Max", 400000);
+  assert.equal(readModelContextWindow(withWindow, "Qwen3.8-Max"), 400000);
+  // 另一个模型不受影响。
+  assert.equal(readModelContextWindow(withWindow, "DeepSeek-Flash"), undefined);
+  // null 清除该键。
+  const cleared = withModelContextWindow(withWindow, "Qwen3.8-Max", null);
+  assert.equal(readModelContextWindow(cleared, "Qwen3.8-Max"), undefined);
+  // 非整数/非正数不接受。
+  const invalid = withModelContextWindow(base, "Qwen3.8-Max", 0);
+  assert.equal(readModelContextWindow(invalid, "Qwen3.8-Max"), undefined);
+});
+
+test("未声明 contextWindowFlag 的预设不产出 --context-window", () => {
+  const binding = externalAgentBindingSchema.parse({
+    label: "CodeBuddy",
+    driver: "claude-family",
+    command: "codebuddy",
+    args: ["-p", "--output-format", "stream-json"],
+    promptDelivery: "stdin",
+    presetId: "codebuddy",
+    model: "hy3",
+    contextWindowByModel: { hy3: 400000 },
+  });
+  const invocation = buildExternalAgentInvocation(binding, "x");
+  assert.ok(!invocation.args.includes("--context-window"));
 });
 
 test("commandcode 预设：headless NDJSON + 目录缓存 + 会话落盘", () => {

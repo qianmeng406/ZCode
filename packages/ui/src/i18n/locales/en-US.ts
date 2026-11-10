@@ -5309,6 +5309,9 @@ const enUS: Record<string, string> = {
   "chat.externalAgent.sessionEmpty": "No external sessions on this machine yet.",
   "chat.externalAgent.effortDefault": "Use the CLI default effort",
   "chat.externalAgent.bindEffort": "Reasoning effort",
+  "chat.externalAgent.bindContextWindow": "Context size",
+  "chat.externalAgent.contextWindowMenuLabel": "Context size",
+  "chat.externalAgent.contextWindowDefault": "Use the default context size",
   "chat.planUsage.noPlan":
     "No active Coding Plan was found for this account. Confirm that the connected account is subscribed.",
   "chat.planUsage.contextWindow": "Current context window",
