@@ -107,6 +107,7 @@ import {
 import { resolveBuiltInNodeReplMcpServers } from "./built-in-node-repl.js";
 import { resolveZCodeCustomCommandPrompt } from "../custom-command-prompt.js";
 import { createSessionExternalAgentPort } from "../zcode-protocol/external-agent-port-impl.js";
+import { createExternalSubagentPort } from "../zcode-protocol/external-subagent-port-impl.js";
 import { persistSessionExternalAgent } from "../zcode-protocol/session-external-agent.js";
 import { resolveZCodeBuiltinPromptCommandInvocation } from "../builtin-prompt-command.js";
 import { BUILTIN_WORKFLOW_COMMAND_NAME } from "../builtin-workflow-command.js";
@@ -507,6 +508,15 @@ export async function createZCodeApp(options: ZCodeAppOptions): Promise<ZCodeApp
             : {}),
         });
       },
+      logger,
+    });
+    // 外部 agent 子智能体的执行后端：profile 声明 backend: external 时，
+    // core 的 runExploreAgent 会分流到这里，身份/注册表/通知/取消仍由原生 runner 管。
+    // 与上面的 externalAgentPort（主控模式：整会话绑定 + 只读）是两件事。
+    const externalSubagentPort = createExternalSubagentPort({
+      executionPort,
+      // 实例级续接凭据：键是 agentId（一个子智能体），不是会话的一条工作线。
+      // 单次任务没有下一轮，故第一版不持久化——省掉一份可能与会话绑定串台的状态。
       logger,
     });
     // browser-use 控制端口：仅当宿主（desktop）注入时可用，无本地 fallback（纯 CLI 无浏览器底座）。
@@ -922,6 +932,7 @@ export async function createZCodeApp(options: ZCodeAppOptions): Promise<ZCodeApp
       sessionStore,
       sessionMailboxPort,
       externalAgentPort,
+      externalSubagentPort,
       logger,
       executionPort,
       workspaceHookAdmission: workspaceHookRuntimeSecurity?.admission,

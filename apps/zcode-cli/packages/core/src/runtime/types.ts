@@ -88,6 +88,7 @@ import type {
   McpPort,
   McpServerConfig,
   SubagentPort,
+  ExternalSubagentPort,
   ToolArtifactStorePort,
   ToolCallId,
   WorkflowPort,
@@ -383,6 +384,14 @@ export interface AgentRuntimeDeps {
   skillPort?: SkillPort;
   mcpPort?: McpPort;
   subagentPort?: SubagentPort;
+  /**
+   * 外部 CLI 作为子智能体的执行后端。
+   *
+   * 只有 profile 声明 `backend: external` 时才会被用到。实现住在 bootstrap
+   * （core 不认识进程、预设与 CLI 参数）；不注入时这类 profile 会落回原生路径
+   * 并因为缺 model factory 明确失败，而不是静默跑错。
+   */
+  externalSubagentPort?: ExternalSubagentPort;
   coordinatorResponsePort?: CoordinatorResponsePort;
   /** 工作流 actor 提交终态结果的端口；存在即作为 submit_result 工具的注册门。 */
   workflowSubmitPort?: WorkflowSubmitPort;

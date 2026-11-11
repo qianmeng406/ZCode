@@ -113,6 +113,37 @@ export function createDefaultSubagentPort(
       });
     },
     runExploreAgent: async (request, options) => {
+      // 外部后端分流（2026-11-11）：profile 声明了 backend: external 时，执行交给
+      // 注入的外部端口，返回形状与原生一致（response + events）。这样原生 runner
+      // 的身份/注册表/通知/后台转换/取消全部照旧生效，不需要第二套生命周期。
+      //
+      // 放在 off-peak 之前：外部 CLI 用自己的模型与额度，ZCode 的 off-peak 选型
+      // 对它没有意义，套上去只会把无关的 modelOverride 传下去。
+      const externalPort = deps.externalSubagentPort;
+      if (externalPort?.handles(request.profile)) {
+        request.reportActivity?.();
+        const external = await externalPort.run(
+          {
+            agentId: request.agentId,
+            childSessionId: request.sessionId,
+            agentType: request.agentType,
+            description: request.description,
+            prompt: request.prompt,
+            profile: request.profile,
+            workingDirectory: request.workingDirectory,
+            workspaceRoot: request.workspaceRoot,
+            traceContext: request.traceContext,
+            onSessionReady: request.onSessionReady,
+            ...(request.reportActivity ? { reportActivity: request.reportActivity } : {}),
+          },
+          options?.signal ? { signal: options.signal } : {},
+        );
+        return {
+          response: external.response,
+          traceId: request.traceContext.traceId,
+          events: external.events,
+        };
+      }
       const offPeak = getOffPeakExecution(this);
       const childBinding = offPeak?.createChildBinding();
       if (offPeak && !offPeak.lifecycle.terminal) {

@@ -118,6 +118,7 @@ export type {
   AutomationPort,
   OffPeakPort,
   ExternalAgentPort,
+  ExternalSubagentPort,
   TopicResourcePort,
   BackgroundExecutionSnapshot,
   BackgroundTaskCancelResult,

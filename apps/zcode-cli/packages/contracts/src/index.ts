@@ -107,3 +107,4 @@ export type { LocalTtftDetail } from "@zcode/shared";
 
 export * from "./interfaces/permission-full-access.js";
 export * from "./interfaces/external-agent.port.js";
+export * from "./interfaces/external-subagent.port.js";
