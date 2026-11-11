@@ -558,6 +558,49 @@ ${JSON.stringify([{ type: "result", is_error: false, result: "重建正文" }])}
     expect(modes).toContain("replace");
   });
 
+  it("如实返回工具调用数（不让上游派生出有歧义的 0）", async () => {
+    // 实测（2026-11-11 实例内）：子智能体真的创建了文件，但 events 为空导致
+    // 上游派生出 tool_uses: 0，主 agent 因此判定"与它说创建了文件不符"并自己
+    // 又 Read 了一遍复核。端口其实知道答案，应当直接给。
+    const { createExternalSubagentPort } =
+      await import("../src/zcode-protocol/external-subagent-port-impl.js");
+    const streamLines = [
+      JSON.stringify({
+        type: "assistant",
+        message: {
+          role: "assistant",
+          content: [
+            { type: "text", text: "我来创建文件。" },
+            { type: "tool_use", id: "t1", name: "Write", input: { path: "a.txt" } },
+          ],
+        },
+      }),
+      JSON.stringify({
+        type: "assistant",
+        message: {
+          role: "assistant",
+          content: [{ type: "tool_use", id: "t2", name: "Read", input: { path: "a.txt" } }],
+        },
+      }),
+      // 真实的 stream-json 收口是单个对象（不是数组）：数组形式会走整体 JSON
+      // 解析回退分支，产不出工具条目。
+      JSON.stringify({ type: "result", is_error: false, result: "创建完成" }),
+    ];
+    const executionPort = {
+      run: vi.fn(async () => ({
+        streams: { stdout: { text: streamLines.join("\n") }, stderr: { text: "" } },
+        exitCode: 0,
+      })),
+    };
+    const port = createExternalSubagentPort({ executionPort: executionPort as never });
+
+    const result = await port.run(runRequest());
+
+    // 两次工具调用（Write + Read）必须如实报出来，而不是 undefined 或 0。
+    expect(result.toolUseCount).toBe(2);
+    expect(result.events).toEqual([]);
+  });
+
   it("没给 onTranscript 时执行照常成功（观察层可选）", async () => {
     const { createExternalSubagentPort } =
       await import("../src/zcode-protocol/external-subagent-port-impl.js");

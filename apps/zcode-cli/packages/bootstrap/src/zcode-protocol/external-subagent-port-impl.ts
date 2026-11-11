@@ -149,7 +149,10 @@ export function createExternalSubagentPort(
           // 只要还在出东西就刷新活动时间——活动卡的"还在工作"判定靠它。
           request.reportActivity?.();
           // 结构化过程条目先缓冲（见 pendingEntries 的注释）。
-          if (!request.onTranscript) return;
+          //
+          // 无条件缓冲：它不只服务 transcript，也用来算 toolUseCount。以前这里
+          // 先判 `if (!request.onTranscript) return`，于是"不写下钻面板"的执行
+          // 连工具计数都拿不到（实测：子智能体真的创建了文件却报 tool_uses: 0）。
           if (chunk.entries?.length) {
             const mode = chunk.replace ? ("replace" as const) : ("append" as const);
             if (mode === "replace") {
@@ -234,6 +237,10 @@ export function createExternalSubagentPort(
         response: result.text,
         // 外部 CLI 不产生原生事件：空数组让上游如实显示"没有统计"。
         events: [],
+        // 工具调用数却能如实给出（缓冲里就有工具条目）。不给的话上游会派生出
+        // 一个有歧义的 0——实测主 agent 因此判定"与它说创建了文件不符"，自己
+        // 又 Read 了一遍文件复核。
+        toolUseCount: pendingEntries.filter((entry) => entry.kind === "tool").length,
       };
     } finally {
       if (runOptions.signal) {

@@ -158,6 +158,9 @@ export function createDefaultSubagentPort(
           response: external.response,
           traceId: request.traceContext.traceId,
           events: external.events,
+          // 端口能如实统计工具调用数（缓冲里就有工具条目）：直接透传，避免上游
+          // 从空 events 派生出有歧义的 0。
+          ...(external.toolUseCount !== undefined ? { toolUseCount: external.toolUseCount } : {}),
         };
       }
       // 声明了外部后端却没人能执行它：必须明确失败，绝不回退到原生 child。

@@ -98,6 +98,13 @@ export interface ExploreSubagentRuntimeResult {
   response: string;
   traceId: TraceContext["traceId"];
   events: SessionEvent[];
+  /**
+   * 后端直接给出的工具调用数（外部 CLI 能如实统计）。
+   *
+   * 缺省时从 events 派生；外部 CLI 没有原生事件，派生出来的 0 有歧义
+   * （"真没用工具" vs "无法统计"），会误导主 agent 去额外复核。
+   */
+  toolUseCount?: number;
 }
 
 export interface ParentTaskNotificationCommand {
@@ -1288,7 +1295,8 @@ async function runAgentToCompletion(
 
   const usage = aggregateModelUsage(childResult.events);
   const totalTokens = usage?.totalTokens;
-  const totalToolUseCount = resolveSubagentToolUseCount(childResult.events);
+  const totalToolUseCount =
+    childResult.toolUseCount ?? resolveSubagentToolUseCount(childResult.events);
   const totalDurationMs = Date.now() - lifecycle.startedAt;
 
   const output: AgentCompletedOutput = {

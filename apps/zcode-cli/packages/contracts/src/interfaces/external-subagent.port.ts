@@ -112,6 +112,17 @@ export interface ExternalSubagentRunResult {
    * "没有统计"。**不要**为了凑出非零 token/工具计数而伪造 model 事件。
    */
   events: SessionEvent[];
+  /**
+   * 本次执行里外部 CLI 实际调用了多少次工具。
+   *
+   * 为什么单独给：`events` 为空时上游从事件派生计数会得到 0，而 0 有歧义——
+   * 既可能"真的没用工具"，也可能"无法统计"。实测（2026-11-11 实例内）主 agent
+   * 看到 `tool_uses: 0` 后判定"与它说创建了文件不符"，于是自己又 Read 了一遍
+   * 复核。端口其实知道答案（缓冲里就有工具条目），应当直接给出来。
+   *
+   * 缺省 = 实现无法统计（上游按"未知"处理，而不是 0）。
+   */
+  toolUseCount?: number;
 }
 
 export interface ExternalSubagentRunOptions {
