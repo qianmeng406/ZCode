@@ -183,14 +183,14 @@ describe("DelegateToExternalAgent 有界等待", () => {
         durationMs: 0,
       }),
     };
-    const output = (await handler(
-      { task: "计划", waitMinutes: 0 },
-      makeContext(port),
-    )) as Record<string, unknown>;
+    const output = (await handler({ task: "计划", waitMinutes: 0 }, makeContext(port))) as Record<
+      string,
+      unknown
+    >;
     expect(output).toMatchObject({ running: true, taskId: "task-10" });
-    expect(
-      delegateToExternalAgentToolEntry.runtimeOutputSchema.safeParse(output).success,
-    ).toBe(true);
+    expect(delegateToExternalAgentToolEntry.runtimeOutputSchema.safeParse(output).success).toBe(
+      true,
+    );
   });
 
   it("running 形态的模型可见内容明确告诉模型去轮询而不是重试", () => {
@@ -198,5 +198,16 @@ describe("DelegateToExternalAgent 有界等待", () => {
     const text = format({ agent: "codebuddy", running: true, taskId: "task-10", durationMs: 5000 });
     expect(text).toContain("GetExternalAgentTaskResult");
     expect(text).toContain("task-10");
+  });
+});
+
+describe("与外部子智能体的模式隔离", () => {
+  it("Agent 工具不允许在 plan 模式使用（主控模式下不该再派生子智能体）", async () => {
+    // 两条链路必须互不放行：
+    // - 主控模式（绑定）把会话压成只读，此时唯一的出手通道是 DelegateToExternalAgent；
+    //   如果 Agent 工具也放行，主会话就能一边"只读"一边派生原生/外部子智能体。
+    // - 外部子智能体模式（profile backend=external）用 Agent 工具，会话保持正常权限。
+    const { agentToolEntry } = await import("../src/tool/handlers/agent.js");
+    expect(agentToolEntry.metadata.allowedInPlanMode).not.toBe(true);
   });
 });
