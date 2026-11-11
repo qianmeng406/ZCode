@@ -994,16 +994,16 @@ describe("进度看门狗", () => {
       request: unknown,
       options?: {
         onEvent?: (event: unknown) => void;
-        abortSignal?: AbortSignal;
+        signal?: AbortSignal;
       },
     ) => {
-      captured.push({ request, signal: options?.abortSignal });
+      captured.push({ request, signal: options?.signal });
       // 每 20ms 报一次进度，持续 200ms（≈3 倍停滞阈值）。
       for (let index = 0; index < HEALTHY_RUN_MS / 20; index += 1) {
         await sleep(20);
         options?.onEvent?.({ type: "progress", stdoutTail: `chunk ${index}\n` });
       }
-      expect(options?.abortSignal?.aborted).toBe(false);
+      expect(options?.signal?.aborted).toBe(false);
       return {
         streams: {
           stdout: {
@@ -1033,12 +1033,12 @@ describe("进度看门狗", () => {
       await import("../src/zcode-protocol/external-agent-driver.js");
     const run = async (
       _request: unknown,
-      options?: { onEvent?: (event: unknown) => void; abortSignal?: AbortSignal },
+      options?: { onEvent?: (event: unknown) => void; signal?: AbortSignal },
     ) => {
       options?.onEvent?.({ type: "progress", stdoutTail: "开始\n" });
-      // 一直沉默，直到被中止；模拟端口对 abortSignal 的响应。
+      // 一直沉默，直到被中止；模拟端口对 signal 的响应。
       await new Promise<void>((resolve) => {
-        options?.abortSignal?.addEventListener("abort", () => resolve(), { once: true });
+        options?.signal?.addEventListener("abort", () => resolve(), { once: true });
       });
       return {
         streams: { stdout: { text: "" }, stderr: { text: "" } },
@@ -1064,9 +1064,9 @@ describe("进度看门狗", () => {
     let aborted = false;
     const run = async (
       _request: unknown,
-      options?: { onEvent?: (event: unknown) => void; abortSignal?: AbortSignal },
+      options?: { onEvent?: (event: unknown) => void; signal?: AbortSignal },
     ) => {
-      options?.abortSignal?.addEventListener("abort", () => (aborted = true), { once: true });
+      options?.signal?.addEventListener("abort", () => (aborted = true), { once: true });
       // 每次间隔 40ms < 60ms 阈值，但累计 6 次 = 240ms 远超阈值。
       for (let index = 0; index < 6; index += 1) {
         await sleep(40);
@@ -1098,9 +1098,11 @@ describe("进度看门狗", () => {
   it("用户取消：立即中止，文案不与「无新输出」混淆", async () => {
     const { createOneShotExternalAgentDriver } =
       await import("../src/zcode-protocol/external-agent-driver.js");
-    const run = async (_request: unknown, options?: { abortSignal?: AbortSignal }) => {
+    const run = async (_request: unknown, options?: { signal?: AbortSignal }) => {
+      // 读的必须是契约字段 `signal`（ExecutionRunOptions）。以前这里也写成
+      // `abortSignal`，与 driver 的同名笔误互相印证——取消链路断了照样绿。
       await new Promise<void>((resolve) => {
-        options?.abortSignal?.addEventListener("abort", () => resolve(), { once: true });
+        options?.signal?.addEventListener("abort", () => resolve(), { once: true });
       });
       return {
         streams: { stdout: { text: "" }, stderr: { text: "" } },
@@ -1125,6 +1127,98 @@ describe("进度看门狗", () => {
     });
     expect(Date.now() - startedAt).toBeLessThan(1_000);
     expect(result.text).not.toContain("无新输出");
+  });
+
+  it("取消信号真的传到了执行端（signal 字段名回归）", async () => {
+    // 回归：driver 以前把中止信号放在 `abortSignal` 字段，而 ExecutionPort 契约
+    // 只认 `signal`，还用 `as never` 压掉了类型错误——用户取消/看门狗中止都
+    // 到不了进程，只能等硬超时。这里直接断言端口收到了 `signal`。
+    const { createOneShotExternalAgentDriver } =
+      await import("../src/zcode-protocol/external-agent-driver.js");
+    let received: AbortSignal | undefined;
+    const run = async (_request: unknown, options?: { signal?: AbortSignal }) => {
+      received = options?.signal;
+      await new Promise<void>((resolve) => {
+        options?.signal?.addEventListener("abort", () => resolve(), { once: true });
+      });
+      return { streams: { stdout: { text: "" }, stderr: { text: "" } }, exitCode: null };
+    };
+    const driver = createOneShotExternalAgentDriver({
+      executionPort: { run } as never,
+      stallTimeoutMs: 10_000,
+      stallCheckIntervalMs: 10,
+    });
+    const controller = new AbortController();
+    setTimeout(() => controller.abort(), 5);
+    await driver.run({
+      binding: claudeFamily,
+      prompt: "x",
+      cwd: "/tmp",
+      signal: controller.signal,
+    });
+    expect(received).toBeInstanceOf(AbortSignal);
+    expect(received?.aborted).toBe(true);
+  });
+
+  it("后台任务用调用方给的 taskId（不再自造 ext_UUID 双轨）", async () => {
+    // 回归：活动 reporter 用 toolCallId 当 taskId，端口以前自己生成 ext_UUID，
+    // 同一次执行有两条 id 轨迹，在单一活动槽里会互相顶掉面板。
+    const { createExternalAgentPort } =
+      await import("../src/zcode-protocol/external-agent-port-impl.js");
+    const run = vi.fn(async () => ({
+      streams: {
+        stdout: {
+          text: JSON.stringify([{ type: "result", is_error: false, result: "ok" }]),
+        },
+        stderr: { text: "" },
+      },
+      exitCode: 0,
+    }));
+    const port = createExternalAgentPort({
+      executionPort: { run } as never,
+      readBinding: async () => claudeFamily,
+    });
+    const { taskId } = (await port.start!({
+      sessionId: "s" as never,
+      taskId: "call_abc",
+      task: "长任务",
+      cwd: "/tmp",
+    }))!;
+    expect(taskId).toBe("call_abc");
+    expect((await port.poll!("call_abc"))?.taskId).toBe("call_abc");
+  });
+
+  it("续接写回带代际校验：执行期间换绑就不再回写", async () => {
+    // 回归：以前把读时快照整份写回。后台任务执行期间用户换绑/改模型/解绑，
+    // 这次写回会把那些改动抹掉，解绑后甚至把绑定"复活"。
+    const { createExternalAgentPort } =
+      await import("../src/zcode-protocol/external-agent-port-impl.js");
+    const sessionStdout = (sessionId: string) =>
+      JSON.stringify([{ type: "result", is_error: false, result: "ok", session_id: sessionId }]);
+    const run = vi.fn(async () => ({
+      streams: { stdout: { text: sessionStdout("sess-new") }, stderr: { text: "" } },
+      exitCode: 0,
+    }));
+    const updates: string[] = [];
+    const port = createExternalAgentPort({
+      executionPort: { run } as never,
+      // 第一次读给旧绑定（执行开始时），第二次读给换绑后的绑定（写回前重读）。
+      readBinding: (() => {
+        let reads = 0;
+        return async () => {
+          reads += 1;
+          return reads === 1
+            ? { ...claudeFamily, externalSessionId: "sess-old" }
+            : { ...claudeFamily, externalSessionId: "sess-other", model: "改过的模型" };
+        };
+      })(),
+      updateBinding: async (_sessionId, binding) => {
+        updates.push(String(binding.externalSessionId));
+      },
+    });
+    await port.delegate({ sessionId: "s" as never, task: "继续改", cwd: "/tmp" });
+    // 期间绑定已变（session id 与模型都不是本次执行看到的那个）→ 放弃写回。
+    expect(updates).toEqual([]);
   });
 
   it("传给 port 的 timeoutMs 是硬顶兜底：缺省 1 小时，绑定值优先", async () => {

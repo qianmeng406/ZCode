@@ -132,6 +132,9 @@ const handler: ToolHandler = async (input, context) => {
   let lastOutput = "";
   const delegateInput = {
     sessionId: context.sessionId,
+    // 活动卡 reporter 用 toolCallId 当 taskId；后台任务句柄必须是同一个 id，
+    // 否则单一活动槽里两条轨迹会互相顶掉（见 ExternalAgentDelegateInput.taskId）。
+    taskId: String(context.toolCallId),
     task: parsed.task,
     ...(parsed.context ? { context: parsed.context } : {}),
     ...(parsed.continuation ? { continuation: parsed.continuation } : {}),

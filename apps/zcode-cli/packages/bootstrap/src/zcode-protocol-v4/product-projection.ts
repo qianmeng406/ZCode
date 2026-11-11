@@ -3785,6 +3785,10 @@ export class ProductProjection {
    * raw tail 按行显示——所以已有完成态富记录时直接忽略它；previous 还在 running
    * 才说明 reporter 的收口丢了，瘦快照是唯一终态来源，照常写入。
    *
+   * 但抑制必须**同一个任务**才算数（2026-11-11）：活动槽只有一个，而 reporter 用
+   * toolCallId、后台端口用 ext_UUID，两条 ID 轨道并存。不加 taskId 校验时，A 任务的
+   * 收口瘦快照会被 B 任务的富记录拦下，或反过来用 A 的瘦快照顶掉 B 的面板。
+   *
    * 增量帧合并（2026-11-05）：执行中 reporter 只发 `baseRevision + entriesFrom +
    * entries 片段`，这里把片段拼回 previous 的条目；版本对不上（事件被截断/冷恢复
    * 从半截开始）时退化成"追加"，宁可多一段也不要整段丢失。全量帧（无 baseRevision）
@@ -3796,6 +3800,8 @@ export class ProductProjection {
     const previous = this.snapshot.externalAgentActivity;
     const incomingEntryCount = incoming?.entries?.length ?? 0;
     const previousEntryCount = previous?.entries?.length ?? 0;
+    // 同任务才谈得上「谁更富」：不同任务之间既不能抑制、也不能合并。
+    const sameTask = incoming !== null && incoming?.taskId === previous?.taskId;
     // 「更瘦」= 没有模型、条目数不超过已记录的。轮询回写（一条正文）也属于瘦快照，
     // 不能拿它覆盖 reporter 攒下的完整过程。
     //
@@ -3804,18 +3810,21 @@ export class ProductProjection {
     const thinner =
       incoming?.historical === true ||
       (!incoming?.model && incomingEntryCount <= previousEntryCount);
-    if (
-      incoming &&
-      incoming.status !== "running" &&
-      thinner &&
-      previous &&
+    // 历史摘要的抑制**不要求同任务**：它来自持久化摘要，taskId 可能与当前 UI 进程
+    // 里这条真实记录不同（跨版本/重启后 ID 形状都可能变），但语义仍是"别让回忆
+    // 顶掉刚跑完的真实过程"。其余瘦快照只允许压同一任务，否则一次 A 任务的终态
+    // 回写会抹掉 B 任务的面板。
+    const suppressThin =
+      previous !== undefined &&
+      previous !== null &&
       previous.status !== "running" &&
-      (previousEntryCount > 0 || previous.model)
-    ) {
+      (previousEntryCount > 0 || Boolean(previous.model)) &&
+      (incoming?.historical === true ? true : sameTask);
+    if (incoming && incoming.status !== "running" && thinner && suppressThin) {
       return [];
     }
     const activity =
-      incoming && incoming.baseRevision !== undefined && incoming.taskId === previous?.taskId
+      incoming && incoming.baseRevision !== undefined && sameTask
         ? mergeActivityDelta(previous ?? undefined, incoming)
         : incoming;
     return [{ op: "state.updated", patch: { externalAgentActivity: activity } }];

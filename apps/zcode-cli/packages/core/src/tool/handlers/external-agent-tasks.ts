@@ -90,6 +90,8 @@ const startHandler: ToolHandler = async (input, context) => {
   );
   const { taskId } = await port.start({
     sessionId: context.sessionId,
+    // 与活动 reporter 共用同一个 id：单一活动槽里不能再有第二条 id 轨迹。
+    taskId: String(context.toolCallId),
     task: parsed.task,
     ...(parsed.context ? { context: parsed.context } : {}),
     ...(parsed.continuation ? { continuation: parsed.continuation } : {}),

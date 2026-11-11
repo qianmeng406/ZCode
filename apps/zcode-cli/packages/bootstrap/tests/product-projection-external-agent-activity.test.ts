@@ -42,8 +42,15 @@ const richSettled: ExternalAgentActivity = {
   ],
 };
 
+/**
+ * 同一次执行的「瘦」终态回写。
+ *
+ * taskId 必须与 richSettled 一致：2026-11-11 起 reporter 与后台任务句柄统一用
+ * 调用方的 toolCallId（以前端口自造 ext_UUID，同一次执行有两条 id 轨迹，
+ * 靠"跨 id 也不许覆盖"兜着）。守卫现在按 taskId 判定，跨 id 就是不同任务。
+ */
 const thinSettled: ExternalAgentActivity = {
-  taskId: "ext_task-1",
+  taskId: "call-1",
   agentLabel: "CodeBuddy",
   status: "completed",
   startedAt: 900,
@@ -93,6 +100,23 @@ describe("external agent activity projection", () => {
     h.apply({ ...thinSettled, status: "running", tail: "进度" });
     h.apply(thinSettled);
     expect(h.current()).toEqual(thinSettled);
+  });
+
+  it("不同任务的瘦终态不会被上一个任务的富记录拦下（按 taskId 隔离）", () => {
+    // 回归（2026-11-11）：活动槽只有一个，守卫以前不校验 taskId——A 任务收口后
+    // B 任务的瘦终态被误判成"同一任务的更瘦回写"而丢弃，B 的卡片永远停在 running。
+    const h = harness();
+    h.apply(richSettled);
+    const otherTask: ExternalAgentActivity = {
+      taskId: "call-2",
+      agentLabel: "CodeBuddy",
+      status: "completed",
+      startedAt: 2_000,
+      elapsedMs: 5_000,
+      tail: "另一个任务的结论",
+    };
+    h.apply(otherTask);
+    expect(h.current()).toEqual(otherTask);
   });
 
   it("null 快照与 running 快照不受守卫影响", () => {

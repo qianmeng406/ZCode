@@ -135,20 +135,39 @@ export function createExternalAgentPort(
     // - 续接目标换 id（CLI 起不到会话自动开新的）→ 写回自愈，下一轮续新 id；
     // - 「不续接」状态（每次新会话）→ 绝不写回。曾经无条件写回，导致菜单里
     //   明明选了「不续接（每次新会话）」，第一次委派后就悄悄变成续接——标签撒谎。
+    //
+    // 回写用「重读 + 代际校验 + 只改一个字段」而不是把读时快照整份写回：
+    // 委派是后台任务，执行期间用户可能换绑 preset、改模型/档位或直接解绑。
+    // 整份覆盖会把那些改动（以及别的并发任务写入的新 session id）抹掉，
+    // 解绑后甚至会把绑定"复活"。校验不过就放弃这次写回——最差只是下次开新会话。
     if (binding.externalSessionId && result.externalSessionId && options.updateBinding) {
       if (result.externalSessionId !== binding.externalSessionId) {
-        await options
-          .updateBinding(sessionId, {
-            ...binding,
-            externalSessionId: result.externalSessionId,
-          })
-          .catch((error: unknown) => {
-            options.logger?.warn("external agent session id persist failed", {
-              errorMessage: error instanceof Error ? error.message : String(error),
-              event: "external_agent.session_id.persist_failed",
-              sessionId,
+        const latest = await options.readBinding(sessionId).catch(() => undefined);
+        const stillSameExecution =
+          latest !== undefined &&
+          latest.externalSessionId === binding.externalSessionId &&
+          latest.driver === binding.driver &&
+          latest.command === binding.command &&
+          latest.presetId === binding.presetId;
+        if (stillSameExecution) {
+          await options
+            .updateBinding(sessionId, {
+              ...latest,
+              externalSessionId: result.externalSessionId,
+            })
+            .catch((error: unknown) => {
+              options.logger?.warn("external agent session id persist failed", {
+                errorMessage: error instanceof Error ? error.message : String(error),
+                event: "external_agent.session_id.persist_failed",
+                sessionId,
+              });
             });
+        } else {
+          options.logger?.warn("external agent session id write-back skipped (binding changed)", {
+            event: "external_agent.session_id.write_back_skipped",
+            sessionId,
           });
+        }
       }
     }
 
@@ -201,7 +220,9 @@ export function createExternalAgentPort(
     },
 
     async start(input) {
-      const taskId = `ext_${randomUUID()}`;
+      // 用调用方给的 id（core 传 toolCallId）：活动 reporter 与后台任务句柄必须在
+      // 同一个 id 上，否则单一活动槽里两条 id 轨迹会互相顶掉（见契约注释）。
+      const taskId = input.taskId ?? `ext_${randomUUID()}`;
       const controller = new AbortController();
       const task: RunningTask = {
         taskId,

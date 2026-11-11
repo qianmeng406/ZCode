@@ -255,7 +255,12 @@ export function createOneShotExternalAgentDriver(input: {
           {
             // 传看门狗自己的 signal，而不是 runInput.signal：两条中止来源要汇进
             // 同一个信号，且 run() 结束时要能把自己的监听摘干净。
-            abortSignal: stallController.signal,
+            //
+            // 字段名必须是 `signal`——`ExecutionRunOptions` 只认这个（见
+            // contracts/interfaces/execution.port.ts）。以前写成 `abortSignal`
+            // 再用 `as never` 压掉类型错误，端口读不到信号，用户取消/看门狗
+            // 中止都到不了进程，只能等硬超时才收口。
+            signal: stallController.signal,
             // 实时进度。两种形状都要接：
             // - Bash 直写文件路径给 `outputPreview`（已是全文预览）；
             // - argv 路径只给 `stdoutTail`/`stderrTail`（累积尾部快照）。
@@ -286,7 +291,10 @@ export function createOneShotExternalAgentDriver(input: {
               emitTail("stdout", event.stdoutTail);
               emitTail("stderr", event.stderrTail);
             },
-          } as never,
+            // 这里刻意不再用 `as never` 压类型：以前正是靠它掩盖了 `abortSignal`
+            // /`signal` 的字段错配，编译期永远发现不了。字段对齐后让 tsc 真正
+            // 校验这份 options。
+          },
         );
       } finally {
         // 无论正常结束、抛错还是被中止，定时器与 signal 监听都必须摘掉：

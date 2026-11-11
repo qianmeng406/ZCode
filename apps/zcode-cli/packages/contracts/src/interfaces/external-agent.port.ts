@@ -8,6 +8,15 @@ import type { TraceContext } from "../tracing/tracer.js";
 
 export interface ExternalAgentDelegateInput {
   sessionId: SessionId;
+  /**
+   * 调用方指定的任务 id（缺省由端口自己生成）。
+   *
+   * 存在理由（2026-11-11）：活动卡的 reporter 用发起工具调用的 `toolCallId` 当
+   * taskId，而端口以前自己生成 `ext_UUID`——同一次执行在活动流里有两条 id 轨迹。
+   * 活动槽只有一个，两条轨迹一相遇就会出现「A 任务的终态瘦快照顶掉 A 的富过程」
+   * 或更糟的「顶掉 B 的面板」。统一由调用方给 id，全链路只剩一条轨迹。
+   */
+  taskId?: string;
   /** 交给外部 agent 的完整任务/计划正文。 */
   task: string;
   /** 可选补充材料（验收标准、约束、文件线索）。 */
