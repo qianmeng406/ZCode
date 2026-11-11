@@ -31,6 +31,14 @@ import { createOneShotExternalAgentDriver } from "./external-agent-driver.js";
 export interface CreateExternalSubagentPortOptions {
   executionPort: ExecutionPort;
   /**
+   * 同一父会话同时运行的外部子智能体上限。
+   *
+   * 为什么需要：外部 CLI 各自是独立进程，共享同一个工作区与同一份 CLI 配置/凭据。
+   * 不设上限时模型可以一次 fan-out 出十几个进程互相改同一批文件，出问题也没有
+   * 可读的因果链。缺省 3：够用且不至于把机器打满。
+   */
+  maxConcurrentPerSession?: number;
+  /**
    * 实例级外部会话 id（续接凭据）的读写。
    *
    * 与主控模式的 session binding 存储刻意分开：那里的键是 sessionId（一条工作线），
@@ -40,16 +48,141 @@ export interface CreateExternalSubagentPortOptions {
    */
   readExternalSessionId?: (agentId: string) => Promise<string | undefined>;
   saveExternalSessionId?: (agentId: string, externalSessionId: string) => Promise<void>;
+  /**
+   * 检查当前会话的执行目标是否可安全跑外部 CLI；抛错即拒绝执行。
+   *
+   * 首版**只支持本地执行**：会话切到 WSL/远程时，会话执行路由端口不转发 run
+   * options（进度与取消都丢），driver 的 artifact 重建又是本地 fs 读，跨目标路径
+   * 读不到。与其得到"能启动但看不到进度、取消不掉"的半残执行，不如明确拒绝。
+   */
+  assertLocalExecution?: () => void;
   logger?: { warn(message: string, context?: Record<string, unknown>): void };
 }
+
+/** 缺省并发上限（同一父会话）。 */
+const DEFAULT_MAX_CONCURRENT_PER_SESSION = 3;
 
 export function createExternalSubagentPort(
   options: CreateExternalSubagentPortOptions,
 ): ExternalSubagentPort {
   const driver = createOneShotExternalAgentDriver({ executionPort: options.executionPort });
+  const maxConcurrent = Math.max(
+    1,
+    options.maxConcurrentPerSession ?? DEFAULT_MAX_CONCURRENT_PER_SESSION,
+  );
   // 在跑的实例：close 时要等它们收口，也要能拒绝新执行。
   const running = new Set<AbortController>();
+  // 父会话 → 当前活动实例数：并发上限按会话算，不按进程全局算。
+  const runningBySession = new Map<string, number>();
+  // agentId → 该实例 run 的串行队列尾巴。
+  //
+  // 为什么按实例串行：一个实例的外部会话 id 是单条对话，两个 run 并发会交错写
+  // 同一个 CLI 会话（续接时更明显）。终态续跑走同一条队列，天然不重叠。
+  const instanceQueues = new Map<string, Promise<unknown>>();
   let closed = false;
+
+  /** 真正的执行体：并发准入 → onSessionReady → driver → 失败冒泡。 */
+  const runOnce = async (
+    request: ExternalSubagentRunRequest,
+    runOptions: ExternalSubagentRunOptions,
+  ): Promise<ExternalSubagentRunResult> => {
+    const binding = buildBindingFromProfile(request.profile);
+    // 首版锁本地执行：远程/WSL 下进度与取消都会在路由层丢失（见 options 注释）。
+    options.assertLocalExecution?.();
+    const sessionKey = String(request.parentSessionId);
+    const active = runningBySession.get(sessionKey) ?? 0;
+    if (active >= maxConcurrent) {
+      // 明确拒绝而不是排队：模型据此可以决定"先等或减少并发"；排队会让父轮
+      // 莫名卡住且看不到原因。
+      throw new Error(
+        `本会话同时在跑的外部子智能体已达上限（${maxConcurrent} 个）；请等其中一些结束后再启动新的`,
+      );
+    }
+    runningBySession.set(sessionKey, active + 1);
+    // 先声明"子会话已就绪、可以开始执行"：core 的 runner 在这个回调里发布
+    // SubagentSpawned，UI 从这一刻起能订阅到下钻会话。顺序必须是
+    // 持久化 → onSessionReady → 启动进程，否则用户会看到一个没有内容的卡片。
+    await request.onSessionReady?.();
+
+    const controller = new AbortController();
+    running.add(controller);
+    // 外部取消与 owner 关闭汇流：两条来源都可能在中途叫停，任一到达都要
+    // 传到 driver（driver 自己再把用户取消与停滞看门狗汇进同一个信号）。
+    const onOuterAbort = () => controller.abort();
+    if (runOptions.signal) {
+      if (runOptions.signal.aborted) controller.abort();
+      else runOptions.signal.addEventListener("abort", onOuterAbort, { once: true });
+    }
+
+    const externalSessionId = await options
+      .readExternalSessionId?.(request.agentId)
+      .catch(() => undefined);
+    // 续接靠 binding 上的 externalSessionId（argv 构造读它决定 `-r`）；
+    // continuation 只是"愿不愿意续"的开关，两者必须一致。
+    const runBinding: ExternalAgentBinding = externalSessionId
+      ? { ...binding, externalSessionId }
+      : binding;
+
+    try {
+      const result = await driver.run({
+        binding: runBinding,
+        // profile 正文是用户给这个子智能体的常驻指令（就像原生 profile 的
+        // systemPrompt）；Agent 工具传来的 prompt 是一次性任务。两者都要给到
+        // CLI——它没有 system/user 分离，只能按先后拼接。
+        prompt: composePrompt(request.profile.systemPrompt, request.prompt),
+        cwd: request.workingDirectory,
+        continuation: externalSessionId ? "auto" : "fresh",
+        signal: controller.signal,
+        onOutput: () => {
+          // 只要还在出东西就刷新活动时间——活动卡的"还在工作"判定靠它。
+          // 进度条目本身留给 S3 的 transcript 投影，这里不另开活动槽。
+          request.reportActivity?.();
+        },
+      });
+
+      if (result.externalSessionId && options.saveExternalSessionId) {
+        await options
+          .saveExternalSessionId(request.agentId, result.externalSessionId)
+          .catch((error: unknown) => {
+            options.logger?.warn("external subagent session id persist failed", {
+              agentId: request.agentId,
+              errorMessage: error instanceof Error ? error.message : String(error),
+              event: "external_subagent.session_id.persist_failed",
+            });
+          });
+      }
+
+      // 失败必须冒泡，不能被压成"已完成"。
+      //
+      // runner 的 `runAgentToCompletion` 无条件写 `status: "completed"`，它只把
+      // **抛错**当作失败。所以外部 CLI 的非零退出、`is_error: true`、以及 driver
+      // 停滞看门狗的中止（该分支返回 `isError: true, exitCode: 1`）如果只体现在
+      // 返回值里，卡片与终态通知都会显示"已完成"，错误文本还会被当成回答正文
+      // ——用户会以为代码真的改好了。这里统一转成异常，让 runner 走 failed 路径。
+      //
+      // 顺序：先判外层取消（那是 cancelled 语义，不是失败），再判执行失败。
+      if (runOptions.signal?.aborted) {
+        throw runOptions.signal.reason ?? new Error("外部子智能体已被取消");
+      }
+      if (result.isError || result.exitCode !== 0) {
+        throw new Error(describeExternalSubagentFailure(result));
+      }
+
+      return {
+        response: result.text,
+        // 外部 CLI 不产生原生事件：空数组让上游如实显示"没有统计"。
+        events: [],
+      };
+    } finally {
+      if (runOptions.signal) {
+        runOptions.signal.removeEventListener("abort", onOuterAbort);
+      }
+      running.delete(controller);
+      const remaining = (runningBySession.get(sessionKey) ?? 1) - 1;
+      if (remaining <= 0) runningBySession.delete(sessionKey);
+      else runningBySession.set(sessionKey, remaining);
+    }
+  };
 
   return {
     handles(profile: AgentProfile): boolean {
@@ -63,73 +196,18 @@ export function createExternalSubagentPort(
       if (closed) {
         throw new Error("外部子智能体端口已关闭，不能再发起执行");
       }
-      const binding = buildBindingFromProfile(request.profile);
-      // 先声明"子会话已就绪、可以开始执行"：core 的 runner 在这个回调里发布
-      // SubagentSpawned，UI 从这一刻起能订阅到下钻会话。顺序必须是
-      // 持久化 → onSessionReady → 启动进程，否则用户会看到一个没有内容的卡片。
-      await request.onSessionReady?.();
-
-      const controller = new AbortController();
-      running.add(controller);
-      // 外部取消与 owner 关闭汇流：两条来源都可能在中途叫停，任一到达都要
-      // 传到 driver（driver 自己再把用户取消与停滞看门狗汇进同一个信号）。
-      const onOuterAbort = () => controller.abort();
-      if (runOptions.signal) {
-        if (runOptions.signal.aborted) controller.abort();
-        else runOptions.signal.addEventListener("abort", onOuterAbort, { once: true });
-      }
-
-      const externalSessionId = await options
-        .readExternalSessionId?.(request.agentId)
-        .catch(() => undefined);
-      // 续接靠 binding 上的 externalSessionId（argv 构造读它决定 `-r`）；
-      // continuation 只是"愿不愿意续"的开关，两者必须一致。
-      const runBinding: ExternalAgentBinding = externalSessionId
-        ? { ...binding, externalSessionId }
-        : binding;
-
-      try {
-        const result = await driver.run({
-          binding: runBinding,
-          // profile 正文是用户给这个子智能体的常驻指令（就像原生 profile 的
-          // systemPrompt）；Agent 工具传来的 prompt 是一次性任务。两者都要给到
-          // CLI——它没有 system/user 分离，只能按先后拼接。
-          prompt: composePrompt(request.profile.systemPrompt, request.prompt),
-          cwd: request.workingDirectory,
-          continuation: externalSessionId ? "auto" : "fresh",
-          signal: controller.signal,
-          onOutput: (chunk) => {
-            // 只要还在出东西就刷新活动时间——活动卡的"还在工作"判定靠它。
-            request.reportActivity?.();
-            // 进度条目透传给活动卡：core 侧目前没有为外部子智能体单独开活动槽，
-            // 这里只驱动 watchdog；transcript 投影在 S3 接。
-            void chunk;
-          },
-        });
-
-        if (result.externalSessionId && options.saveExternalSessionId) {
-          await options
-            .saveExternalSessionId(request.agentId, result.externalSessionId)
-            .catch((error: unknown) => {
-              options.logger?.warn("external subagent session id persist failed", {
-                agentId: request.agentId,
-                errorMessage: error instanceof Error ? error.message : String(error),
-                event: "external_subagent.session_id.persist_failed",
-              });
-            });
-        }
-
-        return {
-          response: result.text,
-          // 外部 CLI 不产生原生事件：空数组让上游如实显示"没有统计"。
-          events: [],
-        };
-      } finally {
-        if (runOptions.signal) {
-          runOptions.signal.removeEventListener("abort", onOuterAbort);
-        }
-        running.delete(controller);
-      }
+      // 同一实例串行：两个 run 并发会交错写同一个 CLI 会话（续接时更明显）。
+      // 排队而不是拒绝——同实例的第二次调用通常是终态续跑，等前一次收口即可。
+      const previous = instanceQueues.get(request.agentId) ?? Promise.resolve();
+      const queued = previous.then(
+        () => runOnce(request, runOptions),
+        () => runOnce(request, runOptions),
+      );
+      instanceQueues.set(
+        request.agentId,
+        queued.catch(() => undefined),
+      );
+      return queued;
     },
 
     async close() {
@@ -141,6 +219,24 @@ export function createExternalSubagentPort(
       running.clear();
     },
   };
+}
+
+/**
+ * 把失败的 driver 结果写成给人和模型都能读的一句话。
+ *
+ * 带上退出码与正文尾部：外部 CLI 的失败往往只有 stderr 里一句英文，用户需要它
+ * 才能判断是权限、额度还是命令写错。正文过长时只留尾部（结论通常在最后）。
+ */
+export function describeExternalSubagentFailure(result: {
+  text: string;
+  exitCode: number;
+  isError: boolean;
+}): string {
+  const tail = result.text.trim();
+  const head = `外部 agent 执行失败（exitCode: ${result.exitCode}）`;
+  if (!tail) return head;
+  const clipped = tail.length > 800 ? `…${tail.slice(-800)}` : tail;
+  return `${head}：${clipped}`;
 }
 
 /**

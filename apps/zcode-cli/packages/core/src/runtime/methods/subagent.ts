@@ -132,6 +132,7 @@ export function createDefaultSubagentPort(
         const external = await externalPort.run(
           {
             agentId: request.agentId,
+            parentSessionId: this.sessionId,
             childSessionId: request.sessionId,
             agentType: request.agentType,
             description: request.description,

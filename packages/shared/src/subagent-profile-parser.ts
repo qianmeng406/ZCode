@@ -101,6 +101,7 @@ export function parseAgentProfileFromMarkdown(input: {
     modelValue: frontmatter.model,
     effortValue: frontmatter.effort,
     contextWindowValue: frontmatter.contextWindow,
+    values: frontmatter,
     path: input.path,
   });
   if (external.diagnostic) {
@@ -108,7 +109,11 @@ export function parseAgentProfileFromMarkdown(input: {
   }
 
   return {
-    ...(memoryDiagnostic ? { diagnostic: memoryDiagnostic } : {}),
+    // 软诊断（外部 profile 上无原生字段）：保留 profile，只提示"写了但不生效"。
+    // 硬诊断（backend/preset 非法）在上一行已经阻断。
+    ...((external.warning ?? memoryDiagnostic)
+      ? { diagnostic: (external.warning ?? memoryDiagnostic)! }
+      : {}),
     profile: {
       name,
       description,
@@ -149,8 +154,15 @@ function parseExternalBackend(input: {
   modelValue: unknown;
   effortValue: unknown;
   contextWindowValue: unknown;
+  /** 原始 frontmatter（用于诊断"写了但不生效"的原生专属字段）。 */
+  values: Record<string, unknown>;
   path: string | undefined;
-}): { diagnostic?: AgentProfileParseDiagnostic; fields: Partial<AgentProfile> } {
+}): {
+  diagnostic?: AgentProfileParseDiagnostic;
+  /** 软诊断：profile 仍然有效，只是某些字段不生效。 */
+  warning?: AgentProfileParseDiagnostic;
+  fields: Partial<AgentProfile>;
+} {
   const location = input.path ?? "<inline>";
   const rawBackend = scalarString(input.backendValue);
   if (rawBackend !== undefined && rawBackend !== "native" && rawBackend !== "external") {
@@ -226,6 +238,19 @@ function parseExternalBackend(input: {
     };
   }
 
+  // native 专属字段在外部 profile 上**不生效**（这些限制作用于 ZCode 自己的子
+  // runtime，管不到另一个进程里的 CLI）。不阻断加载——用户可能只是留了旧字段——
+  // 但要给出诊断，否则他会以为 tools: Read 真的限制了外部 agent 的能力。
+  const ignored = NATIVE_ONLY_FIELDS.filter((field) => input.values[field] !== undefined);
+  const ignoredDiagnostic: AgentProfileParseDiagnostic | undefined =
+    ignored.length > 0
+      ? {
+          code: "agent_external_ignores_native_fields",
+          message: `Agent frontmatter fields have no effect when backend is external: ${ignored.join(", ")} (${location})`,
+          path: input.path,
+        }
+      : undefined;
+
   return {
     fields: {
       backend: "external",
@@ -234,8 +259,25 @@ function parseExternalBackend(input: {
       ...(scalarString(input.effortValue) ? { effort: scalarString(input.effortValue)! } : {}),
       ...(contextWindow ? { contextWindow } : {}),
     },
+    ...(ignoredDiagnostic ? { warning: ignoredDiagnostic } : {}),
   };
 }
+
+/**
+ * 只对原生子运行时生效、对外部 CLI 无效的 frontmatter 字段。
+ *
+ * 保留清单而不是逐个内联判断：将来加新的原生字段时，这里漏掉一条就会变成
+ * "用户写了但静默无效"，而那正是这类适配层最容易积累的技术债。
+ */
+const NATIVE_ONLY_FIELDS = [
+  "tools",
+  "disallowedTools",
+  "skills",
+  "mcpServers",
+  "maxTurns",
+  "memory",
+  "injectAgentsMd",
+] as const;
 
 function parseAgentMemoryScope(value: unknown): AgentMemoryScope | undefined {
   return typeof value === "string" && VALID_MEMORY_SCOPES.has(value as AgentMemoryScope)

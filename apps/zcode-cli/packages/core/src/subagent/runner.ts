@@ -1011,6 +1011,17 @@ async function sendMessageToLocalAgent(
 
   const message = createRuntimeTaskPendingMessage(request);
   if (!isTerminalRuntimeTask(task)) {
+    // 运行中的外部子智能体没有消息投递通道：headless CLI 的 stdin 已用于首次
+    // prompt，进程里也没有可注入的输入点。必须**明确失败**——交给
+    // deliverMessageToRunningAgent 会走 registry.queueMessage 并返回
+    // delivery:"queued" 的成功文案，而消息永远不会送达（不降级假实现）。
+    const runningProfile = getProfiles().find((profile) => profile.name === task.agentType);
+    if (runningProfile?.backend === "external") {
+      return createSendMessageFailure(
+        request,
+        `子智能体 ${task.agentType} 由外部 CLI 执行，不支持运行中消息（headless 进程没有输入通道）；请等它结束后再续跑。`,
+      );
+    }
     return deliverMessageToRunningAgent(registry, task, message);
   }
 

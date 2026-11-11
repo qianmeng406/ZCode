@@ -29,6 +29,13 @@ import type { TraceContext } from "../tracing/tracer.js";
 export interface ExternalSubagentRunRequest {
   /** 实例 id（原生格式 `agent_<uuid>`）；也是 taskId。 */
   agentId: string;
+  /**
+   * 父会话 id。
+   *
+   * 并发配额按**父会话**算，不按进程全局算：一个会话 fan-out 十几个外部进程
+   * 互相改同一批文件是这里最需要防的场景，而别的会话不该被它连坐。
+   */
+  parentSessionId: SessionId;
   /** 子会话 id（`subagent_<agentId>`）：下钻与观察都靠它。 */
   childSessionId: SessionId;
   /** profile 名字（= Agent 工具的 subagent_type）。 */

@@ -18,6 +18,7 @@ const baseProfile: AgentProfile = {
 
 const runRequest = (overrides: Partial<Record<string, unknown>> = {}) => ({
   agentId: "agent_abc",
+  parentSessionId: "s_parent" as never,
   childSessionId: "subagent_agent_abc" as never,
   agentType: "cb-runner",
   description: "改 lint",
@@ -228,7 +229,9 @@ describe("createExternalSubagentPort", () => {
     const controller = new AbortController();
     const startedAt = Date.now();
     setTimeout(() => controller.abort(), 10);
-    await port.run(runRequest(), { signal: controller.signal });
+    // 取消现在按取消语义抛错（不是返回"成功但空正文"）：runner 据此走 cancelled
+    // 路径而不是 completed。这里同时验证"取消真的到了进程"。
+    await expect(port.run(runRequest(), { signal: controller.signal })).rejects.toBeTruthy();
 
     expect(Date.now() - startedAt).toBeLessThan(2_000);
     expect(captured.signal?.aborted).toBe(true);
@@ -282,5 +285,164 @@ describe("createExternalSubagentPort", () => {
 
     expect(a.response).toBe("done:model-a");
     expect(b.response).toBe("done:model-b");
+  });
+
+  it("外部 CLI 非零退出 → 抛错（不能报成 completed）", async () => {
+    // 回归（Oracle 审查）：端口以前只返回 { response: result.text }，把
+    // isError/exitCode 全丢掉；而 runner 无条件写 completed。结果非零退出的
+    // 委派在卡片与通知里都显示"已完成"，错误文本还被当成回答正文。
+    const { createExternalSubagentPort } =
+      await import("../src/zcode-protocol/external-subagent-port-impl.js");
+    const port = createExternalSubagentPort({
+      executionPort: fakeExecutionPort(
+        JSON.stringify([
+          { type: "result", is_error: true, result: "命令执行失败：permission denied" },
+        ]),
+      ) as never,
+    });
+
+    await expect(port.run(runRequest())).rejects.toThrow(/执行失败.*exitCode|permission denied/u);
+  });
+
+  it("停滞看门狗中止（isError + exitCode 1）同样抛错", async () => {
+    // driver 对停滞的收口是 { isError: true, exitCode: 1 }，不是异常；
+    // 端口必须把它转成失败，否则"卡死被终止"会显示成"已完成"。
+    const { createExternalSubagentPort } =
+      await import("../src/zcode-protocol/external-subagent-port-impl.js");
+    // 不回任何 result 事件 → driver 解析不到正文，模拟异常收口。
+    const port = createExternalSubagentPort({
+      executionPort: {
+        run: vi.fn(async () => ({
+          streams: { stdout: { text: "" }, stderr: { text: "" } },
+          exitCode: 1,
+        })),
+      } as never,
+    });
+
+    await expect(port.run(runRequest())).rejects.toThrow(/执行失败/u);
+  });
+
+  it("外层取消按取消语义抛错，不被当成执行失败", async () => {
+    const { createExternalSubagentPort } =
+      await import("../src/zcode-protocol/external-subagent-port-impl.js");
+    const executionPort = {
+      run: vi.fn(async (_request: unknown, options?: { signal?: AbortSignal }) => {
+        await new Promise<void>((resolve) => {
+          options?.signal?.addEventListener("abort", () => resolve(), { once: true });
+        });
+        // 被中止时 driver 通常也拿不到 result：这里给个"成功"形状，
+        // 验证端口优先按取消语义抛，而不是被 exitCode 判定误导。
+        return {
+          streams: { stdout: { text: resultJson("半截") }, stderr: { text: "" } },
+          exitCode: 0,
+        };
+      }),
+    };
+    const port = createExternalSubagentPort({ executionPort: executionPort as never });
+    const controller = new AbortController();
+    setTimeout(() => controller.abort(), 10);
+
+    await expect(port.run(runRequest(), { signal: controller.signal })).rejects.toBeTruthy();
+  });
+
+  it("同会话并发达到上限时明确拒绝（不排队、不静默丢任务）", async () => {
+    const { createExternalSubagentPort } =
+      await import("../src/zcode-protocol/external-subagent-port-impl.js");
+    const gate = Promise.withResolvers<void>();
+    const executionPort = {
+      run: vi.fn(async () => {
+        await gate.promise;
+        return {
+          streams: { stdout: { text: resultJson("ok") }, stderr: { text: "" } },
+          exitCode: 0,
+        };
+      }),
+    };
+    const port = createExternalSubagentPort({
+      executionPort: executionPort as never,
+      maxConcurrentPerSession: 2,
+    });
+
+    const running = [
+      port.run(runRequest({ agentId: "agent_1" })),
+      port.run(runRequest({ agentId: "agent_2" })),
+    ];
+    await new Promise((resolve) => setTimeout(resolve, 20));
+
+    await expect(port.run(runRequest({ agentId: "agent_3" }))).rejects.toThrow(/已达上限/u);
+
+    gate.resolve();
+    await Promise.all(running);
+  });
+
+  it("不同会话的配额互不影响（按父会话分组）", async () => {
+    const { createExternalSubagentPort } =
+      await import("../src/zcode-protocol/external-subagent-port-impl.js");
+    const gate = Promise.withResolvers<void>();
+    const executionPort = {
+      run: vi.fn(async () => {
+        await gate.promise;
+        return {
+          streams: { stdout: { text: resultJson("ok") }, stderr: { text: "" } },
+          exitCode: 0,
+        };
+      }),
+    };
+    const port = createExternalSubagentPort({
+      executionPort: executionPort as never,
+      maxConcurrentPerSession: 1,
+    });
+
+    const a = port.run(runRequest({ agentId: "agent_a", parentSessionId: "s_1" as never }));
+    await new Promise((resolve) => setTimeout(resolve, 10));
+    // 另一个会话不该被第一个会话的用量连坐。
+    const b = port.run(runRequest({ agentId: "agent_b", parentSessionId: "s_2" as never }));
+    gate.resolve();
+
+    await expect(Promise.all([a, b])).resolves.toHaveLength(2);
+  });
+
+  it("同一实例的 run 串行执行（不并发写同一个 CLI 会话）", async () => {
+    const { createExternalSubagentPort } =
+      await import("../src/zcode-protocol/external-subagent-port-impl.js");
+    const order: string[] = [];
+    let active = 0;
+    let maxActive = 0;
+    const executionPort = {
+      run: vi.fn(async (request: { stdin?: string }) => {
+        active += 1;
+        maxActive = Math.max(maxActive, active);
+        order.push(String(request.stdin));
+        await new Promise((resolve) => setTimeout(resolve, 15));
+        active -= 1;
+        return {
+          streams: { stdout: { text: resultJson("ok") }, stderr: { text: "" } },
+          exitCode: 0,
+        };
+      }),
+    };
+    const port = createExternalSubagentPort({ executionPort: executionPort as never });
+
+    await Promise.all([
+      port.run(runRequest({ prompt: "第一次" })),
+      port.run(runRequest({ prompt: "第二次" })),
+    ]);
+
+    // 同 agentId 的两次 run 不允许重叠。
+    expect(maxActive).toBe(1);
+    expect(order).toHaveLength(2);
+  });
+
+  it("非本地执行目标明确拒绝（首版锁本地）", async () => {
+    const { createExternalSubagentPort } =
+      await import("../src/zcode-protocol/external-subagent-port-impl.js");
+    const port = createExternalSubagentPort({
+      executionPort: fakeExecutionPort(resultJson("ok")) as never,
+      assertLocalExecution: () => {
+        throw new Error("外部 agent 子智能体暂只支持本地执行（当前会话目标是 wsl）");
+      },
+    });
+
+    await expect(port.run(runRequest())).rejects.toThrow(/只支持本地执行/u);
   });
 });

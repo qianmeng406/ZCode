@@ -517,6 +517,17 @@ export async function createZCodeApp(options: ZCodeAppOptions): Promise<ZCodeApp
       executionPort,
       // 实例级续接凭据：键是 agentId（一个子智能体），不是会话的一条工作线。
       // 单次任务没有下一轮，故第一版不持久化——省掉一份可能与会话绑定串台的状态。
+      //
+      // 首版锁本地执行：WSL/远程目标下会话执行路由端口不转发 run options，
+      // 进度与取消都会丢，artifact 又是按本地路径读——宁可明确拒绝。
+      assertLocalExecution: () => {
+        const environment = sessionExecutionPortBinding?.getActiveEnvironment?.();
+        if (environment && environment.kind !== "local") {
+          throw new Error(
+            `外部 agent 子智能体暂只支持本地执行（当前会话目标是 ${environment.kind}）；请切回本地工作区后重试`,
+          );
+        }
+      },
       logger,
     });
     // browser-use 控制端口：仅当宿主（desktop）注入时可用，无本地 fallback（纯 CLI 无浏览器底座）。

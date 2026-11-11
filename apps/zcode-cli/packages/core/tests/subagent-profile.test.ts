@@ -551,4 +551,34 @@ tools: Read, Grep`),
     expect(line).not.toContain("Tools: Read, Grep");
     expect(line).toContain("ZCode tool permissions do not apply");
   });
+
+  it("外部 profile 写了原生专属字段时给出软诊断（profile 仍可用）", () => {
+    // 方案 §5.3 要求：这些字段对 external profile 不生效，但要提示，否则用户
+    // 会以为 tools: Read 真的限制了外部 agent 的能力。
+    const result = parseAgentProfileFromMarkdown({
+      source: "user",
+      content: externalMarkdown(`backend: external
+preset: codebuddy
+tools: Read, Grep
+maxTurns: 5`),
+    });
+
+    expect(result.diagnostic?.code).toBe("agent_external_ignores_native_fields");
+    expect(result.diagnostic?.message).toContain("tools");
+    expect(result.diagnostic?.message).toContain("maxTurns");
+    // 软诊断不阻断加载：profile 必须在场，否则用户改一个字就整条失效。
+    expect(result.profile?.backend).toBe("external");
+    expect(result.profile?.preset).toBe("codebuddy");
+  });
+
+  it("没有原生专属字段时不产生该诊断", () => {
+    const result = parseAgentProfileFromMarkdown({
+      source: "user",
+      content: externalMarkdown(`backend: external
+preset: codebuddy`),
+    });
+
+    expect(result.diagnostic).toBeUndefined();
+    expect(result.profile?.backend).toBe("external");
+  });
 });

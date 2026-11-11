@@ -8,7 +8,7 @@
 // - 生命周期事件仍然由原生 runner 发出（卡片/侧栏/未读的来源）。
 import { describe, expect, it, vi } from "vitest";
 import { SessionEventType, createSessionId } from "@zcode/contracts";
-import type { AgentProfile, ExternalSubagentPort, SessionId } from "@zcode/contracts";
+import type { AgentProfile, ExternalSubagentPort, SessionId, SubagentPort } from "@zcode/contracts";
 import { createTestAgentRuntime } from "./test-agent-runtime.js";
 import { createTestModelFactory } from "./test-runtime-model.js";
 import { createTestSessionEventStore } from "./test-event-store.js";
@@ -184,5 +184,46 @@ describe("外部 agent 子智能体（Agent 工具 → 外部端口）", () => {
 
     expect(seen).toHaveLength(1);
     expect(seen[0]).toMatch(/^agent_[^:]+:任务A$/u);
+  });
+
+  it("运行中 SendMessage 明确失败（外部 CLI 没有输入通道，不许假报 queued）", async () => {
+    // 回归（Oracle 审查）：外部子智能体没有 messageSink，deliverMessageToRunningAgent
+    // 会走 registry.queueMessage 并返回 delivery:"queued" 的成功文案——但消息永远
+    // 不会送达。不降级假实现 = 这里必须 status:"failed"。
+    const gate = Promise.withResolvers<void>();
+    let agentId = "";
+    const externalSubagentPort: ExternalSubagentPort = {
+      handles: (profile) => profile.backend === "external",
+      run: async (request) => {
+        agentId = request.agentId;
+        await gate.promise;
+        return { response: "ok", events: [] };
+      },
+    };
+    const scenario = setup({ externalSubagentPort });
+
+    // 第一轮在后台启动外部子智能体，让它保持 running。
+    const turnPromise = scenario.runtime.executeTurn("用 cb-runner");
+    await vi.waitFor(() => expect(agentId).not.toBe(""));
+
+    // runtime 不暴露 sendMessage 方法（工具层调 subagentPort.sendMessage），
+    // 这里走同一条端口路径。
+    const port = (scenario.runtime as unknown as { subagentPort: SubagentPort }).subagentPort;
+    const result = await port.sendMessage!({
+      sessionId: scenario.sessionId,
+      parentToolCallId: "call_send",
+      to: agentId,
+      message: "顺便改一下文档",
+      workingDirectory: "/workspace/project",
+      workspaceRoot: "/workspace/project",
+      trace: { traceId: "t", spanId: "s" } as never,
+    });
+
+    expect(result.status).toBe("failed");
+    expect(result.delivery).toBeUndefined();
+    expect(result.error).toContain("外部 CLI 执行");
+
+    gate.resolve();
+    await turnPromise;
   });
 });
