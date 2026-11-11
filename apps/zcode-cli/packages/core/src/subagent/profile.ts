@@ -103,6 +103,21 @@ export function formatAgentProfileForPrompt(
   profile: Readonly<AgentProfile>,
   options: { embeddedSearchEnabled?: boolean } = {},
 ): string {
+  // 外部后端不能按"工具集"描述：那些工具是 ZCode 子智能体的限制，对跑在与
+  // ZCode 无关进程里的 CLI 不成立。谎报可用工具会让主 agent 误判它能做什么、
+  // 以及自己是否已经限制了它。
+  if (profile.backend === "external") {
+    const preset = profile.preset ? ` ${profile.preset}` : "";
+    const detail = [
+      profile.model ? `model: ${profile.model}` : undefined,
+      profile.effort ? `effort: ${profile.effort}` : undefined,
+      profile.contextWindow ? `contextWindow: ${profile.contextWindow}` : undefined,
+    ]
+      .filter(Boolean)
+      .join(", ");
+    const note = "runs as its own CLI process; ZCode tool permissions do not apply to it";
+    return `- ${profile.name}: ${profile.description} (External CLI${preset}: ${detail ? `${detail}; ` : ""}${note})`;
+  }
   const tools = isBuiltInExploreAgentProfile(profile)
     ? formatExploreAllowedToolsForAgentDescription(options)
     : profile.tools

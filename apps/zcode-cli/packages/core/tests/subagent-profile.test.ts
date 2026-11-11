@@ -405,3 +405,150 @@ Review carefully.`,
     expect(prompt).not.toContain("Grep");
   });
 });
+
+describe("外部后端 profile（backend/preset）", () => {
+  const externalMarkdown = (frontmatter: string) =>
+    `---
+name: cb-runner
+description: 把实现任务交给 CodeBuddy
+${frontmatter}
+---
+执行实现任务。`;
+
+  it("backend: external + full 预设 → 解析出外部后端与执行覆盖项", () => {
+    const result = parseAgentProfileFromMarkdown({
+      source: "user",
+      content: externalMarkdown(`backend: external
+preset: codebuddy
+model: glm-4.6
+effort: high
+contextWindow: 200000`),
+    });
+
+    expect(result.diagnostic).toBeUndefined();
+    expect(result.profile).toMatchObject({
+      name: "cb-runner",
+      backend: "external",
+      preset: "codebuddy",
+      model: "glm-4.6",
+      effort: "high",
+      contextWindow: 200000,
+    });
+    // 外部 profile 的 model 是 CLI 参数，不是原生 provider/model 选择。
+    expect(result.profile?.modelSelection).toBeUndefined();
+  });
+
+  it("存量 native profile 不写 backend 时行为逐字不变", () => {
+    const result = parseAgentProfileFromMarkdown({
+      source: "user",
+      content: `---
+name: reviewer
+description: Review changes
+model: custom-openai/gpt-5.4
+tools: Read, Grep
+---
+Review.`,
+    });
+
+    expect(result.diagnostic).toBeUndefined();
+    expect(result.profile?.backend).toBeUndefined();
+    expect(result.profile?.preset).toBeUndefined();
+    // native 的 model 仍然走 provider/model 选择解析。
+    expect(result.profile?.modelSelection).toEqual({
+      providerId: "custom-openai",
+      modelId: "gpt-5.4",
+    });
+    expect(result.profile?.tools).toEqual(["Read", "Grep"]);
+  });
+
+  it("backend 值非法时报 agent_invalid_backend", () => {
+    const result = parseAgentProfileFromMarkdown({
+      source: "user",
+      content: externalMarkdown("backend: wasm"),
+    });
+
+    expect(result.profile).toBeUndefined();
+    expect(result.diagnostic?.code).toBe("agent_invalid_backend");
+  });
+
+  it("backend: external 缺 preset 时报缺必填字段", () => {
+    const result = parseAgentProfileFromMarkdown({
+      source: "user",
+      content: externalMarkdown("backend: external"),
+    });
+
+    expect(result.profile).toBeUndefined();
+    expect(result.diagnostic?.code).toBe("agent_missing_required_frontmatter");
+    expect(result.diagnostic?.message).toContain("preset");
+  });
+
+  it("未知预设报 agent_unknown_external_preset", () => {
+    const result = parseAgentProfileFromMarkdown({
+      source: "user",
+      content: externalMarkdown(`backend: external
+preset: no-such-cli`),
+    });
+
+    expect(result.profile).toBeUndefined();
+    expect(result.diagnostic?.code).toBe("agent_unknown_external_preset");
+  });
+
+  it("半适配预设（claude-code）被拒：agent_external_preset_not_bindable", () => {
+    // 与绑定弹窗同口径：半适配预设自身都跑不通，让模型通过 profile 调用它
+    // 只会得到含糊的失败，不如在解析期就说清楚。
+    const result = parseAgentProfileFromMarkdown({
+      source: "user",
+      content: externalMarkdown(`backend: external
+preset: claude-code`),
+    });
+
+    expect(result.profile).toBeUndefined();
+    expect(result.diagnostic?.code).toBe("agent_external_preset_not_bindable");
+  });
+
+  it("native profile 上写 preset 是矛盾配置，直接报错而非静默忽略", () => {
+    const result = parseAgentProfileFromMarkdown({
+      source: "user",
+      content: `---
+name: reviewer
+description: Review
+preset: codebuddy
+---
+Review.`,
+    });
+
+    expect(result.profile).toBeUndefined();
+    expect(result.diagnostic?.code).toBe("agent_preset_requires_external_backend");
+  });
+
+  it("contextWindow 必须是正整数 tokens", () => {
+    const result = parseAgentProfileFromMarkdown({
+      source: "user",
+      content: externalMarkdown(`backend: external
+preset: codebuddy
+contextWindow: 1.5`),
+    });
+
+    expect(result.profile).toBeUndefined();
+    expect(result.diagnostic?.code).toBe("agent_invalid_context_window");
+  });
+
+  it("外部 profile 在提示词里不能谎报工具集，并标出 CLI 与权限边界", () => {
+    const result = parseAgentProfileFromMarkdown({
+      source: "user",
+      content: externalMarkdown(`backend: external
+preset: codebuddy
+model: glm-4.6
+tools: Read, Grep`),
+    });
+    const profile = result.profile!;
+
+    const line = formatAgentProfilesForPrompt([profile]);
+    expect(line).toContain("cb-runner");
+    expect(line).toContain("External CLI codebuddy");
+    expect(line).toContain("model: glm-4.6");
+    // ZCode 的 tools 限制对另一个进程里的 CLI 不成立，不能照抄成 Tools: 列表。
+    expect(line).not.toContain("Tools: Read, Grep");
+    expect(line).toContain("ZCode tool permissions do not apply");
+  });
+});
