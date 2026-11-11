@@ -589,6 +589,8 @@ function parseStreamJsonResult(
     result?: unknown;
     is_error?: unknown;
     session_id?: unknown;
+    errors?: unknown;
+    error?: unknown;
   } | null = null;
   for (const line of lines) {
     try {
@@ -597,6 +599,8 @@ function parseStreamJsonResult(
         result?: unknown;
         is_error?: unknown;
         session_id?: unknown;
+        errors?: unknown;
+        error?: unknown;
       };
       if (entry?.type === "result") last = entry;
     } catch {
@@ -606,11 +610,42 @@ function parseStreamJsonResult(
   if (!last) return undefined;
   const sessionId =
     typeof last.session_id === "string" && last.session_id.length > 0 ? last.session_id : undefined;
+  const resultText = typeof last.result === "string" ? last.result : "";
   return {
-    text: typeof last.result === "string" ? last.result : "",
+    // result 为空但 errors 有内容时（典型：模型名不存在、鉴权失败），把 errors 当成
+    // 正文返回。
+    //
+    // 为什么必须这么做（2026-11-11 实测）：codebuddy 对未知模型的收口是
+    // `{subtype:"error_during_execution", is_error:true, result:""…, errors:["400 model
+    // [x] service info not found…"]}`——退出码仍是 0。以前只读 result，于是错误信息
+    // 变成空串，driver 只好用「没有读到可解析的输出」盖住它，用户完全看不到真实原因
+    // （这是模型名写错还是没登录？）。errors 才是这里唯一有诊断价值的内容。
+    text: resultText.trim().length > 0 ? resultText : streamResultErrorText(last),
     isError: last.is_error === true,
     ...(sessionId ? { sessionId } : {}),
   };
+}
+
+/**
+ * 从 stream-json 的 result 事件里取出可读的错误原因。
+ *
+ * 只取 `errors`（字符串数组）与 `error`（单值）：这两个是 CLI 实际会放的字段，
+ * 其余字段（usage/modelUsage 等）对用户理解失败原因没有帮助。
+ */
+function streamResultErrorText(last: { errors?: unknown; error?: unknown }): string {
+  const messages: string[] = [];
+  const errors = last.errors;
+  if (Array.isArray(errors)) {
+    for (const item of errors) {
+      if (typeof item === "string" && item.trim()) messages.push(item.trim());
+    }
+  } else if (typeof errors === "string" && errors.trim()) {
+    messages.push(errors.trim());
+  }
+  if (messages.length === 0 && typeof last.error === "string" && last.error.trim()) {
+    messages.push(last.error.trim());
+  }
+  return messages.join("\n");
 }
 
 /**

@@ -122,6 +122,34 @@ describe("parseExternalAgentResult", () => {
     });
   });
 
+  it("result 为空但 errors 有内容时，errors 当作正文（真实失败原因不能丢）", () => {
+    // 实测（2026-11-11）：codebuddy 对未知模型的收口是
+    // {subtype:"error_during_execution", is_error:true, result:"", errors:[...]}
+    // 且退出码为 0。只读 result 的话错误信息变成空串，driver 只好用
+    // 「没有读到可解析的输出」盖住它——用户完全看不到"模型名写错了"这个真实原因。
+    const stdout = [
+      JSON.stringify({
+        type: "result",
+        subtype: "error_during_execution",
+        is_error: true,
+        result: "",
+        errors: ["400 model [nope] service info not found", "Please use --model <model_id>"],
+      }),
+    ].join("\n");
+
+    const parsed = parseExternalAgentResult(claudeFamily, stdout);
+    expect(parsed.isError).toBe(true);
+    expect(parsed.text).toContain("400 model [nope] service info not found");
+    expect(parsed.text).toContain("Please use --model");
+  });
+
+  it("result 有内容时仍然优先用 result（不覆盖正常回答）", () => {
+    const stdout = JSON.stringify([
+      { type: "result", is_error: false, result: "正常回答", errors: ["无关警告"] },
+    ]);
+    expect(parseExternalAgentResult(claudeFamily, stdout).text).toBe("正常回答");
+  });
+
   it("非 JSON 输出退回原文（CLI 崩溃时不能丢证据）", () => {
     expect(parseExternalAgentResult(claudeFamily, "Error: command not found")).toEqual({
       text: "Error: command not found",
