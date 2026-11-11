@@ -1,5 +1,9 @@
 import type { BackgroundBashOutputResult } from "@zcode/shared";
-import type { ModelToolContract, RuntimeInputPresentation } from "@zcode/contracts";
+import type {
+  ExternalSubagentTranscriptEntry,
+  ModelToolContract,
+  RuntimeInputPresentation,
+} from "@zcode/contracts";
 import type {
   CompactPhase,
   CompactReason,
@@ -443,4 +447,10 @@ export interface AgentRuntimeTurnMethods {
     copyFrom?: Parameters<SessionStorePort["savePart"]>[1],
   ): Promise<void>;
   rebuildProjection(): Promise<SessionProjection>;
+  /** 外部子智能体的子会话 transcript 写入器（下钻面板数据源）。 */
+  createExternalSubagentTranscriptWriter(input: {
+    childSessionId: SessionId;
+    prompt: string;
+    agentType: string;
+  }): (entry: ExternalSubagentTranscriptEntry) => Promise<void>;
 }

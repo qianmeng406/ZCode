@@ -55,6 +55,16 @@ export interface ExternalSubagentRunRequest {
    * 所以实现必须**先持久化、再回调**，最后才启动进程。
    */
   onSessionReady?: () => Promise<void>;
+  /**
+   * 把外部 CLI 的输出写进子会话 transcript（下钻面板的数据源）。
+   *
+   * 为什么由 core 实现而不是端口自己写 sessionStore：消息落库需要会话身份、
+   * 模型选择、semantics/anchor 与 id 生成，这些是 core 的会话存储语义。端口
+   * 只负责"CLI 说了什么"，不重建一套消息写入规则。
+   *
+   * 缺省不写：没有这个回调时子会话仍然存在（卡片/生命周期正常），只是下钻为空。
+   */
+  onTranscript?: (entry: ExternalSubagentTranscriptEntry) => Promise<void>;
   /** 执行进度：实现可以按需上报（活动卡、工具进度都由它转出）。 */
   reportActivity?: () => void;
   /**
@@ -64,6 +74,25 @@ export interface ExternalSubagentRunRequest {
    * 存在这个字段只是为了将来接入支持 stdin 注入的实现，当前实现不注册。
    */
   registerMessageSink?: (sink: unknown) => void;
+}
+
+/**
+ * 一条要写进子会话 transcript 的内容。
+ *
+ * 只区分三种真实可得的形状（正文 / 思考 / 工具），与外部 CLI 流式解析器的
+ * 条目种类对齐——不做更细的类型化，避免在适配层发明 CLI 没有的语义。
+ */
+export interface ExternalSubagentTranscriptEntry {
+  kind: "text" | "reasoning" | "tool";
+  text: string;
+  /**
+   * 增量还是快照。
+   *
+   * - `append`（缺省）：追加到当前累积内容；
+   * - `replace`：整体替换（driver 在全量 stdout 上做的权威重建，会把执行中
+   *   靠尾窗差分拼出来、可能重复/丢段的条目整体换掉）。
+   */
+  mode?: "append" | "replace";
 }
 
 /** 一次外部子智能体执行结果。 */

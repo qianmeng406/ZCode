@@ -129,6 +129,13 @@ export function createDefaultSubagentPort(
         // `getSession(childSessionId)` 查不到而把这次分支整个丢掉——
         // 表现为"卡片没有、下钻空白"，但进程其实跑完了。
         await ensureExternalSubagentChildSession.call(this, request);
+        // transcript 写入器：下钻面板的数据源。外部路径没有 child runtime 帮忙
+        // 落消息，这里补上——否则子会话存在但内容永远是空的。
+        const writeTranscript = this.createExternalSubagentTranscriptWriter({
+          childSessionId: request.sessionId,
+          prompt: request.prompt,
+          agentType: request.agentType,
+        });
         const external = await externalPort.run(
           {
             agentId: request.agentId,
@@ -142,6 +149,7 @@ export function createDefaultSubagentPort(
             workspaceRoot: request.workspaceRoot,
             traceContext: request.traceContext,
             onSessionReady: request.onSessionReady,
+            onTranscript: writeTranscript,
             ...(request.reportActivity ? { reportActivity: request.reportActivity } : {}),
           },
           options?.signal ? { signal: options.signal } : {},

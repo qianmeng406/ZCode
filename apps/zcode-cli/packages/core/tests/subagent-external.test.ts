@@ -42,6 +42,7 @@ function setup(options: {
   const sessionStore = createRecordingSubagentSessionStore();
   const events = createTestSessionEventStore();
   const childModelCalls: unknown[] = [];
+  const childSessionIds: string[] = [];
   let parentCalls = 0;
   const profiles = options.profiles ?? [externalProfile];
 
@@ -53,7 +54,16 @@ function setup(options: {
       eventStore: events,
       loadAgentDefinitions: async () => ({ activeAgents: profiles }),
       ...(options.externalSubagentPort
-        ? { externalSubagentPort: options.externalSubagentPort }
+        ? {
+            // 包一层只为记录 childSessionId（测试断言要按它去查 transcript）。
+            externalSubagentPort: {
+              handles: options.externalSubagentPort.handles,
+              run: (request, runOptions) => {
+                childSessionIds.push(String(request.childSessionId));
+                return options.externalSubagentPort!.run(request, runOptions);
+              },
+            } satisfies ExternalSubagentPort,
+          }
         : {}),
       modelFactory: createTestModelFactory({
         async generateText(request, observation) {
@@ -87,7 +97,7 @@ function setup(options: {
     },
   );
 
-  return { runtime, sessionId, sessionStore, events, childModelCalls };
+  return { runtime, sessionId, sessionStore, events, childModelCalls, childSessionIds };
 }
 
 const lifecycle = async (
@@ -225,5 +235,31 @@ describe("外部 agent 子智能体（Agent 工具 → 外部端口）", () => {
 
     gate.resolve();
     await turnPromise;
+  });
+
+  it("外部 CLI 的输出落进子会话 transcript（下钻面板有内容）", async () => {
+    // S3：外部路径没有 child runtime 帮忙落消息，必须由 core 的 writer 写入。
+    // 否则子会话存在、卡片正常，但下钻永远是空的。
+    let onTranscript: ((entry: unknown) => Promise<void>) | undefined;
+    const externalSubagentPort: ExternalSubagentPort = {
+      handles: (profile) => profile.backend === "external",
+      run: async (request) => {
+        onTranscript = request.onTranscript as never;
+        await request.onTranscript!({ kind: "text", text: "外部 CLI 的结论" });
+        return { response: "外部 CLI 的结论", events: [] };
+      },
+    };
+    const scenario = setup({ externalSubagentPort });
+
+    await scenario.runtime.executeTurn("用 cb-runner");
+
+    expect(onTranscript).toBeDefined();
+    // 子会话里必须能读到这次执行的消息与正文。
+    const childSessionId = scenario.childSessionIds[0]!;
+    const messages = await scenario.sessionStore.messages({ sessionID: childSessionId });
+    expect(messages.length).toBeGreaterThan(0);
+    const text = JSON.stringify(messages);
+    expect(text).toContain("把 lint 修了"); // 任务正文（user 侧）
+    expect(text).toContain("外部 CLI 的结论"); // CLI 输出（assistant 侧）
   });
 });

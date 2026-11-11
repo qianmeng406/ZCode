@@ -446,3 +446,125 @@ describe("createExternalSubagentPort", () => {
     await expect(port.run(runRequest())).rejects.toThrow(/只支持本地执行/u);
   });
 });
+
+describe("transcript 投影（下钻面板数据源）", () => {
+  it("流式条目按顺序写进 transcript", async () => {
+    const { createExternalSubagentPort } =
+      await import("../src/zcode-protocol/external-subagent-port-impl.js");
+    const written: Array<{ kind: string; text: string; mode?: string }> = [];
+    const executionPort = {
+      run: vi.fn(async (_request: unknown, options?: { onEvent?: (event: unknown) => void }) => {
+        options?.onEvent?.({
+          type: "progress",
+          outputPreview: { fullText: "line" },
+        });
+        return {
+          streams: {
+            stdout: {
+              text: JSON.stringify([
+                { type: "assistant", message: { content: [{ type: "text", text: "改好了" }] } },
+                { type: "result", is_error: false, result: "改好了" },
+              ]),
+            },
+            stderr: { text: "" },
+          },
+          exitCode: 0,
+        };
+      }),
+    };
+    const port = createExternalSubagentPort({ executionPort: executionPort as never });
+
+    await port.run(
+      runRequest({
+        onTranscript: async (entry: { kind: string; text: string; mode?: string }) => {
+          written.push(entry);
+        },
+      }),
+    );
+
+    // 无论走条目还是全文兜底，结论必须出现在 transcript 里。
+    expect(written.some((entry) => entry.text.includes("改好了"))).toBe(true);
+  });
+
+  it("流式推送过正文就不再补全文（避免同一段出现两遍）", async () => {
+    const { createExternalSubagentPort } =
+      await import("../src/zcode-protocol/external-subagent-port-impl.js");
+    const written: Array<{ kind: string; text: string }> = [];
+    // 构造一个"解析器能产出 text 条目"的输出，模拟 claude-family 流式。
+    const entry = JSON.stringify({
+      type: "assistant",
+      message: { role: "assistant", content: [{ type: "text", text: "流式正文" }] },
+    });
+    const result = JSON.stringify([{ type: "result", is_error: false, result: "流式正文" }]);
+    const executionPort = {
+      run: vi.fn(async () => ({
+        streams: {
+          stdout: {
+            text: `${entry}
+${result}`,
+          },
+          stderr: { text: "" },
+        },
+        exitCode: 0,
+      })),
+    };
+    const port = createExternalSubagentPort({ executionPort: executionPort as never });
+
+    await port.run(
+      runRequest({
+        onTranscript: async (e: { kind: string; text: string }) => {
+          written.push(e);
+        },
+      }),
+    );
+
+    const textEntries = written.filter((e) => e.kind === "text");
+    const joined = textEntries.map((e) => e.text).join("");
+    // 只出现一次，不是两遍。
+    expect(joined.split("流式正文").length - 1).toBe(1);
+  });
+
+  it("权威重建用 replace 模式透传", async () => {
+    const { createExternalSubagentPort } =
+      await import("../src/zcode-protocol/external-subagent-port-impl.js");
+    const modes: Array<string | undefined> = [];
+    const entry = JSON.stringify({
+      type: "assistant",
+      message: { role: "assistant", content: [{ type: "text", text: "重建正文" }] },
+    });
+    const executionPort = {
+      run: vi.fn(async () => ({
+        streams: {
+          stdout: {
+            text: `${entry}
+${JSON.stringify([{ type: "result", is_error: false, result: "重建正文" }])}`,
+          },
+          stderr: { text: "" },
+        },
+        exitCode: 0,
+      })),
+    };
+    const port = createExternalSubagentPort({ executionPort: executionPort as never });
+
+    await port.run(
+      runRequest({
+        onTranscript: async (e: { kind: string; text: string; mode?: string }) => {
+          modes.push(e.mode);
+        },
+      }),
+    );
+
+    // 收口时的权威重建必须标 replace，否则面板留着执行中的重复/丢段。
+    expect(modes).toContain("replace");
+  });
+
+  it("没给 onTranscript 时执行照常成功（观察层可选）", async () => {
+    const { createExternalSubagentPort } =
+      await import("../src/zcode-protocol/external-subagent-port-impl.js");
+    const port = createExternalSubagentPort({
+      executionPort: fakeExecutionPort(resultJson("ok")) as never,
+    });
+
+    await expect(port.run(runRequest())).resolves.toMatchObject({ response: "ok" });
+  });
+});

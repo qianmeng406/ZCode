@@ -114,6 +114,9 @@ export function createExternalSubagentPort(
       else runOptions.signal.addEventListener("abort", onOuterAbort, { once: true });
     }
 
+    // 正文是否已经通过流式条目进过 transcript：进过就不再补全文，
+    // 否则下钻面板里同一段话会出现两遍（与 driver 的 streamedText 同义）。
+    let streamedText = false;
     const externalSessionId = await options
       .readExternalSessionId?.(request.agentId)
       .catch(() => undefined);
@@ -133,10 +136,28 @@ export function createExternalSubagentPort(
         cwd: request.workingDirectory,
         continuation: externalSessionId ? "auto" : "fresh",
         signal: controller.signal,
-        onOutput: () => {
+        onOutput: (chunk) => {
           // 只要还在出东西就刷新活动时间——活动卡的"还在工作"判定靠它。
-          // 进度条目本身留给 S3 的 transcript 投影，这里不另开活动槽。
           request.reportActivity?.();
+          // 结构化过程条目 → 子会话 transcript（下钻面板）。
+          // driver 的 `replace: true` 是收口权威重建（全量 stdout 重解析），
+          // 必须原样透传：不然执行中靠尾窗差分拼出来的重复/丢段会留在地上。
+          if (!request.onTranscript) return;
+          if (chunk.entries?.length) {
+            const mode = chunk.replace ? ("replace" as const) : ("append" as const);
+            for (const entry of chunk.entries) {
+              if (entry.kind === "text" && entry.text.trim()) streamedText = true;
+              void request
+                .onTranscript({ kind: entry.kind, text: entry.text, mode })
+                .catch(() => undefined);
+            }
+            return;
+          }
+          // 没有结构化条目（非流式驱动）才用原始文本兜底；
+          // 有 entries 时 raw text 是同一份内容的另一视图，再写一遍会重复。
+          if (chunk.text) {
+            void request.onTranscript({ kind: "text", text: chunk.text }).catch(() => undefined);
+          }
         },
       });
 
@@ -150,6 +171,13 @@ export function createExternalSubagentPort(
               event: "external_subagent.session_id.persist_failed",
             });
           });
+      }
+
+      // 没流式到正文时把最终回答补进 transcript：
+      // 非流式驱动（只给一次性输出）与「模型只回 result」的情况靠这一步，
+      // 否则下钻面板只有思考/工具、看不到结论。
+      if (request.onTranscript && !streamedText && result.text.trim()) {
+        await request.onTranscript({ kind: "text", text: result.text }).catch(() => undefined);
       }
 
       // 失败必须冒泡，不能被压成"已完成"。

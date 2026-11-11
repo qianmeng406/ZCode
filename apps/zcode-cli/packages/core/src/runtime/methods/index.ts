@@ -191,6 +191,7 @@ import { persistAssistantMessage } from "./message-persistence.js";
 import { persistMessage } from "./message-persistence.js";
 import { persistPart } from "./message-persistence.js";
 import { rebuildProjection } from "./message-persistence.js";
+import { createExternalSubagentTranscriptWriter } from "./external-subagent-transcript.js";
 import { recordPendingModelChange } from "./timeline-persistence.js";
 import { persistPendingModelChangeTimeline } from "./timeline-persistence.js";
 import { persistAssistantTimelinePartForSession } from "./timeline-persistence.js";
@@ -409,6 +410,7 @@ export function installAgentRuntimeMethods(ctor: AgentRuntimeConstructor): void 
   proto.persistMessage = persistMessage;
   proto.persistPart = persistPart;
   proto.rebuildProjection = rebuildProjection;
+  proto.createExternalSubagentTranscriptWriter = createExternalSubagentTranscriptWriter;
   proto.generateWorkspaceText = generateWorkspaceText;
   proto.sampleModel = sampleModel;
   proto.drainMemoryExtractions = drainMemoryExtractions;
