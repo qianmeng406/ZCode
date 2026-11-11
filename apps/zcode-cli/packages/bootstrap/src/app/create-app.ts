@@ -108,6 +108,10 @@ import { resolveBuiltInNodeReplMcpServers } from "./built-in-node-repl.js";
 import { resolveZCodeCustomCommandPrompt } from "../custom-command-prompt.js";
 import { createSessionExternalAgentPort } from "../zcode-protocol/external-agent-port-impl.js";
 import { createExternalSubagentPort } from "../zcode-protocol/external-subagent-port-impl.js";
+import {
+  readExternalSubagentSessionId,
+  saveExternalSubagentSessionId,
+} from "../zcode-protocol/session-external-subagent.js";
 import { persistSessionExternalAgent } from "../zcode-protocol/session-external-agent.js";
 import { resolveZCodeBuiltinPromptCommandInvocation } from "../builtin-prompt-command.js";
 import { BUILTIN_WORKFLOW_COMMAND_NAME } from "../builtin-workflow-command.js";
@@ -515,8 +519,21 @@ export async function createZCodeApp(options: ZCodeAppOptions): Promise<ZCodeApp
     // 与上面的 externalAgentPort（主控模式：整会话绑定 + 只读）是两件事。
     const externalSubagentPort = createExternalSubagentPort({
       executionPort,
-      // 实例级续接凭据：键是 agentId（一个子智能体），不是会话的一条工作线。
-      // 单次任务没有下一轮，故第一版不持久化——省掉一份可能与会话绑定串台的状态。
+      // 实例级续接凭据：键是 agentId（一个子智能体），与会话绑定的"单条工作线"
+      // 分开存——混用会让同会话多个外部子智能体共用一条 CLI 会话、续接时串台。
+      // 终态续跑（SendMessage 给已结束的子智能体）靠它接上原来的 CLI 会话。
+      readExternalSessionId: (agentId) =>
+        readExternalSubagentSessionId({ sessionId, agentId, sessionStore }),
+      saveExternalSessionId: (agentId, externalSessionId) =>
+        saveExternalSubagentSessionId({
+          sessionId,
+          agentId,
+          externalSessionId,
+          sessionStore,
+          ...(logger
+            ? { logger: { warn: (message, context) => logger.warn(message, context) } }
+            : {}),
+        }),
       //
       // 首版锁本地执行：WSL/远程目标下会话执行路由端口不转发 run options，
       // 进度与取消都会丢，artifact 又是按本地路径读——宁可明确拒绝。

@@ -852,6 +852,16 @@ export const SESSION_ENTRY_EXTERNAL_AGENT = "runtime/external_agent" as const;
  * 清掉，摘要也跟着清（它属于"本会话绑定期间的执行"）。
  */
 export const SESSION_ENTRY_EXTERNAL_AGENT_RUN = "runtime/external_agent_run" as const;
+/**
+ * 外部 agent **子智能体实例**的外部会话 id（续接凭据）。
+ *
+ * 与会话级 `runtime/external_agent` 刻意分开：那是"整个会话绑定一个外部 agent"的
+ * 单条工作线，这里按 agentId（一个子智能体实例）各存各的。混用会让同会话的多个
+ * 外部子智能体共用一条 CLI 会话，续接时互相污染。
+ *
+ * 存的是 `{ externalSessionId }`，不存执行配置——配置每次从 profile 现场构造。
+ */
+export const SESSION_ENTRY_EXTERNAL_SUBAGENT_SESSION = "runtime/external_subagent_session" as const;
 
 export const SESSION_ENTRY_TYPES = [
   SESSION_ENTRY_TARGET_COMPLETION_VERIFICATION,
@@ -866,6 +876,7 @@ export const SESSION_ENTRY_TYPES = [
   SESSION_ENTRY_SESSION_FEATURES,
   SESSION_ENTRY_EXTERNAL_AGENT,
   SESSION_ENTRY_EXTERNAL_AGENT_RUN,
+  SESSION_ENTRY_EXTERNAL_SUBAGENT_SESSION,
 ] as const;
 
 export type SessionEntryType = (typeof SESSION_ENTRY_TYPES)[number];

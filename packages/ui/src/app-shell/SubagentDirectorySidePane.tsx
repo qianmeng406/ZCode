@@ -92,7 +92,10 @@ const DirectoryRow = memo(function DirectoryRow({
             </span>
           ) : null}
           <span className="shrink-0 text-ui-sm text-foreground-subtlest">
-            {intl.formatMessage({ id: `subagentDirectory.status.${item.status}` })}
+            {/* 外部实例的 lost 不是"失败"：进程随应用退出就没了，如实说明中断。 */}
+            {item.status === "lost" && item.backend === "external"
+              ? intl.formatMessage({ id: "subagentDirectory.lost.external" })
+              : intl.formatMessage({ id: `subagentDirectory.status.${item.status}` })}
           </span>
         </span>
         {item.summary ? (
