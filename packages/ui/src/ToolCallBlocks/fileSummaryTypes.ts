@@ -256,6 +256,13 @@ export interface ToolCallBlockRenderContext {
   };
   /** v4 已配对 subagentRow 投影出的 runtime 权威类型；流式 input 尚未完整时优先使用。 */
   authoritativeAgentType?: string;
+  /**
+   * 外部 CLI 子智能体的预设 id（有值即 backend=external）。
+   *
+   * 卡片据此显示预设徽标：这类子智能体不支持运行中消息、没有 token 统计，
+   * 不标出来用户会按原生子智能体的预期去用它。
+   */
+  externalAgentPresetId?: string;
   /** ExitPlanMode 计划卡片：由会话宿主绑定 parent/session scope 后打开 Side Pane。 */
   onOpenPlanDetail?: (request: Omit<OpenPlanDetailSideTabRequest, "parentSessionId">) => void;
   /**

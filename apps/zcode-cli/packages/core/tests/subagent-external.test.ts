@@ -353,4 +353,41 @@ describe("外部 agent 子智能体（Agent 工具 → 外部端口）", () => {
     // 原生 child 一次都不许被调用（否则就是回落到了 ZCode 自己的模型）。
     expect(scenario.childModelCalls).toHaveLength(0);
   });
+
+  it("replace 权威重建会真的删掉旧 part（不只是换内存数组）", async () => {
+    // 回归（Oracle 审查）：replace 分支以前只把内存数组换掉再逐条 save 新 part，
+    // 执行期靠尾窗差分写进库的旧 part 仍然在——下钻面板会同时显示"差分版本"
+    // 和"重建版本"，重复/丢段的原文反而一直留着。
+    let onTranscript: ((entry: unknown) => Promise<void>) | undefined;
+    const externalSubagentPort: ExternalSubagentPort = {
+      handles: (profile) => profile.backend === "external",
+      run: async (request) => {
+        onTranscript = request.onTranscript as never;
+        // 模拟执行期差分写入。
+        await request.onTranscript!({ kind: "text", text: "差分片段A" });
+        // 收口权威重建。
+        await request.onTranscript!({ kind: "text", text: "权威重建全文", mode: "replace" });
+        return { response: "权威重建全文", events: [] };
+      },
+    };
+    const scenario = setup({ externalSubagentPort });
+
+    await scenario.runtime.executeTurn("用 cb-runner");
+    void onTranscript;
+
+    const childSessionId = scenario.childSessionIds[0]!;
+    const messages = await scenario.sessionStore.messages({ sessionID: childSessionId });
+    const assistant = messages.find((message) => message.info.role === "assistant");
+    expect(assistant).toBeDefined();
+    const texts = assistant!.parts
+      .flatMap((part) => (part.type === "text" ? [part.text] : []))
+      .join("\n");
+
+    // 重建后的内容在，执行期的差分片段必须已经不在。
+    expect(texts).toContain("权威重建全文");
+    expect(texts).not.toContain("差分片段A");
+    // 且只有一条正文 part（不是"两份并存"）。
+    const textParts = assistant!.parts.filter((part) => part.type === "text");
+    expect(textParts).toHaveLength(1);
+  });
 });

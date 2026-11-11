@@ -21,7 +21,7 @@ import { buildProjectionAnchor } from "./projection-anchor.js";
 interface ExternalTranscriptState {
   parentMessageId: MessageId;
   assistantMessageId: MessageId;
-  /** 当前累积的 part（正文/思考按 kind 合并，工具每次一条）。 */
+  /** 当前累积的 part（正文/思考按 kind 合并，工具与错误各自独立）。 */
   parts: Array<{ id: string; kind: ExternalSubagentTranscriptEntry["kind"]; text: string }>;
 }
 
@@ -127,6 +127,11 @@ export function createExternalSubagentTranscriptWriter(
           messageID: state.assistantMessageId,
           type: part.kind === "reasoning" ? "reasoning" : "text",
           text: part.text,
+          // 失败原因用 text part + metadata 标记：不新增 part 类型（渲染层不必
+          // 为它写特例），但面板能据此把它画成错误而不是"回答"。
+          ...(part.kind === "error"
+            ? { metadata: { externalSubagent: { kind: "error" as const } } }
+            : {}),
         } as MessagePart,
         traceContext,
       );
@@ -139,16 +144,28 @@ export function createExternalSubagentTranscriptWriter(
       await ensureMessages();
       if (entry.mode === "replace") {
         // 权威重建：整体替换（driver 用全量 stdout 重解析，比执行中的尾窗差分可靠）。
+        //
+        // 关键：必须**先删掉库里已有的旧 part**。只替换内存数组再逐条 save 新 part
+        // 是不够的——执行期那些靠差分拼出来的 part 仍留在 store 里，下钻面板会同时
+        // 显示"差分版本"和"重建版本"（重复/丢段的原文反而一直在）。
+        const stale = state.parts.map((part) => part.id);
         state.parts = entry.text.trim()
           ? [{ id: createPartId(), kind: entry.kind, text: entry.text }]
           : [];
+        for (const id of stale) {
+          await this.removePersistedPart({
+            sessionID: input.childSessionId,
+            messageID: state.assistantMessageId,
+            partID: id as MessagePart["id"],
+          });
+        }
         await flushParts();
         return;
       }
       // 追加：同 kind 的相邻条目合并到一个 part（流式正文/思考就是这样长出来的），
       // 工具条目各自独立——它们是不同次调用，合并会让面板看不出调了几次。
       const last = state.parts.at(-1);
-      if (last && last.kind === entry.kind && entry.kind !== "tool") {
+      if (last && last.kind === entry.kind && entry.kind === "text") {
         last.text += entry.text;
         await flushParts();
         return;

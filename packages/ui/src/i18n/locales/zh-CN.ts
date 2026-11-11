@@ -1710,6 +1710,7 @@ const zhCN: Record<string, string> = {
   "subagentDirectory.status.cancelled": "已取消",
   // 外部 CLI 子智能体徽标：让用户一眼看出这次不是 ZCode 自己的子 runtime 在跑。
   "subagentDirectory.backend.external": "外部",
+  "chat.toolCall.agent.externalBadge": "外部",
   // 外部子智能体的进程不会随应用重启复活：如实说明是「中断」而不是「失败」。
   "subagentDirectory.lost.external": "外部进程随应用退出而中断",
   "subagentDirectory.status.lost": "已丢失",

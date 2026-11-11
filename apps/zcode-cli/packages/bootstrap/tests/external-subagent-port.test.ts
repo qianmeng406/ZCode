@@ -567,4 +567,33 @@ ${JSON.stringify([{ type: "result", is_error: false, result: "重建正文" }])}
 
     await expect(port.run(runRequest())).resolves.toMatchObject({ response: "ok" });
   });
+
+  it("失败时错误文本写成 error 条目，不冒充回答正文", async () => {
+    // 回归（Oracle 审查）：补写正文以前在失败判定之前，于是失败的错误文本
+    // 会作为 kind:"text" 进 transcript——卡片是 failed，但下钻面板里它看起来
+    // 就是子智能体的"回答"。现在必须是 error 条目。
+    const { createExternalSubagentPort } =
+      await import("../src/zcode-protocol/external-subagent-port-impl.js");
+    const written: Array<{ kind: string; text: string }> = [];
+    const port = createExternalSubagentPort({
+      executionPort: fakeExecutionPort(
+        JSON.stringify([{ type: "result", is_error: true, result: "权限不足，无法写入" }]),
+      ) as never,
+    });
+
+    await expect(
+      port.run(
+        runRequest({
+          onTranscript: async (entry: { kind: string; text: string }) => {
+            written.push(entry);
+          },
+        }),
+      ),
+    ).rejects.toThrow();
+
+    // 错误证据要留，但不能是 text。
+    expect(written.some((entry) => entry.kind === "error")).toBe(true);
+    expect(written.filter((entry) => entry.kind === "text")).toHaveLength(0);
+    expect(written.find((entry) => entry.kind === "error")?.text).toContain("执行失败");
+  });
 });

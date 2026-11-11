@@ -190,6 +190,7 @@ import { persistSyntheticUserNoticeForSession } from "./message-persistence.js";
 import { persistAssistantMessage } from "./message-persistence.js";
 import { persistMessage } from "./message-persistence.js";
 import { persistPart } from "./message-persistence.js";
+import { removePersistedPart } from "./message-persistence.js";
 import { rebuildProjection } from "./message-persistence.js";
 import { createExternalSubagentTranscriptWriter } from "./external-subagent-transcript.js";
 import { recordPendingModelChange } from "./timeline-persistence.js";
@@ -409,6 +410,7 @@ export function installAgentRuntimeMethods(ctor: AgentRuntimeConstructor): void 
   proto.persistAssistantMessage = persistAssistantMessage;
   proto.persistMessage = persistMessage;
   proto.persistPart = persistPart;
+  proto.removePersistedPart = removePersistedPart;
   proto.rebuildProjection = rebuildProjection;
   proto.createExternalSubagentTranscriptWriter = createExternalSubagentTranscriptWriter;
   proto.generateWorkspaceText = generateWorkspaceText;

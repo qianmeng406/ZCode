@@ -114,9 +114,18 @@ export function createExternalSubagentPort(
       else runOptions.signal.addEventListener("abort", onOuterAbort, { once: true });
     }
 
-    // 正文是否已经通过流式条目进过 transcript：进过就不再补全文，
-    // 否则下钻面板里同一段话会出现两遍（与 driver 的 streamedText 同义）。
+    // 正文是否已经通过流式条目产出（用于收口时决定要不要补全文）。
     let streamedText = false;
+    // transcript 条目先**缓冲**，等收口知道成败后再落库。
+    //
+    // 为什么不能边跑边写：driver 在 `is_error` 的 result 上同样会推 text 条目，
+    // 而这是失败语义。边写边落会让错误文本作为"回答"进面板，收口时还得回删；
+    // 缓冲一次按成败写入，既不用回删，也不可能出现"两份并存"。
+    let pendingEntries: Array<{
+      kind: "text" | "reasoning" | "tool";
+      text: string;
+      mode: "append" | "replace";
+    }> = [];
     const externalSessionId = await options
       .readExternalSessionId?.(request.agentId)
       .catch(() => undefined);
@@ -139,24 +148,33 @@ export function createExternalSubagentPort(
         onOutput: (chunk) => {
           // 只要还在出东西就刷新活动时间——活动卡的"还在工作"判定靠它。
           request.reportActivity?.();
-          // 结构化过程条目 → 子会话 transcript（下钻面板）。
-          // driver 的 `replace: true` 是收口权威重建（全量 stdout 重解析），
-          // 必须原样透传：不然执行中靠尾窗差分拼出来的重复/丢段会留在地上。
+          // 结构化过程条目先缓冲（见 pendingEntries 的注释）。
           if (!request.onTranscript) return;
           if (chunk.entries?.length) {
             const mode = chunk.replace ? ("replace" as const) : ("append" as const);
-            for (const entry of chunk.entries) {
-              if (entry.kind === "text" && entry.text.trim()) streamedText = true;
-              void request
-                .onTranscript({ kind: entry.kind, text: entry.text, mode })
-                .catch(() => undefined);
+            if (mode === "replace") {
+              // 权威重建（全量 stdout 重解析）直接替换缓冲：收口只落这一份，
+              // 执行期的尾窗差分版本从来不会进库，也就无所谓"旧 part 残留"。
+              pendingEntries = chunk.entries.map((entry) => ({
+                kind: entry.kind,
+                text: entry.text,
+                mode,
+              }));
+            } else {
+              for (const entry of chunk.entries) {
+                pendingEntries.push({ kind: entry.kind, text: entry.text, mode });
+              }
+            }
+            if (chunk.entries.some((entry) => entry.kind === "text" && entry.text.trim())) {
+              streamedText = true;
             }
             return;
           }
           // 没有结构化条目（非流式驱动）才用原始文本兜底；
           // 有 entries 时 raw text 是同一份内容的另一视图，再写一遍会重复。
           if (chunk.text) {
-            void request.onTranscript({ kind: "text", text: chunk.text }).catch(() => undefined);
+            pendingEntries.push({ kind: "text", text: chunk.text, mode: "append" });
+            if (chunk.text.trim()) streamedText = true;
           }
         },
       });
@@ -173,13 +191,6 @@ export function createExternalSubagentPort(
           });
       }
 
-      // 没流式到正文时把最终回答补进 transcript：
-      // 非流式驱动（只给一次性输出）与「模型只回 result」的情况靠这一步，
-      // 否则下钻面板只有思考/工具、看不到结论。
-      if (request.onTranscript && !streamedText && result.text.trim()) {
-        await request.onTranscript({ kind: "text", text: result.text }).catch(() => undefined);
-      }
-
       // 失败必须冒泡，不能被压成"已完成"。
       //
       // runner 的 `runAgentToCompletion` 无条件写 `status: "completed"`，它只把
@@ -189,11 +200,34 @@ export function createExternalSubagentPort(
       // ——用户会以为代码真的改好了。这里统一转成异常，让 runner 走 failed 路径。
       //
       // 顺序：先判外层取消（那是 cancelled 语义，不是失败），再判执行失败。
+      // **补写正文必须在失败判定之后**：失败时 result.text 是错误文本，先写进
+      // transcript 它在下钻面板里看起来就是子智能体的"回答"。
       if (runOptions.signal?.aborted) {
         throw runOptions.signal.reason ?? new Error("外部子智能体已被取消");
       }
       if (result.isError || result.exitCode !== 0) {
-        throw new Error(describeExternalSubagentFailure(result));
+        const failure = describeExternalSubagentFailure(result);
+        // 失败：执行期缓冲的内容一律不写（它可能是错误文本被解析成的正文），
+        // 只写一条 error 条目。面板据此区分"它执行失败了"与"它说了什么"。
+        await request.onTranscript?.({ kind: "error", text: failure }).catch(() => undefined);
+        throw new Error(failure);
+      }
+
+      // 成功：把缓冲的条目按顺序落库（权威重建已在缓冲里替换过）。
+      // 没流式到正文时补最终回答：非流式驱动与「模型只回 result」靠这一步。
+      if (request.onTranscript) {
+        const toWrite =
+          streamedText || !result.text.trim()
+            ? pendingEntries
+            : [
+                ...pendingEntries,
+                { kind: "text" as const, text: result.text, mode: "append" as const },
+              ];
+        for (const entry of toWrite) {
+          await request
+            .onTranscript({ kind: entry.kind, text: entry.text, mode: entry.mode })
+            .catch(() => undefined);
+        }
       }
 
       return {

@@ -91,6 +91,12 @@ export function ConversationAgentToolCallRow({
         onOpenAutomationsMain={context.onOpenAutomationsMain}
         agentSummaryAction={agentSummaryAction}
         authoritativeAgentType={subagentType}
+        // 只有 backend=external 才传预设 id：卡片据此画「外部 · preset」徽标。
+        {...(item.subagentRow.backend === "external" && item.subagentRow.presetId
+          ? { externalAgentPresetId: item.subagentRow.presetId }
+          : item.subagentRow.backend === "external"
+            ? { externalAgentPresetId: subagentType }
+            : {})}
       />
     </div>
   );

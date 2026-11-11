@@ -83,7 +83,13 @@ export interface ExternalSubagentRunRequest {
  * 条目种类对齐——不做更细的类型化，避免在适配层发明 CLI 没有的语义。
  */
 export interface ExternalSubagentTranscriptEntry {
-  kind: "text" | "reasoning" | "tool";
+  /**
+   * 条目种类。
+   *
+   * `error` 表示这次执行失败的原因摘要。它与 `text` 刻意分开：失败文本若当正文
+   * 写进去，下钻面板里看起来就是子智能体的"回答"，而它其实什么都没做成。
+   */
+  kind: "text" | "reasoning" | "tool" | "error";
   text: string;
   /**
    * 增量还是快照。

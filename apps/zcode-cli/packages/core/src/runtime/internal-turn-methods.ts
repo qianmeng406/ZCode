@@ -446,6 +446,12 @@ export interface AgentRuntimeTurnMethods {
     traceContext: TraceContext,
     copyFrom?: Parameters<SessionStorePort["savePart"]>[1],
   ): Promise<void>;
+  /** 删除一条已落盘的 part（权威重建时清掉执行期的差分版本）。 */
+  removePersistedPart(input: {
+    sessionID: SessionId;
+    messageID: MessageId;
+    partID: PartId;
+  }): Promise<void>;
   rebuildProjection(): Promise<SessionProjection>;
   /** 外部子智能体的子会话 transcript 写入器（下钻面板数据源）。 */
   createExternalSubagentTranscriptWriter(input: {

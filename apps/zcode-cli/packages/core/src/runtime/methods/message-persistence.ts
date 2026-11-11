@@ -7,6 +7,7 @@ import type {
   MessageId,
   MessageInfo,
   MessagePart,
+  PartId,
   MessageVisibility,
   Model,
   SessionId,
@@ -383,6 +384,30 @@ export async function persistPart(
     module: "core.runtime",
     partId: input.id,
     partType: input.type,
+    status: "completed",
+  });
+}
+
+/**
+ * 删除一条已落盘的 part。
+ *
+ * 用途：外部子智能体的权威重建。driver 收口时用全量 stdout 重新解析出完整条目
+ * 列表，而执行期写入的是靠尾窗差分拼出来的版本（可能重复、丢段）。只把内存
+ * 数组换掉、再逐条 save 新 part 是不够的——旧 part 仍在库里，面板会同时显示
+ * 两份。必须显式删掉旧的那些。
+ */
+export async function removePersistedPart(
+  this: AgentRuntimeInternal,
+  input: { sessionID: SessionId; messageID: MessageId; partID: PartId },
+): Promise<void> {
+  if (!this.sessionStore) return;
+  await this.sessionStore.removePart(input);
+  this.logger?.debug("Session part removed", {
+    event: "session.part.removed",
+    messageId: input.messageID,
+    module: "core.runtime",
+    partId: input.partID,
+    sessionId: input.sessionID,
     status: "completed",
   });
 }

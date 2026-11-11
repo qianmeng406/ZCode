@@ -218,8 +218,23 @@ export function AgentToolCallBlock(context: ToolCallBlockRenderContext) {
   const agentColor = agentName
     ? (configuredAgentColor ?? getAgentColor(toolCall) ?? resolveSubagentColorFromName(agentName))
     : null;
+  // 外部 CLI 子智能体徽标：与 agent 名并列显示预设名。这类子智能体不支持
+  // 运行中消息、也没有 token 统计——不标出来用户会按原生子智能体的预期去用它。
+  const externalBadge = context.externalAgentPresetId ? (
+    <span className="shrink-0 rounded border border-input-border-subtle px-1.5 py-0.5 text-ui-sm text-foreground-subtle">
+      {formatAgentMessage(intl, "chat.toolCall.agent.externalBadge", "External")} ·{" "}
+      {context.externalAgentPresetId}
+    </span>
+  ) : null;
   const agentNameDetail =
-    agentName && agentColor ? <AgentNameText color={agentColor} name={agentName} /> : null;
+    agentName && agentColor ? (
+      <>
+        <AgentNameText color={agentColor} name={agentName} />
+        {externalBadge}
+      </>
+    ) : (
+      externalBadge
+    );
   // Agent 父块的完成/进行中边界只由父 Agent tool 决定。
   // 子 tool 是展开区明细，不能反向续住父块运行态，否则父 Agent completed 后
   // 仍会显示渐变和子工具摘要，和协议里的父工具生命周期不一致。

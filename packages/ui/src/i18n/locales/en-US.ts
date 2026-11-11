@@ -1867,6 +1867,7 @@ const enUS: Record<string, string> = {
   "subagentDirectory.status.cancelled": "Cancelled",
   // 外部 CLI 子智能体徽标：让用户一眼看出这次不是 ZCode 自己的子 runtime 在跑。
   "subagentDirectory.backend.external": "External",
+  "chat.toolCall.agent.externalBadge": "External",
   // 外部子智能体的进程不会随应用重启复活：如实说明是「中断」而不是「失败」。
   "subagentDirectory.lost.external": "External process ended with the app",
   "subagentDirectory.status.lost": "Lost",

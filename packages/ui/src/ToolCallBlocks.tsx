@@ -101,6 +101,7 @@ function ToolCallBlockComponent({
   animateDiffCountOnMount = false,
   agentSummaryAction,
   authoritativeAgentType,
+  externalAgentPresetId,
   streamingEntranceActive = false,
   streamingEntranceKeyPrefix = "tool",
   cuaGroupEvents,
@@ -146,6 +147,13 @@ function ToolCallBlockComponent({
   animateDiffCountOnMount?: boolean;
   agentSummaryAction?: ToolCallBlockRenderContext["agentSummaryAction"];
   authoritativeAgentType?: ToolCallBlockRenderContext["authoritativeAgentType"];
+  /**
+   * 外部 CLI 子智能体的预设 id（有值即表示 backend=external）。
+   *
+   * 与 authoritativeAgentType 分开传而不是拼成字符串：卡片要把「预设名」画成
+   * 独立徽标，且能力差异（无运行中消息、无 token 统计）需要它出现在提示里。
+   */
+  externalAgentPresetId?: string;
   streamingEntranceActive?: boolean;
   streamingEntranceKeyPrefix?: string;
   cuaGroupEvents?: readonly ConversationCuaGroupEvent[];
@@ -316,6 +324,7 @@ function ToolCallBlockComponent({
       animateDiffCountOnMount,
       agentSummaryAction,
       authoritativeAgentType,
+      externalAgentPresetId,
       onOpenCodeViewer: toolPreviewCodeViewer,
       onOpenFileLink,
       onOpenBrowserUrl,
@@ -338,6 +347,7 @@ function ToolCallBlockComponent({
       isOfficeMode,
       agentSummaryAction,
       authoritativeAgentType,
+      externalAgentPresetId,
       childToolList,
       codePreviewSettings,
       cuaAppIconClassName,
