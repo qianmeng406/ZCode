@@ -49,6 +49,14 @@ export const externalAgentBindingSchema = z
     /** 外部 agent 自己的只读档位（claude-family 下为 --permission-mode 的值）。 */
     permissionMode: z.string().max(40).optional(),
     /**
+     * profile 级显式覆盖（S7 Explore 渠道）：优先级最高，压过预设值。
+     *
+     * 与落库的 `permissionMode` 是两回事：那个是"绑定时的历史值"，必须跟随预设
+     * 升级（跟随代码语义）；override 是"这个身份明确要求的档位"（如 Explore 的
+     * 只读 plan 模式），预设值不得盖掉它。缺席时优先级链行为逐字不变。
+     */
+    permissionModeOverride: z.string().max(40).optional(),
+    /**
      * 内置预设 id（绑定来自哪个已适配的 agent）。
      * 只作溯源与 UI 回显；真正的调用形状仍由 driver/args 决定，
      * 这样用户手改过参数后不会因为预设目录变化而被静默改写。
@@ -231,7 +239,9 @@ export function buildExternalAgentInvocation(
     // （如 acceptEdits 改 bypassPermissions）后旧绑定必须跟着生效，否则用户会
     // 得到一个"能改文件但跑不了命令"的半残执行器。手填命令仍用绑定自己的值。
     const permissionMode =
-      findExternalAgentPreset(binding.presetId)?.permissionMode ?? binding.permissionMode;
+      binding.permissionModeOverride ??
+      findExternalAgentPreset(binding.presetId)?.permissionMode ??
+      binding.permissionMode;
     if (permissionMode) args.push("--permission-mode", permissionMode);
     // 续接语义由**用户钉死**（徽标菜单选了哪个外部会话）：有 externalSessionId 就
     // 永远 `-r` 它——包括工具入参传 continuation:"fresh" 时。实测（2026-11-07）让
@@ -276,8 +286,11 @@ export function buildExternalAgentInvocation(
     // --auto：自动批准未显式拒绝的权限。非交互委派下没人能点确认框，不给这个
     // 标志外部 agent 会在第一个需要批准的操作上卡死。同样跟随预设代码走，
     // 手填命令仍用绑定自己的值。
-    const permissionMode =
-      findExternalAgentPreset(binding.presetId)?.permissionMode ?? binding.permissionMode;
+    // permissionModeOverride（S7 Explore 渠道）= 该身份要求受限执行：这两族的
+    // "档位"不是可选值而是解除限制的开关，保持缺省（不解除）即只读。
+    const permissionMode = binding.permissionModeOverride
+      ? undefined
+      : (findExternalAgentPreset(binding.presetId)?.permissionMode ?? binding.permissionMode);
     if (permissionMode) args.push("--auto");
     const modelFlag = resolveModelFlag(binding);
     // 档位在这族里是模型串的后缀（`provider/model#variant`），必须与 --model 一起进：
@@ -309,8 +322,11 @@ export function buildExternalAgentInvocation(
     // headless 默认拒绝写文件与执行 shell；解除限制的开关是 `--yolo`，不是
     // `--permission-mode yolo`（后者在 headless 下不生效）。权限值跟随预设代码走，
     // 手填命令仍用绑定自己的值。
-    const permissionMode =
-      findExternalAgentPreset(binding.presetId)?.permissionMode ?? binding.permissionMode;
+    // permissionModeOverride（S7 Explore 渠道）= 该身份要求受限执行：保持缺省
+    // （不解除限制）即只读，与 codex 同理。
+    const permissionMode = binding.permissionModeOverride
+      ? undefined
+      : (findExternalAgentPreset(binding.presetId)?.permissionMode ?? binding.permissionMode);
     if (permissionMode) args.push("--yolo");
     // 续接与 claude-family 同语义：headless 只接受显式 id（裸 --resume 会报错），
     // 有 externalSessionId 就永远钉死它。失效 id 是报错还是自动新开未实测

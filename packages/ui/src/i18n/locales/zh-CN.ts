@@ -5241,6 +5241,10 @@ const zhCN: Record<string, string> = {
   "settings.subagents.edit": "编辑子智能体",
   "settings.subagents.editDescription": "修改子智能体配置，保存后返回列表。",
   "settings.subagents.backToList": "返回",
+  "settings.subagents.channel.native": "ZCode 内置",
+  "settings.subagents.channel.generalHint": "由 {presetLabel} 执行，ZCode 工具权限不适用于它",
+  "settings.subagents.channel.exploreHint":
+    "由 {presetLabel} 以 plan 模式执行（只读由 CLI 侧保证）",
   "settings.subagents.badge.external": "外部 · {presetId}",
   "settings.subagents.form.backend.label": "类型",
   "settings.subagents.form.backend.native": "原生",

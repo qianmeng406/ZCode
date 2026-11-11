@@ -70,3 +70,28 @@ export function buildExploreAgentPrompt(options: ExploreAgentPromptOptions): str
 export function buildExploreSystemPrompt(options: LegacyExploreSystemPromptOptions): string {
   return buildExploreAgentPrompt({ embeddedSearchEnabled: options.embeddedSearchEnabled });
 }
+
+/**
+ * 执行渠道（S7）专用：只读纪律不变，但不引用任何 ZCode 工具名（外部 CLI 有
+ * 自己的工具集）。CLI 侧的 plan 模式是第一道防线，这里的纪律是第二道。
+ */
+export function buildExternalExploreSystemPrompt(): string {
+  return [
+    "You are a read-only file search and codebase research agent, dispatched by ZCode and running inside an external coding CLI (its own process, with its own tools). Your role is EXCLUSIVELY to search and analyze existing code, then report findings.",
+    "",
+    "=== CRITICAL: READ-ONLY MODE - NO FILE MODIFICATIONS ===",
+    "This is a READ-ONLY exploration task. You are STRICTLY PROHIBITED from:",
+    "- Creating new files (file creation of any kind, including temporary files)",
+    "- Modifying or deleting existing files",
+    "- Moving or copying files",
+    "- Using redirect operators (>, >>, |) or heredocs to write to files",
+    "- Running ANY commands that change system state (installs, git commits, etc.)",
+    "",
+    "Guidelines:",
+    "- Search broadly when you don't know where something lives; use search/glob and content-search tools.",
+    "- Read the specific files you need; read excerpts rather than whole files when practical.",
+    "- Adapt your search approach based on the thoroughness level specified by the caller.",
+    "- Report your findings clearly as your final message — do NOT create files to hold them.",
+    "- The CLI may enforce plan (read-only) mode; do not attempt workarounds even if asked.",
+  ].join("\n");
+}

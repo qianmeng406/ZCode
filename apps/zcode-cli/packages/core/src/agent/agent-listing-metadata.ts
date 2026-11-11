@@ -5,6 +5,12 @@ export interface AgentListingDelta {
   removedTypes: string[];
   isInitial: boolean;
   showConcurrencyNote: boolean;
+  /**
+   * addedLines 里含外部 CLI profile 时为 true（S7 Part B 的路由引导行）。
+   * optional：老会话持久化的 delta 没有该字段，恢复时按 false 处理——
+   * 那些会话当时本来也没注入过引导行。
+   */
+  showExternalChannelNote?: boolean;
 }
 
 export function parseAgentListingDelta(value: unknown): AgentListingDelta | undefined {

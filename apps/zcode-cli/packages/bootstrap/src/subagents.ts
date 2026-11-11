@@ -13,6 +13,8 @@ import {
   createPluginAgentStateId,
   parsePluginSubagentModelSelectionOverrides,
   modelSelectionSchema,
+  isChannelReadyPreset,
+  type BuiltInExecutionChannelOverrides,
   type BuiltInSubagentModelSelectionOverrides,
   type PluginSubagentModelSelectionOverrides,
 } from "@zcode/shared";
@@ -26,6 +28,8 @@ interface LoadZCodeAgentProfilesInput {
 
 interface LoadZCodeAgentProfilesResult {
   builtInModelSelectionOverrides: BuiltInSubagentModelSelectionOverrides;
+  /** 内置身份执行渠道覆盖（S7）；读取时即做渠道候选收敛（未 ready 的 key 丢弃）。 */
+  builtInExecutionChannel: BuiltInExecutionChannelOverrides;
   pluginAgentModelSelectionOverrides: PluginSubagentModelSelectionOverrides;
   diagnostics: AgentProfileParseDiagnostic[];
   profiles: AgentProfile[];
@@ -103,7 +107,13 @@ export async function loadZCodeAgentProfiles(
       ...diagnostic,
       module: "bootstrap.subagents",
     });
-  return { ...parsed, diagnostics: [...diagnostics, ...parsed.diagnostics] };
+  return {
+    ...parsed,
+    // 磁盘路径的渠道覆盖来自 state 读取（已收敛）；parseRuntimeSubagentConfig 的
+    // 返回不含它（snapshot/RPC 路径刻意不带渠道字段，见 subagentProfilesFromSnapshot）。
+    builtInExecutionChannel: agentState.builtInExecutionChannel,
+    diagnostics: [...diagnostics, ...parsed.diagnostics],
+  };
 }
 
 export function loadPluginAgentTemplates(
@@ -178,6 +188,7 @@ export function resolvePluginAgentProfiles(
 
   return {
     builtInModelSelectionOverrides: {},
+    builtInExecutionChannel: {},
     pluginAgentModelSelectionOverrides: {},
     diagnostics,
     profiles,
@@ -253,6 +264,7 @@ function countBareProfileNames(
 
 async function readAgentState(storageRoot: string): Promise<{
   builtInModelSelectionOverrides: BuiltInSubagentModelSelectionOverrides;
+  builtInExecutionChannel: BuiltInExecutionChannelOverrides;
   pluginAgentModelSelectionOverrides: PluginSubagentModelSelectionOverrides;
   disabledAgentIds: Set<string>;
 }> {
@@ -260,6 +272,7 @@ async function readAgentState(storageRoot: string): Promise<{
     const raw = await readFile(join(storageRoot, "v2", "agents-state.json"), "utf8");
     const parsed = JSON.parse(raw) as {
       builtInModelSelectionOverrides?: unknown;
+      builtInExecutionChannel?: unknown;
       pluginAgentModelSelectionOverrides?: unknown;
       disabledAgentIds?: unknown;
     };
@@ -269,6 +282,9 @@ async function readAgentState(storageRoot: string): Promise<{
       ),
       builtInModelSelectionOverrides: normalizeBuiltInSelectionOverrides(
         parsed.builtInModelSelectionOverrides,
+      ),
+      builtInExecutionChannel: normalizeBuiltInExecutionChannel(
+        parsed.builtInExecutionChannel,
       ),
       disabledAgentIds: new Set(
         Array.isArray(parsed.disabledAgentIds)
@@ -281,6 +297,7 @@ async function readAgentState(storageRoot: string): Promise<{
   } catch {
     return {
       builtInModelSelectionOverrides: {},
+      builtInExecutionChannel: {},
       pluginAgentModelSelectionOverrides: {},
       disabledAgentIds: new Set(),
     };
@@ -315,4 +332,25 @@ async function listMarkdownFiles(root: string): Promise<string[]> {
     }
   }
   return result.sort((left, right) => left.localeCompare(right));
+}
+
+/**
+ * state 文件的 builtInExecutionChannel → 收敛后的覆盖表。
+ *
+ * 三条防线之二（第三道在 core 的 normalizeAgentProfiles）：未知 key 丢弃、
+ * 形状不对丢弃、preset 未标 subagentChannelReady 丢弃——手改 JSON 也绕不过。
+ * 这里没有 Explore 的只读档位判断（依赖 preset 数据，core 侧统一收敛）。
+ */
+function normalizeBuiltInExecutionChannel(value: unknown): BuiltInExecutionChannelOverrides {
+  if (!value || typeof value !== "object" || Array.isArray(value)) return {};
+  const result: BuiltInExecutionChannelOverrides = {};
+  for (const key of ["general-purpose", "Explore"] as const) {
+    const entry = (value as Record<string, unknown>)[key];
+    if (!entry || typeof entry !== "object" || Array.isArray(entry)) continue;
+    const presetId = (entry as { presetId?: unknown }).presetId;
+    if (typeof presetId !== "string" || presetId.trim().length === 0) continue;
+    if (!isChannelReadyPreset(presetId.trim())) continue;
+    result[key] = { presetId: presetId.trim() };
+  }
+  return result;
 }

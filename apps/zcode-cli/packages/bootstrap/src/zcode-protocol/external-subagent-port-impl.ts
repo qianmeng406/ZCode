@@ -338,6 +338,10 @@ export function buildBindingFromProfile(profile: AgentProfile): ExternalAgentBin
     promptDelivery: preset.promptDelivery,
     presetId: preset.id,
     ...(preset.permissionMode ? { permissionMode: preset.permissionMode } : {}),
+    // S7 渠道化：profile.permissionMode 在 external backend 上的语义是"该身份
+    // 明确要求的 CLI 权限档位"（Explore 只读 = plan），以 override 身份压过预设值
+    // （落库的 permissionMode 是历史值，必须跟随预设升级——两者优先级不同）。
+    ...(profile.permissionMode ? { permissionModeOverride: profile.permissionMode } : {}),
     ...(profile.model ? { model: profile.model } : {}),
     ...(profile.effort ? { effortsByModel: { [modelKey]: profile.effort } } : {}),
     ...(profile.contextWindow

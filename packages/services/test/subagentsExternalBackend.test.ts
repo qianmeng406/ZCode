@@ -5,7 +5,7 @@
 // 2. serializer 往返保留外部字段（S6 前保存即静默降级为 native 的真实缺陷）；
 // 3. createAgent/updateAgent 的保存校验与落盘结果（坏 preset 挡在写盘前）。
 import assert from "node:assert/strict";
-import { mkdtemp, readFile, rm } from "node:fs/promises";
+import { mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import test from "node:test";
@@ -325,6 +325,132 @@ test("保存校验：外部 config 缺 presetId / partial preset / 坏窗口均�
       }),
       /正整数/,
     );
+  } finally {
+    await rm(home, { recursive: true, force: true });
+  }
+});
+
+test("setBuiltInExecutionChannel：写入/清除投影到 list（general-purpose + Explore）", async () => {
+  const home = await mkdtemp(join(tmpdir(), "zcode-subagents-"));
+  try {
+    const service = createSubagentsService({ homeDir: home, isDesktopRuntime: true });
+    await service.setBuiltInExecutionChannel({
+      agentName: "general-purpose",
+      presetId: "codebuddy",
+    });
+    let listed = await service.list({
+      workspacePath: "",
+      provider: undefined as never,
+      mode: "settingsUserOnly",
+    });
+    let general = listed.agents.find((agent) => agent.name === "general-purpose");
+    assert.equal(general?.backend, "external");
+    assert.equal(general?.presetId, "codebuddy");
+    // 渠道化后 native 模型覆盖被互斥剥离（未设置过覆盖 → 本就 undefined）。
+
+    await service.setBuiltInExecutionChannel({ agentName: "Explore", presetId: "codebuddy" });
+    listed = await service.list({
+      workspacePath: "",
+      provider: undefined as never,
+      mode: "settingsUserOnly",
+    });
+    const explore = listed.agents.find((agent) => agent.name === "Explore");
+    assert.equal(explore?.backend, "external");
+    assert.equal(explore?.presetId, "codebuddy");
+
+    await service.setBuiltInExecutionChannel({ agentName: "general-purpose" });
+    listed = await service.list({
+      workspacePath: "",
+      provider: undefined as never,
+      mode: "settingsUserOnly",
+    });
+    general = listed.agents.find((agent) => agent.name === "general-purpose");
+    assert.equal(general?.backend, undefined);
+    // Explore 未清除，仍保持 external。
+    assert.equal(listed.agents.find((agent) => agent.name === "Explore")?.backend, "external");
+  } finally {
+    await rm(home, { recursive: true, force: true });
+  }
+});
+
+test("setBuiltInExecutionChannel fail-closed：未开渠道 preset / Explore 无只读档位 / 探测未安装 / 探测失败均拒绝", async () => {
+  const home = await mkdtemp(join(tmpdir(), "zcode-subagents-"));
+  try {
+    const service = createSubagentsService({ homeDir: home, isDesktopRuntime: true });
+    await assert.rejects(
+      service.setBuiltInExecutionChannel({ agentName: "general-purpose", presetId: "opencode" }),
+      /未开启执行渠道/,
+    );
+    // 首期无第二个声明只读档位的 preset；Explore × 未开渠道同样拒绝。
+    await assert.rejects(
+      service.setBuiltInExecutionChannel({ agentName: "Explore", presetId: "opencode" }),
+      /未开启执行渠道/,
+    );
+
+    const probed = createSubagentsService({
+      homeDir: home,
+      isDesktopRuntime: true,
+      probeExternalAgents: async () => [
+        {
+          preset: { id: "codebuddy", label: "CodeBuddy" },
+          installed: false,
+          models: [],
+          modelCatalog: [],
+        },
+      ],
+    } as never);
+    await assert.rejects(
+      probed.setBuiltInExecutionChannel({ agentName: "general-purpose", presetId: "codebuddy" }),
+      /未安装/,
+    );
+
+    const probeError = createSubagentsService({
+      homeDir: home,
+      isDesktopRuntime: true,
+      probeExternalAgents: async () => [
+        {
+          preset: { id: "codebuddy", label: "CodeBuddy" },
+          installed: true,
+          probeError: "spawn_enoent",
+          models: [],
+          modelCatalog: [],
+        },
+      ],
+    } as never);
+    await assert.rejects(
+      probeError.setBuiltInExecutionChannel({
+        agentName: "general-purpose",
+        presetId: "codebuddy",
+      }),
+      /探测失败/,
+    );
+  } finally {
+    await rm(home, { recursive: true, force: true });
+  }
+});
+
+test("state 文件手改写入未开渠道 preset：读取时被收敛丢弃（防线之二）", async () => {
+  const home = await mkdtemp(join(tmpdir(), "zcode-subagents-"));
+  try {
+    const service = createSubagentsService({ homeDir: home, isDesktopRuntime: true });
+    await service.setEnabled({ agentId: "probe", enabled: true }); // 触发 state 文件生成
+    const stateFile = join(home, ".zcode", "v2", "agents-state.json");
+    const raw = JSON.parse(await readFile(stateFile, "utf-8"));
+    raw.builtInExecutionChannel = {
+      "general-purpose": { presetId: "opencode" },
+      Explore: { presetId: "no-such-cli" },
+    };
+    await writeFile(stateFile, JSON.stringify(raw), "utf-8");
+    const listed = await service.list({
+      workspacePath: "",
+      provider: undefined as never,
+      mode: "settingsUserOnly",
+    });
+    assert.equal(
+      listed.agents.find((agent) => agent.name === "general-purpose")?.backend,
+      undefined,
+    );
+    assert.equal(listed.agents.find((agent) => agent.name === "Explore")?.backend, undefined);
   } finally {
     await rm(home, { recursive: true, force: true });
   }

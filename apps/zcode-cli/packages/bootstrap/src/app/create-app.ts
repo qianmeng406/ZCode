@@ -301,6 +301,7 @@ export async function createZCodeApp(options: ZCodeAppOptions): Promise<ZCodeApp
         pluginRuntimeFeatures,
         builtInSubagentModelSelectionOverrides:
           zcodeSubagentProfileOutcome.builtInModelSelectionOverrides,
+        builtInExecutionChannelOverrides: zcodeSubagentProfileOutcome.builtInExecutionChannel,
         subagentOutputRootDir: join(cliStorageRoot, "agents"),
         subagentProfiles,
         storageRoot,
@@ -943,6 +944,10 @@ export async function createZCodeApp(options: ZCodeAppOptions): Promise<ZCodeApp
                     builtInModelSelectionOverrides: {
                       ...parsed.builtInModelSelectionOverrides,
                       ...options.runtimeConfig?.subagents?.builtInModelSelectionOverrides,
+                    },
+                    builtInExecutionChannel: {
+                      ...parsed.builtInExecutionChannel,
+                      ...options.runtimeConfig?.subagents?.builtInExecutionChannel,
                     },
                   },
                 ),

@@ -135,6 +135,8 @@ export interface ExploreSubagentPortOptions {
   builtInModelSelectionOverrides?: Partial<
     Record<"general-purpose" | "Explore", import("@zcode/shared").ModelSelection>
   >;
+  /** 内置身份执行渠道覆盖（S7）；达标 preset 才生效，core 侧再收敛一次。 */
+  builtInExecutionChannel?: import("@zcode/shared").BuiltInExecutionChannelOverrides;
   runtimeTaskRegistry?: RuntimeTaskRegistry;
   createAgentId?: () => string;
   getAllowedTools?: (profile: AgentProfile) => readonly string[];
@@ -178,6 +180,7 @@ export function createExploreSubagentPort(options: ExploreSubagentPortOptions): 
   const borrowedForegroundAgentIds = new Set<string>();
   const initialProfiles = normalizeAgentProfiles(options.profiles ?? [], {
     builtInModelSelectionOverrides: options.builtInModelSelectionOverrides,
+    builtInExecutionChannel: options.builtInExecutionChannel,
   });
   const getProfiles = () => options.getAgentDefinitions?.().activeAgents ?? initialProfiles;
   const autoBackgroundMs = normalizeAutoBackgroundMs(options.autoBackgroundMs);

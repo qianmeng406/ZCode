@@ -5,6 +5,7 @@ import {
   createAgentStateId,
   createPluginAgentStateId,
   findExternalAgentPreset,
+  isChannelReadyPreset,
   parsePluginSubagentModelSelectionOverrides,
   DEFAULT_ENABLED_OFFICIAL_PLUGIN_IDS,
   ZCODE_OFFICIAL_PLUGIN_MARKETPLACE_ID,
@@ -26,6 +27,7 @@ import {
   type SubagentsListMode,
   type ZCodeProvider,
   type ExternalAgentPresetStatus,
+  type BuiltInExecutionChannelOverrides,
 } from "@zcode/shared";
 import { normalizeSubagentModelSelection } from "./subagentModelSelection.js";
 import { serializeSubagentMarkdown, parseSubagentMarkdown } from "./subagentMarkdown.js";
@@ -52,6 +54,8 @@ const subagentLogger = createServiceLogger("subagents");
 
 interface AgentsStateFile {
   builtInModelSelectionOverrides: BuiltInSubagentModelSelectionOverrides;
+  /** 内置身份执行渠道覆盖（S7）；读取时即做渠道候选收敛，未达标 key 丢弃。 */
+  builtInExecutionChannel: BuiltInExecutionChannelOverrides;
   pluginAgentModelSelectionOverrides: PluginSubagentModelSelectionOverrides;
   disabledAgentIds: string[];
   // 仅供旧版本回滚保留；新版存在选择字段后，禁止再从这两个字段恢复覆盖。
@@ -100,9 +104,12 @@ const PLUGIN_MANIFEST_PATHS = [
 
 function createBuiltInAgents(
   modelSelectionOverrides: BuiltInSubagentModelSelectionOverrides = {},
+  executionChannel: BuiltInExecutionChannelOverrides = {},
 ): AgentSummary[] {
   const generalPurposeOverride = modelSelectionOverrides["general-purpose"];
   const exploreOverride = modelSelectionOverrides.Explore;
+  const generalChannel = executionChannel["general-purpose"];
+  const exploreChannel = executionChannel.Explore;
   return [
     {
       id: createAgentStateId({
@@ -116,10 +123,13 @@ function createBuiltInAgents(
       // 内置子智能体使用显式身份色，避免 UI 按名称 hash 后把 general-purpose 显示为红色。
       color: "blue",
       injectAgentsMd: true,
-      modelSelection: generalPurposeOverride,
-      modelSelectionOverride: generalPurposeOverride,
+      modelSelection: generalChannel ? undefined : generalPurposeOverride,
+      modelSelectionOverride: generalChannel ? undefined : generalPurposeOverride,
       systemPrompt: "",
       tools: ["*"],
+      ...(generalChannel
+        ? { backend: "external" as const, presetId: generalChannel.presetId }
+        : {}),
       path: "built-in:general-purpose",
       scope: "built-in",
       source: "built-in",
@@ -136,10 +146,13 @@ function createBuiltInAgents(
       description: "Read-only search agent for broad fan-out searches.",
       color: "cyan",
       injectAgentsMd: false,
-      modelSelection: exploreOverride,
-      modelSelectionOverride: exploreOverride,
+      modelSelection: exploreChannel ? undefined : exploreOverride,
+      modelSelectionOverride: exploreChannel ? undefined : exploreOverride,
       systemPrompt: "",
       tools: ["Bash", "Glob", "Grep", "Read", "WebFetch", "WebSearch", "TodoWrite"],
+      ...(exploreChannel
+        ? { backend: "external" as const, presetId: exploreChannel.presetId }
+        : {}),
       path: "built-in:Explore",
       scope: "built-in",
       source: "built-in",
@@ -152,9 +165,33 @@ function createBuiltInAgents(
 function emptyAgentsState(): AgentsStateFile {
   return {
     builtInModelSelectionOverrides: {},
+    builtInExecutionChannel: {},
     pluginAgentModelSelectionOverrides: {},
     disabledAgentIds: [],
   };
+}
+
+/**
+ * state 文件的 builtInExecutionChannel → 收敛后的覆盖表（S7）。
+ *
+ * 三条防线之二（第三道在 core 的 normalizeAgentProfiles）：未知 key 丢弃、形状
+ * 不对丢弃、preset 未标 subagentChannelReady 丢弃；Explore 额外要求 preset 声明
+ * 只读档位——与 core 的收敛口径一致，手改 JSON 绕不过。
+ */
+function normalizeBuiltInExecutionChannel(value: unknown): BuiltInExecutionChannelOverrides {
+  if (!value || typeof value !== "object" || Array.isArray(value)) return {};
+  const result: BuiltInExecutionChannelOverrides = {};
+  for (const [key, entry] of Object.entries(value)) {
+    if (key !== "general-purpose" && key !== "Explore") continue;
+    if (!entry || typeof entry !== "object" || Array.isArray(entry)) continue;
+    const presetId = (entry as { presetId?: unknown }).presetId;
+    if (typeof presetId !== "string" || presetId.trim().length === 0) continue;
+    const preset = findExternalAgentPreset(presetId.trim());
+    if (!isChannelReadyPreset(presetId.trim())) continue;
+    if (key === "Explore" && preset?.readOnlyPermissionMode === undefined) continue;
+    result[key] = { presetId: presetId.trim() };
+  }
+  return result;
 }
 
 async function exists(path: string): Promise<boolean> {
@@ -176,6 +213,7 @@ async function readAgentStateAtPath(stateFile: string): Promise<AgentsStateFile>
     const raw = await readFile(stateFile, "utf-8");
     const parsed = JSON.parse(raw) as {
       builtInModelSelectionOverrides?: unknown;
+      builtInExecutionChannel?: unknown;
       pluginAgentModelSelectionOverrides?: unknown;
       builtInModelOverrides?: unknown;
       builtInThoughtLevelOverrides?: unknown;
@@ -185,6 +223,7 @@ async function readAgentStateAtPath(stateFile: string): Promise<AgentsStateFile>
     return {
       ...parsed,
       builtInModelSelectionOverrides: selections,
+      builtInExecutionChannel: normalizeBuiltInExecutionChannel(parsed.builtInExecutionChannel),
       pluginAgentModelSelectionOverrides: parsePluginSubagentModelSelectionOverrides(
         parsed.pluginAgentModelSelectionOverrides,
       ),
@@ -198,6 +237,7 @@ async function readAgentStateAtPath(stateFile: string): Promise<AgentsStateFile>
     // 文件缺失/损坏沿用既有空覆盖语义；IO 失败不能伪装为空配置并重新启用已禁用 agent。
     if (error instanceof SyntaxError || (error as NodeJS.ErrnoException).code === "ENOENT")
       return emptyAgentsState();
+
     throw error;
   }
 }
@@ -638,7 +678,10 @@ export function createSubagentsService(options?: SubagentsServiceOptions): ISuba
           });
       }
       const state = await readAgentStateFile(storageOptions);
-      const builtInAgents = createBuiltInAgents(state.builtInModelSelectionOverrides);
+      const builtInAgents = createBuiltInAgents(
+        state.builtInModelSelectionOverrides,
+        state.builtInExecutionChannel,
+      );
       const fileAgents = await discoverFileAgents({
         diagnostics,
         includeUserAgents: capability.userScopeAvailable,
@@ -734,6 +777,59 @@ export function createSubagentsService(options?: SubagentsServiceOptions): ISuba
         else delete overrides[params.agentId];
         await writeAgentStateFile(
           { ...state, pluginAgentModelSelectionOverrides: overrides },
+          storageOptions,
+        );
+      };
+      await mutate(runUpdate);
+    },
+
+    async setBuiltInExecutionChannel(params: {
+      agentName: "general-purpose" | "Explore";
+      /** undefined = 恢复 ZCode 内置执行。 */
+      presetId?: string;
+    }): Promise<void> {
+      const runUpdate = async () => {
+        const presetId = params.presetId?.trim();
+        if (!presetId) {
+          // 清除：恢复 native。
+          const state = await readAgentStateFile(storageOptions);
+          const next = { ...state.builtInExecutionChannel };
+          delete next[params.agentName];
+          await writeAgentStateFile({ ...state, builtInExecutionChannel: next }, storageOptions);
+          return;
+        }
+        // ── fail-closed 校验（D3/D5）──
+        if (!isChannelReadyPreset(presetId)) {
+          throw new Error(`外部 CLI 预设未开启执行渠道：${presetId}`);
+        }
+        const preset = findExternalAgentPreset(presetId)!;
+        if (params.agentName === "Explore" && preset.readOnlyPermissionMode === undefined) {
+          throw new Error(`预设 ${presetId} 未声明只读模式，不能承接 Explore`);
+        }
+        // 装机探测（S6 数据源）：探测实现未注入（CLI 环境）时跳过——该环境没有 UI 入口。
+        if (options?.probeExternalAgents) {
+          const statuses = await options.probeExternalAgents();
+          if (statuses) {
+            const status = statuses.find((entry) => entry.preset.id === presetId);
+            if (!status || status.probeError) {
+              throw new Error(
+                `无法确认 ${preset.label} 可用（探测失败），已拒绝启用执行渠道；可稍后重试`,
+              );
+            }
+            if (!status.installed) {
+              throw new Error(`${preset.label} 未安装，已拒绝启用执行渠道`);
+            }
+          }
+        }
+        const state = await readAgentStateFile(storageOptions);
+        await writeAgentStateFile(
+          {
+            ...state,
+            builtInExecutionChannel: {
+              ...state.builtInExecutionChannel,
+              [params.agentName]: { presetId },
+            },
+          },
           storageOptions,
         );
       };

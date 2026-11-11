@@ -13,8 +13,10 @@ import { Bot, Check, Plus, Trash2 } from "lucide-react";
 import { completeNewModelSelection } from "@zcode/provider";
 import {
   EXTERNAL_AGENT_BINDABLE_PRESETS,
+  resolveChannelCandidates,
   resolveContextWindowLevels,
   resolveEffortLevels,
+  resolveExploreChannelCandidates,
   ZCODE_AGENT_PROVIDER,
   type AgentColor,
   type AgentProfileBackend,
@@ -546,6 +548,7 @@ function AgentListRow({
   modelCatalogStatus,
   modelSelectGroups,
   onModelOverrideChange,
+  onChannelChange,
   onDelete,
   onEdit,
   onToggle,
@@ -561,6 +564,7 @@ function AgentListRow({
     agent: AgentSummary,
     config: { model?: string; thoughtLevel?: string },
   ) => Promise<void>;
+  onChannelChange: (agent: AgentSummary, presetId: string | undefined) => Promise<void>;
   onDelete: (agent: AgentSummary) => void;
   onEdit: (agent: AgentSummary) => void;
   onToggle: (agent: AgentSummary, enabled: boolean) => void;
@@ -569,7 +573,11 @@ function AgentListRow({
   const editable = isEditableUserAgent(agent);
   const showEnabledToggle = supportsEnabledToggle(agent);
   const rowEditable = editable && !isOperating;
-  const hasModelOverrideControl = supportsModelOverride(agent);
+  const builtInName = getBuiltInSubagentName(agent);
+  // 渠道化（S7）后内置行走 external 渲染，native 模型覆盖控件语义互斥，必须隐藏。
+  const isChannelExternal = builtInName !== null && agent.backend === "external";
+  const hasModelOverrideControl = supportsModelOverride(agent) && !isChannelExternal;
+  const hasChannelControl = builtInName !== null;
   // 有覆盖控件的行由控件本身表达模型，不再重复显示模型徽标。
   const showModelBadge = !hasModelOverrideControl;
   const inheritModelLabel = intl.formatMessage({
@@ -596,7 +604,7 @@ function AgentListRow({
       className={cn(
         "grid cursor-default items-center gap-3 px-4 py-3 transition-colors",
         rowEditable && "hover:bg-hover",
-        hasModelOverrideControl
+        hasModelOverrideControl || hasChannelControl
           ? "grid-cols-[auto_minmax(0,1fr)] sm:grid-cols-[auto_minmax(0,1fr)_auto]"
           : "grid-cols-[auto_minmax(0,1fr)_auto]",
       )}
@@ -652,12 +660,18 @@ function AgentListRow({
       <div
         className={cn(
           "flex items-center gap-2",
-          hasModelOverrideControl
+          hasModelOverrideControl || hasChannelControl
             ? "col-span-2 min-w-0 justify-end sm:col-span-1 sm:shrink-0"
             : "shrink-0",
         )}
       >
-        {hasModelOverrideControl ? (
+        {hasChannelControl ? (
+          <SubagentChannelControl
+            agent={agent}
+            disabled={isOperating}
+            onChannelChange={onChannelChange}
+          />
+        ) : hasModelOverrideControl ? (
           <SubagentModelOverrideControl
             agent={agent}
             disabled={isOperating}
@@ -693,6 +707,83 @@ function AgentListRow({
           ) : null}
         </div>
       </div>
+    </div>
+  );
+}
+
+/**
+ * 内置身份（general-purpose / Explore）的行内执行渠道控件（S7），即改即存。
+ *
+ * 候选按身份过滤（resolveChannelCandidates / resolveExploreChannelCandidates——
+ * shared 单一真值）；渠道化时隐藏模型覆盖控件由 AgentListRow 的
+ * isChannelExternal 判定负责。fail-closed 拒绝时 onChannelChange 抛错，这里
+ * toast 并保持控件回滚到投影值。
+ */
+function SubagentChannelControl({
+  agent,
+  disabled,
+  onChannelChange,
+}: {
+  agent: AgentSummary;
+  disabled: boolean;
+  onChannelChange: (agent: AgentSummary, presetId: string | undefined) => Promise<void>;
+}) {
+  const { intl } = useZCodeIntl();
+  const [pending, setPending] = useState(false);
+  const builtInName = getBuiltInSubagentName(agent);
+  const candidates =
+    builtInName === "Explore" ? resolveExploreChannelCandidates() : resolveChannelCandidates();
+  const currentPresetId = agent.backend === "external" ? agent.presetId : undefined;
+  const value = currentPresetId ?? INHERIT_MODEL_VALUE;
+  const handleValueChange = (nextValue: string) => {
+    if (pending || disabled) return;
+    const nextPresetId = nextValue === INHERIT_MODEL_VALUE ? undefined : nextValue;
+    if (nextPresetId === currentPresetId) return;
+    setPending(true);
+    onChannelChange(agent, nextPresetId)
+      .catch((changeError: unknown) => {
+        // 投影值没变时控件自动回滚；toast 由 handler 统一给出。
+        logger.warn("[subagents] 执行渠道切换失败", changeError);
+      })
+      .finally(() => setPending(false));
+  };
+  const selectedPreset = currentPresetId
+    ? candidates.find((preset) => preset.id === currentPresetId)
+    : undefined;
+  return (
+    <div className="flex min-w-0 max-w-full flex-col items-end gap-1">
+      <Select value={value} onValueChange={handleValueChange}>
+        <SelectTrigger
+          size="sm"
+          className="w-fit min-w-36 justify-between"
+          disabled={disabled || pending}
+        >
+          <SelectValue />
+        </SelectTrigger>
+        <SelectContent>
+          <SelectItem value={INHERIT_MODEL_VALUE}>
+            {intl.formatMessage({ id: "settings.subagents.channel.native" })}
+          </SelectItem>
+          {candidates.map((preset) => (
+            <SelectItem key={preset.id} value={preset.id}>
+              {preset.label}
+            </SelectItem>
+          ))}
+        </SelectContent>
+      </Select>
+      {selectedPreset ? (
+        <span className="max-w-64 text-right text-ui-sm text-foreground-subtle">
+          {intl.formatMessage(
+            {
+              id:
+                builtInName === "Explore"
+                  ? "settings.subagents.channel.exploreHint"
+                  : "settings.subagents.channel.generalHint",
+            },
+            { presetLabel: selectedPreset.label },
+          )}
+        </span>
+      ) : null}
     </div>
   );
 }
@@ -2089,6 +2180,30 @@ export function SubagentsSection({
     [refresh, refreshMentionStore, subagentsService],
   );
 
+  const handleChannelChange = useCallback(
+    async (agent: AgentSummary, presetId: string | undefined) => {
+      const agentName = getBuiltInSubagentName(agent);
+      if (!agentName) return;
+      setOperatingAgentId(agent.id);
+      try {
+        await subagentsService.setBuiltInExecutionChannel({ agentName, presetId });
+      } catch (changeError) {
+        toast(changeError instanceof Error ? changeError.message : String(changeError));
+        setOperatingAgentId(null);
+        throw changeError;
+      }
+      try {
+        await Promise.all([refresh(), refreshMentionStore()]);
+      } catch (refreshError) {
+        // 持久化成功即为提交点；投影刷新失败只提示，不让控件回滚磁盘状态。
+        toast(refreshError instanceof Error ? refreshError.message : String(refreshError));
+      } finally {
+        setOperatingAgentId(null);
+      }
+    },
+    [refresh, refreshMentionStore, subagentsService],
+  );
+
   const handleEdit = useCallback(
     (agent: AgentSummary) => {
       if (!isEditableUserAgent(agent)) {
@@ -2258,6 +2373,7 @@ export function SubagentsSection({
             modelCatalogStatus={modelCatalogStatus}
             modelSelectGroups={subagentModelSelectGroups}
             onModelOverrideChange={handleModelOverrideChange}
+            onChannelChange={handleChannelChange}
             onDelete={handleDelete}
             onEdit={handleEdit}
             onToggle={handleToggle}

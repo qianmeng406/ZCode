@@ -5,6 +5,9 @@ import {
   EXTERNAL_AGENT_BINDABLE_PRESETS,
   EXTERNAL_AGENT_PRESETS,
   findExternalAgentPreset,
+  isChannelReadyPreset,
+  resolveChannelCandidates,
+  resolveExploreChannelCandidates,
   parseCommandCodeModelCatalog,
   parseCommandCodeModelList,
   parseModelCatalogFromProductJson,
@@ -1327,4 +1330,60 @@ test("stream 解析器：全量重解析给收口权威重建用", () => {
     { kind: "text", text: "第一段" },
     { kind: "tool", text: "Bash: ls" },
   ]);
+});
+
+// ── S7：内置身份执行渠道（D5 逐 CLI 适配 + Explore 只读映射）──
+
+test("渠道候选：首期仅 codebuddy（subagentChannelReady），Explore 再交 ∩ 只读档位", () => {
+  const channel = resolveChannelCandidates();
+  assert.deepEqual(
+    channel.map((preset) => preset.id),
+    ["codebuddy"],
+  );
+  const explore = resolveExploreChannelCandidates();
+  assert.deepEqual(
+    explore.map((preset) => preset.id),
+    ["codebuddy"],
+  );
+  assert.equal(explore[0]?.readOnlyPermissionMode, "plan");
+});
+
+test("isChannelReadyPreset：未标记/未知 preset 一律 false（fail-closed）", () => {
+  assert.equal(isChannelReadyPreset("codebuddy"), true);
+  assert.equal(isChannelReadyPreset("opencode"), false);
+  assert.equal(isChannelReadyPreset("no-such-cli"), false);
+  assert.equal(isChannelReadyPreset(undefined), false);
+});
+
+test("permissionModeOverride 压过预设值（Explore 只读 plan）", () => {
+  const binding = externalAgentBindingSchema.parse({
+    label: "CodeBuddy",
+    driver: "claude-family",
+    command: "codebuddy",
+    args: ["-p", "--output-format", "stream-json", "--include-partial-messages"],
+    promptDelivery: "stdin",
+    presetId: "codebuddy",
+    permissionMode: "bypassPermissions",
+    permissionModeOverride: "plan",
+  });
+  const invocation = buildExternalAgentInvocation(binding, "检索任务");
+  const modeIndex = invocation.args.indexOf("--permission-mode");
+  assert.ok(modeIndex >= 0, "--permission-mode 应存在");
+  assert.equal(invocation.args[modeIndex + 1], "plan");
+});
+
+test("override 缺席时既有优先级逐字不变（预设 bypassPermissions 仍生效）", () => {
+  const binding = externalAgentBindingSchema.parse({
+    label: "CodeBuddy",
+    driver: "claude-family",
+    command: "codebuddy",
+    args: ["-p", "--output-format", "stream-json", "--include-partial-messages"],
+    promptDelivery: "stdin",
+    presetId: "codebuddy",
+    permissionMode: "bypassPermissions",
+  });
+  const invocation = buildExternalAgentInvocation(binding, "执行任务");
+  const modeIndex = invocation.args.indexOf("--permission-mode");
+  assert.ok(modeIndex >= 0);
+  assert.equal(invocation.args[modeIndex + 1], "bypassPermissions");
 });

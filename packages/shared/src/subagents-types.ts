@@ -12,6 +12,22 @@ export type BuiltInSubagentModelSelectionOverrides = Partial<
   Record<BuiltInSubagentName, ModelSelection>
 >;
 
+/**
+ * 内置身份的执行渠道覆盖（S7）。
+ *
+ * key 限 general-purpose / Explore 两个内置身份；读写两侧都按这两个 key 收敛，
+ * 其他 key 一律忽略。presetId 必须通过渠道候选校验（`isChannelReadyPreset`；
+ * Explore 还要 `readOnlyPermissionMode`）——校验在 services 写入侧与 core 读取侧
+ * 各做一次，手改 state 文件也产不出半残渠道。
+ */
+export interface BuiltInExecutionChannelOverride {
+  presetId: string;
+}
+
+export type BuiltInExecutionChannelOverrides = Partial<
+  Record<BuiltInSubagentName, BuiltInExecutionChannelOverride>
+>;
+
 export type PluginSubagentModelSelectionOverrides = Readonly<Record<string, ModelSelection>>;
 
 /** 正式 reader 只接受结构化覆盖，不在读取时解释旧双 map 或重新匹配 Provider。 */

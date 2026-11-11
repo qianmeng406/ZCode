@@ -28,6 +28,17 @@ export interface ISubagentsService {
   /** 只写用户 state 的完整覆盖，不改插件 Markdown。 */
   setPluginAgentModelOverride(params: PluginSubagentModelOverrideParams): Promise<void>;
 
+  /**
+   * 内置身份的执行渠道覆盖（S7）。presetId 缺省 = 恢复 ZCode 内置执行。
+   *
+   * fail-closed：preset 未标渠道就绪 / Explore 未声明只读档位 / 探测确认不可用，
+   * 一律抛错拒绝写入。
+   */
+  setBuiltInExecutionChannel(params: {
+    agentName: "general-purpose" | "Explore";
+    presetId?: string;
+  }): Promise<void>;
+
   /** 当前筛选来源对应的用户级 agent 根目录（与内置扫描顺序一致，取 buildUserRoots 的首项）。 */
   getPrimaryUserAgentsDirectory(params: { provider: ZCodeProvider }): Promise<{ path: string }>;
 

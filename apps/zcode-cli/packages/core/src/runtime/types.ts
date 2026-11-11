@@ -164,6 +164,7 @@ export interface AgentRuntimeConfig {
     outputRootDir?: string;
     profiles?: readonly AgentProfile[];
     builtInModelSelectionOverrides?: Partial<Record<"general-purpose" | "Explore", ModelSelection>>;
+    builtInExecutionChannel?: import("@zcode/shared").BuiltInExecutionChannelOverrides;
   };
   toolAllowlist?: readonly string[];
   toolDisallowlist?: readonly string[];

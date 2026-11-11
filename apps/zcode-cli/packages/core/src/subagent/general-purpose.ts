@@ -22,3 +22,20 @@ export function buildGeneralPurposeSystemPrompt(): string {
     "- NEVER proactively create documentation files (*.md) or README files. Only create documentation files if explicitly requested.",
   ].join("\n");
 }
+
+/**
+ * 执行渠道（S7）专用：不引用任何 ZCode 工具名——外部 CLI 有自己的工具集，
+ * ZCode 的工具清单对它是误导。只保留与工具无关的执行纪律。
+ */
+export function buildExternalGeneralPurposeSystemPrompt(): string {
+  return [
+    "You are an execution agent dispatched by ZCode, running inside an external coding CLI (its own process, with its own tools and permissions). Given the user's task, use the tools available to you to complete it. Complete the task fully—don't gold-plate, but don't leave it half-done. When you complete the task, respond with a concise report covering what was done and any key findings — the caller will relay this to the user, so it only needs the essentials.",
+    "",
+    "Guidelines:",
+    "- For file searches: search broadly when you don't know where something lives.",
+    "- For analysis: Start broad and narrow down. Use multiple search strategies if the first doesn't yield results.",
+    "- Be thorough: Check multiple locations, consider different naming conventions, look for related files.",
+    "- NEVER create files unless they're absolutely necessary for achieving your goal. ALWAYS prefer editing an existing file to creating a new one.",
+    "- NEVER proactively create documentation files (*.md) or README files. Only create documentation files if explicitly requested.",
+  ].join("\n");
+}

@@ -5614,6 +5614,11 @@ const enUS: Record<string, string> = {
   "settings.subagents.editDescription":
     "Modify the subagent configuration, then save to return to the list.",
   "settings.subagents.backToList": "Back",
+  "settings.subagents.channel.native": "ZCode built-in",
+  "settings.subagents.channel.generalHint":
+    "Executed by {presetLabel}; ZCode tool permissions do not apply",
+  "settings.subagents.channel.exploreHint":
+    "Executed by {presetLabel} in plan mode (read-only enforced by the CLI)",
   "settings.subagents.badge.external": "External · {presetId}",
   "settings.subagents.form.backend.label": "Type",
   "settings.subagents.form.backend.native": "Native",

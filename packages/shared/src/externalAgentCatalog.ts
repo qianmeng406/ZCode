@@ -76,6 +76,23 @@ export const externalAgentPresetSchema = z.object({
    * 缺省成 `full` 则退回"全都列"的旧行为，不会比今天更差。
    */
   adaptation: z.enum(["full", "partial"]).default("full"),
+  /**
+   * 该预设已实测可承接**内置身份的执行渠道**（S7）。
+   *
+   * 与 `adaptation: "full"`（绑定/委派适配）是两道不同的门槛：渠道跑的是 ZCode
+   * 的内置身份语义，除运行形状外还要求取消、续接、transcript、失败语义都过实测
+   * （渠道适配清单见 S7 方案 §3.7）。未标记的 preset 不出现在任何渠道候选里
+   * （不是灰置——出现即可用）。逐 CLI 验证通过一个标一个；机制代码一次通用。
+   */
+  subagentChannelReady: z.boolean().optional(),
+  /**
+   * 该 CLI 已核实的只读/计划档位值（claude-family 下为 --permission-mode 的值）。
+   *
+   * 声明 = 该 preset 可以承接只读身份（Explore）的执行渠道；缺席 = 不可以。
+   * 只放实测过的值——ZCode 无法强制外部 CLI 只读，档位纪律完全在 CLI 侧，
+   * 没实测过的值标上来就是"看起来只读、实际能改文件"的半残渠道。
+   */
+  readOnlyPermissionMode: z.string().max(40).optional(),
   // opencode-exec：`opencode run` 的 stdout 是逐行 JSON 事件流，prompt 走 stdin。
   driver: z.enum([
     "claude-family",
@@ -310,6 +327,10 @@ export const EXTERNAL_AGENT_PRESETS: readonly ExternalAgentPreset[] = [
     args: ["-p", "--output-format", "stream-json", "--include-partial-messages"],
     promptDelivery: "stdin",
     permissionMode: "bypassPermissions",
+    // S7 渠道化：本 fork 适配最深的 CLI（运行/取消/续接/落盘扫描在 S0~S5 全实测），
+    // 首个开启内置身份执行渠道；plan 模式为 claude-family 族已核实的只读档位。
+    subagentChannelReady: true,
+    readOnlyPermissionMode: "plan",
     modelFlag: "--model",
     // 模型与档位都来自服务端下发的缓存（登录后才有）；product.json 只作兜底。
     modelSource: "server-cache",
@@ -545,6 +566,29 @@ export function resolveExternalAgentSessionHomeDir(presetId: string | undefined)
  */
 export const EXTERNAL_AGENT_BINDABLE_PRESETS: readonly ExternalAgentPreset[] =
   EXTERNAL_AGENT_PRESETS.filter((preset) => preset.adaptation === "full");
+
+/**
+ * 内置身份执行渠道的候选（S7，单一真值——UI 候选、services 校验、core 忽略
+ * 未达标覆盖三处共用，不许各自实现一份筛选规则）。
+ *
+ * - `resolveChannelCandidates()`：general-purpose（执行型）候选 = 可绑定 ∩ 渠道已适配；
+ * - `resolveExploreChannelCandidates()`：Explore（只读）再交 ∩ 声明了只读档位。
+ *
+ * 未达标的 preset 照常出现在绑定/委派对话框——两道门槛彼此独立、互不降级。
+ */
+export function resolveChannelCandidates(): ExternalAgentPreset[] {
+  return EXTERNAL_AGENT_BINDABLE_PRESETS.filter((preset) => preset.subagentChannelReady === true);
+}
+
+export function resolveExploreChannelCandidates(): ExternalAgentPreset[] {
+  return resolveChannelCandidates().filter((preset) => preset.readOnlyPermissionMode !== undefined);
+}
+
+/** 渠道候选里是否真的有某个 preset（fail-closed 校验用，含 id 存在性检查）。 */
+export function isChannelReadyPreset(presetId: string | undefined): boolean {
+  const preset = findExternalAgentPreset(presetId);
+  return preset?.subagentChannelReady === true;
+}
 
 /**
  * 一个预设在本机探测到的状态。
