@@ -525,6 +525,7 @@ import { createPluginSyncService } from "./plugin-sync/pluginSyncService.js";
 import { createPluginsService } from "./plugins/pluginsService.js";
 import { createPluginManagementService } from "./plugins/pluginManagementService.js";
 import { createSubagentsService } from "./subagents/subagentsService.js";
+import { createLocalExternalAgentProbe } from "./subagents/externalAgentProbeAdapter.js";
 import { createCommandsService } from "./commands/commandsService.js";
 import { createHooksService } from "./hooks/hooksService.js";
 import { createMemoryService } from "./memory/memoryService.js";
@@ -1719,6 +1720,9 @@ export function createLocalServices(options: {
   });
   const subagentsService = createSubagentsService({
     isDesktopRuntime: true,
+    // 设置页外部 agent 表单的本机探测（S6）：desktop host 有本机进程能力，直接注入；
+    // CLI 侧的 createSubagentsService 不注入，probeExternalAgents 返回 null 走降级。
+    probeExternalAgents: createLocalExternalAgentProbe(),
   });
   const commandsService = createCommandsService({ isDesktopRuntime: true });
   const hooksService = createHooksService({

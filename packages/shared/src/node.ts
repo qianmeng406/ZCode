@@ -58,3 +58,11 @@ export {
   type NodeSelfResourceSampler,
   type NodeSelfResourceSamplerOptions,
 } from "./node/nodeSelfResourceTelemetry.js";
+export {
+  probeExternalPresets,
+  parseModelListLines,
+  parseOpencodeModelCatalog,
+  type ExternalAgentProbeCommandInput,
+  type ExternalAgentProbeCommandResult,
+  type ExternalAgentProbeCommandRunner,
+} from "./node/externalAgentProbeRunner.js";

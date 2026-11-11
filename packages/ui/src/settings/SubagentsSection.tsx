@@ -12,12 +12,18 @@ import { useCallback, useEffect, useMemo, useRef, useState, type FormEvent } fro
 import { Bot, Check, Plus, Trash2 } from "lucide-react";
 import { completeNewModelSelection } from "@zcode/provider";
 import {
+  EXTERNAL_AGENT_BINDABLE_PRESETS,
+  resolveContextWindowLevels,
+  resolveEffortLevels,
   ZCODE_AGENT_PROVIDER,
   type AgentColor,
+  type AgentProfileBackend,
   type AgentsCapability,
   type AgentsListResult,
   type AgentSummary,
   type BuiltInSubagentName,
+  type ExternalAgentPreset,
+  type ExternalAgentPresetStatus,
   type ModelSelection,
   type SubAgentConfig,
 } from "@zcode/shared";
@@ -73,6 +79,7 @@ import {
   refreshSubagentsStoreForRemoteWorkspaces,
 } from "@/store/subagentsStore.js";
 import { PluginScopeMenu } from "@/settings/PluginScopeMenu.js";
+import { loadSubagentsExternalProbe } from "@/settings/subagentsExternalProbe.js";
 import type { ConfigWorkspaceTarget } from "@/workspace-config-catalog/index.js";
 import { buildSourceSettingsProjectionKey } from "@/settings/settingsSourceWorkspace.js";
 import {
@@ -129,6 +136,16 @@ export interface SubagentFormInitialState {
   selectedTools: string[];
   preservedTools: string[];
   systemPrompt: string;
+  /** 执行后端；缺省 native。external 时下面四个外部字段参与保存。 */
+  backend: AgentProfileBackend;
+  /** 外部预设 id；"" = 未选。 */
+  presetId: string;
+  /** 外部 CLI 模型名；"" = 继承 CLI 默认。 */
+  externalModel: string;
+  /** 外部推理档位；"" = 继承。 */
+  externalEffort: string;
+  /** 外部上下文窗口（表单内字符串，保存时转正整数）；"" = 继承。 */
+  externalContextWindow: string;
 }
 
 interface SubagentsSectionProps {
@@ -319,6 +336,11 @@ export function createSubagentFormInitialState(
     | "tools"
     | "systemPrompt"
     | "injectAgentsMd"
+    | "backend"
+    | "presetId"
+    | "externalModel"
+    | "externalEffort"
+    | "externalContextWindow"
   >,
 ): SubagentFormInitialState {
   return {
@@ -332,7 +354,61 @@ export function createSubagentFormInitialState(
     selectedTools: getKnownTools(initial?.tools),
     preservedTools: getPreservedTools(initial?.tools),
     systemPrompt: initial?.systemPrompt ?? "",
+    backend: initial?.backend ?? "native",
+    presetId: initial?.presetId ?? "",
+    externalModel: initial?.externalModel ?? "",
+    externalEffort: initial?.externalEffort ?? "",
+    externalContextWindow:
+      initial?.externalContextWindow !== undefined ? String(initial.externalContextWindow) : "",
   };
+}
+
+/** 外部模式提交时组装的表单字段（纯函数，便于单测）。 */
+export interface SubagentExternalFormState {
+  presetId: string;
+  externalModel: string;
+  externalEffort: string;
+  externalContextWindow: string;
+}
+
+/**
+ * 外部模式提交字段：空串 = 继承（省略字段，不写空值——保存校验同样拒绝空串）。
+ * 上下文窗口字符串转正整数；非法值静默省略（继承），不在这里抛错。
+ */
+export function composeExternalSubAgentConfigFields(
+  state: SubagentExternalFormState,
+): Pick<
+  SubAgentConfig,
+  "backend" | "presetId" | "externalModel" | "externalEffort" | "externalContextWindow"
+> {
+  const contextWindowValue = Number(state.externalContextWindow.trim());
+  return {
+    backend: "external",
+    presetId: state.presetId.trim(),
+    ...(state.externalModel.trim() ? { externalModel: state.externalModel.trim() } : {}),
+    ...(state.externalEffort.trim() ? { externalEffort: state.externalEffort.trim() } : {}),
+    ...(state.externalContextWindow.trim() &&
+    Number.isInteger(contextWindowValue) &&
+    contextWindowValue > 0
+      ? { externalContextWindow: contextWindowValue }
+      : {}),
+  };
+}
+
+/**
+ * 外部档位候选：探测到的逐模型目录是唯一权威（模型对不上就不给候选，不猜）；
+ * 目录读不到时退 preset 的静态兜底表。
+ */
+export function resolveExternalEffortCandidates(
+  status: ExternalAgentPresetStatus | undefined,
+  preset: ExternalAgentPreset,
+  model: string | undefined,
+): string[] {
+  if (status && status.modelCatalog.length > 0) {
+    const entry = model ? status.modelCatalog.find((item) => item.id === model) : undefined;
+    return entry?.supportedEfforts ?? [];
+  }
+  return resolveEffortLevels(preset, model);
 }
 
 function createSubagentFormInitialStateKey(initial?: AgentSummary): string {
@@ -508,6 +584,7 @@ function AgentListRow({
   const toolsLabel = allowsAllTools(agent.tools)
     ? intl.formatMessage({ id: "settings.subagents.tools.all" })
     : intl.formatMessage({ id: "settings.subagents.toolsCount" }, { count: String(toolCount) });
+  const isExternalAgent = agent.backend === "external";
   const displayName =
     agent.source === "plugin" && agent.name.includes(":")
       ? agent.name.slice(agent.name.indexOf(":") + 1)
@@ -548,8 +625,24 @@ function AgentListRow({
       <div className="min-w-0">
         <div className="flex min-w-0 flex-wrap items-center gap-2">
           <span className="truncate text-ui-base font-medium text-foreground">{displayName}</span>
-          {showModelBadge ? <AgentBadge>{modelLabel}</AgentBadge> : null}
-          <AgentBadge>{toolsLabel}</AgentBadge>
+          {isExternalAgent ? (
+            <AgentBadge>
+              {intl.formatMessage(
+                { id: "settings.subagents.badge.external" },
+                { presetId: agent.presetId ?? "" },
+              )}
+            </AgentBadge>
+          ) : null}
+          {isExternalAgent ? (
+            agent.externalModel ? (
+              <AgentBadge>{agent.externalModel}</AgentBadge>
+            ) : null
+          ) : (
+            <>
+              {showModelBadge ? <AgentBadge>{modelLabel}</AgentBadge> : null}
+              <AgentBadge>{toolsLabel}</AgentBadge>
+            </>
+          )}
         </div>
         <p className="mt-0.5 line-clamp-2 text-ui-sm text-foreground-subtle">
           {agent.description || intl.formatMessage({ id: "settings.subagents.noDescription" })}
@@ -817,6 +910,7 @@ function SubagentForm({
   scopeKey,
   workspaceTabs,
   onScopeKeyChange,
+  probeExternalAgents,
 }: {
   initial?: AgentSummary;
   modelSelectionView?: ModelSelectionView | null;
@@ -830,6 +924,8 @@ function SubagentForm({
   scopeKey: string;
   workspaceTabs: ConfigWorkspaceTarget[];
   onScopeKeyChange: (scopeKey: string) => void;
+  /** 本机外部 CLI 探测（可缺省：宿主不支持时表单退静态目录 + 自由输入）。 */
+  probeExternalAgents?: () => Promise<ExternalAgentPresetStatus[] | null>;
 }) {
   const recommendStartPlan = useStartPlanRecommendation(modelSelectionView, "subagent");
   const { intl } = useZCodeIntl();
@@ -852,6 +948,17 @@ function SubagentForm({
   const [descriptionError, setDescriptionError] = useState<string | null>(null);
   const [promptError, setPromptError] = useState<string | null>(null);
   const [modelError, setModelError] = useState<string | null>(null);
+  const [backend, setBackend] = useState<AgentProfileBackend>(initialFormState.backend);
+  const [presetId, setPresetId] = useState(initialFormState.presetId);
+  const [externalModel, setExternalModel] = useState(initialFormState.externalModel);
+  const [externalEffort, setExternalEffort] = useState(initialFormState.externalEffort);
+  const [externalContextWindow, setExternalContextWindow] = useState(
+    initialFormState.externalContextWindow,
+  );
+  const [presetError, setPresetError] = useState<string | null>(null);
+  // 探测结果：null = 还没探到（含宿主不支持）；只在切到外部模式时拉取。
+  const [probeStatuses, setProbeStatuses] = useState<ExternalAgentPresetStatus[] | null>(null);
+  const [probeLoadFailed, setProbeLoadFailed] = useState(false);
   const inheritModelLabel = intl.formatMessage({
     id: "settings.subagents.model.inherit",
   });
@@ -906,6 +1013,43 @@ function SubagentForm({
     modelAvailable &&
     !isSubagentThoughtLevelAvailable(thoughtLevelState, thoughtLevel),
   );
+  const isExternal = backend === "external";
+  const selectedPreset = isExternal
+    ? EXTERNAL_AGENT_BINDABLE_PRESETS.find((preset) => preset.id === presetId)
+    : undefined;
+  const selectedStatus = probeStatuses?.find((status) => status.preset.id === presetId);
+  // 模型候选：探测到清单用探测值；没有探测/清单为空退静态（当前预设均为空）→ 自由输入。
+  const externalModelCandidates =
+    selectedStatus && selectedStatus.models.length > 0
+      ? selectedStatus.models
+      : (selectedPreset?.models ?? []);
+  const externalEffortCandidates = selectedPreset
+    ? resolveExternalEffortCandidates(
+        selectedStatus,
+        selectedPreset,
+        externalModel.trim() || undefined,
+      )
+    : [];
+  const externalContextWindowCandidates = selectedPreset
+    ? resolveContextWindowLevels(selectedPreset, externalModel.trim() || undefined)
+    : [];
+  // 切到外部模式时拉一次探测；失败不自动重试（UI 提供手动重试），避免反复 spawn。
+  useEffect(() => {
+    if (!isExternal || !probeExternalAgents || probeStatuses || probeLoadFailed) return;
+    let active = true;
+    void probeExternalAgents()
+      .then((result) => {
+        if (!active) return;
+        if (result) setProbeStatuses(result);
+        else setProbeLoadFailed(true);
+      })
+      .catch(() => {
+        if (active) setProbeLoadFailed(true);
+      });
+    return () => {
+      active = false;
+    };
+  }, [isExternal, probeExternalAgents, probeStatuses, probeLoadFailed]);
   const trimmedName = name.trim();
   const canSave = Boolean(
     trimmedName.length >= 3 &&
@@ -913,8 +1057,7 @@ function SubagentForm({
     /^[a-zA-Z0-9-]+$/u.test(trimmedName) &&
     description.trim() &&
     systemPrompt.trim() &&
-    modelAvailable &&
-    !thoughtLevelInvalid,
+    (isExternal ? Boolean(presetId) : modelAvailable && !thoughtLevelInvalid),
   );
   const selectedColorIndex = Math.max(0, AGENT_COLORS.indexOf(color));
 
@@ -936,10 +1079,16 @@ function SubagentForm({
     setInheritAllTools(nextInitialState.inheritAllTools);
     setSelectedTools(nextInitialState.selectedTools);
     setSystemPrompt(nextInitialState.systemPrompt);
+    setBackend(nextInitialState.backend);
+    setPresetId(nextInitialState.presetId);
+    setExternalModel(nextInitialState.externalModel);
+    setExternalEffort(nextInitialState.externalEffort);
+    setExternalContextWindow(nextInitialState.externalContextWindow);
     setNameError(null);
     setDescriptionError(null);
     setPromptError(null);
     setModelError(null);
+    setPresetError(null);
   }, [initial, initialFormStateKey]);
 
   const validate = (): boolean => {
@@ -983,6 +1132,22 @@ function SubagentForm({
     } else {
       setPromptError(null);
     }
+    if (backend === "external") {
+      // 外部模式：preset 必选；native 的模型/档位校验不适用（那两套语义互斥）。
+      if (!presetId.trim()) {
+        setPresetError(
+          intl.formatMessage({
+            id: "settings.subagents.form.validation.presetRequired",
+          }),
+        );
+        valid = false;
+      } else {
+        setPresetError(null);
+      }
+      setModelError(null);
+      return valid;
+    }
+    setPresetError(null);
     // 不可用模型会展示为“选择模型”，保存时也必须阻止历史值被静默写回。
     if (!isSubagentModelAvailable(modelSelectGroups, model, modelCatalogStatus)) {
       setModelError(
@@ -1015,9 +1180,96 @@ function SubagentForm({
     }
   };
 
+  const handlePresetChange = (nextPresetId: string) => {
+    setPresetId(nextPresetId);
+    // 换 CLI = 换模型命名空间：外部模型/档位/窗口全部回落到"继承"，避免把 A CLI 的
+    // 模型名静默带给 B CLI。
+    setExternalModel("");
+    setExternalEffort("");
+    setExternalContextWindow("");
+  };
+
+  const handleReprobe = () => {
+    if (!probeExternalAgents) return;
+    setProbeLoadFailed(false);
+    void probeExternalAgents()
+      .then((result) => {
+        if (result) setProbeStatuses(result);
+        else setProbeLoadFailed(true);
+      })
+      .catch(() => setProbeLoadFailed(true));
+  };
+
+  // 选中预设下的探测状态行：检测中 / 已安装（版本）/ 未检测到 / 探测失败（可重试）。
+  // probeError 表示"问不到"而不是"没装"——文案与操作都按可重试呈现。
+  const presetStatusLine = !selectedPreset ? null : (
+    <div className="flex min-w-0 flex-wrap items-center gap-2 text-ui-sm text-foreground-subtle">
+      {selectedStatus && !selectedStatus.probeError ? (
+        selectedStatus.installed ? (
+          <span>
+            {selectedStatus.version
+              ? intl.formatMessage(
+                  { id: "settings.subagents.form.external.installedVersion" },
+                  { version: selectedStatus.version },
+                )
+              : intl.formatMessage({ id: "settings.subagents.form.external.installed" })}
+          </span>
+        ) : (
+          <span>{intl.formatMessage({ id: "settings.subagents.form.external.notInstalled" })}</span>
+        )
+      ) : (
+        <>
+          <span>
+            {probeLoadFailed
+              ? intl.formatMessage({ id: "settings.subagents.form.external.probeFailed" })
+              : intl.formatMessage({ id: "settings.subagents.form.external.probing" })}
+          </span>
+          {probeExternalAgents ? (
+            <Button
+              type="button"
+              variant="link"
+              size="sm"
+              className="h-auto p-0"
+              onClick={handleReprobe}
+            >
+              {intl.formatMessage({ id: "common.retry" })}
+            </Button>
+          ) : null}
+        </>
+      )}
+    </div>
+  );
+
   const handleSubmit = async (event: FormEvent) => {
     event.preventDefault();
     if (!validate()) {
+      return;
+    }
+    if (backend === "external") {
+      // 外部模式：native 专属字段从 initial 透传保留（它们对外部不生效，但删掉
+      // 就是数据丢失——与 mcpServers 同口径）；modelSelection/tools 不从表单组装。
+      await onSave({
+        name: name.trim(),
+        description: description.trim(),
+        systemPrompt: systemPrompt.trim(),
+        color,
+        ...composeExternalSubAgentConfigFields({
+          presetId,
+          externalModel,
+          externalEffort,
+          externalContextWindow,
+        }),
+        ...(initial?.tools ? { tools: initial.tools } : {}),
+        disallowedTools: initial?.disallowedTools,
+        skills: initial?.skills,
+        permissionMode: initial?.permissionMode,
+        ...(initial?.injectAgentsMd !== undefined
+          ? { injectAgentsMd: initial.injectAgentsMd }
+          : {}),
+        ...(initial?.maxTurns ? { maxTurns: initial.maxTurns } : {}),
+        ...(initial?.background !== undefined ? { background: initial.background } : {}),
+        mcpServers: initial?.mcpServers,
+      });
       return;
     }
     let selection = toSubagentModelSelection(persistedModel, thoughtLevel);
@@ -1061,7 +1313,52 @@ function SubagentForm({
           />
         </label>
       </div>
-      <div className="grid gap-3 md:grid-cols-[minmax(12rem,14rem)_auto_minmax(0,1fr)] md:items-start">
+      <div className="space-y-1.5">
+        <FormFieldLabel>
+          {intl.formatMessage({ id: "settings.subagents.form.backend.label" })}
+        </FormFieldLabel>
+        <div
+          role="radiogroup"
+          className="inline-flex rounded-lg border border-input-border bg-input p-1"
+        >
+          <button
+            type="button"
+            role="radio"
+            aria-checked={backend === "native"}
+            className={cn(
+              "rounded-md px-3 py-1.5 text-ui-base font-medium transition-colors",
+              backend === "native"
+                ? "bg-surface text-foreground shadow-xs"
+                : "text-foreground-subtle hover:text-foreground",
+            )}
+            onClick={() => setBackend("native")}
+          >
+            {intl.formatMessage({ id: "settings.subagents.form.backend.native" })}
+          </button>
+          <button
+            type="button"
+            role="radio"
+            aria-checked={backend === "external"}
+            className={cn(
+              "rounded-md px-3 py-1.5 text-ui-base font-medium transition-colors",
+              backend === "external"
+                ? "bg-surface text-foreground shadow-xs"
+                : "text-foreground-subtle hover:text-foreground",
+            )}
+            onClick={() => setBackend("external")}
+          >
+            {intl.formatMessage({ id: "settings.subagents.form.backend.external" })}
+          </button>
+        </div>
+      </div>
+      <div
+        className={cn(
+          "grid gap-3 md:items-start",
+          isExternal
+            ? "md:grid-cols-[minmax(12rem,14rem)_auto]"
+            : "md:grid-cols-[minmax(12rem,14rem)_auto_minmax(0,1fr)]",
+        )}
+      >
         <div className="space-y-1.5">
           <FormFieldLabel>
             {intl.formatMessage({ id: "settings.subagents.form.name.label" })}
@@ -1109,50 +1406,193 @@ function SubagentForm({
             ))}
           </div>
         </div>
-        <div className="space-y-1.5">
-          <FormFieldLabel>
-            {intl.formatMessage({ id: "settings.subagents.form.model.label" })}
-          </FormFieldLabel>
-          <div className="flex min-w-0 flex-wrap items-center gap-2">
-            <ModelConfigSelect
-              modelGroups={modelSelectGroups}
-              normalizedValue={model}
-              triggerLabel={modelTriggerLabel}
-              showManageModelsAction={Boolean(onManageModels)}
-              lockReasonMessage=""
-              isItemLocked={MODEL_ITEM_NEVER_LOCKED}
-              onValueChange={handleModelChange}
-              footerActions={footerActions}
-              manageModelsLabel={intl.formatMessage({
-                id: "chat.toolbar.model.manageModels",
-              })}
-              onManageModels={onManageModels}
-              // 聊天工具栏的模型菜单默认向上弹；Subagents add/edit 表单位于设置页正文，
-              // 菜单项应贴着按钮下方展开，避免覆盖上面的表单字段。
-              contentSide="bottom"
-              focusSelectorOnClose={null}
-              labelVisibilityClassName="inline-flex min-w-0"
-              triggerClassName="h-8 w-fit max-w-full min-w-0 justify-between rounded-lg border border-input-border bg-input bg-clip-border px-3 py-1.5 text-foreground hover:border-input-border-hover hover:bg-input focus-visible:border-input-border-focused focus-visible:bg-input-focused"
-              triggerLabelClassName="inline-flex min-w-0 truncate text-left"
-            />
-            <SubagentReasoningField
-              intl={intl}
-              state={thoughtLevelState}
-              disabled={saving}
-              labelVisibilityClassName="inline-flex min-w-0"
-              onValueCommit={setThoughtLevel}
-            />
+        {!isExternal ? (
+          <div className="space-y-1.5">
+            <FormFieldLabel>
+              {intl.formatMessage({ id: "settings.subagents.form.model.label" })}
+            </FormFieldLabel>
+            <div className="flex min-w-0 flex-wrap items-center gap-2">
+              <ModelConfigSelect
+                modelGroups={modelSelectGroups}
+                normalizedValue={model}
+                triggerLabel={modelTriggerLabel}
+                showManageModelsAction={Boolean(onManageModels)}
+                lockReasonMessage=""
+                isItemLocked={MODEL_ITEM_NEVER_LOCKED}
+                onValueChange={handleModelChange}
+                footerActions={footerActions}
+                manageModelsLabel={intl.formatMessage({
+                  id: "chat.toolbar.model.manageModels",
+                })}
+                onManageModels={onManageModels}
+                // 聊天工具栏的模型菜单默认向上弹；Subagents add/edit 表单位于设置页正文，
+                // 菜单项应贴着按钮下方展开，避免覆盖上面的表单字段。
+                contentSide="bottom"
+                focusSelectorOnClose={null}
+                labelVisibilityClassName="inline-flex min-w-0"
+                triggerClassName="h-8 w-fit max-w-full min-w-0 justify-between rounded-lg border border-input-border bg-input bg-clip-border px-3 py-1.5 text-foreground hover:border-input-border-hover hover:bg-input focus-visible:border-input-border-focused focus-visible:bg-input-focused"
+                triggerLabelClassName="inline-flex min-w-0 truncate text-left"
+              />
+              <SubagentReasoningField
+                intl={intl}
+                state={thoughtLevelState}
+                disabled={saving}
+                labelVisibilityClassName="inline-flex min-w-0"
+                onValueCommit={setThoughtLevel}
+              />
+            </div>
+            {modelError ? <p className="text-ui-base text-destructive">{modelError}</p> : null}
+            {thoughtLevelInvalid ? (
+              <p className="text-ui-base text-destructive">
+                {intl.formatMessage({
+                  id: "settings.subagents.form.validation.thoughtLevelUnavailable",
+                })}
+              </p>
+            ) : null}
           </div>
-          {modelError ? <p className="text-ui-base text-destructive">{modelError}</p> : null}
-          {thoughtLevelInvalid ? (
-            <p className="text-ui-base text-destructive">
-              {intl.formatMessage({
-                id: "settings.subagents.form.validation.thoughtLevelUnavailable",
-              })}
-            </p>
-          ) : null}
-        </div>
+        ) : null}
       </div>
+
+      {isExternal ? (
+        <div className="space-y-3 rounded-lg border border-border bg-card p-3">
+          <div className="grid gap-3 md:grid-cols-2">
+            <div className="space-y-1.5">
+              <FormFieldLabel>
+                {intl.formatMessage({ id: "settings.subagents.form.external.preset.label" })}
+              </FormFieldLabel>
+              <Select value={presetId} onValueChange={handlePresetChange}>
+                <SelectTrigger size="lg" className="w-full justify-between">
+                  <SelectValue
+                    placeholder={intl.formatMessage({
+                      id: "settings.subagents.form.external.preset.placeholder",
+                    })}
+                  />
+                </SelectTrigger>
+                <SelectContent>
+                  {EXTERNAL_AGENT_BINDABLE_PRESETS.map((preset) => (
+                    <SelectItem key={preset.id} value={preset.id}>
+                      {preset.label}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+              {presetStatusLine}
+              {presetError ? <p className="text-ui-base text-destructive">{presetError}</p> : null}
+            </div>
+            <div className="space-y-1.5">
+              <FormFieldLabel>
+                {intl.formatMessage({ id: "settings.subagents.form.external.model.label" })}
+              </FormFieldLabel>
+              {externalModelCandidates.length > 0 ? (
+                <Select
+                  value={externalModel || INHERIT_MODEL_VALUE}
+                  onValueChange={(nextValue) =>
+                    setExternalModel(nextValue === INHERIT_MODEL_VALUE ? "" : nextValue)
+                  }
+                >
+                  <SelectTrigger size="lg" className="w-full justify-between">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value={INHERIT_MODEL_VALUE}>
+                      {intl.formatMessage({
+                        id: "settings.subagents.form.external.model.inherit",
+                      })}
+                    </SelectItem>
+                    {externalModelCandidates.map((modelId) => (
+                      <SelectItem key={modelId} value={modelId}>
+                        {modelId}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              ) : (
+                <Input
+                  type="text"
+                  size="lg"
+                  value={externalModel}
+                  onChange={(event) => setExternalModel(event.target.value)}
+                  placeholder={intl.formatMessage({
+                    id: "settings.subagents.form.external.model.placeholder",
+                  })}
+                />
+              )}
+            </div>
+          </div>
+          {externalEffortCandidates.length > 0 || externalContextWindowCandidates.length > 0 ? (
+            <div className="grid gap-3 md:grid-cols-2">
+              {externalEffortCandidates.length > 0 ? (
+                <div className="space-y-1.5">
+                  <FormFieldLabel>
+                    {intl.formatMessage({
+                      id: "settings.subagents.form.external.effort.label",
+                    })}
+                  </FormFieldLabel>
+                  <Select
+                    value={externalEffort || INHERIT_MODEL_VALUE}
+                    onValueChange={(nextValue) =>
+                      setExternalEffort(nextValue === INHERIT_MODEL_VALUE ? "" : nextValue)
+                    }
+                  >
+                    <SelectTrigger size="lg" className="w-full justify-between">
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value={INHERIT_MODEL_VALUE}>
+                        {intl.formatMessage({
+                          id: "settings.subagents.form.external.model.inherit",
+                        })}
+                      </SelectItem>
+                      {externalEffortCandidates.map((level) => (
+                        <SelectItem key={level} value={level}>
+                          {level}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+              ) : null}
+              {externalContextWindowCandidates.length > 0 ? (
+                <div className="space-y-1.5">
+                  <FormFieldLabel>
+                    {intl.formatMessage({
+                      id: "settings.subagents.form.external.contextWindow.label",
+                    })}
+                  </FormFieldLabel>
+                  <Select
+                    value={externalContextWindow || INHERIT_MODEL_VALUE}
+                    onValueChange={(nextValue) =>
+                      setExternalContextWindow(nextValue === INHERIT_MODEL_VALUE ? "" : nextValue)
+                    }
+                  >
+                    <SelectTrigger size="lg" className="w-full justify-between">
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value={INHERIT_MODEL_VALUE}>
+                        {intl.formatMessage({
+                          id: "settings.subagents.form.external.model.inherit",
+                        })}
+                      </SelectItem>
+                      {externalContextWindowCandidates.map((tokens) => (
+                        <SelectItem key={tokens} value={String(tokens)}>
+                          {intl.formatMessage(
+                            { id: "settings.subagents.form.external.contextWindow.tokens" },
+                            { tokens: String(tokens) },
+                          )}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+              ) : null}
+            </div>
+          ) : null}
+          <p className="text-ui-sm text-foreground-subtle">
+            {intl.formatMessage({ id: "settings.subagents.form.external.note" })}
+          </p>
+        </div>
+      ) : null}
 
       <div className="space-y-1.5">
         <FormFieldLabel>
@@ -1174,50 +1614,55 @@ function SubagentForm({
         ) : null}
       </div>
 
-      <div className="space-y-2 pt-1">
-        <FormFieldLabel>
-          {intl.formatMessage({ id: "settings.subagents.form.tools.label" })}
-        </FormFieldLabel>
-        <div className="flex min-w-0 items-center gap-2">
-          <Select value={inheritAllTools ? "all" : "custom"} onValueChange={handleToolsModeChange}>
-            <SelectTrigger size="lg" className="w-fit justify-between">
-              <SelectValue />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="all">
-                {intl.formatMessage({
-                  id: "settings.subagents.form.tools.mode.all",
-                })}
-              </SelectItem>
-              <SelectItem value="custom">
-                {intl.formatMessage({
-                  id: "settings.subagents.form.tools.mode.custom",
-                })}
-              </SelectItem>
-            </SelectContent>
-          </Select>
-          <span className="min-w-0 text-ui-base font-normal text-foreground-subtle">
-            {intl.formatMessage({
-              id: "settings.subagents.form.tools.card.title",
-            })}
-          </span>
-        </div>
-        {inheritAllTools ? null : (
-          <div className="rounded-lg border border-border bg-card p-1">
-            <div className="grid max-h-72 gap-1 overflow-y-auto sm:grid-cols-2 lg:grid-cols-3">
-              {TOOL_OPTIONS.map((tool) => (
-                <ToolCheckbox
-                  key={tool}
-                  checked={selectedTools.includes(tool)}
-                  disabled={false}
-                  label={tool}
-                  onToggle={() => toggleTool(tool)}
-                />
-              ))}
-            </div>
+      {!isExternal ? (
+        <div className="space-y-2 pt-1">
+          <FormFieldLabel>
+            {intl.formatMessage({ id: "settings.subagents.form.tools.label" })}
+          </FormFieldLabel>
+          <div className="flex min-w-0 items-center gap-2">
+            <Select
+              value={inheritAllTools ? "all" : "custom"}
+              onValueChange={handleToolsModeChange}
+            >
+              <SelectTrigger size="lg" className="w-fit justify-between">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">
+                  {intl.formatMessage({
+                    id: "settings.subagents.form.tools.mode.all",
+                  })}
+                </SelectItem>
+                <SelectItem value="custom">
+                  {intl.formatMessage({
+                    id: "settings.subagents.form.tools.mode.custom",
+                  })}
+                </SelectItem>
+              </SelectContent>
+            </Select>
+            <span className="min-w-0 text-ui-base font-normal text-foreground-subtle">
+              {intl.formatMessage({
+                id: "settings.subagents.form.tools.card.title",
+              })}
+            </span>
           </div>
-        )}
-      </div>
+          {inheritAllTools ? null : (
+            <div className="rounded-lg border border-border bg-card p-1">
+              <div className="grid max-h-72 gap-1 overflow-y-auto sm:grid-cols-2 lg:grid-cols-3">
+                {TOOL_OPTIONS.map((tool) => (
+                  <ToolCheckbox
+                    key={tool}
+                    checked={selectedTools.includes(tool)}
+                    disabled={false}
+                    label={tool}
+                    onToggle={() => toggleTool(tool)}
+                  />
+                ))}
+              </div>
+            </div>
+          )}
+        </div>
+      ) : null}
 
       <div className="space-y-1.5">
         <FormFieldLabel>
@@ -1237,20 +1682,22 @@ function SubagentForm({
         {promptError ? <p className="text-ui-base text-destructive">{promptError}</p> : null}
       </div>
 
-      <div className="flex items-center justify-between gap-4 rounded-lg border border-border bg-card px-3 py-2.5">
-        <p className="min-w-0 text-ui-base font-medium text-foreground">
-          {intl.formatMessage({
-            id: "settings.subagents.form.injectAgentsMd.label",
-          })}
-        </p>
-        <Switch
-          checked={injectAgentsMd}
-          onCheckedChange={setInjectAgentsMd}
-          aria-label={intl.formatMessage({
-            id: "settings.subagents.form.injectAgentsMd.label",
-          })}
-        />
-      </div>
+      {!isExternal ? (
+        <div className="flex items-center justify-between gap-4 rounded-lg border border-border bg-card px-3 py-2.5">
+          <p className="min-w-0 text-ui-base font-medium text-foreground">
+            {intl.formatMessage({
+              id: "settings.subagents.form.injectAgentsMd.label",
+            })}
+          </p>
+          <Switch
+            checked={injectAgentsMd}
+            onCheckedChange={setInjectAgentsMd}
+            aria-label={intl.formatMessage({
+              id: "settings.subagents.form.injectAgentsMd.label",
+            })}
+          />
+        </div>
+      ) : null}
 
       <SettingsFormActions
         leadingAction={
@@ -1485,6 +1932,18 @@ export function SubagentsSection({
     await loadAgents(false);
   }, [loadAgents]);
 
+  // 外部 CLI 探测：设置页 scope 目标键缓存 + 失败不缓存（subagentsExternalProbe.ts）。
+  // 老 Host 不支持该 RPC 时抛错 → 返回 null，表单退静态目录 + 自由输入。
+  const probeExternalAgents = useCallback(() => {
+    return loadSubagentsExternalProbe(activeAgentTargetKey, async () => {
+      try {
+        return await subagentsService.probeExternalAgents();
+      } catch {
+        return null;
+      }
+    });
+  }, [activeAgentTargetKey, subagentsService]);
+
   const refreshMentionStore = useCallback(async () => {
     await Promise.all([
       refreshLoadedSubagentsStoreForWorkspace({
@@ -1674,6 +2133,9 @@ export function SubagentsSection({
         agent.modelSelection
           ? `${agent.modelSelection.providerId}/${agent.modelSelection.modelId}`
           : undefined,
+        agent.backend,
+        agent.presetId,
+        agent.externalModel,
         agent.path,
         agent.scope,
         agent.source,
@@ -1765,6 +2227,7 @@ export function SubagentsSection({
               scopeKey={selectedScopeKey}
               workspaceTabs={workspaceTabs}
               onScopeKeyChange={setSelectedScopeKey}
+              probeExternalAgents={probeExternalAgents}
             />
           </div>
         </div>

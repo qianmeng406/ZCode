@@ -1,0 +1,356 @@
+// 外部 backend（backend: external）在设置页读写链路上的行为。
+//
+// 覆盖三件事：
+// 1. services parser 能读出外部字段（S6 前读了就丢，列表/表单全瞎）；
+// 2. serializer 往返保留外部字段（S6 前保存即静默降级为 native 的真实缺陷）；
+// 3. createAgent/updateAgent 的保存校验与落盘结果（坏 preset 挡在写盘前）。
+import assert from "node:assert/strict";
+import { mkdtemp, readFile, rm } from "node:fs/promises";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
+import test from "node:test";
+import type { SubAgentConfig } from "@zcode/shared";
+import {
+  parseSubagentMarkdown,
+  serializeSubagentMarkdown,
+} from "../src/subagents/subagentMarkdown.js";
+import { createSubagentsService } from "../src/subagents/subagentsService.js";
+
+const EXTERNAL_MARKDOWN = [
+  "---",
+  'name: "cb-runner"',
+  'description: "把实现类任务交给 CodeBuddy CLI 执行"',
+  "backend: external",
+  "preset: codebuddy",
+  "model: DeepSeek-V4-Pro",
+  "effort: high",
+  "contextWindow: 128000",
+  "---",
+  "你是执行型子智能体。",
+].join("\n");
+
+function externalConfig(overrides: Partial<SubAgentConfig> = {}): SubAgentConfig {
+  return {
+    name: "cb-runner",
+    description: "把实现类任务交给 CodeBuddy CLI 执行",
+    systemPrompt: "你是执行型子智能体。",
+    color: "yellow",
+    backend: "external",
+    presetId: "codebuddy",
+    externalModel: "DeepSeek-V4-Pro",
+    externalEffort: "high",
+    externalContextWindow: 128000,
+    ...overrides,
+  };
+}
+
+test("外部 frontmatter 解析出 backend/presetId/model/effort/contextWindow", () => {
+  const parsed = parseSubagentMarkdown({
+    content: EXTERNAL_MARKDOWN,
+    path: "~/.zcode/agents/cb-runner.md",
+    scope: "user",
+  });
+  assert.equal(parsed.diagnostic, undefined);
+  assert.equal(parsed.agent?.backend, "external");
+  assert.equal(parsed.agent?.presetId, "codebuddy");
+  assert.equal(parsed.agent?.externalModel, "DeepSeek-V4-Pro");
+  assert.equal(parsed.agent?.externalEffort, "high");
+  assert.equal(parsed.agent?.externalContextWindow, 128000);
+});
+
+test("外部 profile 的 CLI 模型名不被误解析成 native ModelSelection", () => {
+  // opencode 的模型 id 形如 provider/model（anthropic/claude-sonnet-4），
+  // 按 native 格式解析会得到一个看似合法实则错误的 ModelSelection。
+  const parsed = parseSubagentMarkdown({
+    content: EXTERNAL_MARKDOWN.replace(
+      "model: DeepSeek-V4-Pro",
+      "model: anthropic/claude-sonnet-4",
+    ),
+    path: "x.md",
+    scope: "user",
+  });
+  assert.equal(parsed.agent?.modelSelection, undefined);
+  assert.equal(parsed.agent?.externalModel, "anthropic/claude-sonnet-4");
+});
+
+test("未知 preset 产生 agent_unknown_external_preset 诊断", () => {
+  const parsed = parseSubagentMarkdown({
+    content: EXTERNAL_MARKDOWN.replace("preset: codebuddy", "preset: no-such-cli"),
+    path: "x.md",
+    scope: "user",
+  });
+  assert.equal(parsed.agent, undefined);
+  assert.equal(parsed.diagnostic?.code, "agent_unknown_external_preset");
+});
+
+test("partial 预设产生 agent_external_preset_not_bindable 诊断", () => {
+  const parsed = parseSubagentMarkdown({
+    content: EXTERNAL_MARKDOWN.replace("preset: codebuddy", "preset: claude-code"),
+    path: "x.md",
+    scope: "user",
+  });
+  assert.equal(parsed.agent, undefined);
+  assert.equal(parsed.diagnostic?.code, "agent_external_preset_not_bindable");
+});
+
+test("native profile 上写 preset 产生 agent_preset_requires_external_backend 诊断", () => {
+  const parsed = parseSubagentMarkdown({
+    content: '---\nname: "a"\ndescription: "b"\npreset: codebuddy\n---\np\n',
+    path: "x.md",
+    scope: "user",
+  });
+  assert.equal(parsed.agent, undefined);
+  assert.equal(parsed.diagnostic?.code, "agent_preset_requires_external_backend");
+});
+
+test("非法 backend 值产生 agent_invalid_backend 诊断", () => {
+  const parsed = parseSubagentMarkdown({
+    content: '---\nname: "a"\ndescription: "b"\nbackend: cloud\n---\np\n',
+    path: "x.md",
+    scope: "user",
+  });
+  assert.equal(parsed.agent, undefined);
+  assert.equal(parsed.diagnostic?.code, "agent_invalid_backend");
+});
+
+test("external 缺 preset 产生 agent_missing_required_frontmatter 诊断", () => {
+  const parsed = parseSubagentMarkdown({
+    content: '---\nname: "a"\ndescription: "b"\nbackend: external\n---\np\n',
+    path: "x.md",
+    scope: "user",
+  });
+  assert.equal(parsed.agent, undefined);
+  assert.equal(parsed.diagnostic?.code, "agent_missing_required_frontmatter");
+});
+
+test("非法 contextWindow 产生 agent_invalid_context_window 诊断", () => {
+  const parsed = parseSubagentMarkdown({
+    content: EXTERNAL_MARKDOWN.replace("contextWindow: 128000", "contextWindow: zero"),
+    path: "x.md",
+    scope: "user",
+  });
+  assert.equal(parsed.agent, undefined);
+  assert.equal(parsed.diagnostic?.code, "agent_invalid_context_window");
+});
+
+test("外部 config 序列化写出 backend/preset/model/effort/contextWindow", () => {
+  const markdown = serializeSubagentMarkdown(externalConfig());
+  assert.match(markdown, /^---\n/);
+  assert.match(markdown, /backend: external/);
+  assert.match(markdown, /preset: codebuddy/);
+  assert.match(markdown, /model: DeepSeek-V4-Pro/);
+  assert.match(markdown, /effort: high/);
+  assert.match(markdown, /contextWindow: 128000/);
+  // 外部 profile 上不写 native 选择格式，两种 model 语义互斥。
+  assert.doesNotMatch(markdown, /thoughtLevel/);
+  assert.doesNotMatch(markdown, /"builtin:/);
+});
+
+test("往返：外部 markdown parse→serialize→parse 外部字段不丢（降级 bug 回归）", () => {
+  const first = parseSubagentMarkdown({ content: EXTERNAL_MARKDOWN, path: "x.md", scope: "user" });
+  assert.ok(first.agent);
+  const roundTrip = parseSubagentMarkdown({
+    content: serializeSubagentMarkdown({
+      name: first.agent.name,
+      description: first.agent.description,
+      systemPrompt: first.agent.systemPrompt,
+      color: first.agent.color,
+      backend: first.agent.backend,
+      presetId: first.agent.presetId,
+      externalModel: first.agent.externalModel,
+      externalEffort: first.agent.externalEffort,
+      externalContextWindow: first.agent.externalContextWindow,
+    }),
+    path: "x.md",
+    scope: "user",
+  });
+  assert.equal(roundTrip.diagnostic, undefined);
+  assert.equal(roundTrip.agent?.backend, "external");
+  assert.equal(roundTrip.agent?.presetId, "codebuddy");
+  assert.equal(roundTrip.agent?.externalModel, "DeepSeek-V4-Pro");
+  assert.equal(roundTrip.agent?.externalEffort, "high");
+  assert.equal(roundTrip.agent?.externalContextWindow, 128000);
+});
+
+test("外部→native 转换后文件不再含外部字段", () => {
+  const markdown = serializeSubagentMarkdown(externalConfig({ backend: undefined }));
+  assert.doesNotMatch(markdown, /backend:/);
+  assert.doesNotMatch(markdown, /preset:/);
+  assert.doesNotMatch(markdown, /effort:/);
+  assert.doesNotMatch(markdown, /contextWindow:/);
+});
+
+test("外部 profile 上保留的 native 专属字段（tools 等）序列化不丢", () => {
+  // 用户手写的 tools 对外部不生效（runtime 软警告），但保存端删掉就是数据丢失；
+  // 与 mcpServers 既有先例同口径：保留原样。
+  const markdown = serializeSubagentMarkdown(
+    externalConfig({ tools: ["Read", "Grep"], mcpServers: [{ name: "x" }] }),
+  );
+  assert.match(markdown, /tools:/);
+  assert.match(markdown, /- Read/);
+  assert.match(markdown, /mcpServers:/);
+});
+
+test("createAgent 落盘外部 profile 且 list 回读带外部字段", async () => {
+  const home = await mkdtemp(join(tmpdir(), "zcode-subagents-"));
+  try {
+    const service = createSubagentsService({ homeDir: home, isDesktopRuntime: true });
+    const { agent } = await service.createAgent({
+      config: externalConfig(),
+      provider: undefined as never,
+      scope: "user",
+    });
+    assert.equal(agent.backend, "external");
+    assert.equal(agent.presetId, "codebuddy");
+
+    const filePath = join(home, ".zcode", "agents", "cb-runner.md");
+    const onDisk = await readFile(filePath, "utf-8");
+    assert.match(onDisk, /backend: external/);
+    assert.match(onDisk, /preset: codebuddy/);
+
+    const listed = await service.list({
+      workspacePath: "",
+      provider: undefined as never,
+      mode: "settingsUserOnly",
+    });
+    const found = listed.agents.find((entry) => entry.name === "cb-runner");
+    assert.equal(found?.backend, "external");
+    assert.equal(found?.presetId, "codebuddy");
+    assert.equal(found?.externalModel, "DeepSeek-V4-Pro");
+  } finally {
+    await rm(home, { recursive: true, force: true });
+  }
+});
+
+test("updateAgent 编辑外部 profile（改描述）不丢 backend/preset（核心回归）", async () => {
+  const home = await mkdtemp(join(tmpdir(), "zcode-subagents-"));
+  try {
+    const service = createSubagentsService({ homeDir: home, isDesktopRuntime: true });
+    const created = await service.createAgent({
+      config: externalConfig(),
+      provider: undefined as never,
+      scope: "user",
+    });
+    // 模拟设置页：从 list 回读的完整 AgentSummary 初始化表单，只改描述后保存。
+    const summary = created.agent;
+    await service.updateAgent({
+      agentId: summary.id,
+      config: {
+        name: summary.name,
+        description: "只改了这一句描述",
+        systemPrompt: summary.systemPrompt,
+        color: summary.color,
+        backend: summary.backend,
+        presetId: summary.presetId,
+        externalModel: summary.externalModel,
+        externalEffort: summary.externalEffort,
+        externalContextWindow: summary.externalContextWindow,
+      },
+      oldFilePath: summary.path,
+      provider: undefined as never,
+      scope: "user",
+    });
+    const onDisk = await readFile(join(home, ".zcode", "agents", "cb-runner.md"), "utf-8");
+    assert.match(onDisk, /backend: external/);
+    assert.match(onDisk, /preset: codebuddy/);
+    assert.match(onDisk, /model: DeepSeek-V4-Pro/);
+    assert.match(onDisk, /只改了这一句描述/);
+  } finally {
+    await rm(home, { recursive: true, force: true });
+  }
+});
+
+test("updateAgent 外部→native 转换写回干净的 native frontmatter", async () => {
+  const home = await mkdtemp(join(tmpdir(), "zcode-subagents-"));
+  try {
+    const service = createSubagentsService({ homeDir: home, isDesktopRuntime: true });
+    const created = await service.createAgent({
+      config: externalConfig(),
+      provider: undefined as never,
+      scope: "user",
+    });
+    await service.updateAgent({
+      agentId: created.agent.id,
+      config: {
+        name: "cb-runner",
+        description: "改回原生",
+        systemPrompt: "你是原生子智能体。",
+        color: "blue",
+      },
+      oldFilePath: created.agent.path,
+      provider: undefined as never,
+      scope: "user",
+    });
+    const onDisk = await readFile(join(home, ".zcode", "agents", "cb-runner.md"), "utf-8");
+    assert.doesNotMatch(onDisk, /backend:/);
+    assert.doesNotMatch(onDisk, /preset:/);
+  } finally {
+    await rm(home, { recursive: true, force: true });
+  }
+});
+
+test("保存校验：外部 config 缺 presetId / partial preset / 坏窗口均被挡下", async () => {
+  const home = await mkdtemp(join(tmpdir(), "zcode-subagents-"));
+  try {
+    const service = createSubagentsService({ homeDir: home, isDesktopRuntime: true });
+    await assert.rejects(
+      service.createAgent({
+        config: externalConfig({ presetId: undefined }),
+        provider: undefined as never,
+        scope: "user",
+      }),
+      /必须选择预设/,
+    );
+    await assert.rejects(
+      service.createAgent({
+        config: externalConfig({ presetId: "no-such-cli" }),
+        provider: undefined as never,
+        scope: "user",
+      }),
+      /未知外部 agent 预设/,
+    );
+    await assert.rejects(
+      service.createAgent({
+        config: externalConfig({ presetId: "claude-code" }),
+        provider: undefined as never,
+        scope: "user",
+      }),
+      /未完整适配/,
+    );
+    await assert.rejects(
+      service.createAgent({
+        config: externalConfig({ externalContextWindow: 0 }),
+        provider: undefined as never,
+        scope: "user",
+      }),
+      /正整数/,
+    );
+  } finally {
+    await rm(home, { recursive: true, force: true });
+  }
+});
+
+test("probeExternalAgents：未注入返回 null（UI 降级路径），注入后透传", async () => {
+  const home = await mkdtemp(join(tmpdir(), "zcode-subagents-"));
+  try {
+    const plain = createSubagentsService({ homeDir: home, isDesktopRuntime: true });
+    assert.equal(await plain.probeExternalAgents(), null);
+
+    const status = [
+      {
+        preset: { id: "codebuddy", label: "CodeBuddy" },
+        installed: true,
+        models: ["DeepSeek-V4-Pro"],
+        modelCatalog: [],
+      },
+    ] as never;
+    const injected = createSubagentsService({
+      homeDir: home,
+      isDesktopRuntime: true,
+      probeExternalAgents: async () => status,
+    });
+    assert.equal(await injected.probeExternalAgents(), status);
+  } finally {
+    await rm(home, { recursive: true, force: true });
+  }
+});

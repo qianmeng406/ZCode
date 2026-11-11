@@ -8,6 +8,7 @@ import type {
   BuiltInSubagentModelOverrideParams,
   PluginSubagentModelOverrideParams,
   SubagentsListMode,
+  ExternalAgentPresetStatus,
 } from "@zcode/shared";
 import { ServiceChannels } from "@zcode/shared";
 import { createServiceDescriptor } from "../descriptors.js";
@@ -38,6 +39,16 @@ export interface ISubagentsService {
 
   /** 删除 agent 文件 */
   deleteAgent(params: AgentDeleteParams): Promise<void>;
+
+  /**
+   * 探测本机可绑定外部 CLI 预设的安装/版本/模型目录（只读、无状态）。
+   *
+   * 供设置页创建/编辑外部 agent 的表单消费（S6）。未接入执行通道（CLI 环境、
+   * 未注入探测实现）返回 null —— UI 退回静态预设目录 + 自由输入模型，功能不残废。
+   * 探测编排与绑定对话框的 v4 RPC 同源（shared/node probeExternalPresets），
+   * 但只探本机：远端设备 scope 的表单同样走降级路径，不做转发。
+   */
+  probeExternalAgents(): Promise<ExternalAgentPresetStatus[] | null>;
 }
 
 export const ISubagentsService = createServiceDescriptor<ISubagentsService>(

@@ -1,5 +1,6 @@
 import type { ZCodeProvider } from "./zcode-task-types-core.js";
 import { modelSelectionSchema, type ModelSelection } from "./model-selection.js";
+import type { AgentProfileBackend } from "./subagent-profile.js";
 
 export type AgentScope = "built-in" | "workspace" | "user";
 
@@ -72,6 +73,23 @@ export interface AgentSummary {
   pluginId?: string;
   pluginName?: string;
   diagnostics?: AgentDiagnostic[];
+  /**
+   * 执行后端（settings 投影，与 runtime AgentProfile.backend 同语义）。
+   * 缺省 = native。设置页用它在列表行显示外部徽标、把编辑表单切到外部模式。
+   */
+  backend?: AgentProfileBackend;
+  /** backend=external 时绑定的预设 id（EXTERNAL_AGENT_PRESETS 的 key）。 */
+  presetId?: string;
+  /**
+   * backend=external 时传给 CLI 的 --model 名（原样透传字符串，如 DeepSeek-V4-Pro）。
+   * 刻意不叫 model：AgentSummary.modelSelection 已是 native 结构语义，两者互斥，
+   * 分开命名防止任何一处把 CLI 模型名误当成 provider/model 选择格式。
+   */
+  externalModel?: string;
+  /** backend=external 时的推理档位（预设 effort 值域内）；缺省 = CLI 默认。 */
+  externalEffort?: string;
+  /** backend=external 时的上下文窗口（token）；缺省 = CLI 默认。 */
+  externalContextWindow?: number;
 }
 
 export interface AgentDiagnostic {
@@ -108,6 +126,16 @@ export interface SubAgentConfig {
   maxTurns?: number;
   background?: boolean;
   mcpServers?: unknown[];
+  /** 执行后端；缺省 = native。external 时 presetId 必填、modelSelection 不参与。 */
+  backend?: AgentProfileBackend;
+  /** backend=external 时绑定的预设 id。 */
+  presetId?: string;
+  /** backend=external 时传给 CLI 的 --model 名；缺省 = CLI 默认模型。 */
+  externalModel?: string;
+  /** backend=external 时的推理档位；缺省 = CLI 默认。 */
+  externalEffort?: string;
+  /** backend=external 时的上下文窗口（token）；缺省 = CLI 默认。 */
+  externalContextWindow?: number;
 }
 
 /** Agent 创建参数 */

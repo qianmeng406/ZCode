@@ -100,7 +100,7 @@ export function SubagentsSection({
                   },
                 },
                 truncateDisplay(
-                  `  ${item.subagentType} · ${labels.status[item.status]}`,
+                  `  ${item.subagentType}${item.backend === "external" ? ` · ${labels.externalBadge(item.presetId ?? "")}` : ""} · ${labels.status[item.status]}`,
                   SIDEBAR_CONTENT_WIDTH - 1,
                 ),
               ),

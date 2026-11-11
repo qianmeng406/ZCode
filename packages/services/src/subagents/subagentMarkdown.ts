@@ -1,6 +1,7 @@
 import { parse as parseYaml, stringify as stringifyYaml } from "yaml";
 import {
   createAgentStateId,
+  findExternalAgentPreset,
   parseSubagentMarkdownSelection,
   formatSubagentMarkdownModel,
   type AgentColor,
@@ -70,7 +71,14 @@ export function parseSubagentMarkdown(
   }
 
   const source = input.scope === "built-in" ? "built-in" : "user";
-  const modelSelection = parseSubagentMarkdownSelection(frontmatter);
+  // backend/preset 与 runtime parser（subagent-profile-parser.ts 的 parseExternalBackend）
+  // 同语义：先定 backend，再决定 model 字段按 native 选择格式还是 CLI 透传字符串解释。
+  // 两边规则必须保持一致——设置页读不出来就会在保存时静默丢字段（S6 前的真实缺陷）。
+  const external = parseExternalBackendFields(frontmatter, input.path);
+  if (external.diagnostic) {
+    return { diagnostic: external.diagnostic };
+  }
+  const modelSelection = external.fields ? undefined : parseSubagentMarkdownSelection(frontmatter);
   const color = normalizeEnum(frontmatter.color, VALID_COLORS);
   const permissionMode = normalizeEnum(frontmatter.permissionMode, VALID_PERMISSION_MODES);
   const maxTurns = normalizePositiveInteger(frontmatter.maxTurns);
@@ -97,6 +105,7 @@ export function parseSubagentMarkdown(
       ...(background !== undefined ? { background } : {}),
       ...(injectAgentsMd !== undefined ? { injectAgentsMd } : {}),
       ...(mcpServers ? { mcpServers } : {}),
+      ...(external.fields ?? {}),
       path: input.path,
       scope: input.scope,
       source,
@@ -109,13 +118,118 @@ export function parseSubagentMarkdown(
   };
 }
 
+/**
+ * 设置页侧的外部 backend 字段解析。
+ *
+ * 诊断码与 runtime parser 保持一致（agent_invalid_backend / agent_unknown_external_preset /
+ * agent_external_preset_not_bindable / agent_invalid_context_window / agent_preset_requires_external_backend），
+ * 使「设置页显示正常」与「runtime 能加载」不出现两套真相。preset 值域校验只调
+ * shared 的 findExternalAgentPreset，不复制预设清单。
+ */
+function parseExternalBackendFields(
+  frontmatter: Record<string, unknown>,
+  path: string,
+): {
+  fields?: Pick<
+    AgentSummary,
+    "backend" | "presetId" | "externalModel" | "externalEffort" | "externalContextWindow"
+  >;
+  diagnostic?: AgentDiagnostic;
+} {
+  const rawBackend = scalarString(frontmatter.backend);
+  if (rawBackend !== undefined && rawBackend !== "native" && rawBackend !== "external") {
+    return {
+      diagnostic: {
+        code: "agent_invalid_backend",
+        message: `Agent frontmatter backend must be native or external: ${path}`,
+        path,
+      },
+    };
+  }
+  const presetValue = scalarString(frontmatter.preset);
+  if (rawBackend !== "external") {
+    if (presetValue !== undefined) {
+      return {
+        diagnostic: {
+          code: "agent_preset_requires_external_backend",
+          message: `Agent frontmatter preset requires backend: external: ${path}`,
+          path,
+        },
+      };
+    }
+    return { fields: undefined };
+  }
+
+  if (presetValue === undefined) {
+    return {
+      diagnostic: {
+        code: "agent_missing_required_frontmatter",
+        message: `Agent frontmatter must include preset when backend is external: ${path}`,
+        path,
+      },
+    };
+  }
+  const preset = findExternalAgentPreset(presetValue);
+  if (!preset) {
+    return {
+      diagnostic: {
+        code: "agent_unknown_external_preset",
+        message: `Agent frontmatter preset is not a known external agent preset: ${presetValue} (${path})`,
+        path,
+      },
+    };
+  }
+  if (preset.adaptation !== "full") {
+    return {
+      diagnostic: {
+        code: "agent_external_preset_not_bindable",
+        message: `Agent frontmatter preset is only partially adapted and cannot run: ${presetValue} (${path})`,
+        path,
+      },
+    };
+  }
+
+  const contextWindow = normalizePositiveInteger(frontmatter.contextWindow);
+  if (frontmatter.contextWindow !== undefined && contextWindow === undefined) {
+    return {
+      diagnostic: {
+        code: "agent_invalid_context_window",
+        message: `Agent frontmatter contextWindow must be a positive integer (tokens): ${path}`,
+        path,
+      },
+    };
+  }
+  const externalModel = scalarString(frontmatter.model);
+  const externalEffort = scalarString(frontmatter.effort);
+
+  return {
+    fields: {
+      backend: "external",
+      presetId: presetValue,
+      ...(externalModel ? { externalModel } : {}),
+      ...(externalEffort ? { externalEffort } : {}),
+      ...(contextWindow !== undefined ? { externalContextWindow: contextWindow } : {}),
+    },
+  };
+}
+
 export function serializeSubagentMarkdown(config: SubAgentConfig): string {
   const frontmatterLines: string[] = [
     `name: "${escapeYamlString(config.name)}"`,
     `description: "${escapeYamlString(config.description)}"`,
   ];
   appendScalar(frontmatterLines, "color", config.color);
-  if (config.modelSelection) {
+  if (config.backend === "external") {
+    // 外部 profile：model 字段是 CLI 透传字符串（如 DeepSeek-V4-Pro），不是
+    // provider/model 选择格式；两种 model 语义互斥，外部时不写 modelSelection。
+    appendScalar(frontmatterLines, "backend", "external");
+    appendScalar(frontmatterLines, "preset", config.presetId);
+    appendScalar(frontmatterLines, "model", config.externalModel);
+    appendScalar(frontmatterLines, "effort", config.externalEffort);
+    if (config.externalContextWindow !== undefined) {
+      frontmatterLines.push(`contextWindow: ${config.externalContextWindow}`);
+    }
+  } else if (config.modelSelection) {
     appendScalar(frontmatterLines, "model", formatSubagentMarkdownModel(config.modelSelection));
     appendScalar(frontmatterLines, "thoughtLevel", config.modelSelection.options?.reasoningLevel);
   }

@@ -180,6 +180,7 @@ Slash Commands:
           cancelled: "已取消",
           lost: "失联",
         },
+        externalBadge: (presetId) => (presetId ? `外部 · ${presetId}` : "外部"),
       },
       api: {
         empty: "还没有 API 调用。",

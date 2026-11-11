@@ -122,6 +122,8 @@ export interface TuiCopy {
         "running" | "waiting" | "blocked" | "success" | "failed" | "cancelled" | "lost",
         string
       >;
+      /** 外部 CLI 执行的子智能体徽标（presetId 为空时实现只给"外部"）。 */
+      externalBadge(presetId: string): string;
     };
     api: {
       empty: string;

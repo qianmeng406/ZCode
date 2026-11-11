@@ -183,6 +183,7 @@ Slash Commands:
           cancelled: "cancelled",
           lost: "lost",
         },
+        externalBadge: (presetId) => (presetId ? `External · ${presetId}` : "External"),
       },
       api: {
         empty: "No API calls yet.",

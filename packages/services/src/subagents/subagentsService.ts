@@ -4,6 +4,7 @@ import { basename, dirname, isAbsolute, join, relative, resolve } from "node:pat
 import {
   createAgentStateId,
   createPluginAgentStateId,
+  findExternalAgentPreset,
   parsePluginSubagentModelSelectionOverrides,
   DEFAULT_ENABLED_OFFICIAL_PLUGIN_IDS,
   ZCODE_OFFICIAL_PLUGIN_MARKETPLACE_ID,
@@ -24,6 +25,7 @@ import {
   type SubAgentConfig,
   type SubagentsListMode,
   type ZCodeProvider,
+  type ExternalAgentPresetStatus,
 } from "@zcode/shared";
 import { normalizeSubagentModelSelection } from "./subagentModelSelection.js";
 import { serializeSubagentMarkdown, parseSubagentMarkdown } from "./subagentMarkdown.js";
@@ -76,6 +78,12 @@ interface InstalledPluginRecord {
 
 interface SubagentsServiceOptions extends SubagentStorageOptions {
   isDesktopRuntime?: boolean;
+  /**
+   * 本机外部 CLI 预设探测（S6）。desktop host 注入（child_process 实现），
+   * CLI 环境不注入 —— probeExternalAgents 返回 null，UI 退静态目录 + 自由输入。
+   * 编排与 bootstrap 的会话绑定 v4 RPC 同源（shared/node probeExternalPresets）。
+   */
+  probeExternalAgents?: () => Promise<ExternalAgentPresetStatus[] | null>;
 }
 
 interface PluginAgentDiscovery {
@@ -800,6 +808,11 @@ export function createSubagentsService(options?: SubagentsServiceOptions): ISuba
       state.disabledAgentIds = [...disabledSet].sort();
       await writeAgentStateFile(state, storageOptions);
     },
+
+    async probeExternalAgents(): Promise<ExternalAgentPresetStatus[] | null> {
+      if (!options?.probeExternalAgents) return null;
+      return await options.probeExternalAgents();
+    },
   };
   return {
     ...service,
@@ -810,6 +823,10 @@ export function createSubagentsService(options?: SubagentsServiceOptions): ISuba
 }
 
 function validateUserAgentConfig(config: SubAgentConfig): void {
+  if (config.backend === "external") {
+    validateExternalAgentConfig(config);
+    return;
+  }
   const trimmedName = config.name.trim();
   const nameRegex = /^[a-zA-Z0-9-]+$/;
   const minNameLength = 3;
@@ -825,6 +842,48 @@ function validateUserAgentConfig(config: SubAgentConfig): void {
   }
   if (config.systemPrompt.trim().length === 0) {
     throw new Error("System prompt is required");
+  }
+}
+
+/**
+ * 外部 profile 的保存校验。与 runtime parser（parseExternalBackend）同口径：
+ * preset 必须是已知且完整适配的预设，否则 runtime 加载时会拒绝，保存端提前挡下。
+ * model/effort 是 CLI 透传字符串，值域由 CLI 运行时判定，这里只做非空校验。
+ */
+function validateExternalAgentConfig(config: SubAgentConfig): void {
+  const trimmedName = config.name.trim();
+  const nameRegex = /^[a-zA-Z0-9-]+$/;
+  if (trimmedName.length < 3 || trimmedName.length > 50 || !nameRegex.test(trimmedName)) {
+    throw new Error("Name must be 3-50 characters of letters, numbers, and hyphens");
+  }
+  if (config.description.trim().length === 0) {
+    throw new Error("Description is required");
+  }
+  if (config.systemPrompt.trim().length === 0) {
+    throw new Error("System prompt is required");
+  }
+  const presetId = config.presetId?.trim();
+  if (!presetId) {
+    throw new Error("外部 agent 必须选择预设（preset）");
+  }
+  const preset = findExternalAgentPreset(presetId);
+  if (!preset) {
+    throw new Error(`未知外部 agent 预设: ${presetId}`);
+  }
+  if (preset.adaptation !== "full") {
+    throw new Error(`外部 agent 预设 ${presetId} 未完整适配，不可绑定`);
+  }
+  if (config.externalModel !== undefined && config.externalModel.trim().length === 0) {
+    throw new Error("外部 agent 模型名为空时应省略字段，而不是传空串");
+  }
+  if (config.externalEffort !== undefined && config.externalEffort.trim().length === 0) {
+    throw new Error("外部 agent 推理档位为空时应省略字段，而不是传空串");
+  }
+  if (
+    config.externalContextWindow !== undefined &&
+    (!Number.isInteger(config.externalContextWindow) || config.externalContextWindow < 1)
+  ) {
+    throw new Error("外部 agent 上下文窗口必须是正整数（token）");
   }
 }
 
@@ -865,6 +924,10 @@ function normalizeConfig(config: SubAgentConfig): SubAgentConfig {
     description: config.description.trim(),
     systemPrompt: config.systemPrompt.trim(),
     modelSelection: normalizeSubagentModelSelection(config.modelSelection),
+    ...(config.externalModel !== undefined ? { externalModel: config.externalModel.trim() } : {}),
+    ...(config.externalEffort !== undefined
+      ? { externalEffort: config.externalEffort.trim() }
+      : {}),
   };
 }
 
