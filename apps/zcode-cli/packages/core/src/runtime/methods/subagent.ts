@@ -28,6 +28,7 @@ import type {
 } from "../deps.js";
 import { resolveExecutionState } from "@zcode/shared";
 import { AgentRuntime } from "../agent-runtime.js";
+import { projectIdFromDirectory, slugify, titleFromInput } from "../helpers/project.js";
 import type { AgentRuntimeInternal } from "../internal.js";
 import { cloneModelSelection } from "../model-selection.js";
 import { resolveSubagentSelection } from "../helpers/subagent-selection.js";
@@ -122,6 +123,12 @@ export function createDefaultSubagentPort(
       const externalPort = deps.externalSubagentPort;
       if (externalPort?.handles(request.profile)) {
         request.reportActivity?.();
+        // 子会话必须先落库再放行执行。原生路径由 child AgentRuntime 的
+        // ensureSessionPersistedForExternalActivity 做这件事；外部路径没有 child
+        // runtime，若跳过这一步，父会话的子智能体投影会因为
+        // `getSession(childSessionId)` 查不到而把这次分支整个丢掉——
+        // 表现为"卡片没有、下钻空白"，但进程其实跑完了。
+        await ensureExternalSubagentChildSession.call(this, request);
         const external = await externalPort.run(
           {
             agentId: request.agentId,
@@ -143,6 +150,25 @@ export function createDefaultSubagentPort(
           traceId: request.traceContext.traceId,
           events: external.events,
         };
+      }
+      // 声明了外部后端却没人能执行它：必须明确失败，绝不回退到原生 child。
+      //
+      // 实测这条降级路径是静默且"成功"的（2026-11-11）：profile 没有 modelSelection，
+      // resolveSubagentSelection 会退回父会话模型，于是 CodeBuddy 的 profile 实际由
+      // ZCode 自己的模型跑完并返回 completed——用户以为活是外部 CLI 干的。宁可报错。
+      if (request.profile.backend === "external") {
+        throw createCoreError(
+          CoreErrorType.ConfigurationError,
+          `子智能体 ${request.agentType} 声明了外部后端（preset: ${request.profile.preset ?? "未指定"}），但当前执行端没有接入外部 subagent 端口`,
+          {
+            context: {
+              agentType: request.agentType,
+              presetId: request.profile.preset,
+              agentId: request.agentId,
+            },
+            recoverable: false,
+          },
+        );
       }
       const offPeak = getOffPeakExecution(this);
       const childBinding = offPeak?.createChildBinding();
@@ -600,6 +626,58 @@ export function createDefaultSubagentPort(
       }
     },
   });
+}
+
+/**
+ * 为外部子智能体创建（或复用）子会话行。
+ *
+ * 为什么必须由 core 做：子会话投影（`app/subagent-observation.ts` 与 cold query）
+ * 会校验 `parentID === 父会话` 且 `taskType === "subagent_child"`，查不到就把这条
+ * 分支整个丢掉。原生路径由 child AgentRuntime 的
+ * `ensureSessionPersistedForExternalActivity` 写入；外部路径没有 child runtime，
+ * 少了这一步就会"进程跑完了，但卡片和下钻都没有"。
+ *
+ * 幂等：同 agentId 重复调用只读回已有行（终态续跑走这条路径时不重复插入）。
+ * 失败不阻断执行——子会话只是观察层，进程结果仍然有价值；但要留下 warn，
+ * 否则用户只会看到一个永远打不开的空面板。
+ */
+async function ensureExternalSubagentChildSession(
+  this: AgentRuntimeInternal,
+  request: ExploreSubagentRuntimeRequest,
+): Promise<void> {
+  const sessionStore = this.sessionStore;
+  if (!sessionStore?.createSession || !sessionStore.getSession) return;
+  try {
+    const existing = await sessionStore.getSession(request.sessionId);
+    if (existing) return;
+    const directory = request.workingDirectory;
+    await sessionStore.createSession({
+      id: request.sessionId,
+      projectID: projectIdFromDirectory(directory),
+      // 与父会话同一 workspace identity：memory 与冷恢复都按它归属。
+      ...(this.config.workspaceIdentity
+        ? { workspaceID: this.config.workspaceIdentity as WorkspaceId }
+        : {}),
+      parentID: this.sessionId,
+      traceID: request.traceContext.traceId,
+      taskType: "subagent_child",
+      slug: slugify(request.sessionId),
+      directory,
+      path: this.config.workspacePath ?? directory,
+      title: titleFromInput(request.description || request.prompt),
+      titleSource: "first_input",
+      version: this.appVersion,
+      permission: { mode: this.config.mode ?? "build" },
+    });
+  } catch (error) {
+    this.logger?.warn("External subagent child session persistence failed", {
+      agentId: request.agentId,
+      childSessionId: request.sessionId,
+      error: error instanceof Error ? error.message : String(error),
+      event: "subagent.external_child.persist_failed",
+      module: "core.subagent",
+    });
+  }
 }
 
 function resolveSubagentEmbeddedSearchEnabled(): boolean {

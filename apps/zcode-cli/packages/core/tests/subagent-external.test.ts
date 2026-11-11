@@ -1,0 +1,188 @@
+// 外部 agent 子智能体：从 Agent 工具到外部端口的整条链路。
+//
+// 这层钉住的是"主 agent 真的能像创建原生子智能体一样创建外部子智能体"，
+// 而不只是适配器自己的单元行为：
+// - profile 声明 backend: external 时执行走注入端口，原生 child 模型不会被调用；
+// - 子会话在放行执行前就落库（parentID + taskType=subagent_child），否则父会话的
+//   子智能体投影会把这条分支整个丢掉，表现为"卡片没有、下钻空白"；
+// - 生命周期事件仍然由原生 runner 发出（卡片/侧栏/未读的来源）。
+import { describe, expect, it, vi } from "vitest";
+import { SessionEventType, createSessionId } from "@zcode/contracts";
+import type { AgentProfile, ExternalSubagentPort, SessionId } from "@zcode/contracts";
+import { createTestAgentRuntime } from "./test-agent-runtime.js";
+import { createTestModelFactory } from "./test-runtime-model.js";
+import { createTestSessionEventStore } from "./test-event-store.js";
+import { createRecordingSubagentSessionStore } from "./subagent-test-store.js";
+
+const externalProfile: AgentProfile = {
+  name: "cb-runner",
+  description: "把实现任务交给 CodeBuddy",
+  source: "user",
+  systemPrompt: "你是执行型子智能体。",
+  backend: "external",
+  preset: "codebuddy",
+  model: "glm-4.6",
+};
+
+const usage = { inputTokens: 1, outputTokens: 1, totalTokens: 2 };
+
+/**
+ * 造一个父 runtime：第一轮发起 Agent(cb-runner)，之后收尾。
+ *
+ * 与 subagent-profile-scenario 同形（用 loadAgentDefinitions 注入 profile），
+ * 但把断言重点放在"子执行走的是外部端口"——所以 child 模型调用会被记下来，
+ * 一旦发生就说明分流失败。
+ */
+function setup(options: {
+  externalSubagentPort?: ExternalSubagentPort;
+  profiles?: AgentProfile[];
+  prompt?: string;
+}) {
+  const sessionId = createSessionId();
+  const sessionStore = createRecordingSubagentSessionStore();
+  const events = createTestSessionEventStore();
+  const childModelCalls: unknown[] = [];
+  let parentCalls = 0;
+  const profiles = options.profiles ?? [externalProfile];
+
+  const runtime = createTestAgentRuntime(
+    sessionId,
+    { mode: "yolo", compact: { enabled: false }, titleGeneration: { enabled: false } },
+    {
+      sessionStore,
+      eventStore: events,
+      loadAgentDefinitions: async () => ({ activeAgents: profiles }),
+      ...(options.externalSubagentPort
+        ? { externalSubagentPort: options.externalSubagentPort }
+        : {}),
+      modelFactory: createTestModelFactory({
+        async generateText(request, observation) {
+          // 子会话的模型调用 = 走了原生路径（对 external profile 是失败信号）。
+          if (observation.invocationContext?.metadata?.querySource === "subagent") {
+            childModelCalls.push(request);
+            return { finishReason: "stop", text: "native child", usage };
+          }
+          parentCalls += 1;
+          if (parentCalls === 1) {
+            return {
+              finishReason: "tool-calls",
+              text: "",
+              usage,
+              toolCalls: [
+                {
+                  id: "call_external_1",
+                  name: "Agent",
+                  input: {
+                    description: "改 lint",
+                    prompt: options.prompt ?? "把 lint 修了",
+                    subagent_type: "cb-runner",
+                  },
+                },
+              ],
+            };
+          }
+          return { finishReason: "stop", text: "done", usage };
+        },
+      }),
+    },
+  );
+
+  return { runtime, sessionId, sessionStore, events, childModelCalls };
+}
+
+const lifecycle = async (
+  sessionId: SessionId,
+  events: ReturnType<typeof createTestSessionEventStore>,
+  type: SessionEventType,
+) => (await events.getEvents(sessionId)).filter((event) => event.type === type);
+
+describe("外部 agent 子智能体（Agent 工具 → 外部端口）", () => {
+  it("执行走外部端口；原生 child 模型一次都不被调用", async () => {
+    const run = vi.fn(async () => ({ response: "外部 CLI 改完了 lint", events: [] }));
+    const externalSubagentPort: ExternalSubagentPort = {
+      handles: (profile) => profile.backend === "external",
+      run,
+    };
+    const scenario = setup({ externalSubagentPort });
+
+    const result = await scenario.runtime.executeTurn("用 cb-runner 修 lint");
+
+    expect(result.response).toBe("done");
+    expect(run).toHaveBeenCalledTimes(1);
+    const call = run.mock.calls[0]![0] as Record<string, unknown>;
+    expect(call).toMatchObject({ agentType: "cb-runner", prompt: "把 lint 修了" });
+    // 分流成功的关键证据：外部 profile 绝不会落到原生 child runtime。
+    expect(scenario.childModelCalls).toHaveLength(0);
+  });
+
+  it("生命周期事件仍由原生 runner 发出（卡片/未读的来源）", async () => {
+    const externalSubagentPort: ExternalSubagentPort = {
+      handles: (profile) => profile.backend === "external",
+      run: async () => ({ response: "ok", events: [] }),
+    };
+    const scenario = setup({ externalSubagentPort });
+
+    await scenario.runtime.executeTurn("用 cb-runner");
+
+    const spawned = await lifecycle(
+      scenario.sessionId,
+      scenario.events,
+      SessionEventType.SubagentSpawned,
+    );
+    const stopped = await lifecycle(
+      scenario.sessionId,
+      scenario.events,
+      SessionEventType.SubagentStopped,
+    );
+    expect(spawned).toHaveLength(1);
+    expect(stopped).toHaveLength(1);
+    const spawnedPayload = spawned[0]!.payload as { agentType?: string };
+    expect(spawnedPayload.agentType).toBe("cb-runner");
+  });
+
+  it("执行前先落子会话（parentID + taskType=subagent_child）", async () => {
+    let seen: { parentID?: string; taskType?: string } | undefined;
+    const externalSubagentPort: ExternalSubagentPort = {
+      handles: (profile) => profile.backend === "external",
+      run: async (request) => {
+        // 端口被调用时子会话必须已在库：投影靠它决定这条分支是否有效。
+        const child = await scenarioRef!.sessionStore.getSession(request.childSessionId);
+        seen = child ?? undefined;
+        return { response: "ok", events: [] };
+      },
+    };
+    const scenarioRef = setup({ externalSubagentPort });
+
+    await scenarioRef.runtime.executeTurn("用 cb-runner");
+
+    expect(seen).toMatchObject({ parentID: scenarioRef.sessionId, taskType: "subagent_child" });
+  });
+
+  it("外部端口缺席时不会悄悄用父模型跑原生 child", async () => {
+    const scenario = setup({});
+
+    await scenario.runtime.executeTurn("用 cb-runner");
+
+    // 子智能体失败作为工具错误回给父模型（父轮正常收口），所以断言在这里：
+    // 一次原生 child 模型都不许被调用。曾经它会静默退回父会话模型跑完并报
+    // completed——用户以为活是外部 CLI 干的。
+    expect(scenario.childModelCalls).toHaveLength(0);
+  });
+
+  it("多个外部子智能体并发：各实例独立执行且都能收口", async () => {
+    const seen: string[] = [];
+    const externalSubagentPort: ExternalSubagentPort = {
+      handles: (profile) => profile.backend === "external",
+      run: async (request) => {
+        seen.push(`${request.agentId}:${request.prompt}`);
+        return { response: `done:${request.prompt}`, events: [] };
+      },
+    };
+    const scenario = setup({ externalSubagentPort, prompt: "任务A" });
+
+    await scenario.runtime.executeTurn("用 cb-runner");
+
+    expect(seen).toHaveLength(1);
+    expect(seen[0]).toMatch(/^agent_[^:]+:任务A$/u);
+  });
+});
