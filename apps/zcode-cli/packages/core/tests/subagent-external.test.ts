@@ -308,4 +308,49 @@ describe("外部 agent 子智能体（Agent 工具 → 外部端口）", () => {
     expect(spawned).toHaveLength(1);
     expect((spawned[0]!.payload as { backend?: string }).backend).toBeUndefined();
   });
+
+  it("终态续跑走外部端口，不会回落到原生 child runtime", async () => {
+    // 这是「终态续跑能否信任」的关键：resumeTerminalAgentInBackground 会以
+    // resumeFromStore:true 再跑一次 runExploreAgent。如果分流写晚了，它就会建一个
+    // 原生 child runtime 用 ZCode 自己的模型跑——用户以为外部 CLI 接着干活，其实不是。
+    const prompts: string[] = [];
+    const externalSubagentPort: ExternalSubagentPort = {
+      handles: (profile) => profile.backend === "external",
+      run: async (request) => {
+        prompts.push(request.prompt);
+        return { response: "ok", events: [] };
+      },
+    };
+    const scenario = setup({ externalSubagentPort });
+
+    await scenario.runtime.executeTurn("用 cb-runner");
+    const port = (scenario.runtime as unknown as { subagentPort: SubagentPort }).subagentPort;
+    const agentId = scenario.childSessionIds.length ? "agent_resume" : "";
+    void agentId;
+
+    // 从注册表拿到刚结束的那个任务，再给它发一条消息（走终态续跑）。
+    const registry = (
+      scenario.runtime as unknown as {
+        runtimeTaskRegistry: { all(): Record<string, { agentId: string }> };
+      }
+    ).runtimeTaskRegistry;
+    const task = Object.values(registry.all())[0];
+
+    const result = await port.sendMessage!({
+      sessionId: scenario.sessionId,
+      parentToolCallId: "call_send",
+      to: task.agentId,
+      message: "接着改文档",
+      workingDirectory: "/workspace/project",
+      workspaceRoot: "/workspace/project",
+      trace: { traceId: "t", spanId: "s" } as never,
+    });
+
+    expect(result.status).toBe("success");
+    // 等续跑那一轮的端口调用发生。
+    await vi.waitFor(() => expect(prompts.length).toBe(2));
+    expect(prompts[1]).toContain("接着改文档");
+    // 原生 child 一次都不许被调用（否则就是回落到了 ZCode 自己的模型）。
+    expect(scenario.childModelCalls).toHaveLength(0);
+  });
 });
