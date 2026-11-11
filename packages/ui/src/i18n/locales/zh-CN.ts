@@ -1708,6 +1708,8 @@ const zhCN: Record<string, string> = {
   "subagentDirectory.status.success": "已完成",
   "subagentDirectory.status.failed": "失败",
   "subagentDirectory.status.cancelled": "已取消",
+  // 外部 CLI 子智能体徽标：让用户一眼看出这次不是 ZCode 自己的子 runtime 在跑。
+  "subagentDirectory.backend.external": "外部",
   "subagentDirectory.status.lost": "已丢失",
   "chat.statusPanel.endedAgents": "已结束",
   // workflow run 目录（任务页脚行 → 这一页 → 详情页）。状态词复用

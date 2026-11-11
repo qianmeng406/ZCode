@@ -1983,6 +1983,15 @@ const zcodeSessionSubagentBaseSchema = z
     agentId: nonEmptyString.optional(),
     toolCallId: nonEmptyString.optional(),
     subagentType: nonEmptyString,
+    /**
+     * 执行后端：`external` = 由外部 CLI 执行。
+     *
+     * 与 rows.ts 的同名字段同义：子智能体列表/侧栏据此区分后端，
+     * 并在能力差异（无运行中消息、无 token 统计）上给出正确提示。
+     */
+    backend: z.enum(["native", "external"]).optional(),
+    /** backend=external 时的预设 id（如 codebuddy），用于徽标文案。 */
+    presetId: nonEmptyString.optional(),
     title: nonEmptyString,
     summary: z.string().optional(),
     startedAt: z.number().int().nonnegative().optional(),

@@ -262,4 +262,50 @@ describe("外部 agent 子智能体（Agent 工具 → 外部端口）", () => {
     expect(text).toContain("把 lint 修了"); // 任务正文（user 侧）
     expect(text).toContain("外部 CLI 的结论"); // CLI 输出（assistant 侧）
   });
+
+  it("SubagentSpawned 事件带 backend/presetId（卡片徽标来源）", async () => {
+    const externalSubagentPort: ExternalSubagentPort = {
+      handles: (profile) => profile.backend === "external",
+      run: async () => ({ response: "ok", events: [] }),
+    };
+    const scenario = setup({ externalSubagentPort });
+
+    await scenario.runtime.executeTurn("用 cb-runner");
+
+    const spawned = await lifecycle(
+      scenario.sessionId,
+      scenario.events,
+      SessionEventType.SubagentSpawned,
+    );
+    expect(spawned).toHaveLength(1);
+    const payload = spawned[0]!.payload as { backend?: string; presetId?: string };
+    // UI 靠这两个字段把这次执行标成「外部 CLI」并显示预设名。
+    expect(payload.backend).toBe("external");
+    expect(payload.presetId).toBe("codebuddy");
+  });
+
+  it("原生子智能体的 Spawned 事件不带 backend 字段（不误标）", async () => {
+    // 存量行为不能变：native profile 不该被标成外部。
+    // setup 的 Agent 调用固定用 cb-runner 作 subagent_type，所以这里同名声明
+    // 一个 native profile 覆盖它——断言的是"同名但 native"不会被标成 external。
+    const nativeProfile: AgentProfile = {
+      name: "cb-runner",
+      description: "Review",
+      source: "user",
+      systemPrompt: "review",
+      tools: ["Read"],
+      modelSelection: { providerId: "custom", modelId: "m", options: { reasoningLevel: "low" } },
+    };
+    const scenario = setup({ profiles: [nativeProfile], prompt: undefined });
+
+    await scenario.runtime.executeTurn("用 cb-runner");
+
+    const spawned = await lifecycle(
+      scenario.sessionId,
+      scenario.events,
+      SessionEventType.SubagentSpawned,
+    );
+    expect(spawned).toHaveLength(1);
+    expect((spawned[0]!.payload as { backend?: string }).backend).toBeUndefined();
+  });
 });

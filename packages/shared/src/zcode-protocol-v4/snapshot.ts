@@ -408,6 +408,10 @@ export const runningSubagentSummarySchema = z.object({
   agentId: z.string().optional(),
   toolCallId: z.string().optional(),
   subagentType: z.string(),
+  /** 执行后端：`external` = 由外部 CLI 执行（侧栏据此显示徽标）。 */
+  backend: z.enum(["native", "external"]).optional(),
+  /** backend=external 时的预设 id，用于徽标文案。 */
+  presetId: z.string().optional(),
   title: z.string(),
   summary: z.string().optional(),
   status: z.enum(["running", "waiting", "blocked"]),

@@ -4574,6 +4574,8 @@ export class ProductProjection {
         agentId: row.entityId,
         ...(row.parentToolCallId ? { toolCallId: row.parentToolCallId } : {}),
         subagentType: row.subagentType,
+        ...(row.backend ? { backend: row.backend } : {}),
+        ...(row.presetId ? { presetId: row.presetId } : {}),
         title,
         status: waitingChildIds.has(childSessionId)
           ? "waiting"
@@ -4713,6 +4715,13 @@ export class ProductProjection {
         ? { parentToolCallId: this.stringPayload(payload, "parentToolCallId") }
         : {}),
       subagentType: this.stringPayload(payload, "agentType") ?? "subagent",
+      // 外部后端标识：卡片用它在 UI 上区分「ZCode 自己的子智能体」与「外部 CLI」。
+      ...(this.stringPayload(payload, "backend") === "external"
+        ? { backend: "external" as const }
+        : {}),
+      ...(this.stringPayload(payload, "presetId")
+        ? { presetId: this.stringPayload(payload, "presetId") }
+        : {}),
       status: "running",
       summaryText:
         this.stringPayload(payload, "description") ??

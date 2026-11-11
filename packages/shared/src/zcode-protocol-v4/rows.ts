@@ -306,6 +306,15 @@ export const subagentRowSchema = z.object({
   // 触发该子智能体的 Agent/Task 工具调用；并发 spawn 顺序不可作为关联依据。
   parentToolCallId: z.string().optional(),
   subagentType: z.string(),
+  /**
+   * 执行后端：`external` = 由外部 CLI 执行（不是 ZCode 自己的子 runtime）。
+   *
+   * 卡片据此显示预设徽标，并在能力差异（无运行中消息、无 token 统计）上给出
+   * 正确提示，而不是让用户以为它和原生子智能体完全一样。
+   */
+  backend: z.enum(["native", "external"]).optional(),
+  /** backend=external 时的预设 id（如 codebuddy / qodercli-cn），用于徽标文案。 */
+  presetId: z.string().optional(),
   status: z.enum(["running", "success", "failed", "cancelled"]),
   summaryText: z.string(),
   // 存在 → UI 可下钻订阅 conversation/<childSessionId>（不内嵌 child rows）。

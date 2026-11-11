@@ -23,6 +23,9 @@ interface SubagentCandidate {
   output: Record<string, unknown> | null;
   part: ToolPart;
   subagentType: string;
+  /** 执行后端与预设（外部 CLI 子智能体）；冷恢复后侧栏徽标靠它。 */
+  backend?: "external";
+  presetId?: string;
   summary?: string;
   startedAt?: number;
   stoppedAt?: number;
@@ -38,6 +41,8 @@ interface SubagentEventRelation {
   stoppedAt?: number;
   stoppedStatus?: "success" | "failed" | "cancelled";
   subagentType?: string;
+  backend?: "external";
+  presetId?: string;
   summary?: string;
 }
 
@@ -122,6 +127,12 @@ function subagentEventRelations(
         description: stringField(payload, "description", "prompt") ?? current.description,
         startedAt: event.timestamp.getTime(),
         subagentType: stringField(payload, "agentType") ?? current.subagentType,
+        ...(stringField(payload, "backend") === "external"
+          ? { backend: "external" as const }
+          : current.backend
+            ? { backend: current.backend }
+            : {}),
+        presetId: stringField(payload, "presetId") ?? current.presetId,
       });
       continue;
     }
@@ -209,6 +220,8 @@ function candidateFromToolPart(
     ...(relation?.startedAt !== undefined ? { startedAt: relation.startedAt } : {}),
     ...(relation?.stoppedAt !== undefined ? { stoppedAt: relation.stoppedAt } : {}),
     ...(relation?.stoppedStatus ? { stoppedStatus: relation.stoppedStatus } : {}),
+    ...(relation?.backend ? { backend: relation.backend } : {}),
+    ...(relation?.presetId ? { presetId: relation.presetId } : {}),
   };
 }
 
@@ -408,6 +421,8 @@ export function projectSessionSubagents(
       ...(candidate.agentId ? { agentId: candidate.agentId } : {}),
       toolCallId: candidate.part.callID,
       subagentType: candidate.subagentType,
+      ...(candidate.backend ? { backend: candidate.backend } : {}),
+      ...(candidate.presetId ? { presetId: candidate.presetId } : {}),
       title: candidate.title,
       ...(startedAt(candidate, background) !== undefined
         ? { startedAt: startedAt(candidate, background) }

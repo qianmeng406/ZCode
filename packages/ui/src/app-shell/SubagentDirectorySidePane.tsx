@@ -82,6 +82,15 @@ const DirectoryRow = memo(function DirectoryRow({
       <span className="min-w-0 flex-1">
         <span className="flex min-w-0 items-center gap-2">
           <span className="truncate font-medium text-foreground">{item.title}</span>
+          {/* 外部 CLI 子智能体徽标：后端不同（不是 ZCode 自己的子 runtime），
+              能力也不同（无运行中消息、无 token 统计），标出来避免误判。 */}
+          {item.backend === "external" ? (
+            <span className="shrink-0 rounded border border-input-border-subtle px-1.5 py-0.5 text-ui-sm text-foreground-subtle">
+              {item.presetId
+                ? `${intl.formatMessage({ id: "subagentDirectory.backend.external" })} · ${item.presetId}`
+                : intl.formatMessage({ id: "subagentDirectory.backend.external" })}
+            </span>
+          ) : null}
           <span className="shrink-0 text-ui-sm text-foreground-subtlest">
             {intl.formatMessage({ id: `subagentDirectory.status.${item.status}` })}
           </span>

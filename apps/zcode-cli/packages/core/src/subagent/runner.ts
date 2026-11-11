@@ -288,6 +288,11 @@ export function createExploreSubagentPort(options: ExploreSubagentPortOptions): 
                 model: profile.modelSelection
                   ? `${profile.modelSelection.providerId}/${profile.modelSelection.modelId}`
                   : undefined,
+                // 后端与预设：卡片据此显示徽标，并正确表达能力差异
+                // （外部 CLI 没有运行中消息、没有 token 统计）。
+                ...(profile.backend === "external"
+                  ? { backend: "external" as const, presetId: profile.preset }
+                  : {}),
               },
             );
             readyGate.resolve();
@@ -531,6 +536,9 @@ export function createExploreSubagentPort(options: ExploreSubagentPortOptions): 
                   agentId: lifecycle.agentId,
                   agentType: request.agentType,
                   background: true,
+                  ...(profile.backend === "external"
+                    ? { backend: "external" as const, presetId: profile.preset }
+                    : {}),
                   childSessionId: lifecycle.childSessionId,
                   description: request.description,
                   prompt: request.prompt,
