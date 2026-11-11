@@ -128,7 +128,15 @@ function createBuiltInAgents(
       systemPrompt: "",
       tools: ["*"],
       ...(generalChannel
-        ? { backend: "external" as const, presetId: generalChannel.presetId }
+        ? {
+            backend: "external" as const,
+            presetId: generalChannel.presetId,
+            ...(generalChannel.model ? { externalModel: generalChannel.model } : {}),
+            ...(generalChannel.effort ? { externalEffort: generalChannel.effort } : {}),
+            ...(generalChannel.contextWindow !== undefined
+              ? { externalContextWindow: generalChannel.contextWindow }
+              : {}),
+          }
         : {}),
       path: "built-in:general-purpose",
       scope: "built-in",
@@ -151,7 +159,15 @@ function createBuiltInAgents(
       systemPrompt: "",
       tools: ["Bash", "Glob", "Grep", "Read", "WebFetch", "WebSearch", "TodoWrite"],
       ...(exploreChannel
-        ? { backend: "external" as const, presetId: exploreChannel.presetId }
+        ? {
+            backend: "external" as const,
+            presetId: exploreChannel.presetId,
+            ...(exploreChannel.model ? { externalModel: exploreChannel.model } : {}),
+            ...(exploreChannel.effort ? { externalEffort: exploreChannel.effort } : {}),
+            ...(exploreChannel.contextWindow !== undefined
+              ? { externalContextWindow: exploreChannel.contextWindow }
+              : {}),
+          }
         : {}),
       path: "built-in:Explore",
       scope: "built-in",
@@ -189,7 +205,20 @@ function normalizeBuiltInExecutionChannel(value: unknown): BuiltInExecutionChann
     const preset = findExternalAgentPreset(presetId.trim());
     if (!isChannelReadyPreset(presetId.trim())) continue;
     if (key === "Explore" && preset?.readOnlyPermissionMode === undefined) continue;
-    result[key] = { presetId: presetId.trim() };
+    const record = entry as Record<string, unknown>;
+    // 子字段级清洗：非法的 model/effort/contextWindow 丢弃，presetId 合法即保留
+    //（渠道本身可用，坏的是细配置——整条丢弃反而把用户的渠道选择也丢了）。
+    const model = record.model;
+    const effort = record.effort;
+    const contextWindow = record.contextWindow;
+    result[key] = {
+      presetId: presetId.trim(),
+      ...(typeof model === "string" && model.trim().length > 0 ? { model: model.trim() } : {}),
+      ...(typeof effort === "string" && effort.trim().length > 0 ? { effort: effort.trim() } : {}),
+      ...(typeof contextWindow === "number" && Number.isInteger(contextWindow) && contextWindow > 0
+        ? { contextWindow }
+        : {}),
+    };
   }
   return result;
 }
@@ -787,6 +816,12 @@ export function createSubagentsService(options?: SubagentsServiceOptions): ISuba
       agentName: "general-purpose" | "Explore";
       /** undefined = 恢复 ZCode 内置执行。 */
       presetId?: string;
+      /** 传给 CLI 的模型名（原样透传）；缺省 = CLI 默认。 */
+      model?: string;
+      /** 推理档位；探测目录含所选模型时必须在其候选内（与 S6 UI 规则同口径）。 */
+      effort?: string;
+      /** 上下文窗口（token）；UI 首期不暴露。 */
+      contextWindow?: number;
     }): Promise<void> {
       const runUpdate = async () => {
         const presetId = params.presetId?.trim();
@@ -819,7 +854,33 @@ export function createSubagentsService(options?: SubagentsServiceOptions): ISuba
             if (!status.installed) {
               throw new Error(`${preset.label} 未安装，已拒绝启用执行渠道`);
             }
+            // 档位值域（S6 同口径）：探测目录含所选模型时，effort 必须在其候选内；
+            // 目录没有该模型条目（自由输入模型）时不强校验——值域权威在 CLI 侧。
+            const probedModel = params.model?.trim();
+            const probedEffort = params.effort?.trim();
+            if (probedEffort && probedModel) {
+              const entry = status.modelCatalog.find((item) => item.id === probedModel);
+              if (entry && !entry.supportedEfforts.includes(probedEffort)) {
+                throw new Error(
+                  `模型 ${probedModel} 不支持档位 ${probedEffort}（可选：${entry.supportedEfforts.join(", ") || "无"}）`,
+                );
+              }
+            }
           }
+        }
+        const model = params.model?.trim();
+        const effort = params.effort?.trim();
+        if (model !== undefined && model.length === 0) {
+          throw new Error("外部渠道模型名为空时应省略字段，而不是传空串");
+        }
+        if (effort !== undefined && effort.length === 0) {
+          throw new Error("外部渠道档位为空时应省略字段，而不是传空串");
+        }
+        if (
+          params.contextWindow !== undefined &&
+          (!Number.isInteger(params.contextWindow) || params.contextWindow < 1)
+        ) {
+          throw new Error("外部渠道上下文窗口必须是正整数（token）");
         }
         const state = await readAgentStateFile(storageOptions);
         await writeAgentStateFile(
@@ -827,7 +888,14 @@ export function createSubagentsService(options?: SubagentsServiceOptions): ISuba
             ...state,
             builtInExecutionChannel: {
               ...state.builtInExecutionChannel,
-              [params.agentName]: { presetId },
+              [params.agentName]: {
+                presetId,
+                ...(model ? { model } : {}),
+                ...(effort ? { effort } : {}),
+                ...(params.contextWindow !== undefined
+                  ? { contextWindow: params.contextWindow }
+                  : {}),
+              },
             },
           },
           storageOptions,

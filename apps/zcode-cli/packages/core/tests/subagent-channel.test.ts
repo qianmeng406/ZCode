@@ -78,6 +78,29 @@ describe("normalizeAgentProfiles 执行渠道覆盖", () => {
     expect(explore.modelSelection).toEqual(modelSelection);
   });
 
+  it("渠道细配置：model/effort/contextWindow 透传进 profile（Explore 同样生效）", () => {
+    const profiles = normalizeAgentProfiles([], {
+      builtInExecutionChannel: {
+        "general-purpose": {
+          presetId: "codebuddy",
+          model: "DeepSeek-V4-Pro",
+          effort: "high",
+          contextWindow: 128000,
+        },
+        Explore: { presetId: "codebuddy", model: "glm-5.3" },
+      },
+    });
+    const general = profiles.find((entry) => entry.name === GENERAL)!;
+    expect(general.model).toBe("DeepSeek-V4-Pro");
+    expect(general.effort).toBe("high");
+    expect(general.contextWindow).toBe(128000);
+    const explore = profiles.find((entry) => entry.name === EXPLORE)!;
+    expect(explore.model).toBe("glm-5.3");
+    expect(explore.effort).toBeUndefined();
+    // Explore 的只读档位仍由 profile.permissionMode 承载，与 CLI 档位互不干扰。
+    expect(explore.permissionMode).toBe("plan");
+  });
+
   it("无渠道覆盖：两个内置 profile 与既有形状逐字一致", () => {
     const profiles = normalizeAgentProfiles([], {});
     const general = profiles.find((entry) => entry.name === GENERAL)!;

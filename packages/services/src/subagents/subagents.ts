@@ -37,6 +37,12 @@ export interface ISubagentsService {
   setBuiltInExecutionChannel(params: {
     agentName: "general-purpose" | "Explore";
     presetId?: string;
+    /** 传给 CLI 的模型名（原样透传）；缺省 = CLI 默认。 */
+    model?: string;
+    /** 推理档位；探测目录含所选模型时必须在其候选内。 */
+    effort?: string;
+    /** 上下文窗口（token）；UI 首期不暴露。 */
+    contextWindow?: number;
   }): Promise<void>;
 
   /** 当前筛选来源对应的用户级 agent 根目录（与内置扫描顺序一致，取 buildUserRoots 的首项）。 */

@@ -22,6 +22,15 @@ export type BuiltInSubagentModelSelectionOverrides = Partial<
  */
 export interface BuiltInExecutionChannelOverride {
   presetId: string;
+  /**
+   * 传给 CLI 的 --model 名（原样透传，如 DeepSeek-V4-Pro）；缺省 = CLI 默认模型。
+   * 与 native 的 modelSelection 语义互斥（S6 同口径），字段命名刻意区分。
+   */
+  model?: string;
+  /** 推理档位（preset effort 值域内）；缺省 = CLI 默认。 */
+  effort?: string;
+  /** 上下文窗口（token）；缺省 = CLI 默认。UI 首期不暴露，state 先支持。 */
+  contextWindow?: number;
 }
 
 export type BuiltInExecutionChannelOverrides = Partial<

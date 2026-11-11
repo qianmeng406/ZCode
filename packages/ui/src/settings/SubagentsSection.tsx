@@ -549,6 +549,7 @@ function AgentListRow({
   modelSelectGroups,
   onModelOverrideChange,
   onChannelChange,
+  probeExternalAgents,
   onDelete,
   onEdit,
   onToggle,
@@ -564,7 +565,11 @@ function AgentListRow({
     agent: AgentSummary,
     config: { model?: string; thoughtLevel?: string },
   ) => Promise<void>;
-  onChannelChange: (agent: AgentSummary, presetId: string | undefined) => Promise<void>;
+  onChannelChange: (
+    agent: AgentSummary,
+    channel: { presetId: string; model?: string; effort?: string } | undefined,
+  ) => Promise<void>;
+  probeExternalAgents?: () => Promise<ExternalAgentPresetStatus[] | null>;
   onDelete: (agent: AgentSummary) => void;
   onEdit: (agent: AgentSummary) => void;
   onToggle: (agent: AgentSummary, enabled: boolean) => void;
@@ -723,65 +728,206 @@ function SubagentChannelControl({
   agent,
   disabled,
   onChannelChange,
+  probeExternalAgents,
 }: {
   agent: AgentSummary;
   disabled: boolean;
-  onChannelChange: (agent: AgentSummary, presetId: string | undefined) => Promise<void>;
+  onChannelChange: (
+    agent: AgentSummary,
+    channel: { presetId: string; model?: string; effort?: string } | undefined,
+  ) => Promise<void>;
+  /** S6 探测缓存（装机/模型目录）；缺省时模型退自由输入。 */
+  probeExternalAgents?: () => Promise<ExternalAgentPresetStatus[] | null>;
 }) {
   const { intl } = useZCodeIntl();
   const [pending, setPending] = useState(false);
+  const [probeStatuses, setProbeStatuses] = useState<ExternalAgentPresetStatus[] | null>(null);
   const builtInName = getBuiltInSubagentName(agent);
   const candidates =
     builtInName === "Explore" ? resolveExploreChannelCandidates() : resolveChannelCandidates();
-  const currentPresetId = agent.backend === "external" ? agent.presetId : undefined;
+  const isExternal = agent.backend === "external";
+  const currentPresetId = isExternal ? agent.presetId : undefined;
+  const currentModel = isExternal ? (agent.externalModel ?? "") : "";
+  const currentEffort = isExternal ? (agent.externalEffort ?? "") : "";
   const value = currentPresetId ?? INHERIT_MODEL_VALUE;
-  const handleValueChange = (nextValue: string) => {
+
+  // 选中外部渠道时拉一次探测（缓存 60s）：模型/档位候选的数据源；失败静默退自由输入。
+  useEffect(() => {
+    if (!isExternal || !probeExternalAgents || probeStatuses) return;
+    let active = true;
+    void probeExternalAgents()
+      .then((result) => {
+        if (active && result) setProbeStatuses(result);
+      })
+      .catch(() => {});
+    return () => {
+      active = false;
+    };
+  }, [isExternal, probeExternalAgents, probeStatuses]);
+
+  const selectedPreset = currentPresetId
+    ? candidates.find((preset) => preset.id === currentPresetId)
+    : undefined;
+  const selectedStatus = probeStatuses?.find((status) => status.preset.id === currentPresetId);
+  const modelCandidates =
+    selectedStatus && selectedStatus.models.length > 0
+      ? selectedStatus.models
+      : (selectedPreset?.models ?? []);
+  const effortCandidates =
+    selectedPreset && currentModel
+      ? resolveExternalEffortCandidates(selectedStatus, selectedPreset, currentModel)
+      : [];
+
+  const persist = (next: { presetId: string; model?: string; effort?: string } | undefined) => {
     if (pending || disabled) return;
-    const nextPresetId = nextValue === INHERIT_MODEL_VALUE ? undefined : nextValue;
-    if (nextPresetId === currentPresetId) return;
     setPending(true);
-    onChannelChange(agent, nextPresetId)
+    onChannelChange(agent, next)
       .catch((changeError: unknown) => {
         // 投影值没变时控件自动回滚；toast 由 handler 统一给出。
         logger.warn("[subagents] 执行渠道切换失败", changeError);
       })
       .finally(() => setPending(false));
   };
-  const selectedPreset = currentPresetId
-    ? candidates.find((preset) => preset.id === currentPresetId)
-    : undefined;
+  const handlePresetChange = (nextValue: string) => {
+    const nextPresetId = nextValue === INHERIT_MODEL_VALUE ? undefined : nextValue;
+    if (nextPresetId === currentPresetId) return;
+    // 换 CLI = 换模型命名空间：细配置回落继承（S6 表单同口径）。
+    persist(nextPresetId ? { presetId: nextPresetId } : undefined);
+  };
+  const handleModelChange = (nextModel: string) => {
+    if (!currentPresetId) return;
+    const model = nextModel === INHERIT_MODEL_VALUE ? "" : nextModel.trim();
+    if (model === currentModel) return;
+    persist({
+      presetId: currentPresetId,
+      ...(model ? { model } : {}),
+      // 换模型后旧档位可能不在新候选内：一并回落继承（服务端目录校验兜底）。
+      ...(model && currentEffort && effortCandidates.includes(currentEffort)
+        ? { effort: currentEffort }
+        : {}),
+    });
+  };
+  const handleEffortChange = (nextEffort: string) => {
+    if (!currentPresetId) return;
+    const effort = nextEffort === INHERIT_MODEL_VALUE ? "" : nextEffort;
+    if (effort === currentEffort) return;
+    persist({
+      presetId: currentPresetId,
+      ...(currentModel ? { model: currentModel } : {}),
+      ...(effort ? { effort } : {}),
+    });
+  };
+
   return (
     <div className="flex min-w-0 max-w-full flex-col items-end gap-1">
-      <Select value={value} onValueChange={handleValueChange}>
-        <SelectTrigger
-          size="sm"
-          className="w-fit min-w-36 justify-between"
-          disabled={disabled || pending}
-        >
-          <SelectValue />
-        </SelectTrigger>
-        <SelectContent>
-          <SelectItem value={INHERIT_MODEL_VALUE}>
-            {intl.formatMessage({ id: "settings.subagents.channel.native" })}
-          </SelectItem>
-          {candidates.map((preset) => (
-            <SelectItem key={preset.id} value={preset.id}>
-              {preset.label}
+      <div className="flex min-w-0 flex-wrap items-center justify-end gap-1.5">
+        <Select value={value} onValueChange={handlePresetChange}>
+          <SelectTrigger
+            size="sm"
+            className="w-fit min-w-32 justify-between"
+            disabled={disabled || pending}
+          >
+            <SelectValue />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value={INHERIT_MODEL_VALUE}>
+              {intl.formatMessage({ id: "settings.subagents.channel.native" })}
             </SelectItem>
-          ))}
-        </SelectContent>
-      </Select>
+            {candidates.map((preset) => (
+              <SelectItem key={preset.id} value={preset.id}>
+                {preset.label}
+              </SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
+        {selectedPreset && currentModel ? (
+          <span className="inline-flex items-center rounded-md bg-surface px-1.5 py-0.5 text-ui-sm text-foreground-subtle ring-1 ring-border">
+            {currentModel}
+          </span>
+        ) : null}
+        {selectedPreset && currentEffort ? (
+          <span className="inline-flex items-center rounded-md bg-surface px-1.5 py-0.5 text-ui-sm text-foreground-subtle ring-1 ring-border">
+            {currentEffort}
+          </span>
+        ) : null}
+      </div>
+      {selectedPreset ? (
+        <div className="flex min-w-0 max-w-full flex-wrap items-center justify-end gap-1.5">
+          {modelCandidates.length > 0 ? (
+            <Select value={currentModel || INHERIT_MODEL_VALUE} onValueChange={handleModelChange}>
+              <SelectTrigger
+                size="sm"
+                className="w-fit min-w-28 justify-between"
+                disabled={disabled || pending}
+              >
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value={INHERIT_MODEL_VALUE}>
+                  {intl.formatMessage({ id: "settings.subagents.form.external.model.inherit" })}
+                </SelectItem>
+                {modelCandidates.map((modelId) => (
+                  <SelectItem key={modelId} value={modelId}>
+                    {modelId}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          ) : (
+            <Input
+              type="text"
+              size="sm"
+              className="h-7 w-40"
+              value={currentModel}
+              disabled={disabled || pending}
+              onBlur={(event) => handleModelChange(event.target.value || INHERIT_MODEL_VALUE)}
+              onKeyDown={(event) => {
+                if (event.key === "Enter") {
+                  event.preventDefault();
+                  handleModelChange(event.currentTarget.value || INHERIT_MODEL_VALUE);
+                }
+              }}
+              placeholder={intl.formatMessage({
+                id: "settings.subagents.form.external.model.placeholder",
+              })}
+            />
+          )}
+          {effortCandidates.length > 0 ? (
+            <Select value={currentEffort || INHERIT_MODEL_VALUE} onValueChange={handleEffortChange}>
+              <SelectTrigger
+                size="sm"
+                className="w-fit min-w-24 justify-between"
+                disabled={disabled || pending}
+              >
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value={INHERIT_MODEL_VALUE}>
+                  {intl.formatMessage({ id: "settings.subagents.form.external.model.inherit" })}
+                </SelectItem>
+                {effortCandidates.map((level) => (
+                  <SelectItem key={level} value={level}>
+                    {level}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          ) : null}
+        </div>
+      ) : null}
       {selectedPreset ? (
         <span className="max-w-64 text-right text-ui-sm text-foreground-subtle">
-          {intl.formatMessage(
-            {
-              id:
-                builtInName === "Explore"
-                  ? "settings.subagents.channel.exploreHint"
-                  : "settings.subagents.channel.generalHint",
-            },
-            { presetLabel: selectedPreset.label },
-          )}
+          {selectedStatus && !selectedStatus.installed && !selectedStatus.probeError
+            ? intl.formatMessage({ id: "settings.subagents.form.external.notInstalled" })
+            : intl.formatMessage(
+                {
+                  id:
+                    builtInName === "Explore"
+                      ? "settings.subagents.channel.exploreHint"
+                      : "settings.subagents.channel.generalHint",
+                },
+                { presetLabel: selectedPreset.label },
+              )}
         </span>
       ) : null}
     </div>
@@ -2181,12 +2327,15 @@ export function SubagentsSection({
   );
 
   const handleChannelChange = useCallback(
-    async (agent: AgentSummary, presetId: string | undefined) => {
+    async (
+      agent: AgentSummary,
+      channel: { presetId: string; model?: string; effort?: string } | undefined,
+    ) => {
       const agentName = getBuiltInSubagentName(agent);
       if (!agentName) return;
       setOperatingAgentId(agent.id);
       try {
-        await subagentsService.setBuiltInExecutionChannel({ agentName, presetId });
+        await subagentsService.setBuiltInExecutionChannel({ agentName, ...channel });
       } catch (changeError) {
         toast(changeError instanceof Error ? changeError.message : String(changeError));
         setOperatingAgentId(null);
@@ -2374,6 +2523,7 @@ export function SubagentsSection({
             modelSelectGroups={subagentModelSelectGroups}
             onModelOverrideChange={handleModelOverrideChange}
             onChannelChange={handleChannelChange}
+            probeExternalAgents={probeExternalAgents}
             onDelete={handleDelete}
             onEdit={handleEdit}
             onToggle={handleToggle}

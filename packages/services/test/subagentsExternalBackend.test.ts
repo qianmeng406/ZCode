@@ -429,6 +429,80 @@ test("setBuiltInExecutionChannel fail-closed：未开渠道 preset / Explore 无
   }
 });
 
+test("setBuiltInExecutionChannel 带 model/effort：写入投影到 list（含探测档位校验）", async () => {
+  const home = await mkdtemp(join(tmpdir(), "zcode-subagents-"));
+  try {
+    const service = createSubagentsService({
+      homeDir: home,
+      isDesktopRuntime: true,
+      probeExternalAgents: async () => [
+        {
+          preset: { id: "codebuddy", label: "CodeBuddy" },
+          installed: true,
+          models: ["DeepSeek-V4-Pro", "glm-5.3"],
+          modelCatalog: [
+            { id: "DeepSeek-V4-Pro", name: "DeepSeek-V4-Pro", supportedEfforts: ["low", "high"] },
+          ],
+        },
+      ],
+    } as never);
+    // 目录含所选模型：档位在候选内 → 通过并投影。
+    await service.setBuiltInExecutionChannel({
+      agentName: "general-purpose",
+      presetId: "codebuddy",
+      model: "DeepSeek-V4-Pro",
+      effort: "high",
+    });
+    const listed = await service.list({
+      workspacePath: "",
+      provider: undefined as never,
+      mode: "settingsUserOnly",
+    });
+    const general = listed.agents.find((agent) => agent.name === "general-purpose");
+    assert.equal(general?.backend, "external");
+    assert.equal(general?.externalModel, "DeepSeek-V4-Pro");
+    assert.equal(general?.externalEffort, "high");
+
+    // 目录含所选模型：档位不在候选 → 拒绝。
+    await assert.rejects(
+      service.setBuiltInExecutionChannel({
+        agentName: "general-purpose",
+        presetId: "codebuddy",
+        model: "DeepSeek-V4-Pro",
+        effort: "ultra",
+      }),
+      /不支持档位/,
+    );
+
+    // 目录没有该模型条目（自由输入模型）→ 档位不强校验，通过。
+    await service.setBuiltInExecutionChannel({
+      agentName: "general-purpose",
+      presetId: "codebuddy",
+      model: "free-typed-model",
+      effort: "whatever",
+    });
+    // 空串 / 非法窗口 → 拒绝。
+    await assert.rejects(
+      service.setBuiltInExecutionChannel({
+        agentName: "general-purpose",
+        presetId: "codebuddy",
+        model: "  ",
+      }),
+      /空串/,
+    );
+    await assert.rejects(
+      service.setBuiltInExecutionChannel({
+        agentName: "general-purpose",
+        presetId: "codebuddy",
+        contextWindow: -1,
+      }),
+      /正整数/,
+    );
+  } finally {
+    await rm(home, { recursive: true, force: true });
+  }
+});
+
 test("state 文件手改写入未开渠道 preset：读取时被收敛丢弃（防线之二）", async () => {
   const home = await mkdtemp(join(tmpdir(), "zcode-subagents-"));
   try {

@@ -6,6 +6,7 @@ import { filterSubagentChildToolNames } from "./tool-policy.js";
 import {
   findExternalAgentPreset,
   isChannelReadyPreset,
+  type BuiltInExecutionChannelOverride,
   type BuiltInExecutionChannelOverrides,
   type ModelSelection,
   type AgentProfile,
@@ -46,12 +47,18 @@ function resolveEffectiveChannelPreset(
 }
 
 export function createBuiltInExploreAgentProfile(
-  options: { modelSelection?: ModelSelection; channelPresetId?: string } = {},
+  options: {
+    modelSelection?: ModelSelection;
+    channelPresetId?: string;
+    /** 渠道的 CLI 侧细配置（S7 增量）：model/effort/contextWindow 透传给端口。 */
+    channelOverride?: BuiltInExecutionChannelOverride;
+  } = {},
 ): AgentProfile {
   const channelPresetId = resolveEffectiveChannelPreset(options.channelPresetId, true);
   const readOnlyMode = channelPresetId
     ? findExternalAgentPreset(channelPresetId)?.readOnlyPermissionMode
     : undefined;
+  const channel = options.channelOverride;
   return {
     name: EXPLORE_AGENT_TYPE,
     description:
@@ -65,6 +72,12 @@ export function createBuiltInExploreAgentProfile(
           // 只读档位以 profile.permissionMode 承载 → 端口转 binding 覆盖（S7 §3.2）。
           permissionMode: readOnlyMode as AgentProfile["permissionMode"],
           systemPrompt: buildExternalExploreSystemPrompt(),
+          // 渠道的 CLI 侧细配置：管线与 S6 外部 profile 同一条（buildBindingFromProfile）。
+          ...(channel?.model ? { model: channel.model } : {}),
+          ...(channel?.effort ? { effort: channel.effort } : {}),
+          ...(channel?.contextWindow !== undefined
+            ? { contextWindow: channel.contextWindow }
+            : {}),
         }
       : {
           injectAgentsMd: false,
@@ -100,6 +113,7 @@ export function normalizeAgentProfiles(
     createBuiltInGeneralPurposeAgentProfile({
       modelSelection: overrides[DEFAULT_SUBAGENT_TYPE],
       channelPresetId: channels[DEFAULT_SUBAGENT_TYPE]?.presetId,
+      channelOverride: channels[DEFAULT_SUBAGENT_TYPE],
     }),
   );
   active.set(
@@ -107,6 +121,7 @@ export function normalizeAgentProfiles(
     createBuiltInExploreAgentProfile({
       modelSelection: overrides[EXPLORE_AGENT_TYPE],
       channelPresetId: channels[EXPLORE_AGENT_TYPE]?.presetId,
+      channelOverride: channels[EXPLORE_AGENT_TYPE],
     }),
   );
   for (const profile of profiles) {
@@ -116,9 +131,15 @@ export function normalizeAgentProfiles(
 }
 
 export function createBuiltInGeneralPurposeAgentProfile(
-  options: { modelSelection?: ModelSelection; channelPresetId?: string } = {},
+  options: {
+    modelSelection?: ModelSelection;
+    channelPresetId?: string;
+    /** 渠道的 CLI 侧细配置（S7 增量）：model/effort/contextWindow 透传给端口。 */
+    channelOverride?: BuiltInExecutionChannelOverride;
+  } = {},
 ): AgentProfile {
   const channelPresetId = resolveEffectiveChannelPreset(options.channelPresetId, false);
+  const channel = options.channelOverride;
   return {
     name: DEFAULT_SUBAGENT_TYPE,
     description:
@@ -131,6 +152,12 @@ export function createBuiltInGeneralPurposeAgentProfile(
           backend: "external" as const,
           preset: channelPresetId,
           systemPrompt: buildExternalGeneralPurposeSystemPrompt(),
+          // 渠道的 CLI 侧细配置：管线与 S6 外部 profile 同一条（buildBindingFromProfile）。
+          ...(channel?.model ? { model: channel.model } : {}),
+          ...(channel?.effort ? { effort: channel.effort } : {}),
+          ...(channel?.contextWindow !== undefined
+            ? { contextWindow: channel.contextWindow }
+            : {}),
         }
       : {
           injectAgentsMd: true,
