@@ -39,6 +39,33 @@ export function createLocalExternalAgentProbe(): () => Promise<ExternalAgentPres
   };
 }
 
+/**
+ * Windows 的 npm 全局 bin 是 `codebuddy.cmd` 之类的批处理 shim，`shell:false` 的
+ * spawn 无法执行它（实测报 `ENOENT spawn codebuddy`，即便 PATH 里明明有 shim）。
+ * Node 文档的结论一致：.cmd/.bat 必须经 cmd.exe 运行。
+ *
+ * bootstrap 那条路径不受影响——它走 ExecutionPort，端口自己处理 shell 语义。
+ * 这是本机 adapter 独有的差异，所以修正只落在这里。
+ *
+ * 只在 win32 + 目标名没有可执行扩展名时套 cmd.exe：显式 `.exe`/带路径的调用保持
+ * 原样，避免给本来就是可执行文件的命令多加一层 shell（多一层就多一份引号风险）。
+ */
+export function resolveSpawnInvocation(
+  file: string,
+  args: readonly string[],
+): { file: string; args: string[]; windowsVerbatim: boolean } {
+  if (process.platform !== "win32" || /\.[A-Za-z0-9]{2,4}$/u.test(file)) {
+    return { file, args: [...args], windowsVerbatim: false };
+  }
+  // cmd.exe /d /s /c "<命令> <参数...>"：/d 跳过 AutoRun、/s 让引号按原样传给命令。
+  // 参数里的引号按 cmd 的规则转义（`"` → `""`），避免探测参数被 shell 拆开。
+  const quoted = [file, ...args]
+    .map((part) => (/[\s"&|<>^]/u.test(part) ? `"${part.replace(/"/gu, '""')}"` : part))
+    .join(" ");
+  const comspec = process.env.ComSpec?.trim() || "cmd.exe";
+  return { file: comspec, args: ["/d", "/s", "/c", `"${quoted}"`], windowsVerbatim: true };
+}
+
 async function runProbeCommand(
   input: ExternalAgentProbeCommandInput,
 ): Promise<ExternalAgentProbeCommandResult> {
@@ -46,12 +73,15 @@ async function runProbeCommand(
   return await new Promise<ExternalAgentProbeCommandResult>((resolve) => {
     let child: ReturnType<typeof spawn>;
     try {
-      child = spawn(input.file, input.args, {
+      const invocation = resolveSpawnInvocation(input.file, input.args);
+      child = spawn(invocation.file, invocation.args, {
         cwd: input.cwd,
         // PWD 对齐 cwd：与 bootstrap 同款，opencode 系子命令按 PWD 过滤 project。
         env: { ...process.env, PWD: input.cwd },
         windowsHide: true,
         shell: false,
+        // Windows 上 .cmd/.bat 必须经 cmd.exe 才能执行（见 resolveSpawnInvocation）。
+        ...(invocation.windowsVerbatim ? { windowsVerbatimArguments: true } : {}),
       });
     } catch (error) {
       resolve({ ok: false, stdout: "", failure: describeError(error) });

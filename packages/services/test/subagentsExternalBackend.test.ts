@@ -15,6 +15,7 @@ import {
   serializeSubagentMarkdown,
 } from "../src/subagents/subagentMarkdown.js";
 import { createSubagentsService } from "../src/subagents/subagentsService.js";
+import { resolveSpawnInvocation } from "../src/subagents/externalAgentProbeAdapter.js";
 
 const EXTERNAL_MARKDOWN = [
   "---",
@@ -552,5 +553,34 @@ test("probeExternalAgents：未注入返回 null（UI 降级路径），注入�
     assert.equal(await injected.probeExternalAgents(), status);
   } finally {
     await rm(home, { recursive: true, force: true });
+  }
+});
+
+// ── Windows .cmd shim 探测（实例内实测发现的真缺陷）──
+
+test("resolveSpawnInvocation：win32 上无扩展名的命令经 cmd.exe，显式扩展名原样", () => {
+  const bare = resolveSpawnInvocation("codebuddy", ["--version"]);
+  if (process.platform === "win32") {
+    // npm 全局 bin 是 codebuddy.cmd：shell:false 直接 spawn 报 ENOENT（实测）。
+    assert.match(bare.file.toLowerCase(), /cmd\.exe$/u);
+    assert.deepEqual(bare.args.slice(0, 3), ["/d", "/s", "/c"]);
+    assert.ok(bare.args[3]?.includes("codebuddy"));
+    assert.equal(bare.windowsVerbatim, true);
+  } else {
+    assert.deepEqual(bare, {
+      file: "codebuddy",
+      args: ["--version"],
+      windowsVerbatim: false,
+    });
+  }
+  // 显式 .exe 不套 shell（多一层就多一份引号风险）。
+  assert.equal(resolveSpawnInvocation("node.exe", ["-e", "1"]).windowsVerbatim, false);
+});
+
+test("resolveSpawnInvocation：含空格/引号的参数按 cmd 规则引起来", () => {
+  const invocation = resolveSpawnInvocation("codebuddy", ["--model", "a b", 'x"y']);
+  if (process.platform === "win32") {
+    assert.ok(invocation.args[3]?.includes('"a b"'));
+    assert.ok(invocation.args[3]?.includes('x""y'));
   }
 });
