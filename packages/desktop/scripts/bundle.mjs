@@ -829,6 +829,36 @@ async function main() {
     await runTimedAsync("bundle:electron-builder", () =>
       runElectronBuilderWithRetry(buildArgs, buildEnv, noRetry ? 1 : electronBuilderRetryCount),
     );
+    // 完整打包也要刷新增量基线。
+    //
+    // 以前只有增量路径写 baseline，于是形成死锁：`pnpm-lock.yaml` 一变动，增量
+    // 路径就报「请先完整执行一次打包」，而完整打包又不更新 packedAt，下次仍判定
+    // lock 比基线新——永远只能全量（实测本机基线停在 2026-10-29，之后每次出包
+    // 都是约 40 分钟的全量）。这里补上写入，锁变化的代价恢复成"全量一次，之后
+    // 继续增量"。
+    await runTimedAsync("bundle:write-incremental-baseline", async () => {
+      const {
+        resolveIncrementalPlatformKey,
+        resolvePackagedResourcesDir,
+        writeIncrementalBaseline,
+      } = await import("./incremental-app-asar.mjs");
+      const resourcesDir = resolvePackagedResourcesDir({ distRoot: desktopDistRoot, targetOs: os });
+      const appAsarPath = resolve(resourcesDir, "app.asar");
+      if (!existsSync(appAsarPath)) {
+        // 没有 app.asar 说明这次不是 unpacked 产物（如只出安装器）：不写基线，
+        // 下次增量仍会提示"先完整打包"，行为不比以前更差。
+        console.log(`[bundle] 未找到 ${appAsarPath}，跳过增量基线写入`);
+        return;
+      }
+      const baselinePath = writeIncrementalBaseline({
+        desktopRoot,
+        appAsarPath,
+        // 平台别名归一（win → win32 / mac → darwin）必须与增量读取端同一份实现，
+        // 手写映射会写出不同的 key，让 canReuseStaging 的相等判断永远不成立。
+        targetPlatformKey: resolveIncrementalPlatformKey({ targetOs: os, arch }),
+      });
+      console.log(`[bundle] 已刷新增量基线：${baselinePath}`);
+    });
   }
 
   await stampMacosUpdateManifests({ outputDir: desktopDistRoot, platform: os });

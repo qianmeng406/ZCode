@@ -71,6 +71,52 @@ function readJson(filePath) {
   }
 }
 
+/** 增量基线标记文件路径（staging 根下的 baseline.json）。 */
+export function resolveIncrementalBaselinePath(desktopRoot) {
+  return resolve(desktopRoot, ".cache", "incremental-app", "baseline.json");
+}
+
+/**
+ * 基线里的 `targetPlatformKey`（`win32-x64` / `darwin-arm64`）。
+ *
+ * 导出给完整打包路径复用：平台别名归一（`win` → `win32`、`mac` → `darwin`）
+ * 必须只有一份实现，否则两条路径会写出不同的 key，`canReuseStaging` 的相等
+ * 判断永远不成立（实测踩过：完整打包写成 `win-x64`，增量读的却是 `win32-x64`，
+ * 于是每次增量都在重新解包 455MB 的 asar）。
+ */
+export function resolveIncrementalPlatformKey({ targetOs, arch }) {
+  return `${normalizeTargetOs(targetOs)}-${arch}`;
+}
+
+/**
+ * 写入增量基线标记。
+ *
+ * 单独导出的理由：**完整打包也必须写它**。以前只有增量路径更新 baseline，
+ * 于是形成死锁——`pnpm-lock.yaml` 一变就要求「先完整打包一次」，而完整打包
+ * 又不刷新基线，下次仍判定 lock 比基线新，永远只能走全量（实测：本机基线
+ * 停在 2026-10-29，之后每次出包都是约 40 分钟的全量）。
+ *
+ * 语义：`packedAt` = 「这个 app.asar 是哪一刻用当时依赖打出来的」。任何一条
+ * 产出 app.asar 的路径都必须更新它，否则依赖新鲜度的判据本身就是错的。
+ */
+export function writeIncrementalBaseline({ desktopRoot, appAsarPath, targetPlatformKey }) {
+  const markerPath = resolveIncrementalBaselinePath(desktopRoot);
+  mkdirSync(dirname(markerPath), { recursive: true });
+  writeFileSync(
+    markerPath,
+    `${JSON.stringify(
+      {
+        packedAt: Date.now(),
+        targetPlatformKey,
+        appAsar: asarSignature(appAsarPath),
+      },
+      null,
+      2,
+    )}\n`,
+  );
+  return markerPath;
+}
+
 /**
  * 定位打包产物里的 app 资源目录。
  * Windows/Linux 是 `<dist>/<platform>-unpacked/resources`，macOS 在 .app bundle 内。
@@ -102,7 +148,7 @@ export async function refreshPackagedAppAsar({
   logger = console,
 }) {
   const normalizedOs = normalizeTargetOs(targetOs);
-  const targetPlatformKey = `${normalizedOs}-${arch}`;
+  const targetPlatformKey = resolveIncrementalPlatformKey({ targetOs: normalizedOs, arch });
   const resourcesDir = resolvePackagedResourcesDir({ distRoot, targetOs: normalizedOs });
   const appAsarPath = resolve(resourcesDir, "app.asar");
   if (!existsSync(appAsarPath)) {
@@ -189,18 +235,9 @@ export async function refreshPackagedAppAsar({
     },
   });
 
-  writeFileSync(
-    markerPath,
-    `${JSON.stringify(
-      {
-        packedAt: Date.now(),
-        targetPlatformKey,
-        appAsar: asarSignature(appAsarPath),
-      },
-      null,
-      2,
-    )}\n`,
-  );
+  // 与完整打包路径共用同一份写基线逻辑（见 writeIncrementalBaseline 的注释：
+  // 两条产出 app.asar 的路径都必须更新它，否则依赖新鲜度判据会失准）。
+  writeIncrementalBaseline({ desktopRoot, appAsarPath, targetPlatformKey });
 
   logger.log(`[incremental] 完成: ${appAsarPath}`);
   return { appAsarPath, resourcesDir };
