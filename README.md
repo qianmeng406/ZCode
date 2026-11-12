@@ -39,7 +39,21 @@
 
 ### 一、新增功能
 
-- **外部 Agent 主控（委派编排）**：把聊天会话绑定给外部 CLI agent，本方进入**只读主控**模式并按需委派任务。完整驱动：**CodeBuddy** 与 **OpenCode**——绑定对话框探测版本与模型清单（OpenCode 档位按模型逐个探测）、委派结果与活动流实时进卡片与侧栏过程面板、外部会话列表/续接/转录/删除齐备；委派 cwd 与会话工作区对齐（PWD），执行超时按进度看门狗判定（有输出不超时，停滞才终止）；绑定探测失败与未安装分开展示并可重试。子会话的 Plan 提醒会同时保留主控段（上游 v3.17.2 的子会话精简提醒与 fork 主控段并存）。
+- **外部 Agent 主控（委派编排）**：把聊天会话绑定给外部 CLI agent，本方进入**只读主控**模式并按需委派任务。已适配并实测的驱动：**CodeBuddy**、**OpenCode**、**Qoder CLI CN**、**Qoder CLI**（国际版）、**Command Code**——绑定对话框探测版本与模型清单（OpenCode 档位按模型逐个探测）、委派结果与活动流实时进卡片与侧栏过程面板、外部会话列表/续接/转录/删除齐备；委派 cwd 与会话工作区对齐（PWD），执行超时按进度看门狗判定（有输出不超时，停滞才终止）；绑定探测失败与未安装分开展示并可重试。子会话的 Plan 提醒会同时保留主控段（上游 v3.17.2 的子会话精简提醒与 fork 主控段并存）。
+- **外部 CLI 作为子智能体**：在设置页「智能体」中直接创建外部 CLI 子智能体（Markdown profile 声明 `backend: external` + `preset` + 模型/档位/上下文窗口），模型可直接在 `subagent_type` 里点名使用；也支持把外部 CLI 作为**内置身份的「执行渠道」**——general-purpose 与 Explore 可分别指定由哪个外部 CLI 执行，Explore 走各 CLI 已实测的只读档位（详见下表）。渠道候选是 fail-closed 的：未实测通过的 CLI 不出现在候选里，手改状态文件也会被收敛回内置执行。
+
+  执行渠道的就绪状态（§3.7 六项实测：运行 / 取消 / 续接 / 失败语义 / transcript / 只读）：
+
+  | CLI                 | general-purpose | Explore 只读机制                                                    |
+  | ------------------- | --------------- | ------------------------------------------------------------------- |
+  | CodeBuddy           | ✅              | ✅ `--permission-mode plan`                                         |
+  | OpenCode            | ✅              | ✅ `--agent plan`（Plan 是 agent 而非权限档位）                     |
+  | Qoder CLI CN        | ✅              | ✅ `--permission-mode dont_ask`（`plan` 会被静默降级）              |
+  | Command Code        | ✅              | ✅ `--permission-mode plan`（必须显式传，仅"不加 --yolo"仍可写）    |
+  | Qoder CLI（国际版） | ⏳ 未完成       | ⏳ 服务端模型队列长期占满，运行证据缺失；本地已确认 `dont_ask` 可用 |
+
+  渠道的模型与推理档位可直接在设置页按 CLI 选择（档位候选优先取 CLI 自带模型目录的逐模型能力，读不到时退回静态表）；CLI 只读档位的传参形状由预设声明（`--permission-mode` 或 `--agent`），不在此硬编码。
+
 - **双模型审查（Oracle）**：回合结束后自动复审本轮 diff，也支持手动重审；含深度审查（派发只读子代理多轮取证）、审查进度展示、一键修复与审查结果持久化。
 - **计划批准时选择执行模型与推理等级**：退出计划模式时可直接指定后续执行所用的模型与推理档位。
 - **会话回合导航**：按回合在长会话中快速跳转，配套设置开关与全量历史加载协调。
@@ -273,6 +287,11 @@ node apps/zcode-cli/packages/cli/dist/zcode.cjs --help
 | `pnpm dev:gate`    | 链式：检查通过后按影响判定自动出包（日常默认入口）                     |
 
 支持 `--base <ref>` 显式指定范围与 `--dry-run` 只打印选择结果；范围解析、各开关与 fail-closed 语义见 [docs/dev-loop.md](docs/dev-loop.md)，提交/推送/CI 分层门禁见 [docs/git-gate.md](docs/git-gate.md)。注意：增量出包会原位重打 `app.asar`，打包前需**完全退出 ZCode Preview**；产物为未签名 exe，请在原路径启动验证，勿复制到新目录（Windows 会拦截未签名副本）。
+
+增量路径的判定与已知边界：
+
+- 增量基线（`.cache/incremental-app/baseline.json`）由**两条出包路径共同维护**：`pnpm-lock.yaml` 有变动时只需完整打包一次，之后恢复增量（此前只有增量路径写基线，形成"lock 一变就永远只能全量"的死锁）。改动 `packages/desktop/scripts/bundle.mjs` 或 `incremental-app-asar.mjs` 本身时仍会强制全量——它们在「增量 asar 不覆盖的改动」名单里，属预期行为。
+- 已知遗留：增量校验偶报 `缺少运行时依赖 <pkg>`（如 `argparse`）。原因是增量 staging 的 `node_modules` 是上次解包的旧快照，补齐逻辑只按 staging 现状展开闭包、不会从工作区补新增的传递依赖；遇到时用 `--full` 出一次包即可，全量路径不受影响。
 
 ### UI Plugin 开发
 
