@@ -1378,7 +1378,7 @@ test("stream 解析器：全量重解析给收口权威重建用", () => {
 
 // ── S7：内置身份执行渠道（D5 逐 CLI 适配 + Explore 只读映射）──
 
-test("渠道候选：逐 CLI 开启（codebuddy + qoderclicn + commandcode + opencode），Explore 再交 ∩ 只读档位", () => {
+test("渠道候选：逐 CLI 开启（codebuddy + qoderclicn + commandcode + opencode），四家都能承接 Explore", () => {
   // 候选清单是"哪些 CLI 已过完 §3.7 清单"的用户可见投影，所以这里用精确列表钉死：
   // 新增一个开启项必须同时改这里（= 提醒填实测记录），而不是让测试自动跟着变。
   const channel = resolveChannelCandidates();
@@ -1387,31 +1387,53 @@ test("渠道候选：逐 CLI 开启（codebuddy + qoderclicn + commandcode + ope
     channel.map((preset) => preset.id),
     ["codebuddy", "opencode", "qodercli-cn", "commandcode"],
   );
-  // opencode 只过 1~5 项：无只读档位，不进 Explore 候选。
   const explore = resolveExploreChannelCandidates();
   assert.deepEqual(
     explore.map((preset) => preset.id),
-    ["codebuddy", "qodercli-cn", "commandcode"],
+    ["codebuddy", "opencode", "qodercli-cn", "commandcode"],
   );
-  // 三家的只读档位值各不相同，全部来自 preset 声明、不许写死。
+  // 只读档位值因 CLI 而异，全部来自 preset 声明、不许写死。
   assert.equal(findExternalAgentPreset("codebuddy")?.readOnlyPermissionMode, "plan");
   assert.equal(findExternalAgentPreset("qodercli-cn")?.readOnlyPermissionMode, "dont_ask");
   assert.equal(findExternalAgentPreset("commandcode")?.readOnlyPermissionMode, "plan");
+  assert.equal(findExternalAgentPreset("opencode")?.readOnlyPermissionMode, "plan");
 });
 
-test("opencode：只开 general-purpose 渠道，Explore 必须落空（无只读档位）", () => {
-  // 实测（2026-11-12）：opencode 不加 --auto 也会写文件、跑 shell、删目录、
-  // 执行 npm install——headless 下没有任何只读档位。它只对执行型身份可用。
-  assert.equal(isChannelReadyPreset("opencode"), true);
-  assert.equal(findExternalAgentPreset("opencode")?.readOnlyPermissionMode, undefined);
-  assert.equal(
-    resolveExploreChannelCandidates().some((preset) => preset.id === "opencode"),
-    false,
-  );
-  assert.equal(
-    resolveChannelCandidates().some((preset) => preset.id === "opencode"),
-    true,
-  );
+test("opencode 的只读是 Plan **agent**，经 --agent 传而不是 --permission-mode", () => {
+  // 实测（2026-11-12）：opencode 没有任何只读 permission mode——不加 --auto 也照样
+  // 写文件、跑 shell、删目录、执行 npm install。它的只读形态是 Plan agent：
+  // `--agent plan` 下写/删/npm install/git init/-e 绕过全部被拒，读与 grep 照常。
+  const explore = externalAgentBindingSchema.parse({
+    label: "OpenCode",
+    driver: "opencode-exec",
+    command: "opencode",
+    args: ["run", "--format", "json"],
+    promptDelivery: "stdin",
+    presetId: "opencode",
+    permissionMode: "auto",
+    permissionModeOverride: "plan",
+  });
+  const { args } = buildExternalAgentInvocation(explore, "检索任务");
+  assert.equal(args.includes("--auto"), false, "只读身份不得解锁");
+  assert.equal(args.includes("--permission-mode"), false, "opencode 不认 permission-mode");
+  const agentIndex = args.indexOf("--agent");
+  assert.ok(agentIndex >= 0, "只读必须以 --agent 传给 opencode");
+  assert.equal(args[agentIndex + 1], "plan");
+});
+
+test("opencode 执行型身份仍是 --auto", () => {
+  const general = externalAgentBindingSchema.parse({
+    label: "OpenCode",
+    driver: "opencode-exec",
+    command: "opencode",
+    args: ["run", "--format", "json"],
+    promptDelivery: "stdin",
+    presetId: "opencode",
+    permissionMode: "auto",
+  });
+  const { args } = buildExternalAgentInvocation(general, "执行任务");
+  assert.ok(args.includes("--auto"));
+  assert.equal(args.includes("--agent"), false);
 });
 
 test("渠道候选：未过清单的 CLI 不出现（跑不起来的不标）", () => {

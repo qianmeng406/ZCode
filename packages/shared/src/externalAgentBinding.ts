@@ -286,12 +286,25 @@ export function buildExternalAgentInvocation(
     // --auto：自动批准未显式拒绝的权限。非交互委派下没人能点确认框，不给这个
     // 标志外部 agent 会在第一个需要批准的操作上卡死。同样跟随预设代码走，
     // 手填命令仍用绑定自己的值。
-    // permissionModeOverride（S7 Explore 渠道）= 该身份要求受限执行：这两族的
-    // "档位"不是可选值而是解除限制的开关，保持缺省（不解除）即只读。
-    const permissionMode = binding.permissionModeOverride
-      ? undefined
-      : (findExternalAgentPreset(binding.presetId)?.permissionMode ?? binding.permissionMode);
-    if (permissionMode) args.push("--auto");
+    //
+    // permissionModeOverride（S7 Explore 渠道）= 该身份要求受限执行。
+    // **不能只是"不加 --auto"就当作只读**（2026-11-12 实测）：opencode 不加 --auto
+    // 时照样写文件、跑 shell、删目录、执行 npm install。它的只读形态是
+    // **Plan agent**（`--agent plan`），必须显式传——见下面的 override 分支。
+    const preset = findExternalAgentPreset(binding.presetId);
+    const override = binding.permissionModeOverride;
+    if (override) {
+      // 传参形状由预设声明（`readOnlyDelivery`）：opencode 的只读是 agent 不是
+      // 权限档位；默认按 --permission-mode 传（缺席时行为逐字不变）。
+      if (preset?.readOnlyDelivery === "agent") {
+        args.push("--agent", override);
+      } else {
+        args.push("--permission-mode", override);
+      }
+    } else {
+      const permissionMode = preset?.permissionMode ?? binding.permissionMode;
+      if (permissionMode) args.push("--auto");
+    }
     const modelFlag = resolveModelFlag(binding);
     // 档位在这族里是模型串的后缀（`provider/model#variant`），必须与 --model 一起进：
     // 单独 push `#low` 会被当位置参数（= prompt 片段），CLI 不会报错，档位静默失效。

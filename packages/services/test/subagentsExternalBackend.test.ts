@@ -387,12 +387,11 @@ test("setBuiltInExecutionChannel fail-closed：未开渠道 preset / Explore 无
       service.setBuiltInExecutionChannel({ agentName: "Explore", presetId: "claude-code" }),
       /未开启执行渠道/,
     );
-    // opencode 只开了 general-purpose 渠道（无只读档位）：Explore 必须在
-    // "声明只读模式"这一关就被拒，而不是靠后面探测失败来挡。
-    await assert.rejects(
-      service.setBuiltInExecutionChannel({ agentName: "Explore", presetId: "opencode" }),
-      /未声明只读模式/,
-    );
+    // opencode 已开两个身份（只读经 --agent plan），不再适合当"无只读档位"样例；
+    // 用一个 subagentChannelReady 为真、但没声明只读的合成场景覆盖那条分支：
+    // 直接验证"未声明的 preset 即便过了第一关也在第二关被拒"由 core 的
+    // resolveEffectiveChannelPreset 保证（见 core tests），这里只钉 claude-code
+    // 这种两道关都没过的情形。
 
     const probed = createSubagentsService({
       homeDir: home,
@@ -510,7 +509,7 @@ test("setBuiltInExecutionChannel 带 model/effort：写入投影到 list（含�
   }
 });
 
-test("state 文件手改：未开渠道的丢弃、开了渠道但无只读档位的 Explore 也丢弃（防线之二）", async () => {
+test("state 文件手改：未开渠道的 preset 一律丢弃（防线之二）", async () => {
   const home = await mkdtemp(join(tmpdir(), "zcode-subagents-"));
   try {
     const service = createSubagentsService({ homeDir: home, isDesktopRuntime: true });
@@ -518,11 +517,9 @@ test("state 文件手改：未开渠道的丢弃、开了渠道但无只读档�
     const stateFile = join(home, ".zcode", "v2", "agents-state.json");
     const raw = JSON.parse(await readFile(stateFile, "utf-8"));
     raw.builtInExecutionChannel = {
-      // 没开渠道的 preset → 丢弃。
+      // 未过 §3.7 清单的 preset（claude-code）+ 不存在的 id → 都丢弃。
       "general-purpose": { presetId: "claude-code" },
-      // 开了 general-purpose 渠道、但没有只读档位 → Explore 这条也必须丢弃
-      // （否则手改 JSON 就能让 Explore 跑在一个"无只读保证"的 CLI 上）。
-      Explore: { presetId: "opencode" },
+      Explore: { presetId: "no-such-cli" },
     };
     await writeFile(stateFile, JSON.stringify(raw), "utf-8");
     const listed = await service.list({
@@ -557,6 +554,33 @@ test("state 文件手改：opencode 的 general-purpose 渠道被保留（它确
     const general = listed.agents.find((agent) => agent.name === "general-purpose");
     assert.equal(general?.backend, "external");
     assert.equal(general?.presetId, "opencode");
+  } finally {
+    await rm(home, { recursive: true, force: true });
+  }
+});
+
+test("opencode 能同时承接两个身份（Explore 的只读经 --agent plan 成立）", async () => {
+  const home = await mkdtemp(join(tmpdir(), "zcode-subagents-"));
+  try {
+    const service = createSubagentsService({ homeDir: home, isDesktopRuntime: true });
+    await service.setEnabled({ agentId: "probe", enabled: true });
+    const stateFile = join(home, ".zcode", "v2", "agents-state.json");
+    const raw = JSON.parse(await readFile(stateFile, "utf-8"));
+    raw.builtInExecutionChannel = {
+      "general-purpose": { presetId: "opencode" },
+      Explore: { presetId: "opencode" },
+    };
+    await writeFile(stateFile, JSON.stringify(raw), "utf-8");
+    const listed = await service.list({
+      workspacePath: "",
+      provider: undefined as never,
+      mode: "settingsUserOnly",
+    });
+    const general = listed.agents.find((agent) => agent.name === "general-purpose");
+    const explore = listed.agents.find((agent) => agent.name === "Explore");
+    assert.equal(general?.backend, "external");
+    assert.equal(explore?.backend, "external");
+    assert.equal(explore?.presetId, "opencode");
   } finally {
     await rm(home, { recursive: true, force: true });
   }

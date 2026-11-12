@@ -86,13 +86,30 @@ export const externalAgentPresetSchema = z.object({
    */
   subagentChannelReady: z.boolean().optional(),
   /**
-   * 该 CLI 已核实的只读/计划档位值（claude-family 下为 --permission-mode 的值）。
+   * 该 CLI 已核实的只读/计划档位值。
    *
    * 声明 = 该 preset 可以承接只读身份（Explore）的执行渠道；缺席 = 不可以。
    * 只放实测过的值——ZCode 无法强制外部 CLI 只读，档位纪律完全在 CLI 侧，
    * 没实测过的值标上来就是"看起来只读、实际能改文件"的半残渠道。
+   *
+   * 值的含义由 `readOnlyDelivery` 决定：`permission-mode` 族是
+   * `--permission-mode <值>`（claude-family / commandcode），`agent` 族是
+   * `--agent <值>`（opencode 的 Plan 是 agent 不是权限档位）。
    */
   readOnlyPermissionMode: z.string().max(40).optional(),
+  /**
+   * 只读档位怎么传给 CLI。缺席 = `permission-mode`（既有语义，行为逐字不变）。
+   *
+   * - `permission-mode`：`--permission-mode <readOnlyPermissionMode>`；
+   * - `agent`：`--agent <readOnlyPermissionMode>`。
+   *
+   * 为什么必须区分（2026-11-12 实测）：opencode **没有任何只读权限档位**——不加
+   * `--auto` 也照样写文件、跑 shell、删目录、执行 npm install（`--auto` 只是
+   * "自动批准"，缺省不是只读）。但它的 **Plan 是个 agent**：`--agent plan` 下
+   * 写文件/删文件/npm install/git init/-e 绕过写法全部被拒，同时读文件与搜索照常。
+   * 用 `--permission-mode plan` 传给它不会有任何效果（它不认这个参数）。
+   */
+  readOnlyDelivery: z.enum(["permission-mode", "agent"]).optional(),
   // opencode-exec：`opencode run` 的 stdout 是逐行 JSON 事件流，prompt 走 stdin。
   driver: z.enum([
     "claude-family",
@@ -369,12 +386,16 @@ export const EXTERNAL_AGENT_PRESETS: readonly ExternalAgentPreset[] = [
     // 委派要能跑命令：opencode 的 --auto 自动批准未被显式拒绝的权限，等价于其它族的
     // bypassPermissions（用户绑定即明示同意把执行交给它）。
     permissionMode: "auto",
-    // S7 渠道化：2026-11-12 过完 §3.7 的 1~5 项，**第 6 项（只读）不成立**。
-    // 实测（opencode 2.2.5）：不加 --auto 时它照样写文件、跑 shell、删目录、
-    // 执行 npm install——headless 下**没有任何只读档位**（--auto 只是"自动批准"，
-    // 缺省也不是只读）。所以只能开 general-purpose，绝不能让 Explore 走上它：
-    // 不声明 readOnlyPermissionMode 即可（候选过滤 + services 拒绝 + core 忽略，
-    // 三层 fail-closed 都按这个字段判定，机制无需改动）。
+    // S7 渠道化：2026-11-12 过完 §3.7 全部六项（opencode 2.2.5）。
+    // 只读形态是 **Plan agent**（`--agent plan`），不是权限档位——它没有任何只读
+    // permission mode（不加 --auto 也照样写文件、跑 shell、删目录、执行 npm install）。
+    // 实测 `--agent plan`：写文件/删文件/npm install/git init/node -e 绕过写法全被拒，
+    // 同时读文件与 grep 照常（Explore 靠它搜索）；`--agent <未知名>` 直接报
+    // "Agent not found"（有严格校验，不像 qoder 那样静默降级）。
+    // readOnlyDelivery: "agent" 告诉 invocation 用 `--agent plan` 而不是
+    // `--permission-mode plan`（后者对 opencode 完全无效）。
+    readOnlyPermissionMode: "plan",
+    readOnlyDelivery: "agent",
     subagentChannelReady: true,
     modelFlag: "--model",
     // 模型清单只在 `opencode models` 的逐行输出里，--help 不列。
