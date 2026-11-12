@@ -675,6 +675,7 @@ function AgentListRow({
             agent={agent}
             disabled={isOperating}
             onChannelChange={onChannelChange}
+            probeExternalAgents={probeExternalAgents}
           />
         ) : hasModelOverrideControl ? (
           <SubagentModelOverrideControl
