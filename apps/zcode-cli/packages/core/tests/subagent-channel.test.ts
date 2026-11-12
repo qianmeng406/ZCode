@@ -61,8 +61,8 @@ describe("normalizeAgentProfiles 执行渠道覆盖", () => {
     expect(profile.tools).toBeUndefined();
   });
 
-  it("general-purpose 渠道化不带只读档位（三家都一样：执行型不需要 permissionModeOverride）", () => {
-    for (const presetId of ["codebuddy", "qodercli-cn", "commandcode"]) {
+  it("general-purpose 渠道化不带只读档位（四家都一样：执行型不需要 permissionModeOverride）", () => {
+    for (const presetId of ["codebuddy", "opencode", "qodercli-cn", "commandcode"]) {
       const profiles = normalizeAgentProfiles([], {
         builtInExecutionChannel: { "general-purpose": { presetId } },
       });
@@ -72,11 +72,31 @@ describe("normalizeAgentProfiles 执行渠道覆盖", () => {
     }
   });
 
-  it("未标渠道就绪的 preset（opencode）→ 覆盖被忽略，回 native", () => {
+  it("opencode 只能承接 general-purpose：Explore 渠道必须回落 native（它没有只读档位）", () => {
+    // 实测（2026-11-12）：opencode 不加 --auto 也会写文件、跑 shell、删目录、
+    // 执行 npm install。让它接 Explore 就是给用户一个"看着只读、实际能删库"的渠道。
     const profiles = normalizeAgentProfiles([], {
       builtInExecutionChannel: {
         "general-purpose": { presetId: "opencode" },
         Explore: { presetId: "opencode" },
+      },
+    });
+    const general = profiles.find((entry) => entry.name === GENERAL)!;
+    expect(general.backend).toBe("external");
+    expect(general.preset).toBe("opencode");
+    const explore = profiles.find((entry) => entry.name === EXPLORE)!;
+    // 覆盖被忽略 → native Explore（有工具白名单、无 backend）。
+    expect(explore.backend).toBeUndefined();
+    expect(explore.tools).toContain("Grep");
+  });
+
+  it("未标渠道就绪的 preset（claude-code）→ 覆盖被忽略，回 native", () => {
+    // 用 claude-code 而不是 opencode：opencode 已开 general-purpose 渠道
+    // （它只缺只读档位，Explore 那条由下面的专门用例覆盖）。
+    const profiles = normalizeAgentProfiles([], {
+      builtInExecutionChannel: {
+        "general-purpose": { presetId: "claude-code" },
+        Explore: { presetId: "claude-code" },
       },
     });
     const general = profiles.find((entry) => entry.name === GENERAL)!;

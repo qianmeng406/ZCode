@@ -378,14 +378,20 @@ test("setBuiltInExecutionChannel fail-closed：未开渠道 preset / Explore 无
   const home = await mkdtemp(join(tmpdir(), "zcode-subagents-"));
   try {
     const service = createSubagentsService({ homeDir: home, isDesktopRuntime: true });
+    // claude-code 未过 §3.7 清单（未标 subagentChannelReady）→ 两个身份都拒绝。
     await assert.rejects(
-      service.setBuiltInExecutionChannel({ agentName: "general-purpose", presetId: "opencode" }),
+      service.setBuiltInExecutionChannel({ agentName: "general-purpose", presetId: "claude-code" }),
       /未开启执行渠道/,
     );
-    // 首期无第二个声明只读档位的 preset；Explore × 未开渠道同样拒绝。
+    await assert.rejects(
+      service.setBuiltInExecutionChannel({ agentName: "Explore", presetId: "claude-code" }),
+      /未开启执行渠道/,
+    );
+    // opencode 只开了 general-purpose 渠道（无只读档位）：Explore 必须在
+    // "声明只读模式"这一关就被拒，而不是靠后面探测失败来挡。
     await assert.rejects(
       service.setBuiltInExecutionChannel({ agentName: "Explore", presetId: "opencode" }),
-      /未开启执行渠道/,
+      /未声明只读模式/,
     );
 
     const probed = createSubagentsService({
@@ -504,7 +510,7 @@ test("setBuiltInExecutionChannel 带 model/effort：写入投影到 list（含�
   }
 });
 
-test("state 文件手改写入未开渠道 preset：读取时被收敛丢弃（防线之二）", async () => {
+test("state 文件手改：未开渠道的丢弃、开了渠道但无只读档位的 Explore 也丢弃（防线之二）", async () => {
   const home = await mkdtemp(join(tmpdir(), "zcode-subagents-"));
   try {
     const service = createSubagentsService({ homeDir: home, isDesktopRuntime: true });
@@ -512,8 +518,11 @@ test("state 文件手改写入未开渠道 preset：读取时被收敛丢弃（�
     const stateFile = join(home, ".zcode", "v2", "agents-state.json");
     const raw = JSON.parse(await readFile(stateFile, "utf-8"));
     raw.builtInExecutionChannel = {
-      "general-purpose": { presetId: "opencode" },
-      Explore: { presetId: "no-such-cli" },
+      // 没开渠道的 preset → 丢弃。
+      "general-purpose": { presetId: "claude-code" },
+      // 开了 general-purpose 渠道、但没有只读档位 → Explore 这条也必须丢弃
+      // （否则手改 JSON 就能让 Explore 跑在一个"无只读保证"的 CLI 上）。
+      Explore: { presetId: "opencode" },
     };
     await writeFile(stateFile, JSON.stringify(raw), "utf-8");
     const listed = await service.list({
@@ -526,6 +535,28 @@ test("state 文件手改写入未开渠道 preset：读取时被收敛丢弃（�
       undefined,
     );
     assert.equal(listed.agents.find((agent) => agent.name === "Explore")?.backend, undefined);
+  } finally {
+    await rm(home, { recursive: true, force: true });
+  }
+});
+
+test("state 文件手改：opencode 的 general-purpose 渠道被保留（它确实开了这个身份）", async () => {
+  const home = await mkdtemp(join(tmpdir(), "zcode-subagents-"));
+  try {
+    const service = createSubagentsService({ homeDir: home, isDesktopRuntime: true });
+    await service.setEnabled({ agentId: "probe", enabled: true });
+    const stateFile = join(home, ".zcode", "v2", "agents-state.json");
+    const raw = JSON.parse(await readFile(stateFile, "utf-8"));
+    raw.builtInExecutionChannel = { "general-purpose": { presetId: "opencode" } };
+    await writeFile(stateFile, JSON.stringify(raw), "utf-8");
+    const listed = await service.list({
+      workspacePath: "",
+      provider: undefined as never,
+      mode: "settingsUserOnly",
+    });
+    const general = listed.agents.find((agent) => agent.name === "general-purpose");
+    assert.equal(general?.backend, "external");
+    assert.equal(general?.presetId, "opencode");
   } finally {
     await rm(home, { recursive: true, force: true });
   }

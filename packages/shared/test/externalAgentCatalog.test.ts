@@ -1378,14 +1378,16 @@ test("stream 解析器：全量重解析给收口权威重建用", () => {
 
 // ── S7：内置身份执行渠道（D5 逐 CLI 适配 + Explore 只读映射）──
 
-test("渠道候选：逐 CLI 开启（codebuddy + qoderclicn + commandcode），Explore 再交 ∩ 只读档位", () => {
+test("渠道候选：逐 CLI 开启（codebuddy + qoderclicn + commandcode + opencode），Explore 再交 ∩ 只读档位", () => {
   // 候选清单是"哪些 CLI 已过完 §3.7 清单"的用户可见投影，所以这里用精确列表钉死：
   // 新增一个开启项必须同时改这里（= 提醒填实测记录），而不是让测试自动跟着变。
   const channel = resolveChannelCandidates();
+  // 顺序 = 目录里 EXTERNAL_AGENT_PRESETS 的声明顺序（opencode 在 qoder 之前）。
   assert.deepEqual(
     channel.map((preset) => preset.id),
-    ["codebuddy", "qodercli-cn", "commandcode"],
+    ["codebuddy", "opencode", "qodercli-cn", "commandcode"],
   );
+  // opencode 只过 1~5 项：无只读档位，不进 Explore 候选。
   const explore = resolveExploreChannelCandidates();
   assert.deepEqual(
     explore.map((preset) => preset.id),
@@ -1397,20 +1399,35 @@ test("渠道候选：逐 CLI 开启（codebuddy + qoderclicn + commandcode），
   assert.equal(findExternalAgentPreset("commandcode")?.readOnlyPermissionMode, "plan");
 });
 
+test("opencode：只开 general-purpose 渠道，Explore 必须落空（无只读档位）", () => {
+  // 实测（2026-11-12）：opencode 不加 --auto 也会写文件、跑 shell、删目录、
+  // 执行 npm install——headless 下没有任何只读档位。它只对执行型身份可用。
+  assert.equal(isChannelReadyPreset("opencode"), true);
+  assert.equal(findExternalAgentPreset("opencode")?.readOnlyPermissionMode, undefined);
+  assert.equal(
+    resolveExploreChannelCandidates().some((preset) => preset.id === "opencode"),
+    false,
+  );
+  assert.equal(
+    resolveChannelCandidates().some((preset) => preset.id === "opencode"),
+    true,
+  );
+});
+
 test("渠道候选：未过清单的 CLI 不出现（跑不起来的不标）", () => {
   // qodercli 国际版：`--permission-mode plan` 与 CN 版一样被静默降级成 default，
   // 但真实任务在本机长期卡在服务端 p4 队列（14 分钟以上无模型响应），
   // §3.7 的"运行"一项没有实测证据 → 不标。
-  // opencode：本机所有可用凭据都不可用（免费额度用尽 / DeepSeek 余额不足 402）。
   const ids = resolveChannelCandidates().map((preset) => preset.id);
   assert.equal(ids.includes("qodercli"), false);
-  assert.equal(ids.includes("opencode"), false);
   assert.equal(isChannelReadyPreset("qodercli"), false);
 });
 
 test("isChannelReadyPreset：未标记/未知 preset 一律 false（fail-closed）", () => {
   assert.equal(isChannelReadyPreset("codebuddy"), true);
-  assert.equal(isChannelReadyPreset("opencode"), false);
+  // qodercli（国际版）与 codex/claude-code 未过 §3.7 清单，一律不可开启。
+  assert.equal(isChannelReadyPreset("qodercli"), false);
+  assert.equal(isChannelReadyPreset("claude-code"), false);
   assert.equal(isChannelReadyPreset("no-such-cli"), false);
   assert.equal(isChannelReadyPreset(undefined), false);
 });

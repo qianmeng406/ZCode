@@ -369,6 +369,13 @@ export const EXTERNAL_AGENT_PRESETS: readonly ExternalAgentPreset[] = [
     // 委派要能跑命令：opencode 的 --auto 自动批准未被显式拒绝的权限，等价于其它族的
     // bypassPermissions（用户绑定即明示同意把执行交给它）。
     permissionMode: "auto",
+    // S7 渠道化：2026-11-12 过完 §3.7 的 1~5 项，**第 6 项（只读）不成立**。
+    // 实测（opencode 2.2.5）：不加 --auto 时它照样写文件、跑 shell、删目录、
+    // 执行 npm install——headless 下**没有任何只读档位**（--auto 只是"自动批准"，
+    // 缺省也不是只读）。所以只能开 general-purpose，绝不能让 Explore 走上它：
+    // 不声明 readOnlyPermissionMode 即可（候选过滤 + services 拒绝 + core 忽略，
+    // 三层 fail-closed 都按这个字段判定，机制无需改动）。
+    subagentChannelReady: true,
     modelFlag: "--model",
     // 模型清单只在 `opencode models` 的逐行输出里，--help 不列。
     modelSource: "command",
