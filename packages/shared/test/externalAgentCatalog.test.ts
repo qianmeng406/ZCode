@@ -6,6 +6,7 @@ import {
   EXTERNAL_AGENT_PRESETS,
   findExternalAgentPreset,
   isChannelReadyPreset,
+  readChannelBlockedReason,
   resolveChannelCandidates,
   resolveExploreChannelCandidates,
   parseCommandCodeModelCatalog,
@@ -1436,13 +1437,39 @@ test("opencode 执行型身份仍是 --auto", () => {
   assert.equal(args.includes("--agent"), false);
 });
 
-test("渠道候选：未过清单的 CLI 不出现（跑不起来的不标）", () => {
-  // qodercli 国际版：`--permission-mode plan` 与 CN 版一样被静默降级成 default，
-  // 但真实任务在本机长期卡在服务端 p4 队列（14 分钟以上无模型响应），
-  // §3.7 的"运行"一项没有实测证据 → 不标。
+test("渠道候选：未过清单的 CLI 不出现，且 qodercli 带出显式阻塞原因", () => {
+  // qodercli 国际版：已评估但**未完成**——真实任务长期卡在服务端 p4 队列
+  // （三模型 6min+ 无响应），§3.7 第 1 项「运行」拿不到实测证据。
+  // 用显式 false + blockedBy 表达"结论"而不是"疏漏"。
   const ids = resolveChannelCandidates().map((preset) => preset.id);
   assert.equal(ids.includes("qodercli"), false);
   assert.equal(isChannelReadyPreset("qodercli"), false);
+  const preset = findExternalAgentPreset("qodercli");
+  assert.equal(preset?.subagentChannelReady, false);
+  assert.match(preset?.subagentChannelBlockedBy ?? "", /队列/);
+  // 它没有声明只读档位（虽然本地已确认 dont_ask 可用，但运行证据缺失时不承诺）。
+  assert.equal(preset?.readOnlyPermissionMode, undefined);
+});
+
+test("显式 false 与字段缺席在行为上完全等价（只差可读性）", () => {
+  // 这条钉住语义：`=== true` 的严格判定保证两者都不进候选。若将来有人把判断
+  // 改成 `!== false`，显式 false 会突然变成"可用"，测试立刻红。
+  assert.equal(isChannelReadyPreset("qodercli"), false); // 显式 false
+  assert.equal(isChannelReadyPreset("claude-code"), false); // 字段缺席
+  assert.equal(resolveChannelCandidates().includes(findExternalAgentPreset("qodercli")!), false);
+  assert.equal(resolveChannelCandidates().includes(findExternalAgentPreset("claude-code")!), false);
+});
+
+test("readChannelBlockedReason：只对未就绪且登记了原因的 preset 返回内容", () => {
+  // 已就绪 → undefined（没问题要报）。
+  assert.equal(readChannelBlockedReason("codebuddy"), undefined);
+  assert.equal(readChannelBlockedReason("opencode"), undefined);
+  // 未就绪且登记了原因 → 返回人话原因。
+  assert.match(readChannelBlockedReason("qodercli") ?? "", /队列|运行/);
+  // 未就绪但没登记（还没评估）→ undefined，不编造原因。
+  assert.equal(readChannelBlockedReason("claude-code"), undefined);
+  assert.equal(readChannelBlockedReason("no-such-cli"), undefined);
+  assert.equal(readChannelBlockedReason(undefined), undefined);
 });
 
 test("isChannelReadyPreset：未标记/未知 preset 一律 false（fail-closed）", () => {

@@ -83,8 +83,21 @@ export const externalAgentPresetSchema = z.object({
    * 的内置身份语义，除运行形状外还要求取消、续接、transcript、失败语义都过实测
    * （渠道适配清单见 S7 方案 §3.7）。未标记的 preset 不出现在任何渠道候选里
    * （不是灰置——出现即可用）。逐 CLI 验证通过一个标一个；机制代码一次通用。
+   *
+   * 三态语义（显式 `false` 与缺席在**行为**上完全等价，差别只在可读性）：
+   * - `true`：已过完 §3.7 六项，用户可选用；
+   * - 缺席：还没轮到适配（尚未评估）；
+   * - 显式 `false`：**已评估但未完成**——有已知阻塞项，见该 preset 的注释与
+   *   `subagentChannelBlockedBy`。目的是让下一个人一眼看出这是结论而非疏漏。
    */
   subagentChannelReady: z.boolean().optional(),
+  /**
+   * 渠道适配未完成的原因（仅 `subagentChannelReady: false` 时有意义）。
+   *
+   * 存成数据而不是只写注释：注释会随代码迁移丢失，而这个字段能出现在日志、
+   * 调试输出与后续的适配看板里。措辞是"人话 + 可行动"，不是错误码。
+   */
+  subagentChannelBlockedBy: z.string().max(300).optional(),
   /**
    * 该 CLI 已核实的只读/计划档位值。
    *
@@ -545,6 +558,27 @@ export const EXTERNAL_AGENT_PRESETS: readonly ExternalAgentPreset[] = [
     // 全部模型都是 200K/400K/1M 三层，`--context-window` 收正整数 token 数。
     contextWindowFlag: "--context-window",
     contextWindowLevelsByModel: { "": [200000, 400000, 1000000] },
+    // S7 渠道化：**已评估，未完成**（2026-11-12）。绑定/委派可用（adaptation: full
+    // 那套实测仍成立），但不能承接内置身份的执行渠道。
+    //
+    // 阻塞项是"拿不到运行证据"，不是代码或调用形状问题：
+    // - 三个不同模型（GLM-5.3 / Auto / Efficient）全部卡在服务端 p4 队列
+    //   （`model_queue_status status=queued`，单次等 6.5 分钟无响应，上限 1 小时）；
+    // - 账号本身正常（personal_standard，已登录，`qodercli status` 正常），
+    //   同一台机器上 qoderclicn 秒回——所以是国际版服务端容量，不是本地问题。
+    //
+    // 已确认的部分（不依赖模型调用）：
+    // - `--permission-mode dont_ask` 在 init 事件里如实上报 `dontAsk`，是可用只读档位；
+    // - `--permission-mode plan` 与 CN 版同坑：choices 里没有它，传了被**静默降级**
+    //   成 default（所以将来开启时必须用 dont_ask，不能用 plan）；
+    // - 与 qoderclicn 同为 1.1.86 同一份 CLI 代码，取消/续接/transcript 的形状一致。
+    //
+    // 补完方式：队列空闲后按 §3.7 跑一遍（1 运行 / 2 取消 / 3 续接 / 4 失败语义 /
+    // 5 transcript / 6 dont_ask 只读），通过后把 subagentChannelReady 改成 true、
+    // 加 readOnlyPermissionMode: "dont_ask"、删掉下面的 blocked 字段。
+    subagentChannelReady: false,
+    subagentChannelBlockedBy:
+      "服务端模型队列长期占满（p4，三模型均 6min+ 无响应），§3.7 第 1 项「运行」拿不到实测证据；本地已确认 dont_ask 为可用只读档位（plan 会被静默降级）",
   },
   {
     id: "commandcode",
@@ -638,6 +672,18 @@ export function resolveExploreChannelCandidates(): ExternalAgentPreset[] {
 export function isChannelReadyPreset(presetId: string | undefined): boolean {
   const preset = findExternalAgentPreset(presetId);
   return preset?.subagentChannelReady === true;
+}
+
+/**
+ * 某个 preset 的渠道适配阻塞原因（`undefined` = 没登记，可能是还没评估，也可能是已就绪）。
+ *
+ * 存在的意义是把"为什么这个 CLI 不在渠道候选里"变成可读数据：排查时不必翻
+ * 预设源码找注释，日志/调试输出/后续看板都能直接用。
+ */
+export function readChannelBlockedReason(presetId: string | undefined): string | undefined {
+  const preset = findExternalAgentPreset(presetId);
+  if (!preset || preset.subagentChannelReady === true) return undefined;
+  return preset.subagentChannelBlockedBy;
 }
 
 /**
