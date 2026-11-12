@@ -3,7 +3,8 @@
 // 钉住四件事：
 // 1. 渠道覆盖达标 → 内置 profile 变 external（backend/preset/外部 system prompt），
 //    且 modelSelection/native 专属字段（tools/injectAgentsMd）被剥离；
-// 2. Explore 渠道化额外带 profile.permissionMode = preset 的只读档位（plan）；
+// 2. Explore 渠道化额外带 profile.permissionMode = preset 声明的只读档位
+//    （codebuddy 是 plan、qoderclicn 是 dont_ask——值来自 preset，不是写死）；
 // 3. 未达标的 preset（未标 subagentChannelReady）→ 覆盖被忽略，回 native
 //    （三道防线之三：手改 state 文件也产不出半残渠道）；
 // 4. 无渠道覆盖时既有行为逐字不变。
@@ -34,7 +35,7 @@ describe("normalizeAgentProfiles 执行渠道覆盖", () => {
     expect(profile.modelSelection).toBeUndefined();
   });
 
-  it("Explore 渠道化：external + 只读档位（plan）经 profile.permissionMode 承载", () => {
+  it("Explore 渠道化：external + 只读档位（codebuddy 的 plan）经 profile.permissionMode 承载", () => {
     const profiles = normalizeAgentProfiles([], {
       builtInExecutionChannel: { Explore: { presetId: "codebuddy" } },
     });
@@ -45,6 +46,30 @@ describe("normalizeAgentProfiles 执行渠道覆盖", () => {
     expect(profile.systemPrompt).toContain("READ-ONLY MODE");
     expect(profile.systemPrompt).not.toContain("ZCode CLI");
     expect(profile.tools).toBeUndefined();
+  });
+
+  it("Explore 渠道化：只读档位按 preset 声明取（qoder 是 dont_ask，不是写死的 plan）", () => {
+    const profiles = normalizeAgentProfiles([], {
+      builtInExecutionChannel: { Explore: { presetId: "qodercli-cn" } },
+    });
+    const profile = profiles.find((entry) => entry.name === EXPLORE)!;
+    expect(profile.backend).toBe("external");
+    expect(profile.preset).toBe("qodercli-cn");
+    // 只读档位必须是 preset 声明的值：qoder 的 --permission-mode plan 会被静默
+    // 降级成 default（实测），写死 "plan" 就等于承诺一个不存在的只读保证。
+    expect(profile.permissionMode).toBe("dont_ask");
+    expect(profile.tools).toBeUndefined();
+  });
+
+  it("general-purpose 渠道化不带只读档位（两家都一样：执行型不需要 permissionModeOverride）", () => {
+    for (const presetId of ["codebuddy", "qodercli-cn"]) {
+      const profiles = normalizeAgentProfiles([], {
+        builtInExecutionChannel: { "general-purpose": { presetId } },
+      });
+      const general = profiles.find((entry) => entry.name === GENERAL)!;
+      expect(general.preset).toBe(presetId);
+      expect(general.permissionMode).toBeUndefined();
+    }
   });
 
   it("未标渠道就绪的 preset（opencode）→ 覆盖被忽略，回 native", () => {

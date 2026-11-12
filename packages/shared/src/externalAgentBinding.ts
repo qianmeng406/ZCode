@@ -608,6 +608,10 @@ function parseStreamJsonResult(
     errors?: unknown;
     error?: unknown;
   } | null = null;
+  // 裸错误事件：`{type:"error", error:"…"}`。claude-family 在**根本没进入一轮模型调用**
+  // 时就只发它、不发 result（实测 codebuddy：`-r` 指向已失效会话 →
+  // `{"type":"error","error":"No conversation found with session ID: …"}`，**退出码 0**）。
+  let bareError: string | undefined;
   for (const line of lines) {
     try {
       const entry = JSON.parse(line) as {
@@ -619,11 +623,22 @@ function parseStreamJsonResult(
         error?: unknown;
       };
       if (entry?.type === "result") last = entry;
+      else if (entry?.type === "error" && typeof entry.error === "string" && entry.error.trim()) {
+        bareError = entry.error.trim();
+      }
     } catch {
       // 半个事件（进程被杀 / 输出截断）：跳过。
     }
   }
-  if (!last) return undefined;
+  if (!last) {
+    // 只有裸错误事件：必须如实报失败。
+    //
+    // 漏了这一步的后果是**静默假成功**（2026-11-12 实测）：没有 result 时这里返回
+    // undefined，调用方退回"原文当正文 + isError:false"，于是子智能体卡片显示
+    // "已完成"，正文是一行原始 JSON——而任务其实一行都没跑。退出码是 0，
+    // 上层无从纠正。续接 id 过期（会话被清理/换机器）正是最容易撞上的场景。
+    return bareError ? { text: bareError, isError: true } : undefined;
+  }
   const sessionId =
     typeof last.session_id === "string" && last.session_id.length > 0 ? last.session_id : undefined;
   const resultText = typeof last.result === "string" ? last.result : "";

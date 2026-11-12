@@ -405,6 +405,19 @@ export const EXTERNAL_AGENT_PRESETS: readonly ExternalAgentPreset[] = [
     args: ["-p", "--output-format", "stream-json", "--include-partial-messages"],
     promptDelivery: "stdin",
     permissionMode: "bypass_permissions",
+    // S7 渠道化：2026-11-12 过完 §3.7 全部六项（qoderclicn 1.1.86）。
+    // 只读档位是 `dont_ask`，**不是 `plan`**——实测两个要点：
+    // - `--help` 的 choices 里没有 plan，但运行时接受它，并**静默降级成 default**
+    //   （init 事件自报 permissionMode: default）。不做校验的 CLI 最危险：
+    //   参数看起来生效了，实际换了一个语义。
+    // - `dont_ask` 才是真正的只读：需要批准的调用一律拒绝且不弹提示。
+    //   实测 ls/grep/Read 正常放行（Explore 靠这个搜索），而删除文件、
+    //   npm install、git init、Write/Edit、以及四种绕过写法
+    //   （node -e 写文件 / touch / tee / 输出重定向）全部被拒；
+    //   连用户 settings 里配 `permissions.allow: ["Bash","Write","Edit"]`
+    //   也照样拒绝（headless 下不抬升档位）。
+    readOnlyPermissionMode: "dont_ask",
+    subagentChannelReady: true,
     modelFlag: "--model",
     modelSource: "command",
     modelListCommand: ["--list-models"],

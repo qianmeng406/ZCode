@@ -366,15 +366,15 @@ export function createOneShotExternalAgentDriver(input: {
           entries: [{ kind: "text", text: parsed.text }],
         });
       }
-      // 解析不出正文时不能静默返回空串：至少要给出证据（字节数/落盘位置），
-      // 否则上层只能看到「已完成」，无从判断是 CLI 没输出还是我们没读到。
+      // 解析不出正文时不能静默返回空串：至少要给出证据（字节数/落盘位置/stderr
+      // 里的原因），否则上层只能看到「已完成」，无从判断是 CLI 没输出还是我们没读到。
       const text = hasResultText
         ? parsed.text
         : capabilities && looksLikeStreamJson(fullStdout)
-          ? describeMissingOutput(stdoutView)
+          ? describeMissingOutput(stdoutView, stderr)
           : rawStdout.trim()
             ? rawStdout
-            : describeMissingOutput(stdoutView);
+            : describeMissingOutput(stdoutView, stderr);
       const exitCode =
         typeof (result as { exitCode?: number }).exitCode === "number"
           ? (result as { exitCode: number }).exitCode
@@ -524,10 +524,22 @@ function extractStreamText(result: unknown, stream: "stdout" | "stderr"): string
 }
 
 /** 完全读不到输出时的说明文本（替代静默空串）。 */
-function describeMissingOutput(view: StreamOutputView): string {
+function describeMissingOutput(view: StreamOutputView, stderr?: string): string {
   const parts = ["（外部 agent 执行结束，但没有读到可解析的输出）"];
   if (view.bytes !== undefined) parts.push(`stdout 共 ${view.bytes} 字节`);
   if (view.artifactPath) parts.push(`原始输出已落盘：${view.artifactPath}`);
+  // stderr 里常常是**唯一**的失败原因，尤其 CLI 在进入一轮模型调用之前就退出时：
+  // 实测 qoderclicn 的失效 `-r` 是「stdout 空 + stderr 一行 Error resuming session:
+  // Invalid session identifier …」+ 退出码 42——不带 stderr 就只剩一句"没读到输出"，
+  // 用户无从判断是会话过期、没登录还是参数写错。
+  //
+  // 只在完全拿不到正文时附加（调用点保证）：很多 CLI 把进度也写 stderr，
+  // 有正文时再带上它只会把正常回答淹进噪声。
+  const diagnostic = stderr?.trim();
+  if (diagnostic) {
+    const clipped = diagnostic.length > 800 ? `…${diagnostic.slice(-800)}` : diagnostic;
+    parts.push(`stderr：${clipped}`);
+  }
   return parts.join("；");
 }
 

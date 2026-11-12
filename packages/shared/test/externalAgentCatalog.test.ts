@@ -1222,6 +1222,50 @@ test("parseExternalAgentResult: 非 JSON / 非数组退回原文，不抛", () =
   });
 });
 
+test("parseExternalAgentResult: 只有裸 error 事件时必须报失败（失效 -r 不许静默成功）", () => {
+  // 2026-11-12 实测 codebuddy：`-r <已失效 id>` 只发这一行、**不发 result**，
+  // 退出码还是 0。以前这里退回"原文当正文 + isError:false"，子智能体卡片显示
+  // "已完成"、正文是一行原始 JSON，而任务一行都没跑。
+  const binding = externalAgentBindingSchema.parse({
+    label: "CodeBuddy",
+    driver: "claude-family",
+    command: "codebuddy",
+    args: ["-p", "--output-format", "stream-json", "--include-partial-messages"],
+    promptDelivery: "stdin",
+    presetId: "codebuddy",
+  });
+  const stdout = `${JSON.stringify({
+    type: "error",
+    error: "No conversation found with session ID: 00000000-0000-4000-8000-000000000000",
+  })}\n`;
+  assert.deepEqual(parseExternalAgentResult(binding, stdout), {
+    text: "No conversation found with session ID: 00000000-0000-4000-8000-000000000000",
+    isError: true,
+  });
+});
+
+test("parseExternalAgentResult: 裸 error 与后续 result 并存时以 result 为准", () => {
+  // CLI 可能先报一条可恢复的 error 警告、再正常收口。只有"完全没有 result"
+  // 才按失败处理，否则会把成功的执行误判成失败。
+  const binding = externalAgentBindingSchema.parse({
+    label: "CodeBuddy",
+    driver: "claude-family",
+    command: "codebuddy",
+    args: ["-p", "--output-format", "stream-json", "--include-partial-messages"],
+    promptDelivery: "stdin",
+    presetId: "codebuddy",
+  });
+  const stdout = [
+    JSON.stringify({ type: "error", error: "transient retry" }),
+    JSON.stringify({ type: "result", subtype: "success", is_error: false, result: "完成" }),
+    "",
+  ].join("\n");
+  assert.deepEqual(parseExternalAgentResult(binding, stdout), {
+    text: "完成",
+    isError: false,
+  });
+});
+
 test("parseExternalAgentResult: 带回 session_id 供下一轮续接", () => {
   const binding = externalAgentBindingSchema.parse({
     label: "CodeBuddy",
@@ -1334,18 +1378,35 @@ test("stream 解析器：全量重解析给收口权威重建用", () => {
 
 // ── S7：内置身份执行渠道（D5 逐 CLI 适配 + Explore 只读映射）──
 
-test("渠道候选：首期仅 codebuddy（subagentChannelReady），Explore 再交 ∩ 只读档位", () => {
+test("渠道候选：逐 CLI 开启（codebuddy + qoderclicn），Explore 再交 ∩ 只读档位", () => {
+  // 候选清单是"哪些 CLI 已过完 §3.7 清单"的用户可见投影，所以这里用精确列表钉死：
+  // 新增一个开启项必须同时改这里（= 提醒填实测记录），而不是让测试自动跟着变。
   const channel = resolveChannelCandidates();
   assert.deepEqual(
     channel.map((preset) => preset.id),
-    ["codebuddy"],
+    ["codebuddy", "qodercli-cn"],
   );
   const explore = resolveExploreChannelCandidates();
   assert.deepEqual(
     explore.map((preset) => preset.id),
-    ["codebuddy"],
+    ["codebuddy", "qodercli-cn"],
   );
-  assert.equal(explore[0]?.readOnlyPermissionMode, "plan");
+  // 两家的只读档位值不同：claude-family 的 plan vs qoder 的 dont_ask。
+  assert.equal(findExternalAgentPreset("codebuddy")?.readOnlyPermissionMode, "plan");
+  assert.equal(findExternalAgentPreset("qodercli-cn")?.readOnlyPermissionMode, "dont_ask");
+});
+
+test("渠道候选：未过清单的 CLI 不出现（plan 被静默降级的、跑不起来的都不标）", () => {
+  // qodercli 国际版：`--permission-mode plan` 与 CN 版一样被静默降级成 default，
+  // 但真实任务在本机长期卡在服务端 p4 队列（8 分钟以上无模型响应），
+  // §3.7 的"运行"一项没有实测证据 → 不标。
+  // opencode：本机所有可用凭据都不可用（免费额度用尽 / DeepSeek 余额不足）。
+  // commandcode：未登录（`cmdc login`）。
+  const ids = resolveChannelCandidates().map((preset) => preset.id);
+  assert.equal(ids.includes("qodercli"), false);
+  assert.equal(ids.includes("opencode"), false);
+  assert.equal(ids.includes("commandcode"), false);
+  assert.equal(isChannelReadyPreset("qodercli"), false);
 });
 
 test("isChannelReadyPreset：未标记/未知 preset 一律 false（fail-closed）", () => {

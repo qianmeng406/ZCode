@@ -978,6 +978,54 @@ describe("opencode 实时输出与收口", () => {
     expect(result.text).toContain("没有读到可解析的输出");
   });
 
+  it("stdout 全空但 stderr 有原因时，原因必须进结果（失效 -r 的唯一线索）", async () => {
+    // 实测（2026-11-12，qoderclicn 1.1.86）：`-r <已失效 id>` → stdout 零字节、
+    // 退出码 42，全部原因只在 stderr 一行。以前结果里只有"没有读到可解析的输出"，
+    // 用户无从区分会话过期 / 没登录 / 参数写错。
+    const { createOneShotExternalAgentDriver } =
+      await import("../src/zcode-protocol/external-agent-driver.js");
+    const stderr = 'Error resuming session: Invalid session identifier "00000000-".';
+    const run = async () => ({
+      streams: { stdout: { text: "", bytes: 0 }, stderr: { text: stderr } },
+      exitCode: 42,
+    });
+    const driver = createOneShotExternalAgentDriver({ executionPort: { run } as never });
+    const result = await driver.run({
+      binding: { ...claudeFamily, promptDelivery: "stdin" },
+      prompt: "x",
+      cwd: "/tmp",
+    });
+    expect(result.text).toContain("Invalid session identifier");
+    expect(result.exitCode).toBe(42);
+    // 非零退出码 = 失败，上层据此标 failed 而不是 completed。
+    expect(result.isError).toBe(true);
+  });
+
+  it("有正文时不把 stderr 混进结果（进度日志不当噪声淹掉回答）", async () => {
+    const { createOneShotExternalAgentDriver } =
+      await import("../src/zcode-protocol/external-agent-driver.js");
+    const stdout = `${JSON.stringify({
+      type: "result",
+      subtype: "success",
+      is_error: false,
+      result: "改好了",
+      session_id: "s1",
+    })}\n`;
+    const run = async () => ({
+      streams: { stdout: { text: stdout, bytes: stdout.length }, stderr: { text: "verbose log" } },
+      exitCode: 0,
+    });
+    const driver = createOneShotExternalAgentDriver({ executionPort: { run } as never });
+    const result = await driver.run({
+      binding: { ...claudeFamily, promptDelivery: "stdin" },
+      prompt: "x",
+      cwd: "/tmp",
+    });
+    expect(result.text).toBe("改好了");
+    expect(result.text).not.toContain("verbose log");
+    expect(result.isError).toBe(false);
+  });
+
   it("parseExternalAgentResult: opencode 走 JSONL 解析（多段 text + 错误行）", () => {
     expect(
       parseExternalAgentResult(
