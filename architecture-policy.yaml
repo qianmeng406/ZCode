@@ -1757,3 +1757,17 @@ exceptions:
     paths:
       - packages/zcode-cua/src/**
     reason: The whole zcode-cua producer package (broker, native adapters, tools) entered the repo after the gate timestamp as pre-existing code moved from a separate repository; adopting its internal layers needs a dedicated CONTRACT pass (it has known internal cycles by design), not a mechanical split in this branch.
+  - id: external-agent-channel-unmanaged-new-files
+    rule: unmanaged-new-file
+    paths:
+      - apps/zcode-cli/packages/bootstrap/src/zcode-protocol/external-subagent-port-impl.ts
+      - apps/zcode-cli/packages/bootstrap/src/zcode-protocol/session-external-subagent.ts
+      - apps/zcode-cli/packages/contracts/src/interfaces/external-subagent.port.ts
+      - apps/zcode-cli/packages/core/src/agent/agent-listing-metadata.ts
+      - apps/zcode-cli/packages/core/src/runtime/methods/external-subagent-transcript.ts
+      - apps/zcode-cli/packages/core/src/subagent/listing.ts
+      - apps/zcode-cli/packages/tui/src/app-sidebar-subagents.tsx
+      - packages/services/src/subagents/externalAgentProbeAdapter.ts
+      - packages/shared/src/node/externalAgentProbeRunner.ts
+      - packages/ui/src/settings/subagentsExternalProbe.ts
+    reason: 外部 CLI 作为子智能体/内置身份执行渠道的既有实现文件（S2~S7 已在分支内逐轮实测），各自落在 bootstrap/core/contracts/tui/services/shared/ui 的存量未受管目录里；接管这七个包需要各自的模块边界梳理，不在外部 agent 适配范围内。文件均为单一职责的适配器或投影（端口实现、transcript 落库、listing 展示、探测编排、设置页探测缓存），不新增跨层深导入。
