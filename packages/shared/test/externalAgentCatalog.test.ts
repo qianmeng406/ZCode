@@ -1378,34 +1378,33 @@ test("stream 解析器：全量重解析给收口权威重建用", () => {
 
 // ── S7：内置身份执行渠道（D5 逐 CLI 适配 + Explore 只读映射）──
 
-test("渠道候选：逐 CLI 开启（codebuddy + qoderclicn），Explore 再交 ∩ 只读档位", () => {
+test("渠道候选：逐 CLI 开启（codebuddy + qoderclicn + commandcode），Explore 再交 ∩ 只读档位", () => {
   // 候选清单是"哪些 CLI 已过完 §3.7 清单"的用户可见投影，所以这里用精确列表钉死：
   // 新增一个开启项必须同时改这里（= 提醒填实测记录），而不是让测试自动跟着变。
   const channel = resolveChannelCandidates();
   assert.deepEqual(
     channel.map((preset) => preset.id),
-    ["codebuddy", "qodercli-cn"],
+    ["codebuddy", "qodercli-cn", "commandcode"],
   );
   const explore = resolveExploreChannelCandidates();
   assert.deepEqual(
     explore.map((preset) => preset.id),
-    ["codebuddy", "qodercli-cn"],
+    ["codebuddy", "qodercli-cn", "commandcode"],
   );
-  // 两家的只读档位值不同：claude-family 的 plan vs qoder 的 dont_ask。
+  // 三家的只读档位值各不相同，全部来自 preset 声明、不许写死。
   assert.equal(findExternalAgentPreset("codebuddy")?.readOnlyPermissionMode, "plan");
   assert.equal(findExternalAgentPreset("qodercli-cn")?.readOnlyPermissionMode, "dont_ask");
+  assert.equal(findExternalAgentPreset("commandcode")?.readOnlyPermissionMode, "plan");
 });
 
-test("渠道候选：未过清单的 CLI 不出现（plan 被静默降级的、跑不起来的都不标）", () => {
+test("渠道候选：未过清单的 CLI 不出现（跑不起来的不标）", () => {
   // qodercli 国际版：`--permission-mode plan` 与 CN 版一样被静默降级成 default，
-  // 但真实任务在本机长期卡在服务端 p4 队列（8 分钟以上无模型响应），
+  // 但真实任务在本机长期卡在服务端 p4 队列（14 分钟以上无模型响应），
   // §3.7 的"运行"一项没有实测证据 → 不标。
-  // opencode：本机所有可用凭据都不可用（免费额度用尽 / DeepSeek 余额不足）。
-  // commandcode：未登录（`cmdc login`）。
+  // opencode：本机所有可用凭据都不可用（免费额度用尽 / DeepSeek 余额不足 402）。
   const ids = resolveChannelCandidates().map((preset) => preset.id);
   assert.equal(ids.includes("qodercli"), false);
   assert.equal(ids.includes("opencode"), false);
-  assert.equal(ids.includes("commandcode"), false);
   assert.equal(isChannelReadyPreset("qodercli"), false);
 });
 
@@ -1447,4 +1446,41 @@ test("override 缺席时既有优先级逐字不变（预设 bypassPermissions �
   const modeIndex = invocation.args.indexOf("--permission-mode");
   assert.ok(modeIndex >= 0);
   assert.equal(invocation.args[modeIndex + 1], "bypassPermissions");
+});
+
+test("commandcode override 必须显式传 --permission-mode（只不加 --yolo 不是只读）", () => {
+  // 2026-11-12 实测：commandcode headless 不传 --yolo 时，write_file 与
+  // shell_command 确实被拒，但 **powershell 工具完全放行**——New-Item、Remove-Item
+  // 都成功。所以"没解锁"仍是可写可删；只有显式 `--permission-mode plan` 才能把
+  // 四条写入路子全拦住（同时读文件/搜索照常）。
+  const binding = externalAgentBindingSchema.parse({
+    label: "Command Code",
+    driver: "commandcode-exec",
+    command: "command-code",
+    args: ["-p", "--output-format", "json", "--trust", "--skip-onboarding"],
+    promptDelivery: "stdin",
+    presetId: "commandcode",
+    permissionMode: "yolo",
+    permissionModeOverride: "plan",
+  });
+  const { args } = buildExternalAgentInvocation(binding, "检索任务");
+  assert.equal(args.includes("--yolo"), false, "override 生效时不得解锁");
+  const modeIndex = args.indexOf("--permission-mode");
+  assert.ok(modeIndex >= 0, "override 必须以 --permission-mode 传给 CLI");
+  assert.equal(args[modeIndex + 1], "plan");
+});
+
+test("commandcode 无 override 时仍是 --yolo（执行型渠道语义不变）", () => {
+  const binding = externalAgentBindingSchema.parse({
+    label: "Command Code",
+    driver: "commandcode-exec",
+    command: "command-code",
+    args: ["-p", "--output-format", "json", "--trust", "--skip-onboarding"],
+    promptDelivery: "stdin",
+    presetId: "commandcode",
+    permissionMode: "yolo",
+  });
+  const { args } = buildExternalAgentInvocation(binding, "执行任务");
+  assert.ok(args.includes("--yolo"));
+  assert.equal(args.includes("--permission-mode"), false);
 });

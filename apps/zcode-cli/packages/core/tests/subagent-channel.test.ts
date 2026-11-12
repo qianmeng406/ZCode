@@ -61,8 +61,8 @@ describe("normalizeAgentProfiles 执行渠道覆盖", () => {
     expect(profile.tools).toBeUndefined();
   });
 
-  it("general-purpose 渠道化不带只读档位（两家都一样：执行型不需要 permissionModeOverride）", () => {
-    for (const presetId of ["codebuddy", "qodercli-cn"]) {
+  it("general-purpose 渠道化不带只读档位（三家都一样：执行型不需要 permissionModeOverride）", () => {
+    for (const presetId of ["codebuddy", "qodercli-cn", "commandcode"]) {
       const profiles = normalizeAgentProfiles([], {
         builtInExecutionChannel: { "general-purpose": { presetId } },
       });

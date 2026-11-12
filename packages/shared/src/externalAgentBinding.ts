@@ -319,15 +319,24 @@ export function buildExternalAgentInvocation(
     const modelFlag = resolveModelFlag(binding);
     if (binding.model && modelFlag) args.push(modelFlag, binding.model);
     args.push(...resolveEffortArgs(binding));
-    // headless 默认拒绝写文件与执行 shell；解除限制的开关是 `--yolo`，不是
+    // headless 默认拒绝 write_file / shell_command；解除限制的开关是 `--yolo`，不是
     // `--permission-mode yolo`（后者在 headless 下不生效）。权限值跟随预设代码走，
     // 手填命令仍用绑定自己的值。
-    // permissionModeOverride（S7 Explore 渠道）= 该身份要求受限执行：保持缺省
-    // （不解除限制）即只读，与 codex 同理。
-    const permissionMode = binding.permissionModeOverride
-      ? undefined
-      : (findExternalAgentPreset(binding.presetId)?.permissionMode ?? binding.permissionMode);
-    if (permissionMode) args.push("--yolo");
+    //
+    // permissionModeOverride（S7 Explore 渠道）= 该身份要求受限执行。
+    // **这里必须显式传 `--permission-mode <override>`，不能只是"不加 --yolo"**
+    // （2026-11-12 实测）：不传 --yolo 时 write_file / shell_command 确实被拒，
+    // 但 **`powershell` 工具完全放行**——它能 New-Item 也能 Remove-Item，
+    // 于是"没解锁"实际上仍是可写可删。传 `--permission-mode plan` 后连 powershell
+    // 也被拦（四条写入路子全拒，同时读文件/搜索照常），只读承诺才成立。
+    const override = binding.permissionModeOverride;
+    if (override) {
+      args.push("--permission-mode", override);
+    } else {
+      const permissionMode =
+        findExternalAgentPreset(binding.presetId)?.permissionMode ?? binding.permissionMode;
+      if (permissionMode) args.push("--yolo");
+    }
     // 续接与 claude-family 同语义：headless 只接受显式 id（裸 --resume 会报错），
     // 有 externalSessionId 就永远钉死它。失效 id 是报错还是自动新开未实测
     // （见 docs/specs/commandcode-external-agent-preset.md 的未验证项）。

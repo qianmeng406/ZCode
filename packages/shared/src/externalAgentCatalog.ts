@@ -543,6 +543,15 @@ export const EXTERNAL_AGENT_PRESETS: readonly ExternalAgentPreset[] = [
     promptDelivery: "stdin",
     // invocation 把该值翻译成 `--yolo`（不是 --permission-mode 的取值）。
     permissionMode: "yolo",
+    // S7 渠道化：2026-11-12 过完 §3.7 全部六项（command-code 1.88.5，登录后实测）。
+    // 只读档位是 `plan`，但这条**必须显式传给 CLI**，不能只是不加 --yolo：
+    // 实测不传 --yolo 时 write_file / shell_command 被拒，而 `powershell` 工具
+    // 完全放行（New-Item / Remove-Item 都成功）——"没解锁"仍是可写可删。
+    // 传 `--permission-mode plan` 后四条写入路子全被拦（powershell / write_file /
+    // shell_command / 重定向），同时读文件与搜索照常工作（Explore 靠它）。
+    // 该语义由 externalAgentBinding 的 override 分支保证（见其注释与测试）。
+    readOnlyPermissionMode: "plan",
+    subagentChannelReady: true,
     modelFlag: "--model",
     // 模型目录与逐模型档位都在 CLI 的服务端目录缓存里，探测直接读缓存。
     modelSource: "catalog-cache",
