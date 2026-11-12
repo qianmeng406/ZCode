@@ -223,7 +223,9 @@ const LINKS: Array<{ file: string; pattern: RegExp; why: string }> = [
     why: "重绑/换绑/解绑后，旧绑定攒下的 run 记录要清空，不能带进新绑定的面板",
   },
   {
-    file: "../../apps/zcode-cli/packages/bootstrap/src/zcode-protocol/external-agent-probe.ts",
+    // 探测编排已下沉到 shared/node（bootstrap 与 desktop 共用同一份知识），
+    // 断言跟着它搬到现在的真实位置。
+    file: "../../packages/shared/src/node/externalAgentProbeRunner.ts",
     pattern: /EXTERNAL_AGENT_BINDABLE_PRESETS/,
     why: "绑定候选只探测完整适配的预设：半适配的 CLI 不该出现在「选一个 agent」列表里",
   },
@@ -262,7 +264,7 @@ const LINKS: Array<{ file: string; pattern: RegExp; why: string }> = [
     why: "端口回执行级错误（ENOENT / timeout / spawn_error）时要记下失败原因",
   },
   {
-    file: "../../apps/zcode-cli/packages/bootstrap/src/zcode-protocol/external-agent-probe.ts",
+    file: "../../packages/shared/src/node/externalAgentProbeRunner.ts",
     pattern: /probeError: versionProbe\.failure/,
     why: "版本探测失败时把原因透给 UI，而不是只说 installed:false",
   },

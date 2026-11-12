@@ -670,6 +670,12 @@ function AgentListRow({
             : "shrink-0",
         )}
       >
+        {/* 渠道控件与原生模型控件**并存**：内置行的"执行渠道"和"内置模型"是两个
+            独立维度——选 ZCode 内置渠道时用户仍要能调 ZCode 自己的模型/档位。
+            以前这里写成互斥三元，导致内置行的模型选择器被渠道下拉顶掉、彻底消失
+            （用户反馈：原生子智能体的模型选择都没了）。渠道化后原生模型无意义
+            （CLI 用自己的模型），由 hasModelOverrideControl 的 isChannelExternal
+            判定隐藏，不需要在这里再互斥一次。 */}
         {hasChannelControl ? (
           <SubagentChannelControl
             agent={agent}
@@ -677,7 +683,8 @@ function AgentListRow({
             onChannelChange={onChannelChange}
             probeExternalAgents={probeExternalAgents}
           />
-        ) : hasModelOverrideControl ? (
+        ) : null}
+        {hasModelOverrideControl ? (
           <SubagentModelOverrideControl
             agent={agent}
             disabled={isOperating}

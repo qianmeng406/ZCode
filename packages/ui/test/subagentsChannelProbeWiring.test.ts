@@ -30,3 +30,35 @@ describe("SubagentChannelControl 探测接线", () => {
     expect(rowUsage).toContain("probeExternalAgents={probeExternalAgents}");
   });
 });
+
+/**
+ * 渠道控件与原生模型控件必须**并存**（2026-11-12 用户反馈）。
+ *
+ * 实测踩过：这两个控件原先写成一个三元（hasChannelControl ? 渠道 : 模型），于是
+ * 内置行的「ZCode 内置模型选择器」被渠道下拉顶掉、彻底消失——用户明明没启用任何
+ * 外部渠道，却再也调不了 ZCode 自己的模型/档位。
+ *
+ * 它们是两个独立维度：渠道 = 谁来执行，内置模型 = ZCode 执行时用哪个模型。渠道化
+ * 后原生模型才无意义（CLI 用自己的模型），那由 hasModelOverrideControl 的
+ * isChannelExternal 判定处理，不该在这一层再互斥一次。
+ */
+describe("渠道控件与原生模型控件并存", () => {
+  it("两个控件各自独立渲染，不是一个顶掉另一个的三元", () => {
+    // 取整段渲染区（从渠道控件的条件到模型控件结束）。
+    const start = SOURCE.indexOf("{hasChannelControl ? (");
+    const modelIdx = SOURCE.indexOf("{hasModelOverrideControl ? (");
+    expect(start).toBeGreaterThan(-1);
+    expect(modelIdx).toBeGreaterThan(start);
+    const region = SOURCE.slice(start, modelIdx + 800);
+    // 模型控件以独立条件块出现。
+    expect(region).toContain("<SubagentModelOverrideControl");
+    // 反证：不允许 `) : hasModelOverrideControl ? (` 这种互斥三元（历史 bug 的写法）。
+    expect(SOURCE).not.toContain(") : hasModelOverrideControl ? (");
+  });
+
+  it("渠道化时仍通过 isChannelExternal 隐藏原生模型控件（语义互斥只在数据层）", () => {
+    expect(SOURCE).toContain(
+      "const hasModelOverrideControl = supportsModelOverride(agent) && !isChannelExternal;",
+    );
+  });
+});

@@ -649,6 +649,29 @@ export function createSubagentsService(options?: SubagentsServiceOptions): ISuba
     homeDir: options?.homeDir,
   };
 
+  // 探测结果缓存（60s，与 UI 侧 subagentsExternalProbe 同一 TTL 口径）。
+  //
+  // 为什么服务端也要缓存：setBuiltInExecutionChannel 每次调用都要确认装机状态，
+  // 而一次全量探测要跑五个 CLI（实测 8.4s）。用户在同一个 CLI 下连换模型、再换
+  // 档位时，每次都重跑全量探测 = 每一下都卡近十秒。装机状态是分钟级变化的事实，
+  // 60s 内的复用不会让"刚装好就选中"这种场景失效（换 CLI 走的是同样的缓存，
+  // 最坏多等一次 TTL）。
+  //
+  // 不进 state 文件、不跨进程：这是本机探测的进程内加速，重启即失效正是想要的
+  // 语义（重启后重探一次，装机变化立刻生效）。
+  const PROBE_CACHE_TTL_MS = 60_000;
+  let probeCache: { statuses: ExternalAgentPresetStatus[]; probedAt: number } | undefined;
+  const readProbeStatuses = async (): Promise<ExternalAgentPresetStatus[] | null> => {
+    if (!options?.probeExternalAgents) return null;
+    if (probeCache && Date.now() - probeCache.probedAt <= PROBE_CACHE_TTL_MS) {
+      return probeCache.statuses;
+    }
+    const statuses = await options.probeExternalAgents();
+    // 探测失败（返回 null）不缓存：那是链路问题，下次应当重试而不是记成"没装"。
+    if (statuses) probeCache = { statuses, probedAt: Date.now() };
+    return statuses;
+  };
+
   const runtimeConfig = createSubagentRuntimeConfigCache({
     readUserRoot: () => resolveUserSubagentRoot(storageOptions),
     readStatePath: () => resolveSubagentStateFile(storageOptions),
@@ -842,29 +865,30 @@ export function createSubagentsService(options?: SubagentsServiceOptions): ISuba
           throw new Error(`预设 ${presetId} 未声明只读模式，不能承接 Explore`);
         }
         // 装机探测（S6 数据源）：探测实现未注入（CLI 环境）时跳过——该环境没有 UI 入口。
-        if (options?.probeExternalAgents) {
-          const statuses = await options.probeExternalAgents();
-          if (statuses) {
-            const status = statuses.find((entry) => entry.preset.id === presetId);
-            if (!status || status.probeError) {
+        //
+        // 走进程内缓存（见 readProbeStatuses）：同一 CLI 下连换模型/档位不会重复跑
+        // 全量探测。缓存只加速、不放松任何一道校验——下面两条 fail-closed 判断照旧。
+        const statuses = await readProbeStatuses();
+        if (statuses) {
+          const status = statuses.find((entry) => entry.preset.id === presetId);
+          if (!status || status.probeError) {
+            throw new Error(
+              `无法确认 ${preset.label} 可用（探测失败），已拒绝启用执行渠道；可稍后重试`,
+            );
+          }
+          if (!status.installed) {
+            throw new Error(`${preset.label} 未安装，已拒绝启用执行渠道`);
+          }
+          // 档位值域（S6 同口径）：探测目录含所选模型时，effort 必须在其候选内；
+          // 目录没有该模型条目（自由输入模型）时不强校验——值域权威在 CLI 侧。
+          const probedModel = params.model?.trim();
+          const probedEffort = params.effort?.trim();
+          if (probedEffort && probedModel) {
+            const entry = status.modelCatalog.find((item) => item.id === probedModel);
+            if (entry && !entry.supportedEfforts.includes(probedEffort)) {
               throw new Error(
-                `无法确认 ${preset.label} 可用（探测失败），已拒绝启用执行渠道；可稍后重试`,
+                `模型 ${probedModel} 不支持档位 ${probedEffort}（可选：${entry.supportedEfforts.join(", ") || "无"}）`,
               );
-            }
-            if (!status.installed) {
-              throw new Error(`${preset.label} 未安装，已拒绝启用执行渠道`);
-            }
-            // 档位值域（S6 同口径）：探测目录含所选模型时，effort 必须在其候选内；
-            // 目录没有该模型条目（自由输入模型）时不强校验——值域权威在 CLI 侧。
-            const probedModel = params.model?.trim();
-            const probedEffort = params.effort?.trim();
-            if (probedEffort && probedModel) {
-              const entry = status.modelCatalog.find((item) => item.id === probedModel);
-              if (entry && !entry.supportedEfforts.includes(probedEffort)) {
-                throw new Error(
-                  `模型 ${probedModel} 不支持档位 ${probedEffort}（可选：${entry.supportedEfforts.join(", ") || "无"}）`,
-                );
-              }
             }
           }
         }
@@ -974,8 +998,9 @@ export function createSubagentsService(options?: SubagentsServiceOptions): ISuba
     },
 
     async probeExternalAgents(): Promise<ExternalAgentPresetStatus[] | null> {
-      if (!options?.probeExternalAgents) return null;
-      return await options.probeExternalAgents();
+      // 与 setBuiltInExecutionChannel 共用同一份进程内缓存：设置页打开表单先探一次，
+      // 紧接着的渠道切换就不会再等一轮全量探测。
+      return await readProbeStatuses();
     },
   };
   return {

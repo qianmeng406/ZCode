@@ -438,19 +438,24 @@ test("setBuiltInExecutionChannel fail-closed：未开渠道 preset / Explore 无
 test("setBuiltInExecutionChannel 带 model/effort：写入投影到 list（含探测档位校验）", async () => {
   const home = await mkdtemp(join(tmpdir(), "zcode-subagents-"));
   try {
+    // 探测调用计数：下面连调多次（换模型、换档位、非法值），装机探测只该跑一次。
+    let probeCalls = 0;
     const service = createSubagentsService({
       homeDir: home,
       isDesktopRuntime: true,
-      probeExternalAgents: async () => [
-        {
-          preset: { id: "codebuddy", label: "CodeBuddy" },
-          installed: true,
-          models: ["DeepSeek-V4-Pro", "glm-5.3"],
-          modelCatalog: [
-            { id: "DeepSeek-V4-Pro", name: "DeepSeek-V4-Pro", supportedEfforts: ["low", "high"] },
-          ],
-        },
-      ],
+      probeExternalAgents: async () => {
+        probeCalls += 1;
+        return [
+          {
+            preset: { id: "codebuddy", label: "CodeBuddy" },
+            installed: true,
+            models: ["DeepSeek-V4-Pro", "glm-5.3"],
+            modelCatalog: [
+              { id: "DeepSeek-V4-Pro", name: "DeepSeek-V4-Pro", supportedEfforts: ["low", "high"] },
+            ],
+          },
+        ];
+      },
     } as never);
     // 目录含所选模型：档位在候选内 → 通过并投影。
     await service.setBuiltInExecutionChannel({
@@ -504,6 +509,63 @@ test("setBuiltInExecutionChannel 带 model/effort：写入投影到 list（含�
       }),
       /正整数/,
     );
+    // 上面共 6 次调用（2 次成功写入 + 4 次校验失败），装机探测只跑 1 次：
+    // 全量探测要跑五个 CLI（实测 8.4s），每次换模型/档位都重跑就是"每点一下
+    // 都要等十秒"（用户反馈）。缓存 60s，只加速不放松任何一道校验。
+    assert.equal(probeCalls, 1);
+  } finally {
+    await rm(home, { recursive: true, force: true });
+  }
+});
+
+test("探测缓存不掩盖装机状态变化：probeExternalAgents RPC 与写入共用同一份缓存", async () => {
+  const home = await mkdtemp(join(tmpdir(), "zcode-subagents-"));
+  try {
+    let probeCalls = 0;
+    const service = createSubagentsService({
+      homeDir: home,
+      isDesktopRuntime: true,
+      probeExternalAgents: async () => {
+        probeCalls += 1;
+        return [
+          {
+            preset: { id: "codebuddy", label: "CodeBuddy" },
+            installed: true,
+            models: [],
+            modelCatalog: [],
+          },
+        ];
+      },
+    } as never);
+    // 设置页打开表单先探一次（UI 侧也有 60s 缓存，两层都命中同一次结果）。
+    await service.probeExternalAgents();
+    // 紧接着切渠道：不该再等一轮全量探测。
+    await service.setBuiltInExecutionChannel({
+      agentName: "general-purpose",
+      presetId: "codebuddy",
+    });
+    assert.equal(probeCalls, 1);
+  } finally {
+    await rm(home, { recursive: true, force: true });
+  }
+});
+
+test("探测返回 null（链路未就绪）不写缓存，下次仍会重试", async () => {
+  const home = await mkdtemp(join(tmpdir(), "zcode-subagents-"));
+  try {
+    let probeCalls = 0;
+    const service = createSubagentsService({
+      homeDir: home,
+      isDesktopRuntime: true,
+      probeExternalAgents: async () => {
+        probeCalls += 1;
+        return null;
+      },
+    } as never);
+    await service.probeExternalAgents();
+    await service.probeExternalAgents();
+    // null = "问不到"（冷启动端口未装配），不是"没装"：缓存它会让重试形同虚设。
+    assert.equal(probeCalls, 2);
   } finally {
     await rm(home, { recursive: true, force: true });
   }
