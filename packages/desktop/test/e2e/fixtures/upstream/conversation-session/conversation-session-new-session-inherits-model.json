@@ -1,7 +1,7 @@
 {
   "version": 1,
   "caseName": "conversation-session-new-session-inherits-model",
-  "spec": "./test/e2e/conversation-session/conversation-session-new-session-inherits-model.test.ts",
+  "spec": "./test/e2e/conversation-session/models/conversation-session-new-session-inherits-model.test.ts",
   "fixtures": [
     {
       "id": "new-session-inherits-model-title",

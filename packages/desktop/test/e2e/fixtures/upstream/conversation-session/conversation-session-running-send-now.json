@@ -1,7 +1,7 @@
 {
   "version": 1,
   "caseName": "conversation-session-running-send-now",
-  "spec": "./test/e2e/conversation-session/conversation-session-running-send-now.test.ts",
+  "spec": "./test/e2e/conversation-session/queue/conversation-session-running-send-now.test.ts",
   "fixtures": [
     {
       "id": "upstream-running-send-now-head-base",

@@ -15,7 +15,7 @@ import {
   QueueItemIndicator,
   QueueList,
 } from "@/components/ai-elements/queue.js";
-import { ChevronsUpDownIcon, ListTodo, LoaderIcon } from "lucide-react";
+import { ChevronsUpDownIcon, ListTodo, LoaderCircle } from "lucide-react";
 import { useZCodeIntl } from "@/i18n/IntlProvider.js";
 import { ControlHintTooltip } from "@/ControlHintTooltip.js";
 import { cn } from "./components/lib/utils.js";
@@ -107,7 +107,7 @@ export function TodoPanel({
               </>
             ) : showLoadingState ? (
               <>
-                <LoaderIcon className="size-4 shrink-0 animate-spin text-foreground" />
+                <LoaderCircle className="size-4 shrink-0 animate-spin text-foreground" />
                 <PlanTitle className="animated-gradient-text min-w-0 truncate text-ui-base font-medium">
                   {activeStep?.title ?? intl.formatMessage({ id: "todo.panel.currentTask" })}
                 </PlanTitle>

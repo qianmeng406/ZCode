@@ -11,6 +11,8 @@ export const TID_LOGIN_TRIGGER = "login-trigger";
 export const TID_LOGIN_MENU_ITEM = "login-menu-item";
 /** 登录页切换到 API Key 登录方式按钮 */
 export const TID_LOGIN_USE_API_KEY_BUTTON = "login-use-api-key-button";
+/** 登录页国内/海外登录区域切换按钮 */
+export const TID_LOGIN_REGION_SWITCH = "login-region-switch";
 /** API Key 登录 provider 选择触发器 */
 export const TID_LOGIN_API_KEY_PROVIDER_TRIGGER = "login-api-key-provider-trigger";
 /** API Key 登录 provider 选择项（动态后缀为 provider choice） */
@@ -111,6 +113,8 @@ export const TID_BROWSER_RESPONSIVE_WIDTH_INPUT = "browser-responsive-width-inpu
 export const TID_BROWSER_RESPONSIVE_HEIGHT_INPUT = "browser-responsive-height-input";
 /** 浏览器自由尺寸缩放选择器 */
 export const TID_BROWSER_RESPONSIVE_ZOOM_SELECT = "browser-responsive-zoom-select";
+export const TID_BROWSER_RESPONSIVE_PRESET_SELECT = "browser-responsive-preset-select";
+export const TID_BROWSER_RESPONSIVE_PRESET_OPTION = "browser-responsive-preset-option";
 /** 浏览器自由尺寸缩放选项（动态后缀为 zoom 值） */
 export const TID_BROWSER_RESPONSIVE_ZOOM_OPTION = "browser-responsive-zoom-option";
 /** 浏览器自由尺寸缩放后的画布占位 */
@@ -142,8 +146,29 @@ export const TID_BROWSER_MORE_BUTTON = "browser-more-button";
 export const TID_BROWSER_OPEN_EXTERNAL_ITEM = "browser-open-external-item";
 /** 浏览器打开调试工具按钮 */
 export const TID_BROWSER_DEVTOOLS_BUTTON = "browser-devtools-button";
+export const TID_BROWSER_EXPORT_PNG_ITEM = "browser-export-png-item";
+export const TID_BROWSER_EXPORT_PDF_ITEM = "browser-export-pdf-item";
+export const TID_BROWSER_SITE_SETTINGS_ITEM = "browser-site-settings-item";
+/** 浏览器设计模式（docs/browser-use/2026-11-03-browser-design-mode-spec.md） */
+export const TID_BROWSER_DESIGN_TOOLBAR = "browser-design-toolbar";
+export const TID_BROWSER_DESIGN_PANEL_BUTTON = "browser-design-panel-button";
+export const TID_BROWSER_DESIGN_VARIANT_SELECT = "browser-design-variant-select";
+export const TID_BROWSER_DESIGN_VARIANT_OPTION = "browser-design-variant-option";
+export const TID_BROWSER_DESIGN_SLIDE_PREV = "browser-design-slide-prev";
+export const TID_BROWSER_DESIGN_SLIDE_NEXT = "browser-design-slide-next";
+export const TID_BROWSER_DESIGN_SLIDE_COUNTER = "browser-design-slide-counter";
+/** 画布右侧的属性面板；字段带 data-design-field（元素属性）或 data-design-variable（页面变量） */
+export const TID_BROWSER_DESIGN_INSPECTOR = "browser-design-inspector";
+export const TID_BROWSER_DESIGN_INSPECTOR_CLOSE = "browser-design-inspector-close";
+export const TID_BROWSER_DESIGN_SELECT_PARENT = "browser-design-select-parent";
+/** 面板里「写回到哪个文件 / 为什么不能写回」那一行（data-writable） */
+export const TID_BROWSER_DESIGN_SOURCE_STATUS = "browser-design-source-status";
+/** 输入框里的网页元素 chip（data-count 为元素数） */
+export const TID_WEB_ELEMENT_CONTEXT_CHIP = "web-element-context-chip";
 /** 浏览器网页视图 */
 export const TID_BROWSER_WEBVIEW = "browser-webview";
+/** 浏览器空白页最近访问列表 */
+export const TID_BROWSER_RECENT_VISITS = "browser-recent-visits";
 /** 内置浏览器权限确认条容器 */
 export const TID_BROWSER_PERMISSION_PROMPTS = "browser-permission-prompts";
 /** 权限确认条「仅本次允许」按钮 */
@@ -233,10 +258,6 @@ export const TID_SSH_CANCEL_BUTTON = "ssh-cancel-button";
 // Sidebar
 /** 侧边栏容器 */
 export const TID_SIDEBAR = "sidebar";
-/** 侧边栏工作区条目（动态后缀为 workspacePath） */
-export const TID_WORKSPACE_ITEM = "workspace-item";
-/** 侧边栏关闭工作区按钮（动态后缀为 workspacePath） */
-export const TID_WORKSPACE_CLOSE = "workspace-close";
 /** 项目视图里的对话二级分区 */
 export const TID_CONVERSATION_SECTION = "conversation-section";
 /** 项目视图里的项目二级分区 */
@@ -472,22 +493,6 @@ export const TID_SETTINGS_MEMORY_FILE_UPDATED_AT = "settings-memory-file-updated
 export const TID_SETTINGS_MEMORY_FILE_EDITOR_ACTIONS = "settings-memory-file-editor-actions";
 /** Memory 原始 Markdown 预览 */
 export const TID_SETTINGS_MEMORY_PREVIEW = "settings-memory-preview";
-/** Memory 文件编辑按钮（动态后缀为文件名；仅在「记忆文件编辑」开关打开时渲染） */
-export const TID_SETTINGS_MEMORY_FILE_EDIT = "settings-memory-file-edit";
-/** Memory 文件编辑面板（动态后缀为文件名） */
-export const TID_SETTINGS_MEMORY_EDITOR = "settings-memory-editor";
-/** Memory 文件编辑正文输入框 */
-export const TID_SETTINGS_MEMORY_EDITOR_TEXTAREA = "settings-memory-editor-textarea";
-export const TID_SETTINGS_MEMORY_EDITOR_SAVE = "settings-memory-editor-save";
-export const TID_SETTINGS_MEMORY_EDITOR_CANCEL = "settings-memory-editor-cancel";
-export const TID_SETTINGS_MEMORY_EDITOR_DELETE = "settings-memory-editor-delete";
-export const TID_SETTINGS_MEMORY_EDITOR_DELETE_CONFIRM = "settings-memory-editor-delete-confirm";
-export const TID_SETTINGS_MEMORY_EDITOR_RELOAD = "settings-memory-editor-reload";
-export const TID_SETTINGS_MEMORY_EDITOR_ERROR = "settings-memory-editor-error";
-/** Memory 页里「编辑入口为何不可用」的提示条（开关关闭 / 宿主不支持） */
-export const TID_SETTINGS_MEMORY_EDIT_HINT = "settings-memory-edit-hint";
-/** 提示条上的「去定制功能开启」按钮 */
-export const TID_SETTINGS_MEMORY_EDIT_HINT_ACTION = "settings-memory-edit-hint-action";
 /** 常规设置中的 AskUserQuestion 自动继续开关 */
 export const TID_SETTINGS_ASK_USER_QUESTION_AUTO_RESOLUTION_SWITCH =
   "settings-ask-user-question-auto-resolution-switch";
@@ -566,18 +571,6 @@ export const TID_CHAT_MODE_SELECT_TRIGGER = "chat-mode-select-trigger";
 export const TID_CHAT_MODE_SELECT_ITEM = "chat-mode-select-item";
 /** 聊天工具栏 context 消耗按钮 */
 export const TID_CHAT_CONTEXT_USAGE_TRIGGER = "chat-context-usage-trigger";
-/** 上下文卡片里的「压缩上下文」按钮 */
-export const TID_CHAT_CONTEXT_COMPACT_BUTTON = "chat-context-compact-button";
-/** 上下文卡片里的「整理记忆」按钮（fork 开关 memoryDreamManual 打开时渲染） */
-export const TID_CHAT_CONTEXT_DREAM_BUTTON = "chat-context-dream-button";
-/** Composer 输入框下方 main-turn 指标胶囊容器 */
-export const TID_COMPOSER_TURN_METRICS = "composer-turn-metrics";
-/** 指标胶囊分段（动态后缀为 average-ttft / average-tokens-per-second / cache-hit-rate 等） */
-export const TID_COMPOSER_TURN_METRICS_ITEM = "composer-turn-metrics-item";
-/** 添加模型弹窗「拉取上游模型」按钮 */
-export const TID_MODEL_UPSTREAM_FETCH_BUTTON = "model-upstream-fetch-button";
-/** 上游模型 ID 下拉选择面板（动态后缀为 model id） */
-export const TID_MODEL_UPSTREAM_PICKER = "model-upstream-picker";
 /** 思考块折叠触发按钮 */
 export const TID_CHAT_REASONING_TRIGGER = "chat-reasoning-trigger";
 /** 思考块折叠内容容器 */
@@ -640,6 +633,20 @@ export const TID_V4_COMPOSER_BACKGROUND_WORK_TRIGGER = "v4-composer-background-w
 export const TID_V4_COMPOSER_CUA_ENTRY = "v4-composer-cua-entry";
 /** v4 composer 发送按钮 */
 export const TID_V4_COMPOSER_SEND = "v4-composer-send";
+/** v4 composer 语音输入按钮（data-voice-state 标记 idle / requesting / recording / finishing） */
+export const TID_V4_COMPOSER_VOICE_INPUT = "v4-composer-voice-input";
+/** v4 composer 语音输入音量点阵（data-voice-active-dots 为当前有音量的点数） */
+export const TID_V4_COMPOSER_VOICE_WAVEFORM = "v4-composer-voice-waveform";
+/** v4 composer 麦克风权限引导浮层（data-voice-permission-phase 为 denied / restart-required） */
+export const TID_V4_COMPOSER_VOICE_PERMISSION_GUIDE = "v4-composer-voice-permission-guide";
+/** 麦克风权限引导浮层：重新授权（仅 macOS） */
+export const TID_V4_COMPOSER_VOICE_PERMISSION_REAUTHORIZE =
+  "v4-composer-voice-permission-reauthorize";
+/** 麦克风权限引导浮层：打开系统设置 */
+export const TID_V4_COMPOSER_VOICE_PERMISSION_OPEN_SETTINGS =
+  "v4-composer-voice-permission-open-settings";
+/** 麦克风权限引导浮层：重启 ZCode */
+export const TID_V4_COMPOSER_VOICE_PERMISSION_RELAUNCH = "v4-composer-voice-permission-relaunch";
 /** v4 暂停队列发送确认：清空队列并发送 */
 export const TID_V4_COMPOSER_CLEAR_QUEUE_SEND = "v4-composer-clear-queue-send";
 /** v4 暂停队列发送确认：保留队列并发送 */
@@ -656,17 +663,26 @@ export const TID_V4_ATTACHMENT_UPLOAD_RETRY = "v4-attachment-upload-retry";
 export const TID_V4_STOP = "v4-stop";
 /** v4 assistant 行 fork 按钮（动态后缀为 rowId） */
 export const TID_V4_FORK = "v4-fork";
-/** v4 轮尾「审查这一回合」（Oracle，动态后缀为 rowId） */
-export const TID_V4_ORACLE_REVIEW = "v4-oracle-review-turn";
-/** v4 轮尾「深度审查这一回合」（Oracle 只读子代理，动态后缀为 rowId） */
-export const TID_V4_ORACLE_REVIEW_DEEP = "v4-oracle-review-turn-deep";
-/** v4 轮尾「沉淀为记忆」（fork 开关 memoryCapture 打开时渲染，动态后缀为 rowId） */
-export const TID_V4_MEMORY_CAPTURE = "v4-memory-capture";
-/** 沉淀预览对话框 */
-export const TID_V4_MEMORY_CAPTURE_DIALOG = "v4-memory-capture-dialog";
-export const TID_V4_MEMORY_CAPTURE_SAVE = "v4-memory-capture-save";
-export const TID_V4_MEMORY_CAPTURE_CANCEL = "v4-memory-capture-cancel";
-export const TID_V4_MEMORY_CAPTURE_ERROR = "v4-memory-capture-error";
+/** v4 fork 目的地菜单：在当前目录分叉（动态后缀为 rowId） */
+export const TID_V4_FORK_HERE = "v4-fork-here";
+/** v4 fork 目的地菜单：在新 worktree 中分叉（动态后缀为 rowId） */
+export const TID_V4_FORK_TO_WORKTREE = "v4-fork-to-worktree";
+/** 新建任务 composer 头部的 worktree 复选框 */
+export const TID_WORKTREE_TOGGLE = "composer-worktree-toggle";
+/** worktree 创建视图的进度卡片（data-phase = creating / starting-session / failed） */
+export const TID_WORKTREE_CREATION_CARD = "worktree-creation-card";
+/** 创建失败：重试 */
+export const TID_WORKTREE_CREATION_RETRY = "worktree-creation-retry";
+/** 创建失败：不使用 worktree */
+export const TID_WORKTREE_CREATION_CONTINUE_LOCAL = "worktree-creation-continue-local";
+/** 创建失败：放弃 */
+export const TID_WORKTREE_CREATION_DISMISS = "worktree-creation-dismiss";
+/** 会话历史中的"已创建 worktree"标记 */
+export const TID_WORKTREE_CREATED_MARKER = "worktree-created-marker";
+/** 侧栏中正在创建 worktree 的任务行 */
+export const TID_WORKTREE_CREATING_ROW = "worktree-creating-row";
+/** 侧栏任务行的 worktree 图标 */
+export const TID_TASK_ROW_WORKTREE_ICON = "task-row-worktree-icon";
 /** v4 assistant 行 retry 按钮（动态后缀为 rowId） */
 export const TID_V4_RETRY = "v4-retry";
 /** v4 assistant 行点赞按钮（动态后缀为 rowId） */
@@ -693,6 +709,24 @@ export const TID_V4_EDIT_WORKSPACE_CONFLICT_DIALOG = "v4-edit-workspace-conflict
 /** v4 edit 文件冲突后降级为仅裁剪对话 */
 export const TID_V4_EDIT_WORKSPACE_CONFLICT_CONVERSATION_ONLY =
   "v4-edit-workspace-conflict-conversation-only";
+/**
+ * v4 composer 编辑态状态条。属性：data-edit-target-kind（userQuery|queueItem）、
+ * data-edit-target-id（rowId|queueItemId）、data-edit-state（editing|invalid）、
+ * data-edit-invalid-reason（notLatest|queueItemRemoved|editLockLost）
+ */
+export const TID_V4_COMPOSER_EDIT_BAR = "v4-composer-edit-bar";
+/** v4 composer 编辑态「取消」按钮 */
+export const TID_V4_COMPOSER_EDIT_CANCEL = "v4-composer-edit-cancel";
+/** v4 composer 编辑态切换目标时的未保存改动确认弹窗（复用 ConfirmDialog，确认按钮为 TID_CONFIRM_DIALOG_CONFIRM） */
+export const TID_V4_COMPOSER_EDIT_SWITCH_DIALOG = "v4-composer-edit-switch-dialog";
+/** v4 composer 编辑提交后「是否也应用于所有排队消息」弹窗（复用 ConfirmDialog，确认 = 应用到排队消息） */
+export const TID_V4_COMPOSER_EDIT_APPLY_QUEUE_DIALOG = "v4-composer-edit-apply-queue-dialog";
+/** v4 被编辑 user 行的「正在下方编辑」占位（动态后缀为 rowId） */
+export const TID_V4_EDIT_IN_COMPOSER_HINT = "v4-edit-in-composer-hint";
+/** v4 文件摘要「撤销」因 session 锁禁用时承接 hover 提示的外层 */
+export const TID_V4_FILE_SUMMARY_UNDO_LOCKED = "v4-file-summary-undo-locked";
+/** v4 文件撤销弹窗「撤销文件」因 session 锁禁用时承接 hover 提示的外层 */
+export const TID_V4_FILE_REWIND_CONFIRM_LOCKED = "v4-file-rewind-confirm-locked";
 /** v4 queue 面板容器 */
 export const TID_V4_QUEUE = "v4-queue";
 /** v4 暂停队列原因/恢复提示条 */
@@ -706,6 +740,13 @@ export const TID_V4_QUEUE_ITEM = "v4-queue-item";
 export const TID_V4_QUEUE_ITEM_DELETE = "v4-queue-item-delete";
 /** v4 queue 项编辑按钮（动态后缀为 queueItemId） */
 export const TID_V4_QUEUE_ITEM_EDIT = "v4-queue-item-edit";
+/**
+ * v4 queue 项编辑锁占位（动态后缀为 queueItemId）。data-edit-lock-owner=self 表示本编辑器
+ * 持有，显示「正在下方编辑」；other 表示其他窗口或设备持有。
+ */
+export const TID_V4_QUEUE_ITEM_EDIT_LOCK = "v4-queue-item-edit-lock";
+/** v4 queue 项手动解除编辑锁按钮（动态后缀为 queueItemId，仅 owner=other 时出现） */
+export const TID_V4_QUEUE_ITEM_RELEASE_EDIT = "v4-queue-item-release-edit";
 /** v4 queue 项立即发送按钮（动态后缀为 queueItemId） */
 export const TID_V4_QUEUE_ITEM_SEND_NOW = "v4-queue-item-send-now";
 /** v4 queue 项上移按钮（动态后缀为 queueItemId） */
@@ -858,3 +899,75 @@ export const TID_START_PLAN_RECOMMENDATION_DIALOG = "start-plan-recommendation-d
 
 /** 用户反馈的诊断日志授权开关 */
 export const TID_FEEDBACK_LOGS_OPT_IN = "feedback-logs-opt-in";
+
+/** 扩展插槽（docs/plugins/extension-host.md §6）：输入框 composer.status 条目与启动页「扩展」分区。 */
+export const TID_EXTENSION_COMPOSER_STATUS = "extension-composer-status";
+export const TID_SIDE_PANE_EXTENSIONS = "side-pane-extensions";
+export const TID_SIDE_PANE_EXTENSIONS_STOPPED = "side-pane-extensions-stopped";
+export const TID_SIDE_PANE_EXTENSION_PROBLEM = "side-pane-extension-problem";
+/** 扩展视图（docs/plugins/extension-host.md §8）：启动页的视图条目与 extension-view 标签页。 */
+export const TID_SIDE_PANE_EXTENSION_VIEW_ITEM = "side-pane-extension-view-item";
+export const TID_EXTENSION_VIEW = "extension-view";
+/**
+ * 扩展日志控制台（docs/plugins/extension-host.md §16.8）：启动页「扩展日志」一行与 extension-logs 标签页。
+ * 每行带 `data-seq`、`data-level`、`data-gen`、`data-plugin-id`（扩展进程与监管器的行没有）。
+ */
+export const TID_SIDE_PANE_EXTENSION_LOGS_ITEM = "side-pane-extension-logs-item";
+export const TID_EXTENSION_LOGS = "extension-logs";
+export const TID_EXTENSION_LOGS_ROW = "extension-logs-row";
+export const TID_EXTENSION_LOGS_SOURCE_FILTER = "extension-logs-source-filter";
+export const TID_EXTENSION_LOGS_LEVEL_FILTER = "extension-logs-level-filter";
+export const TID_EXTENSION_LOGS_AUTO_SCROLL = "extension-logs-auto-scroll";
+export const TID_EXTENSION_LOGS_COPY = "extension-logs-copy";
+export const TID_EXTENSION_LOGS_CLEAR = "extension-logs-clear";
+/**
+ * 扩展授权（docs/plugins/extension-host.md §17.7）：启动页「需要授权」一行（`data-side-pane-open-tab-item`
+ * 为 `extension-grant:<pluginId>`）、授权对话框与启用确认（复用 ConfirmDialog，确认按钮为
+ * TID_CONFIRM_DIALOG_CONFIRM）、插件详情页的「权限」区块（带 `data-plugin-id`、`data-grant-status`）。
+ */
+export const TID_SIDE_PANE_EXTENSION_GRANT = "side-pane-extension-grant";
+export const TID_EXTENSION_GRANT_DIALOG = "extension-grant-dialog";
+export const TID_EXTENSION_ENABLE_CONFIRM_DIALOG = "extension-enable-confirm-dialog";
+/**
+ * 从插件商店安装后、激活前的确认（§17.7，P3b）：启动页「需要确认」一行（`data-side-pane-open-tab-item`
+ * 为 `extension-activation:<pluginId>`）与确认框（确认按钮 TID_CONFIRM_DIALOG_CONFIRM，取消即「不激活」）。
+ */
+export const TID_SIDE_PANE_EXTENSION_ACTIVATION = "side-pane-extension-activation";
+export const TID_EXTENSION_ACTIVATION_DIALOG = "extension-activation-dialog";
+export const TID_EXTENSION_PERMISSIONS = "extension-permissions";
+export const TID_EXTENSION_PERMISSIONS_GRANT = "extension-permissions-grant";
+export const TID_EXTENSION_PERMISSIONS_REVOKE = "extension-permissions-revoke";
+/** 插件详情页「权限」区块的「系统通知」开关（§18.1 H8） */
+export const TID_EXTENSION_PERMISSIONS_NOTIFICATIONS = "extension-permissions-notifications";
+/** 「最近操作」的一行：`data-capability`、`data-grant`。 */
+export const TID_EXTENSION_PERMISSIONS_ACTION = "extension-permissions-action";
+/** 左侧主导航的 nav.primary 插槽条目（docs/plugins/extension-host.md §16.4）；`data-extension-item` 是条目全局 id。 */
+export const TID_NAV_PRIMARY_ITEM = "nav-primary-slot-item";
+
+// ── fork 定制 test-ids（上游无对应功能点）──
+export const TID_WORKSPACE_ITEM = "workspace-item";
+export const TID_WORKSPACE_CLOSE = "workspace-close";
+export const TID_SETTINGS_MEMORY_FILE_EDIT = "settings-memory-file-edit";
+export const TID_SETTINGS_MEMORY_EDITOR = "settings-memory-editor";
+export const TID_SETTINGS_MEMORY_EDITOR_TEXTAREA = "settings-memory-editor-textarea";
+export const TID_SETTINGS_MEMORY_EDITOR_SAVE = "settings-memory-editor-save";
+export const TID_SETTINGS_MEMORY_EDITOR_CANCEL = "settings-memory-editor-cancel";
+export const TID_SETTINGS_MEMORY_EDITOR_DELETE = "settings-memory-editor-delete";
+export const TID_SETTINGS_MEMORY_EDITOR_DELETE_CONFIRM = "settings-memory-editor-delete-confirm";
+export const TID_SETTINGS_MEMORY_EDITOR_RELOAD = "settings-memory-editor-reload";
+export const TID_SETTINGS_MEMORY_EDITOR_ERROR = "settings-memory-editor-error";
+export const TID_SETTINGS_MEMORY_EDIT_HINT = "settings-memory-edit-hint";
+export const TID_SETTINGS_MEMORY_EDIT_HINT_ACTION = "settings-memory-edit-hint-action";
+export const TID_CHAT_CONTEXT_COMPACT_BUTTON = "chat-context-compact-button";
+export const TID_CHAT_CONTEXT_DREAM_BUTTON = "chat-context-dream-button";
+export const TID_COMPOSER_TURN_METRICS = "composer-turn-metrics";
+export const TID_COMPOSER_TURN_METRICS_ITEM = "composer-turn-metrics-item";
+export const TID_MODEL_UPSTREAM_FETCH_BUTTON = "model-upstream-fetch-button";
+export const TID_MODEL_UPSTREAM_PICKER = "model-upstream-picker";
+export const TID_V4_ORACLE_REVIEW = "v4-oracle-review-turn";
+export const TID_V4_ORACLE_REVIEW_DEEP = "v4-oracle-review-turn-deep";
+export const TID_V4_MEMORY_CAPTURE = "v4-memory-capture";
+export const TID_V4_MEMORY_CAPTURE_DIALOG = "v4-memory-capture-dialog";
+export const TID_V4_MEMORY_CAPTURE_SAVE = "v4-memory-capture-save";
+export const TID_V4_MEMORY_CAPTURE_CANCEL = "v4-memory-capture-cancel";
+export const TID_V4_MEMORY_CAPTURE_ERROR = "v4-memory-capture-error";

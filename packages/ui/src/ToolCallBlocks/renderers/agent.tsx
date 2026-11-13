@@ -1,15 +1,23 @@
+import { XIcon, SquareIcon } from "lucide-react";
 import { useToolPresentationCapabilities } from "@/ToolCallBlocks/presentationCapabilities.js";
-import { BotIcon } from "lucide-react";
+import {
+  resolveSubagentColorFromName,
+  SUBAGENT_WORKFLOW_COLOR,
+} from "@/lib/subagentColors.js";
+import {
+  agentColor as workflowAgentColor,
+  WorkflowAgentFace,
+} from "@/components/workflow-timeline/WorkflowAgentFace.js";
 import { useCallback, useMemo, type ReactNode } from "react";
+import { cn } from "@/components/lib/utils.js";
+import { SUBAGENT_TEXT_COLOR_CLASS } from "@/lib/subagentColors.js";
 import type { AgentColor } from "@zcode/shared";
 import { MessageResponse } from "@/components/ai-elements/message.js";
-import { cn } from "@/components/lib/utils.js";
 import { useZCodeIntl } from "@/i18n/IntlProvider.js";
-import { resolveSubagentColorFromName, SUBAGENT_TEXT_COLOR_CLASS } from "@/lib/subagentColors.js";
 import { ToolSnapshotFieldNotice } from "@/ToolCallBlocks/ToolSnapshotFieldNotice.js";
 import { ToolLayout } from "../ToolLayout.js";
 import type { ToolCallBlockRenderContext } from "../shared.js";
-import { getLatestExploreChildSummaryFromChildren } from "./explore.js";
+import { getLatestAgentChildSummaryFromChildren } from "@/ToolCallBlocks/renderers/explore.js";
 import { AgentPromptSection } from "./agentPromptSection.js";
 import {
   formatAgentMessage,
@@ -20,8 +28,6 @@ import {
   getAgentPrompt,
   readBackgroundAgentInfo,
 } from "./agentHelpers.js";
-
-const AGENT_TOOL_ICON = <BotIcon className="size-4 shrink-0 text-foreground-subtle" />;
 
 function AgentChildToolList({
   nestedToolRenderer,
@@ -127,6 +133,7 @@ function BackgroundAgentProcessRow({ label, children }: { label: string; childre
   );
 }
 
+// fork：子智能体名按身份着色（同名同色），上游版用单一前景色。
 function AgentNameText({ color, name }: { color: AgentColor; name: string }) {
   return (
     <span
@@ -218,6 +225,17 @@ export function AgentToolCallBlock(context: ToolCallBlockRenderContext) {
   const agentColor = agentName
     ? (configuredAgentColor ?? getAgentColor(toolCall) ?? resolveSubagentColorFromName(agentName))
     : null;
+  // 头像只读取父工具状态；停止使用中性等待表情，不能误报为成功。
+  const faceStatus =
+    toolCall.status === "pending"
+      ? "pending"
+      : context.isRunning
+        ? "running"
+        : toolCall.status === "completed"
+          ? "done"
+          : toolCall.status === "failed"
+            ? "failed"
+            : "pending";
   // 外部 CLI 子智能体徽标：与 agent 名并列显示预设名。这类子智能体不支持
   // 运行中消息、也没有 token 统计——不标出来用户会按原生子智能体的预期去用它。
   const externalBadge = context.externalAgentPresetId ? (
@@ -240,7 +258,7 @@ export function AgentToolCallBlock(context: ToolCallBlockRenderContext) {
   // 仍会显示渐变和子工具摘要，和协议里的父工具生命周期不一致。
   const isAgentVisuallyRunning = context.isRunning;
   const collapsedChildSummary = isAgentVisuallyRunning
-    ? getLatestExploreChildSummaryFromChildren(intl, childToolCalls, context, {
+    ? getLatestAgentChildSummaryFromChildren(intl, childToolCalls, context, {
         includeChildActionKindLabel: true,
       })
     : null;
@@ -250,14 +268,20 @@ export function AgentToolCallBlock(context: ToolCallBlockRenderContext) {
   // Agent 块和它内部的子工具都已经通过层级表达了来源，
   // 继续显示子智能体来源 badge 会制造重复噪音。
   const sourceLabel = undefined;
+  // 名称和摘要各自兜底会产生“SubAgent SubAgent”；等待时用状态替换重复摘要，并移除末尾重复状态。
+  const hasDuplicateSummary = primaryText.trim() === (agentName || fallbackLabel).trim();
+  const showPendingInSummary = hasDuplicateSummary && toolCall.status === "pending";
+  const summaryText = hasDuplicateSummary
+    ? showPendingInSummary
+      ? context.statusLabel
+      : ""
+    : primaryText;
   const collapsedPrimaryText = useMemo(
-    () => <span className="truncate">{primaryText}</span>,
-    [primaryText],
+    () =>
+      summaryText ? <span className="truncate text-foreground-subtlest">{summaryText}</span> : null,
+    [summaryText],
   );
-  const expandedPrimaryText = useMemo(
-    () => <span className="truncate">{primaryText}</span>,
-    [primaryText],
-  );
+  const expandedPrimaryText = collapsedPrimaryText;
   const summaryAction = useMemo(
     () =>
       context.agentSummaryAction
@@ -355,30 +379,51 @@ export function AgentToolCallBlock(context: ToolCallBlockRenderContext) {
     <>
       <ToolLayout
         toolId={toolCall.toolId}
-        icon={AGENT_TOOL_ICON}
-        showIcon={context.showIcon !== false}
+        icon={null}
+        showIcon={false}
         canToggle={false}
         forceOpen={false}
         summaryAction={summaryAction}
         // 产品边界：Agent/Task 在父对话中只保留单行摘要；完整 child timeline 统一从
         // 右侧 tab / 手机抽屉查看，因此这里既不自动展开，也不提供手动展开入口。
-        kindLabel={fallbackLabel}
-        expandedKindLabel={fallbackLabel}
+        kindLabel={null}
+        expandedKindLabel={null}
         kindDetail={agentNameDetail}
         expandedKindDetail={agentNameDetail}
         sourceLabel={sourceLabel}
         autoCollapseOnComplete
+        prioritizePrimaryText
         primaryText={
-          collapsedChildSummary ? collapsedChildSummary.primaryText : collapsedPrimaryText
+          collapsedChildSummary ? (
+            <span className="min-w-0 truncate text-foreground-subtlest">
+              {collapsedChildSummary.primaryText}
+            </span>
+          ) : (
+            collapsedPrimaryText
+          )
         }
         expandedPrimaryText={expandedPrimaryText}
-        secondaryText={collapsedChildSummary?.secondaryText}
+        secondaryText={
+          collapsedChildSummary?.secondaryText ? (
+            <span className="min-w-0 truncate text-foreground-subtlest">
+              {collapsedChildSummary.secondaryText}
+            </span>
+          ) : undefined
+        }
         expandedSecondaryText={null}
-        summaryContentSeparator="·"
         animateSummaryContent
         disableSummaryContentAnimation={context.disableSummaryContentAnimation}
         summaryContentKey={
           collapsedChildSummary?.animationKey ?? `agent:${toolCall.toolId}:${primaryText}`
+        }
+        // 运行与完成由行首头像 / 勾区分；仅等待、失败、停止保留状态文字。
+        showStatusLabel={!showPendingInSummary && faceStatus !== "running" && faceStatus !== "done"}
+        statusIndicator={
+          faceStatus === "failed" ? (
+            <XIcon aria-hidden className="size-3.5" />
+          ) : toolCall.status === "stopped" ? (
+            <SquareIcon aria-hidden className="size-3.5" />
+          ) : undefined
         }
         statusLabel={context.statusLabel}
         statusTooltip={toolCall.status === "failed" ? context.errorText : undefined}

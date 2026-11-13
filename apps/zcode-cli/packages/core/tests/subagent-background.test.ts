@@ -2,6 +2,7 @@ import { describe, expect, it, vi } from "vitest";
 import {
   HookEventName,
   SessionEventType,
+  createSessionEvent,
   createSessionId,
   createTurnId,
   modelMessageContentToText,
@@ -1481,6 +1482,8 @@ describe("subagent background notifications", () => {
     );
     expect(notification).not.toContain("<error>");
     expect(notification).not.toContain("Turn execution failed");
+    // child 没写过正文，失败通知不带部分报告。
+    expect(notification).not.toContain("<result>");
     // 失败原文结构化下发，App 不从 summary 文本解析。
     expect(notificationOriginMetas).toEqual([
       expect.objectContaining({
@@ -1501,6 +1504,74 @@ describe("subagent background notifications", () => {
         }),
       }),
     );
+  });
+
+  it("adds the partial report to failed background notifications", async () => {
+    // 回归：后台失败通知原来不带 <result>。现在取本次运行最近一段非空 step 正文，
+    // 原样放进 <result>（不套框架）；sink 转发的其他 session 事件不算。
+    const notifications: string[] = [];
+    const port = createExploreSubagentPort({
+      createAgentId: () => "agent_background_partial",
+      emitParentEvent: async () => {},
+      enqueueParentTaskNotification: ({ text }) => {
+        notifications.push(text);
+      },
+      runExploreAgent: async (request) => {
+        await request.onSessionReady?.();
+        request.onEvent?.(subagentModelStep(request.sessionId, "Interim findings: module A."));
+        request.onEvent?.(subagentModelStep(request.sessionId, ""));
+        request.onEvent?.(
+          subagentModelStep(createSessionId("subagent-background-other"), "Foreign findings."),
+        );
+        throw new Error("Requests are too frequent.");
+      },
+    });
+
+    await port.start?.(
+      createSubagentRunRequest({
+        sessionId: createSessionId("subagent-background-partial"),
+        turnId: createTurnId("subagent-background-partial-turn"),
+      }),
+    );
+    await waitForCondition(() => notifications.length === 1);
+
+    expect(notifications[0]).toContain("<status>failed</status>");
+    expect(notifications[0]).toContain("<result>Interim findings: module A.</result>");
+    expect(notifications[0]).not.toContain("Foreign findings.");
+    expect(notifications[0]).not.toContain("[Subagent hand-back]");
+  });
+
+  it("adds the partial report when an auto-backgrounded local agent fails", async () => {
+    // 转后台前写的正文也属于本次运行，转后台后失败时同样带上。
+    const childGate = createDeferred<void>();
+    const notifications: string[] = [];
+    const port = createExploreSubagentPort({
+      autoBackgroundMs: 1,
+      createAgentId: () => "agent_auto_background_partial",
+      emitParentEvent: async () => {},
+      enqueueParentTaskNotification: ({ text }) => {
+        notifications.push(text);
+      },
+      runExploreAgent: async (request) => {
+        await request.onSessionReady?.();
+        request.onEvent?.(subagentModelStep(request.sessionId, "Findings before backgrounding."));
+        await childGate.promise;
+        throw new Error("Requests are too frequent.");
+      },
+    });
+
+    const output = await port.run(
+      createSubagentRunRequest({
+        sessionId: createSessionId("subagent-auto-background-partial"),
+        turnId: createTurnId("subagent-auto-background-partial-turn"),
+      }),
+    );
+    expect(output).toMatchObject({ status: "async_launched" });
+    childGate.resolve();
+    await waitForCondition(() => notifications.length === 1);
+
+    expect(notifications[0]).toContain("<status>failed</status>");
+    expect(notifications[0]).toContain("<result>Findings before backgrounding.</result>");
   });
 
   it("queues parent notification before emitting background completion", async () => {
@@ -1910,17 +1981,6 @@ describe("subagent background notifications", () => {
   });
 });
 
-function createDeferred<T>(): {
-  promise: Promise<T>;
-  resolve: (value: T) => void;
-} {
-  let resolve!: (value: T) => void;
-  const promise = new Promise<T>((innerResolve) => {
-    resolve = innerResolve;
-  });
-  return { promise, resolve };
-}
-
 function modelTextResult(text: string) {
   return {
     finishReason: "stop",
@@ -1943,15 +2003,6 @@ async function waitForMacrotask(): Promise<void> {
   await new Promise<void>((resolve) => {
     setTimeout(resolve, 0);
   });
-}
-
-async function waitForCondition(predicate: () => boolean | Promise<boolean>): Promise<void> {
-  const startedAt = Date.now();
-  while (Date.now() - startedAt < 1000) {
-    if (await predicate()) return;
-    await new Promise((resolve) => setTimeout(resolve, 5));
-  }
-  throw new Error("Timed out waiting for condition");
 }
 
 async function waitForAbort(signal?: AbortSignal): Promise<void> {
@@ -2015,26 +2066,13 @@ function recordSetTimeoutCalls(): {
   };
 }
 
-function createSubagentRunRequest(input: {
-  sessionId: SessionId;
-  turnId: ReturnType<typeof createTurnId>;
-}) {
-  return {
-    agentType: "general-purpose",
-    description: "Auto background test",
-    parentToolCallId: "call_auto_background",
-    prompt: "Run slowly",
-    sessionId: input.sessionId,
-    trace: {
-      traceId: "trace_subagent_auto_background_parent",
-      spanId: "span_subagent_auto_background_parent",
-      sessionId: input.sessionId,
-      turnId: input.turnId,
-    },
-    turnId: input.turnId,
-    workingDirectory: "/tmp/zcode-subagent-auto-background",
-    workspaceRoot: "/tmp/zcode-subagent-auto-background",
-  };
+// 子代理自己主循环的一个模型 step（querySource: "subagent"），runner 从这类事件取部分报告。
+function subagentModelStep(sessionId: SessionId, text: string) {
+  return createSessionEvent(SessionEventType.ModelComplete, sessionId, {
+    content: text,
+    querySource: "subagent",
+    toolCallCount: 1,
+  });
 }
 
 class RecordingSessionStore {

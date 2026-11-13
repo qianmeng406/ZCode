@@ -1,7 +1,7 @@
 {
   "version": 1,
   "caseName": "conversation-session-edit",
-  "spec": "./test/e2e/conversation-session/conversation-session-edit.test.ts",
+  "spec": "./test/e2e/conversation-session/editing/conversation-session-edit.test.ts",
   "fixtures": [
     {
       "id": "upstream-conversation-edit-title-generic",

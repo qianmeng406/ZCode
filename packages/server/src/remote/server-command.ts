@@ -58,7 +58,8 @@ export interface RemoteCommandOptions {
 
 /** stdio 会话模式命令：env 前缀与入口拼接，字段与顺序不变（I5 回归锚点）。 */
 export function buildRemoteServerCommand(remoteRuntimeEnvPrefix: string): string {
-  return `${remoteRuntimeEnvPrefix} ~/.zcode/server/node ~/.zcode/server/zcode-server.cjs`;
+  // v3.18 起带上 --prepare-credentials：远端启动时先把凭据准备好再进入会话。
+  return `${remoteRuntimeEnvPrefix} ~/.zcode/server/node ~/.zcode/server/zcode-server.cjs --prepare-credentials`;
 }
 
 /**

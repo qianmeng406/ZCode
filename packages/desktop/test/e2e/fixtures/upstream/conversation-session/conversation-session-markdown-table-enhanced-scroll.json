@@ -1,7 +1,7 @@
 {
   "version": 1,
   "caseName": "conversation-session-markdown-table-enhanced-scroll",
-  "spec": "./test/e2e/conversation-session/conversation-session-markdown-table-enhanced-scroll.test.ts",
+  "spec": "./test/e2e/conversation-session/presentation/conversation-session-markdown-table-enhanced-scroll.test.ts",
   "fixtures": [
     {
       "id": "markdown-table-enhanced-scroll-title",

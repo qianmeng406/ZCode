@@ -1,7 +1,7 @@
 {
   "version": 1,
   "caseName": "conversation-session-v4-rewind-compact-extended",
-  "spec": "./test/e2e/conversation-session/conversation-session-v4-rewind-compact-extended.test.ts",
+  "spec": "./test/e2e/conversation-session/editing/conversation-session-v4-rewind-compact-extended.test.ts",
   "fixtures": [
     {
       "id": "pv4-18-title",

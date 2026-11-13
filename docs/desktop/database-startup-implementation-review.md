@@ -5,7 +5,7 @@
 
 ## 已实现
 
-- Host 单 attempt 协调器；独立 Main/preload 控制和快照通道；Renderer 在业务 Root 外展示真实阶段、耗时、错误、复制诊断和退出。无自动迁移重试。
+- Host 单 attempt 协调器；独立 Main/preload 控制和快照通道；Renderer 在业务 Root 外展示真实阶段、耗时、错误、复制诊断、导出日志和退出。无自动迁移重试。
 - Host 所属 Worker 串行准备 tasks-index 的原迁移/原 Repo 后置修复，再以配套 CLI bundle 的存储专用入口准备会话库。两者都随 Host 退出；不启动完整 Provider/MCP/业务 Agent。
 - 服务装配成功才发布 ready；Main scheduler 延迟启动，准备期间附着请求排队。业务 Repo 新连接仍校验真实账本，不能只相信进程内已准备路径。
 - 原 SQL、migration ID、checksum 输入和单库事务边界保留；原始异常不会被 rollback/close 的第二个异常覆盖。

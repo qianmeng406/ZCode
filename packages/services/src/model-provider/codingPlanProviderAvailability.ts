@@ -10,6 +10,7 @@ import {
   type ProviderFamilyDomain,
   type ProviderFamilyConnectionSelectionSettings,
 } from "@zcode/shared";
+import type { OAuthAccountMaterial } from "#src/oauth/repo/oauthCredentialRepo.js";
 import { type BigModelTeamPlanBizContext } from "#src/bigmodel/teamPlanApiKey.js";
 import {
   fetchPersonalCodingPlanEntitlement,
@@ -53,6 +54,7 @@ interface CodingPlanAvailabilityCredentialService {
 
 interface CodingPlanAvailabilityContext {
   apiClient?: ApiClient;
+  accountMaterial?: OAuthAccountMaterial | null;
   credentialService?: CodingPlanAvailabilityCredentialService;
   providerFamilyConnectionSelections?: ProviderFamilyConnectionSelectionSettings;
 }
@@ -232,13 +234,17 @@ async function validateSelectedTeamPlanAvailability(
   }
   const { projectId } = selectedTeamContext;
   const oauthProvider = family === "zai" ? ZAI_PROVIDER_ID : BIGMODEL_PROVIDER_ID;
-  const token = (
-    await context.credentialService?.load(`oauth:${oauthProvider}:access_token`)
-  )?.trim();
+  const token =
+    context.accountMaterial !== undefined
+      ? context.accountMaterial?.accessToken
+      : (await context.credentialService?.load(`oauth:${oauthProvider}:access_token`))?.trim();
   if (!token) {
     return { kind: "unavailable", reason: "coding_plan_not_connected" };
   }
-  const zcodeJwtToken = (await context.credentialService?.load(ZCODE_JWT_TOKEN_KEY))?.trim();
+  const zcodeJwtToken =
+    context.accountMaterial !== undefined
+      ? context.accountMaterial?.zcodeJwtToken
+      : (await context.credentialService?.load(ZCODE_JWT_TOKEN_KEY))?.trim();
   // BigModel 旧版本可能把 zcodejwttoken 误写进 oauth access token；
   // 但 Z.ai 的 business JWT 本身就是合法 Bearer token，不能套用这个 stale-token 防御。
   if (family === "bigmodel" && zcodeJwtToken && token === zcodeJwtToken) {
@@ -444,6 +450,10 @@ async function resolveStartPlanAuthorization(
   provider: CodingPlanAvailabilityProvider,
   context: CodingPlanAvailabilityContext,
 ): Promise<StartPlanAuthorization> {
+  if (context.accountMaterial !== undefined) {
+    const jwt = context.accountMaterial?.zcodeJwtToken;
+    return { value: jwt ? `Bearer ${jwt}` : "", missingReason: "coding_plan_not_authenticated" };
+  }
   if (provider.family === "bigmodel") {
     const zcodeJwtToken = await resolveBigModelStartPlanZcodeJwt({
       credentialService: context.credentialService,

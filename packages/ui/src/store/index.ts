@@ -88,6 +88,13 @@ export interface LoginEntryAttempt {
 }
 
 const CODE_PREVIEW_SETTINGS_KEY = "zcode-code-preview-settings";
+const FONT_SMOOTHING_STORAGE_KEY = "zcode-macos-font-smoothing";
+
+function applyFontSmoothing(enabled: boolean): void {
+  // 仅设置展示标记；CSS 以本机 macOS desktop 为边界，远端设备与 Web 不受影响。
+  document.documentElement.classList.toggle("font-smoothing-enabled", enabled);
+}
+
 const PERFORMANCE_MODE_STORAGE_KEY = "zcode-performance-mode";
 const HIDE_PROJECT_DEVICE_NAMES_STORAGE_KEY = "zcode-hide-project-device-names";
 export const FILE_MANAGER_NAVIGATION_PREFERENCES_STORAGE_KEY =
@@ -143,6 +150,10 @@ export interface ZCodeState {
   /** UI 根 rem 字号（px） */
   uiFontSizePx: number;
   setUiFontSizePx: (fontSizePx: number) => void;
+
+  /** v3.18：字体平滑开关（关闭后渲染更锐利，长文本滚动更省 GPU）。 */
+  fontSmoothingEnabled: boolean;
+  setFontSmoothingEnabled: (enabled: boolean) => void;
 
   /** 是否启用性能模式 */
   performanceMode: boolean;
@@ -288,6 +299,7 @@ const BROADCAST_FIELDS = new Set([
   "theme",
   "locale",
   "uiFontSizePx",
+  "fontSmoothingEnabled",
   "interfaceMode",
   "conversationTurnNavigatorEnabled",
   "conversationWindowCollapseEnabled",
@@ -309,6 +321,7 @@ type BroadcastField =
   | "theme"
   | "locale"
   | "uiFontSizePx"
+  | "fontSmoothingEnabled"
   | "interfaceMode"
   | "hideProjectDeviceNames"
   | "conversationTurnNavigatorEnabled"
@@ -421,6 +434,13 @@ export function createZCodeStore(
         );
         return { fileManagerNavigationOpenByWorkspace: next };
       });
+    },
+
+    fontSmoothingEnabled: readSafeLocalStorage(FONT_SMOOTHING_STORAGE_KEY) !== "false",
+    setFontSmoothingEnabled: (enabled) => {
+      writeSafeLocalStorage(FONT_SMOOTHING_STORAGE_KEY, String(enabled));
+      applyFontSmoothing(enabled);
+      set({ fontSmoothingEnabled: enabled });
     },
 
     uiFontSizePx: loadUiFontSizePx(),
@@ -751,6 +771,8 @@ export function createZCodeStore(
         (msg.payload === "office" || msg.payload === "coding")
       ) {
         state.setInterfaceMode(normalizeInterfaceMode(msg.payload));
+      } else if (field === "fontSmoothingEnabled" && typeof msg.payload === "boolean") {
+        state.setFontSmoothingEnabled(msg.payload);
       } else if (field === "uiFontSizePx" && typeof msg.payload === "number") {
         state.setUiFontSizePx(msg.payload);
       } else if (field === "hideProjectDeviceNames" && typeof msg.payload === "boolean") {
@@ -798,6 +820,7 @@ export function createZCodeStore(
   syncSystemThemeListener(useStore.getState().theme);
   applyTheme(useStore.getState().theme);
   applyUiFontSizePx(useStore.getState().uiFontSizePx);
+  applyFontSmoothing(useStore.getState().fontSmoothingEnabled);
   document.documentElement.classList.toggle(
     "dark",
     resolveTheme(useStore.getState().theme) === "dark",

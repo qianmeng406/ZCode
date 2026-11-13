@@ -1,3 +1,4 @@
+import { modeTriggerColor } from "@/chat-input-toolbar/display-help.js";
 import { memo, useCallback, useMemo } from "react";
 import { LightbulbIcon, XIcon, ChevronDownIcon } from "lucide-react";
 import {

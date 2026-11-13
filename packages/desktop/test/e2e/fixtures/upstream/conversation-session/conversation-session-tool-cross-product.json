@@ -1,7 +1,7 @@
 {
   "version": 1,
   "caseName": "conversation-session-tool-cross-product",
-  "spec": "./test/e2e/conversation-session/conversation-session-tool-cross-product.test.ts",
+  "spec": "./test/e2e/conversation-session/tools/conversation-session-tool-cross-product.test.ts",
   "fixtures": [
     {
       "id": "upstream-tool-cross-product-read-call",
@@ -18,11 +18,7 @@
         "lastUserMessageIncludes": ["E2E_TOOL_CROSS_PRODUCT_READ"],
         "lastUserMessageExcludes": ["E2E_TOOL_CROSS_PRODUCT_READ_SESSION_CONTEXT"],
         "bodyIncludes": ["E2E_TOOL_CROSS_PRODUCT_READ"],
-        "bodyExcludes": [
-          "E2E_TOOL_CROSS_PRODUCT_READ_SESSION_CONTEXT",
-          "Generate a concise title",
-          "CRITICAL: Respond with TEXT ONLY"
-        ]
+        "bodyExcludes": ["Generate a concise title", "CRITICAL: Respond with TEXT ONLY"]
       },
       "response": {
         "statusCode": 200,

@@ -30,6 +30,7 @@ export function TaskListItemContextMenu({
   onOpenProviderConfig,
   disableTaskActions = false,
   disabledReason,
+  archiveDisabledReason,
 }: {
   organizationActions?: React.ReactNode;
   intl: {
@@ -69,6 +70,7 @@ export function TaskListItemContextMenu({
   onOpenProviderConfig: () => void;
   disableTaskActions?: boolean;
   disabledReason?: string;
+  archiveDisabledReason?: string;
 }) {
   return (
     <ContextMenuContent className="w-52">
@@ -99,6 +101,7 @@ export function TaskListItemContextMenu({
         onOpenProviderConfig={onOpenProviderConfig}
         disableTaskActions={disableTaskActions}
         disabledReason={disabledReason}
+        archiveDisabledReason={archiveDisabledReason}
       />
     </ContextMenuContent>
   );

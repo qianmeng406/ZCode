@@ -1,7 +1,7 @@
 {
   "version": 1,
   "caseName": "conversation-session-chat-loading-live-tail",
-  "spec": "./test/e2e/conversation-session/conversation-session-chat-loading-live-tail.test.ts",
+  "spec": "./test/e2e/conversation-session/history/conversation-session-chat-loading-live-tail.test.ts",
   "fixtures": [
     {
       "id": "upstream-chat-loading-live-tail-controlled-stream",

@@ -269,6 +269,8 @@ describe("AgentRuntime Dream handler", () => {
 
     await runtime.executeTurn("next");
     const expectedUpdate = MEMORY_UPDATE_FIXTURE.replaceAll("<MEMORY_ROOT>", memoryRoot);
+    // 同一条 MCS system 里，轮首的 token 预算提醒排在 memory_update 之前。
+    const expectedSystem = `<total_tokens>15000000 tokens left</total_tokens>\n\n${expectedUpdate}`;
     const nextRequest = mainRequests[1] ?? [];
     // provider content 现在可能是分块数组（upstream 的 meta_user 投影），按文本比较；
     // fixture 里的路径按 POSIX 写，Windows 上 join 产出反斜杠，比较前统一分隔符。

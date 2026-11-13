@@ -1,7 +1,7 @@
 import { describe, expect, it, vi } from "vitest";
 import type { AgentRuntimeInternal } from "../src/runtime/internal.js";
 import { applyRuntimeExecutionState } from "../src/runtime/execution-state.js";
-import { grantPermissionFullAccess } from "../src/runtime/permission-full-access.js";
+import { grantPermissionMode } from "../src/runtime/permission-full-access.js";
 
 function fixture(config: Record<string, unknown> = {}) {
   const inputs = [
@@ -97,7 +97,21 @@ describe("审批框完全访问", () => {
       contextProfile: "standard",
     });
   });
-  it("保留 Runtime 和每项 Plan，只更新本次目标队列权限", async () => {
+  it.each(["guarded", "yolo"] as const)(
+    "保留 Runtime 和每项 Plan，只更新本次目标为 %s",
+    async (mode) => {
+      const { runtime, grant } = fixture();
+      await grant(mode);
+      expect(runtime.config).toEqual({ mode, planEnabled: true });
+      expect(runtime.activeTurn.pendingInputs.map((item) => item.intent)).toEqual([
+        { mode, planEnabled: true, modelSelection: { modelId: "one" } },
+        { mode, planEnabled: false },
+      ]);
+      expect(runtime.sessionStore.commitPermissionFullAccess).toHaveBeenCalledOnce();
+      expect(runtime.appendEvent).toHaveBeenCalledOnce();
+    },
+  );
+  it("重试同一请求不能把已保存的自主授权升级为完全访问", async () => {
     const { runtime, grant } = fixture();
     await grant();
     // 安装路径把解析后的完整状态（含缺省补齐的 standard 档位）写入 config。
@@ -111,7 +125,7 @@ describe("审批框完全访问", () => {
       { mode: "yolo", planEnabled: false },
     ]);
     expect(runtime.sessionStore.commitPermissionFullAccess).toHaveBeenCalledOnce();
-    expect(runtime.appendEvent).toHaveBeenCalledOnce();
+    expect(runtime.config.mode).toBe("guarded");
   });
   it("Beta 会话授予全权时事件、持久化与内存一致保留 Beta", async () => {
     const { runtime, grant, executions } = fixture({ mode: "beta", planEnabled: false });

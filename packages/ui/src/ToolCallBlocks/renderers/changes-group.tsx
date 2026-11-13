@@ -303,7 +303,6 @@ export function ChangesGroupToolCallBlock(context: ToolCallBlockRenderContext) {
       kindLabel={intl.formatMessage({ id: "chat.toolCall.changesGroup.label" })}
       primaryText={context.isRunning ? runningPrimaryText : completedSummary}
       secondaryText={context.isRunning ? runningSecondaryText : undefined}
-      summaryContentSeparator="·"
       expandedPrimaryText={countText}
       expandedSecondaryText={null}
       diffCount={!context.isOfficeMode && context.isRunning ? runningDiffCount : undefined}

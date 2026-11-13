@@ -244,10 +244,6 @@ interface OpenRemoteWorkspaceFromHistoryParams {
     target: Parameters<IPlatformService["connectRemote"]>[0],
     requestId?: string,
   ) => Promise<string>;
-  resolveRemoteWorkspaceCanonicalPath: (
-    sessionId: string,
-    workspacePath: string,
-  ) => Promise<string>;
   bindRemoteWorkspaceScope: (
     sessionId: string,
     workspacePath: string,
@@ -565,6 +561,19 @@ export async function restoreSourceRemoteWorkspaceGroup(params: {
   }
 }
 
+/** tab 是目录 owner 的唯一事实；只认仍注册在 store 中的 session，断连残留的 id 不算 owner。 */
+function readLiveRemoteWorkspaceOwner(
+  tabStoreApi: RemoteWorkspaceTabStoreReader,
+  target: Pick<RemoteWorkspaceSessionEntry, "workspacePath" | "workspaceIdentity">,
+): string | undefined {
+  const key = buildWorkspaceSessionKey(target);
+  const sessionId = tabStoreApi
+    .getState()
+    .tabs.filter(isWorkspaceTab)
+    .find((tab) => buildWorkspaceSessionKey(tab) === key)?.remoteSessionId;
+  return sessionId && getRemoteWorkspaceSession(sessionId) ? sessionId : undefined;
+}
+
 function shouldKeepRemoteWorkspaceInTabs(params: {
   tabStoreApi: RemoteWorkspaceTabStoreReader;
   workspacePath: string;
@@ -624,7 +633,6 @@ export async function openRemoteWorkspaceFromHistoryEntry({
   setReconnectingRemoteWorkspaceKeys,
   loadCredential,
   connectRemoteWorkspaceTarget,
-  resolveRemoteWorkspaceCanonicalPath,
   bindRemoteWorkspaceScope,
   disposeRemoteWorkspaceSession,
   addTab,
@@ -675,7 +683,6 @@ export async function openRemoteWorkspaceFromHistoryEntry({
       setReconnectingRemoteWorkspaceKeys,
       loadCredential,
       connectRemoteWorkspaceTarget,
-      resolveRemoteWorkspaceCanonicalPath,
       bindRemoteWorkspaceScope,
       disposeRemoteWorkspaceSession,
       bindRemoteWorkspacePath,
@@ -691,6 +698,7 @@ export async function openRemoteWorkspaceFromHistoryEntry({
           workspacePath,
           workspaceIdentity,
         }),
+      readLiveWorkspaceOwner: (target) => readLiveRemoteWorkspaceOwner(tabStoreApi, target),
       onWorkspaceActivated: (target) => {
         logger.debug("[Root] 远程历史 workspace ready，提交 tab 与 draft 激活", target);
         onWorkspaceActivated?.(target);
@@ -1425,7 +1433,6 @@ export function useRemoteWorkspaceHistory({
           loadCredential: services.credentialService.load,
           getSettings: services.settingService.get,
           connectRemoteWorkspaceTarget,
-          resolveRemoteWorkspaceCanonicalPath,
           bindRemoteWorkspaceScope,
           disposeRemoteWorkspaceSession: handleCancelRemoteProject,
           bindRemoteWorkspacePath,
@@ -1441,6 +1448,7 @@ export function useRemoteWorkspaceHistory({
               workspacePath,
               workspaceIdentity,
             }),
+          readLiveWorkspaceOwner: (target) => readLiveRemoteWorkspaceOwner(tabStoreApi, target),
           onWorkspaceActivated: (target) => {
             logger.debug("[Root] 远程 workspace ready，提交 tab 与 draft 激活", target);
             onWorkspaceActivated?.(target);
@@ -1491,7 +1499,6 @@ export function useRemoteWorkspaceHistory({
       connectRemoteWorkspaceTarget,
       handleCancelRemoteProject,
       onWorkspaceActivated,
-      resolveRemoteWorkspaceCanonicalPath,
       resetLogsForWorkspaceKey,
       services.credentialService,
       services.settingService,
@@ -2026,7 +2033,6 @@ export function useRemoteWorkspaceHistory({
         setReconnectingRemoteWorkspaceKeys,
         loadCredential: services.credentialService.load,
         connectRemoteWorkspaceTarget,
-        resolveRemoteWorkspaceCanonicalPath,
         bindRemoteWorkspaceScope,
         disposeRemoteWorkspaceSession: handleCancelRemoteProject,
         addTab,
@@ -2043,7 +2049,6 @@ export function useRemoteWorkspaceHistory({
       commitRemoteWorkspaceSessionMutation,
       connectRemoteWorkspaceTarget,
       handleCancelRemoteProject,
-      resolveRemoteWorkspaceCanonicalPath,
       resetLogsForWorkspaceKey,
       onWorkspaceActivated,
       services.credentialService,

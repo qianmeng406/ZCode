@@ -319,14 +319,20 @@ export function ExecuteToolCallBlock(context: ToolCallBlockRenderContext) {
   }, [toolCall.raw]);
   const failureVisibleText =
     toolCall.status === "failed" ? (errorText ?? resultText ?? undefined) : undefined;
+  // 摘要展示调用意图，详情仍从原始 input 读取命令，避免 description 替代真实执行内容。
+  const description =
+    (toolCall.toolName ?? toolCall.kind) === "Bash" && isPlainRecord(toolCall.input)
+      ? readFirstStringField(toolCall.input, ["description"])
+      : undefined;
   // 副标题：命令输入优先；外部 agent 工具没有 command，用进度最后一行代替。
   const secondaryText =
+    description ??
     getExecuteSecondaryText(toolCall.input) ??
     (isExternalAgentTool ? lastProgressLine(outputPreview?.text) : undefined);
   const secondaryTextNode = useMemo(
     // 收起态 command 属于摘要正文，使用 UI sans 与同一行文案保持一致；
     // 展开后的完整命令仍保留 font-mono，便于阅读和复制技术内容。
-    () => <code className="truncate font-sans">{secondaryText}</code>,
+    () => <code className="truncate font-sans text-foreground-subtlest">{secondaryText}</code>,
     [secondaryText],
   );
   const renderContent = useCallback(
@@ -387,7 +393,8 @@ export function ExecuteToolCallBlock(context: ToolCallBlockRenderContext) {
         showIcon={context.showIcon !== false}
         canToggle={!isOfficeMode && (context.canToggle ?? true)}
         forceOpen={!isOfficeMode && (context.forceOpen ?? false)}
-        hideSecondaryTextWhenOpen
+        // 描述是调用意图，展开后仍保留；只有命令摘要沿用隐藏规则，避免与详情重复。
+        hideSecondaryTextWhenOpen={!description}
         kindLabel={
           (isOfficeMode
             ? intl.formatMessage({
@@ -397,7 +404,7 @@ export function ExecuteToolCallBlock(context: ToolCallBlockRenderContext) {
               })
             : (context.kindLabelOverride ?? externalAgentKindLabel)) ??
           intl.formatMessage({
-            id: isRunning ? "chat.toolCall.execute.running" : "chat.toolCall.kind.terminal",
+            id: isRunning ? "chat.toolCall.execute.running" : "chat.toolCall.execute.ran",
           })
         }
         sourceLabel={context.sourceLabel}
@@ -417,7 +424,7 @@ export function ExecuteToolCallBlock(context: ToolCallBlockRenderContext) {
         statusTooltip={isOfficeMode ? undefined : failureVisibleText}
         showFailureStatus={toolCall.status === "failed"}
         isRunning={isRunning}
-        title={isOfficeMode ? undefined : toolCall.title}
+        title={isOfficeMode ? undefined : (description ?? toolCall.title)}
         renderContent={renderContent}
       />
       {!isOfficeMode ? (

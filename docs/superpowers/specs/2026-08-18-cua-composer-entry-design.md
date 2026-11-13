@@ -2,7 +2,7 @@
 
 - 日期：2026-08-18
 - 状态：设计已确认，待实现
-- 上游 PRD：《ZCode CUA 输入框常驻按钮&免费体验 PRD v0.2》（飞书 wiki EEE7wZ06Ti7Gx5kGWU8cthX9nOg）
+- 上游 PRD：《ZCode CUA 输入框常驻按钮&免费体验 PRD v0.2》（内部产品文档）
 - 分支：`feat/cua-composer-entry`
 - 后续变更：见文末「2026-09-11 变更：电脑控制默认关闭」——该变更删掉了本文多处描述的
   「未启用」（`plugin-disabled`）UI 态，读下文的状态表与 ASCII 图时请一并参照。

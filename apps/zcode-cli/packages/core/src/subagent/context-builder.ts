@@ -13,6 +13,7 @@ import { buildEnvironmentSections } from "../context/sections/env-info.js";
 import { buildRequestUserContextSection } from "../context/sections/request-user-context.js";
 import { buildSessionExecutionSection } from "../context/sections/session-execution.js";
 import { buildSkillsSection } from "../context/sections/skills.js";
+import { TOTAL_TOKENS_SYSTEM_LINE } from "../context/total-tokens.js";
 import { estimateTokens } from "../context/utils.js";
 import { SUBAGENT_LAUNCHER_MESSAGES_NOTE, buildSubagentCommonNotes } from "./system-prompt.js";
 

@@ -15,7 +15,8 @@
     "test/e2e",
     "src/host/botRemoteWorkspaceResolver.ts",
     "src/host/sourceServerDirectory.ts",
-    "src/host/windowRemoteConnectionRegistry.ts"
+    "src/host/windowRemoteConnectionRegistry.ts",
+    "src/host/windowHostAttachmentRpcPolicy.ts"
   ],
   "references": [
     { "path": "../shared" },

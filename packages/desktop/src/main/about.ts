@@ -4,6 +4,7 @@ import { arch, hostname, platform, release, type, version as osVersion } from "n
 import { join } from "node:path";
 import {
   DEFAULT_LOCALE,
+  toZhOrEnLocale,
   type Locale,
   ZCODE_BUILD_TIME,
   ZCODE_COMMIT,
@@ -57,8 +58,9 @@ const ABOUT_APPLICATION_NAME = "ZCode Desktop App";
 // 这里给 BrowserWindow 额外留出背景呼吸空间，避免正式 About 看起来比 demo 更局促。
 const ABOUT_WINDOW_WIDTH = 256;
 const ABOUT_WINDOW_HEIGHT = 312;
+// 关于窗口只内置中英；其它界面语言用英文（以前回退 DEFAULT_LOCALE 会显示中文）。
 const ABOUT_MESSAGES: Record<
-  Locale,
+  "zh-CN" | "en-US",
   {
     aboutTitle: string;
     versionLabel: string;
@@ -97,8 +99,8 @@ function normalizePackageVersion(version: string | undefined): string {
   return normalized === "unknown" ? normalized : normalized.replace(/^[^\d]*/, "") || normalized;
 }
 
-function getAboutMessages(locale: Locale): (typeof ABOUT_MESSAGES)[Locale] {
-  return ABOUT_MESSAGES[locale] ?? ABOUT_MESSAGES[DEFAULT_LOCALE];
+function getAboutMessages(locale: Locale): (typeof ABOUT_MESSAGES)["en-US"] {
+  return ABOUT_MESSAGES[toZhOrEnLocale(locale)];
 }
 
 function readJsonFile<T>(filePath: string): T | null {

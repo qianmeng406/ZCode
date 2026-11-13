@@ -26,7 +26,7 @@ import {
   isCoarseTouchDevice,
   shouldRestoreChatInputFocusAfterPickerClose,
 } from "@/lib/pickerFocus.js";
-import { ChevronDownIcon, GitBranchIcon, GitGraph, LoaderIcon, PlusIcon } from "lucide-react";
+import { ChevronDownIcon, GitBranchIcon, GitGraph, LoaderCircle, PlusIcon } from "lucide-react";
 
 interface GitBranchSwitcherProps {
   workspacePath: string;
@@ -201,7 +201,7 @@ export function GitBranchSwitcher({
                 <>
                   <span className="min-w-0 max-w-25 truncate text-left">{triggerLabel}</span>
                   {loadingBranches || mutationPending ? (
-                    <LoaderIcon
+                    <LoaderCircle
                       data-branch-switcher-trailing-icon="true"
                       className="size-3.5 animate-spin text-foreground-subtle"
                     />

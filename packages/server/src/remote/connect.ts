@@ -18,11 +18,13 @@ import { performHandshake } from "./handshake.js";
 import { deployServer } from "./deploy.js";
 import type { DeployOptions } from "./deploy.js";
 import { assertSupportedRemoteEnvironment } from "@zcode/server/remote/remotePlatformSupport.js";
+import { quotePosixShellArg } from "./posixShell.js";
 import { formatWslProxyForLog } from "./wslProxy.js";
 import { launchResidentBridge } from "./resident-connect.js";
 import {
   buildRemoteRuntimeEnvPrefix,
   buildRemoteServerCommand,
+  pickRemoteRuntimeEnv,
   type RemoteRuntimeEnv,
   type RemoteRuntimeEnvKey,
   type RemoteRuntimeNetworkOptions,
@@ -190,7 +192,8 @@ async function connectRemoteUnchecked(
   const remoteRuntimeEnvPrefix = buildRemoteRuntimeEnvPrefix(options, remoteRuntimeNetwork);
   const stream = resident
     ? await launchResidentBridge(backend, remoteRuntimeEnvPrefix, log)
-    : await backend.exec(buildRemoteServerCommand(remoteRuntimeEnvPrefix));
+    : // fork 拆分：env 前缀单独构造（常驻入口复用同一份），命令只拼入口+参数。
+      await backend.exec(buildRemoteServerCommand(remoteRuntimeEnvPrefix));
   throwIfRemoteConnectAborted(options?.signal);
   log("remote server exec started");
 
@@ -362,3 +365,4 @@ async function resolveRemoteRuntimeNetwork(
     return network;
   }
 }
+

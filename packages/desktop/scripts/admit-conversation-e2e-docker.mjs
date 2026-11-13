@@ -81,7 +81,7 @@ function parseArgs(args) {
 
 function printUsage() {
   console.log(`Usage:
-  pnpm --filter @zcode/desktop e2e:docker:admit -- --spec ./test/e2e/conversation-session/<case>.test.ts --verified --artifact packages/desktop/.e2e-artifacts/<run-id> --apply
+  pnpm --filter @zcode/desktop e2e:docker:admit -- --spec ./test/e2e/conversation-session/<scenario>/<case>.test.ts --verified --artifact packages/desktop/.e2e-artifacts/<run-id> --apply
 
 Options:
   --apply      Write changes. Without this flag the tool only prints a dry run.
@@ -97,7 +97,7 @@ function admit({ apply, artifact, spec, verified }) {
   const specPath = resolveSpecPath(spec);
   const fileName = basename(specPath);
   const caseName = fileName.replace(/\.test\.ts$/, "");
-  const specRelFromDesktop = `./test/e2e/conversation-session/${fileName}`;
+  const specRelFromDesktop = `./${relative(desktopDir, specPath).replaceAll("\\", "/")}`;
   const providerFixturePath = resolve(providerFixtureDir, `${caseName}.json`);
   const caseManifestPath = resolve(caseManifestDir, `${caseName}.json`);
   const suite = readConversationDockerSuite({ errors });

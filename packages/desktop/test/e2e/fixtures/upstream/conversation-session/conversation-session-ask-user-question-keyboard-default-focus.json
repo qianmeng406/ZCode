@@ -1,7 +1,7 @@
 {
   "version": 1,
   "caseName": "conversation-session-ask-user-question-keyboard-default-focus",
-  "spec": "./test/e2e/conversation-session/conversation-session-ask-user-question-keyboard-default-focus.test.ts",
+  "spec": "./test/e2e/conversation-session/permissions/conversation-session-ask-user-question-keyboard-default-focus.test.ts",
   "fixtures": [
     {
       "id": "upstream-conversation-ask-default-focus-empty-submit-call",

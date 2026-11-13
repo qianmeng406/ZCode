@@ -74,7 +74,7 @@ TTL 精确到期、请求未完成时切换 endpoint 保留在可控时钟单测
 
 ## E2E Handoff Notes
 
-- 用户在本机 8/8 通过后明确授权转正；正式路径为 `packages/desktop/test/e2e/help-client-config.test.ts`，默认 desktop E2E 收集。
+- 用户在本机 8/8 通过后明确授权转正；正式路径为 `packages/desktop/test/e2e/feedback/help/help-client-config.test.ts`，默认 desktop E2E 收集。
 - fixture 使用 case-local JSON；模型请求策略 none，全部帮助请求为 synthetic，注明 syntheticReason。
 - 本地 HTTP server 只监听 loopback；每 case 独立 origin，恢复 settings 和临时默认配置文件。
 - 现有 e2e:fixture:check / e2e:promote 只实现 conversation/plugins 域，不能直接处理 settings。
@@ -91,7 +91,7 @@ TTL 精确到期、请求未完成时切换 endpoint 保留在可控时钟单测
 - macOS 首轮 8/8 passed：`desktop-e2e-20260904061809303-p54917-66703063e8ddebb5`，包含真实 HTTP 和 390×844 Chromium 浏览器窗口。
 - 正式接口按 darwin-arm64、win32-x64、linux-x64、Web 省略 platform 分别请求，全部 HTTP 200 / code 0，均含三个帮助字段。此证据不是 Windows/Linux UI 实机验证。
 - 原 settings/manual-review 路径没有被默认 WDIO exclude 覆盖，现已移到现有 auth/config `manual-review/pending`，避免候选用例意外进入默认 suite。
-- `e2e:fixture:check` 对新路径明确返回 unsupported domain；不改工具规则、不伪造 provider fixture。自校验确认 manifest 的 8 个 synthetic 场景均有原因，所有文件存在、canonical spec 为 `./test/e2e/help-client-config.test.ts`，provider policy 为 none。
+- `e2e:fixture:check` 对新路径明确返回 unsupported domain；不改工具规则、不伪造 provider fixture。自校验确认 manifest 的 8 个 synthetic 场景均有原因，所有文件存在、canonical spec 为 `./test/e2e/feedback/help/help-client-config.test.ts`，provider policy 为 none。
 
 - 迁移到受支持的候选目录后，限定 common provider fixture 重跑 8/8 passed：
   `desktop-e2e-20260904062010268-p58126-9129778db7899df8`。provider capture 的 records 为 0。
@@ -103,7 +103,7 @@ TTL 精确到期、请求未完成时切换 endpoint 保留在可控时钟单测
 
 ```bash
 E2E_PROVIDER_REPLAY_FIXTURE_PATH=packages/desktop/test/e2e/fixtures/upstream/common.json \
-pnpm --filter @zcode/desktop test:e2e -- --spec ./test/e2e/help-client-config.test.ts
+pnpm --filter @zcode/desktop test:e2e -- --spec ./test/e2e/feedback/help/help-client-config.test.ts
 ```
 
 先完成 typecheck 再构建/运行 Electron，避免二者同时写 out/host。
@@ -123,3 +123,9 @@ pnpm --filter @zcode/desktop test:e2e -- --spec ./test/e2e/help-client-config.te
 - 两轮均未设置 `ZCODE_E2E_MANUAL_REVIEW`，正式 spec 被 desktop WDIO 正常执行。
 - `typecheck:e2e`、`pnpm typecheck`、`pnpm lint` 通过（41 个既有 warning，0 error）；格式与 diff 检查通过。
 - manifest 校验确认正式路径存在、8 个 synthetic 场景均注明原因、file fixture 存在、provider policy 为 none。
+
+## 可选登录请求头增量验收（2026-11-03）
+
+HC-05 在同一 Chromium 页面依次读取匿名、账号 A、账号 B 和退出状态，断言请求头、同身份去重与缓存隔离。对应 client-config-service.md 的可选登录约定；本次正式 E2E 9/9 通过，证据：`packages/desktop/.e2e-artifacts/desktop-e2e-20261103072354051-p27008-4b1f5847ed2c0020`。
+
+补充隔离运行时：Node/Electron 56 项和 Chromium 默认凭据仓储 5 项检查通过。覆盖公开 HTTP 缓存、匿名/登录 A/登录 B/退出、凭据错误与非法字符、身份缓存隔离、迟到响应、重定向不外发凭据，以及浏览器残缺会话只读。完整包、Windows/Linux、手机实机与生产后台未验收。

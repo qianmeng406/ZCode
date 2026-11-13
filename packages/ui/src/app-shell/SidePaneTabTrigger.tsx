@@ -1,3 +1,7 @@
+import { ZCODE_AGENT_PROVIDER } from "@zcode/shared";
+import { useSubagents } from "@/hooks/useSubagents.js";
+import { SUBAGENT_WORKFLOW_COLOR } from "@/lib/subagentColors.js";
+import { WorkflowAgentFace } from "@/components/workflow-timeline/WorkflowAgentFace.js";
 /* oxlint-disable eslint(max-lines) -- 侧栏 Tab trigger 集中维护拖拽、上下文菜单与各类图标；本次只增加 Browser 驻留态测试属性，不为行数拆散既有交互。 */
 import { useCallback, useRef, useSyncExternalStore, type CSSProperties } from "react";
 import { useSortable } from "@dnd-kit/sortable";
@@ -7,7 +11,6 @@ import {
   BookOpenIcon,
   FolderOpenIcon,
   PuzzleIcon,
-  BotIcon,
   BotMessageSquareIcon,
   BugIcon,
   FileIcon,
@@ -22,6 +25,7 @@ import {
   PackageIcon,
   PaletteIcon,
   ScanSearchIcon,
+  ScrollTextIcon,
   ShieldCheckIcon,
   SquareTerminalIcon,
   TerminalIcon,
@@ -44,6 +48,7 @@ import { BrowserUseTabIcon } from "@/app-shell/BrowserUseTabIcon.js";
 import { BrowserTabFavicon } from "@/app-shell/BrowserTabFavicon.js";
 import { SidePaneTabTitleTooltip } from "@/app-shell/SidePaneTabTitleTooltip.js";
 import { useZCodeIntl } from "@/i18n/IntlProvider.js";
+import { resolveExtensionIcon, resolveLocalizedText } from "@/extension-slots/index.js";
 import {
   isExternalAgentActivityUnread,
   subscribeExternalAgentActivity,
@@ -321,6 +326,12 @@ export function SidePaneTabIcon({ tab }: { tab: WorkspaceSidePaneTab }) {
   if (tab.type === "plugin-ui") {
     return <PlugIcon className="size-3.5" />;
   }
+  if (tab.type === "extension-view") {
+    // 只渲染白名单里的图标，其余为通用插件图标（DESIGN.md「Extension slots」）。
+    const Icon = resolveExtensionIcon(tab.icon);
+    return <Icon className="size-3.5" />;
+  }
+  if (tab.type === "extension-logs") return <ScrollTextIcon className="size-3.5" />;
   // 同一条约定：来源卡片（CreateWorkflow）用 lucide Workflow，tab 必须与它一致。
   if (tab.type === "workflow-run") {
     return <WorkflowIcon className="size-3.5" />;
@@ -348,7 +359,7 @@ export function SidePaneTabIcon({ tab }: { tab: WorkspaceSidePaneTab }) {
     return <MessageSquareTextIcon className="size-3.5" />;
   }
   if (tab.type === "subagent-session") {
-    return <BotIcon className="size-3.5" />;
+    return <SubagentTabAvatar tab={tab} />;
   }
 
   if (tab.type === "subagent-directory") {
@@ -551,6 +562,8 @@ export function getPatchFileDisplayTarget(source: {
 export function getSidePaneTabTitle(
   tab: WorkspaceSidePaneTab,
   formatMessage: (descriptor: { id: string }, values?: Record<string, string>) => string,
+  /** 扩展视图的标题按语言映射，渲染时按当前界面语言取。 */
+  locale = "en-US",
 ): string {
   if (tab.type === "plan-detail") {
     return formatMessage({ id: "planTool.panel.planTab" });
@@ -652,7 +665,38 @@ export function getSidePaneTabTitle(
     return tab.title.trim() || formatMessage({ id: "sidePane.pluginUi" });
   }
 
+  if (tab.type === "extension-view") {
+    return (
+      resolveLocalizedText(tab.title, locale) || formatMessage({ id: "extensions.view.title" })
+    );
+  }
+
+  if (tab.type === "extension-logs") return formatMessage({ id: "extensions.logs.title" });
+
   if (tab.type === "file-manager")
     return tab.source?.title || formatMessage({ id: "fileManager.title" });
   return tab.source.title || formatMessage({ id: "codeViewer.title" });
+}
+
+function SubagentTabAvatar({
+  tab,
+}: {
+  tab: Extract<WorkspaceSidePaneTab, { type: "subagent-session" }>;
+}) {
+  const { agents } = useSubagents(tab.workspacePath, ZCODE_AGENT_PROVIDER, tab.workspaceIdentity);
+  const key = tab.subagentType.trim().toLowerCase();
+  const color = agents.find(
+    (agent) => agent.name.trim().toLowerCase() === key || agent.id.trim().toLowerCase() === key,
+  )?.color;
+  return (
+    <WorkflowAgentFace
+      avatarIndex={undefined}
+      name={tab.subagentType}
+      color={color ? SUBAGENT_WORKFLOW_COLOR[color] : undefined}
+      status={undefined}
+      idle
+      // 头像默认最小尺寸为 20px；紧凑标签必须同时覆盖，否则 size 不生效。
+      className="size-3.5 min-h-3.5! min-w-3.5!"
+    />
+  );
 }

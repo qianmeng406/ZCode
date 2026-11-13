@@ -11,6 +11,8 @@ export interface SidePaneTabPresentationLabels {
   whiteboardTitle: string;
   modelTrajectoryTitle: string;
   developerToolsTitle: string;
+  /** 扩展日志标签（docs/plugins/extension-host.md §16.8）。 */
+  extensionLogsTitle: string;
   pluginMarketTitle: string;
   newTabTitle?: string;
   browserPermissionsTitle: string;
@@ -34,6 +36,12 @@ export function getSidePaneTabSearchHint(tab: WorkspaceSidePaneTab): string {
   if (tab.type === "plugin-ui") {
     return `${tab.title} ${tab.pluginId} ${tab.toolCallId ?? tab.surfaceId ?? ""} plugin ui`;
   }
+  if (tab.type === "extension-view") {
+    // 标题的各语言写法都进搜索面。
+    const titles = typeof tab.title === "string" ? [tab.title] : Object.values(tab.title);
+    return `${titles.join(" ")} ${tab.viewId} extension view`;
+  }
+  if (tab.type === "extension-logs") return "extension logs console output";
   if (tab.type === "workflow-run") {
     return `${tab.workflowName ?? ""} ${tab.runId} ${tab.toolCallId} ${tab.parentSessionId} workflow run CreateWorkflow AmendWorkflow`;
   }
@@ -132,6 +140,8 @@ export function getSidePaneTabTypeLabel(
   if (tab.type === "new-tab") return labels.newTabTitle ?? "New tab";
   if (tab.type === "plan-detail") return labels.planTitle;
   if (tab.type === "plugin-ui") return tab.title;
+  if (tab.type === "extension-view") return getLocalizedSidePaneTabTitle(tab, labels);
+  if (tab.type === "extension-logs") return labels.extensionLogsTitle;
   if (tab.type === "workflow-run") return labels.workflowRunTitle;
   if (tab.type === "workflow-directory") return labels.workflowDirectoryTitle;
   if (tab.type === "workflow-actor-session") return labels.workflowActorTitle;

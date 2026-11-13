@@ -19,6 +19,7 @@ export * from "./skill.js";
 export * from "./todo.js";
 export * from "./automation.js";
 export * from "./off-peak.js";
+export * from "./plugin-discovery.js";
 export * from "./target.js";
 export * from "./plan-mode.js";
 export * from "./ask-user-question.js";
@@ -28,7 +29,6 @@ export * from "./task-output.js";
 export * from "./monitor.js";
 export * from "./notebook-edit.js";
 export * from "./task-stop.js";
-export * from "./read-session-context.js";
 export * from "./submit-result.js";
 export * from "./websearch.js";
 // 资料查询模式（research mode）渠道工具面：schema/factory 被 core 的

@@ -1,19 +1,32 @@
 import { genUiModelContextSchema } from "../gen-ui/contract.js";
 import { createSessionRequestedConfigSchema } from "./create-session-config.js";
-import { localTtftContextSchema } from "../local-ttft/contract.js";
+import { localTtftContextSchema, localTtftClockSchema } from "../local-ttft/contract.js";
 import { conversationQuotesSchema } from "../conversationSelection.js";
 // Command 层：信封 / ACK / 命令全集 payload。
 // conversation rewind 无独立命令（裁决：= editUserQuery 的 UI 入口）；
 // workspace-only 文件撤销走 applyFileRewind，不截断聊天历史。
 import { z } from "zod";
-import { conversationRowTargetSchema, timestampSchema } from "./core.js";
+import {
+  conversationRowTargetSchema,
+  timestampSchema,
+  v4ColdResumeWorkspaceSchema,
+} from "./core.js";
 import { attachmentRefSchema } from "./attachment-ref.js";
+import { turnHeaderRowSchema } from "./rows.js";
+import { v4ConversationFileRewindPreviewResultSchema } from "./transport.js";
 import { modelSelectionSchema } from "../model-selection.js";
+import { contextProfileSchema } from "../execution-state.js";
+// driver 枚举只允许有一份：协议层手抄一份会在新增驱动族（如 opencode-exec）时
+// 与绑定/预设层静默分叉，UI 提交的绑定命令被 schema 拒掉才发现。
+import { EXTERNAL_AGENT_DRIVER_KINDS } from "../externalAgentBinding.js";
 import { modelExecutionSchema } from "../model-execution.js";
 import { submissionModeSchema } from "./submission.js";
 import { botGroupInputSourceSchema, zcodeAutomationBotDeliveryTargetSchema } from "../bots.js";
 import { DYNAMIC_WORKFLOW_MODES } from "../dynamic-workflow-feature.js";
-import { amendWorkflowRunSettingsPayloadSchema } from "./workflow-run-settings-command.js";
+import {
+  amendWorkflowRunSettingsPayloadSchema,
+  amendWorkflowRunSettingsResultSchema,
+} from "./workflow-run-settings-command.js";
 import {
   workspaceHookReviewCommandTargetSchema,
   workspaceHookReviewDecisionSchema,
@@ -27,12 +40,39 @@ import {
 import { highspeedMessageMetaSchema } from "../highspeed.js";
 import { sharedContextRefSchema } from "./shared-context-ref.js";
 import { conversationInputSourceSchema } from "./input-intent.js";
-import { contextProfileSchema } from "../execution-state.js";
-// driver 枚举只允许有一份：协议层手抄一份会在新增驱动族（如 opencode-exec）时
-// 与绑定/预设层静默分叉，UI 提交的绑定命令被 schema 拒掉才发现。
-import { EXTERNAL_AGENT_DRIVER_KINDS } from "../externalAgentBinding.js";
 export type { SharedContextRef } from "./shared-context-ref.js";
 export * from "./workflow-command-rejections.js";
+
+/**
+ * 受管 worktree 的创建结果（docs/git/worktree.md §6.6.4）。CLI 把它写成会话历史中的
+ * timeline part（timelineType = "worktree_creation"），V4 投影为 worktreeCreated 标记。
+ */
+export const worktreeCreationRecordSchema = z
+  .object({
+    /** worktree 根目录。 */
+    path: z.string().trim().min(1),
+    /** 检出的 commit。 */
+    sha: z.string().trim().min(1),
+    /** 用户选择的起点；null = 源目录当前 HEAD。 */
+    ref: z.string().min(1).nullable(),
+    /** git 与拷贝输出的末尾。 */
+    output: z.string().max(64 * 1024),
+  })
+  .strict();
+export type WorktreeCreationRecord = z.infer<typeof worktreeCreationRecordSchema>;
+
+/**
+ * forkAssistant 把子会话放到同一 workspace 下的另一个 cwd（受管 worktree，§8.2）。
+ * childSessionId 由 Host 预分配。strict：未声明字段直接拒绝，不静默丢弃。
+ */
+export const forkTargetCwdSchema = z
+  .object({
+    cwd: z.string().trim().min(1),
+    childSessionId: z.string().trim().min(1),
+    worktreeCreation: worktreeCreationRecordSchema,
+  })
+  .strict();
+export type ForkTargetCwd = z.infer<typeof forkTargetCwdSchema>;
 
 // sendText / editUserQuery / sendQueuedNow 共用的执行材料不变量：modelExecution 只能依附
 // 本次 modelSelection，禁止在缺 Selection 时单独补供凭据（历史消息 rewind 后不复用旧凭据）。
@@ -57,6 +97,12 @@ export const commandPayloadSchemas = {
     sessionId: z.string().min(1).optional(),
     additionalDirectories: z.array(z.string().min(1)).max(256).optional(),
     workspaceId: z.string(),
+    // 会话 cwd 与 workspace 不同（受管 worktree，docs/git/worktree.md §1.1）。只允许本地
+    // workspace；只有 Host 的 worktree 服务能设置，renderer 发出的 createSession 带此字段时
+    // Host 拒绝。旧 CLI 的 z.object 会静默丢弃，所以 Host 必须先确认 capabilities.worktreeCwd。
+    cwd: z.string().trim().min(1).optional(),
+    // 与 cwd 同时出现：CLI 把它写成第一轮的 "已创建 worktree" timeline part。
+    worktreeCreation: worktreeCreationRecordSchema.optional(),
     permissionScope: z.literal("session").optional(),
     firstInput: z
       .object({
@@ -65,7 +111,12 @@ export const commandPayloadSchemas = {
         modelSelection: modelSelectionSchema.optional(),
         mode: submissionModeSchema.optional(),
         planEnabled: z.boolean().optional(),
+        // fork 定制：本轮沿用的执行上下文档案（研究/beta 等模式切换）。
         contextProfile: contextProfileSchema.optional(),
+        // 与 sendText.source 同一契约（扩展代建会话的首条消息）。旧 CLI 的 z.object 会静默剥掉它，
+        // 消息照常创建却没有来源，所以带 extension 来源时 Host 必须先确认
+        // runtime/capabilities.extensionInputSource。
+        source: conversationInputSourceSchema.optional(),
       })
       .optional(),
     config: createSessionRequestedConfigSchema.optional(),
@@ -106,7 +157,7 @@ export const commandPayloadSchemas = {
       // Share handover 只允许当前 session 的一个已导入上下文；完整正文由 runtime 从
       // 持久化 provenance 解析，不能随 command 从 renderer 传入。
       context_refs: z.array(sharedContextRefSchema).max(1).optional(),
-      // 插件 UI 代发（ui/message）时的来源标记；随 intent 持久化并投影到 userInput row。
+      // 结构化来源（插件 UI、交互视图、会话、扩展）；随 intent 持久化并投影到 userInput row。
       source: conversationInputSourceSchema.optional(),
       heldQueueDisposition: z.enum(["clearQueueAndSend", "keepQueueAndSend"]).optional(),
       // 暂停队列确认框打开时看到的 queueItemId 集合。CLI 在执行 clear/keep 前校验，
@@ -115,10 +166,12 @@ export const commandPayloadSchemas = {
       // 迁移期允许旧发送端缺省；CLI admission 会把当前 Session Selection 固定进
       // canonical intent。Renderer 切换完成后，第一方用户提交始终显式携带这两项。
       modelSelection: modelSelectionSchema.optional(),
+      // Bot 异步解析的读取依据；接纳时若已变化，固定最新 Session Selection。
+      modelSelectionBasis: modelSelectionSchema.optional(),
       mode: submissionModeSchema.optional(),
       planEnabled: z.boolean().optional(),
+      // fork 定制：本轮沿用的执行上下文档案（研究/beta 等模式切换）。
       contextProfile: contextProfileSchema.optional(),
-      // 本轮是否注入「下一步输入预测」指令；由桌面设置开关在提交时冻结。
       // 本次执行仍使用上面的标准 Selection；这里只携带不持久化语义、动态鉴权和 child 策略。
       // 仅 idle startNow 接受，防止 Secret/Ticket 进入普通 CommandInbox。
       modelExecution: modelExecutionSchema.optional(),
@@ -160,6 +213,7 @@ export const commandPayloadSchemas = {
     modelSelection: modelSelectionSchema.optional(),
     mode: submissionModeSchema.optional(),
     planEnabled: z.boolean().optional(),
+    // fork 定制：本轮沿用的执行上下文档案（研究/beta 等模式切换）。
     contextProfile: contextProfileSchema.optional(),
     heldQueueDisposition: z.enum(["clearQueueAndSend", "keepQueueAndSend"]).optional(),
     expectedHeldQueueItemIds: z.array(z.string().min(1)).optional(),
@@ -168,11 +222,24 @@ export const commandPayloadSchemas = {
     // 来自 activeWorks；CLI 用它拒绝会误杀后续无关执行的迟到 Stop。
     expectedForegroundExecutionId: z.string().min(1).optional(),
   }),
+  stopSubagent: z
+    .object({
+      taskId: z.string().min(1),
+      executionId: z.string().min(1),
+    })
+    .strict(),
   // compact 是输入型维护命令：idle 时立即执行，busy/held 时进入 FIFO。
   // 因为 admission 与当前 revision 无关，不走 CAS；sourceCommandId 提供幂等边界。
   compact: z.object({ modelSelection: modelSelectionSchema.optional() }),
   // running 时对稳定 assistant row 可用。
-  forkAssistant: z.object({ target: conversationRowTargetSchema }),
+  forkAssistant: z.object({
+    target: conversationRowTargetSchema,
+    // 子会话留在同一 workspace，cwd 换成新的受管 worktree（docs/git/worktree.md §8.2）。
+    // 缺省 = 父会话 cwd，行为不变。旧 CLI 会静默丢弃该字段并 fork 到父目录，
+    // 所以 Host 必须先确认 runtime/capabilities.worktreeCwd 再发送。
+    // 附加目录不在这里下发：由 Host 在子会话 create/resume/subscribe 时统一下发（I16）。
+    targetCwd: forkTargetCwdSchema.optional(),
+  }),
   applyFileRewind: z.object({ target: conversationRowTargetSchema }),
   editUserQuery: z
     .object({
@@ -187,6 +254,9 @@ export const commandPayloadSchemas = {
       highspeedMeta: highspeedMessageMetaSchema.optional(),
       // 缺省 preserve：仅切 conversation branch；rewind 会先安全恢复该轮文件。
       workspaceMode: z.enum(["preserve", "rewind"]).optional(),
+      // composer 编辑态复用普通发送的工具栏：与 sendText 同语义，缺省沿用原 intent。
+      mode: submissionModeSchema.optional(),
+      planEnabled: z.boolean().optional(),
     })
     .superRefine(requireModelSelectionForExecution),
   retryTurn: z.object({ target: conversationRowTargetSchema }),
@@ -216,7 +286,32 @@ export const commandPayloadSchemas = {
       highspeedMeta: highspeedMessageMetaSchema.optional(),
     })
     .superRefine(requireModelSelectionForExecution),
-  editQueueItem: z.object({ queueItemId: z.string(), newText: z.string() }),
+  // 冻结编辑（docs/ui/composer-edit-mode.md）：lock 只对 queued 且无锁的项成功；
+  // editQueueItem 携带 editorId 时必须持有锁，原地替换后同一命令释放锁。
+  // attachments/modelSelection/mode/planEnabled 缺省 = 保留原值；attachments=[] 表示清空。
+  lockQueueItemEdit: z.object({ queueItemId: z.string(), editorId: z.string().min(1) }),
+  releaseQueueItemEdit: z.object({ queueItemId: z.string() }),
+  editQueueItem: z.object({
+    queueItemId: z.string(),
+    newText: z.string(),
+    editorId: z.string().min(1).optional(),
+    attachments: z.array(attachmentRefSchema).optional(),
+    conversationQuotes: conversationQuotesSchema.optional(),
+    modelSelection: modelSelectionSchema.optional(),
+    mode: submissionModeSchema.optional(),
+    planEnabled: z.boolean().optional(),
+  }),
+  // 编辑提交后把新模型/mode 应用到其他排队项（docs/ui/composer-edit-mode.md）：正文与 Plan 不变；
+  // 不存在、非 queued、compact、有编辑锁的项跳过，全部跳过 = noop。不走 CAS，理由同 editQueueItem。
+  applyQueueItemsConfig: z
+    .object({
+      queueItemIds: z.array(z.string()).min(1),
+      modelSelection: modelSelectionSchema.optional(),
+      mode: submissionModeSchema.optional(),
+    })
+    .refine((value) => value.modelSelection !== undefined || value.mode !== undefined, {
+      message: "applyQueueItemsConfig requires modelSelection or mode",
+    }),
   // beforeQueueItemId = null → 移到队尾。
   reorderQueueItem: z.object({
     queueItemId: z.string(),
@@ -236,10 +331,6 @@ export const commandPayloadSchemas = {
       // optionId/freeText 兼容路径，旧客户端行为不变。
       action: z.enum(["accept", "decline", "cancel"]).optional(),
       content: z.record(z.string(), z.unknown()).optional(),
-      // plan-approval 专用：批准时指定的执行模型（含推理档）。仅 accept 且带值时
-      // CLI 才切换；缺省 = 跟随会话模型（现行行为）。字段放在 answer 内保证
-      // 「批准决定 + 模型选择」单命令原子到达，无跨命令时序依赖。
-      modelSelection: modelSelectionSchema.optional(),
     }),
   }),
   respondWorkspaceHookReview: workspaceHookReviewCommandTargetSchema.extend({
@@ -267,12 +358,13 @@ export const commandPayloadSchemas = {
     thought: z.string(),
   }),
   // additive（冻结面按黄金测试背书演进）：agent 协作模式切换。
-  // 值域 = core CollaborationMode 的可切换子集（auto 非用户可切，不进 UI 命令面）；
-  // beta 是 additive 值，发送前须协商执行端 betaMode 能力位。
+  // 值域 = core CollaborationMode 的可切换子集（auto 非用户可切，不进 UI 命令面）。
   switchCollaborationMode: z.object({
+    // fork 追加 research / minimal / beta 三种协作模式（上游只有前五个）。
     mode: z.enum(["build", "edit", "plan", "yolo", "guarded", "research", "minimal", "beta"]),
   }),
   setFollowupMode: z.object({ mode: z.enum(["queue", "guide"]) }),
+  // ── 外部 coding agent 绑定（fork 独有，上游无对应功能点）──
   // 绑定外部 coding agent：绑定即只读（CLI 强制开启 plan，并拒绝一切切走只读的模式命令）。
   // 只收静态执行配置；进程句柄、外部 session_id 等运行态不落盘。
   bindExternalAgent: z
@@ -322,9 +414,9 @@ export const commandPayloadSchemas = {
   // 与换模型同构：只改 externalSessionId 字段，不动只读契约、授权与 previous* 快照。
   setExternalAgentSession: z.object({ sessionId: z.string().max(200).nullable() }).strict(),
   pauseGoal: z.object({}),
-  resumeGoal: z.object({}),
-  // 删除当前会话目标：幂等清空 target，不携 baseRevision（同 deleteSession 的控制面语义）。
+  // fork：删除当前会话目标（幂等清空 target，不携 baseRevision）。
   clearGoal: z.object({}),
+  resumeGoal: z.object({}),
   cancelBackgroundWork: z.object({ workId: z.string() }),
   // cancel & resume：恢复一个已取消 / 被进程死亡
   // 打断的 dwf run。workId ≡ runId（与 cancelBackgroundWork 同一个身份等式）；`name` 可选，
@@ -380,18 +472,13 @@ export const COMMANDS_REQUIRING_BASE_REVISION: ReadonlySet<CommandType> = new Se
   "retryTurn",
   "setAssistantFeedback",
   "sendQueuedNow",
-  "editQueueItem",
+  // editQueueItem 不走 CAS：运行中 revision 随 control/queue 投影频繁递增，用户编辑排队消息的提交
+  // 会被 proto.staleRevision 误拒。冻结编辑的并发保护是 CLI 编辑锁（editorId 必须仍持锁）。
   "reorderQueueItem",
   "deleteQueueItem",
   "setAutoDrain",
   "switchModelConfig",
   "switchCollaborationMode",
-  "bindExternalAgent",
-  "unbindExternalAgent",
-  "setExternalAgentModel",
-  "setExternalAgentEffort",
-  "setExternalAgentContextWindow",
-  "setExternalAgentSession",
   "setFollowupMode",
   "pauseGoal",
   "resumeGoal",
@@ -408,6 +495,9 @@ export const ROW_TARGETING_COMMANDS: ReadonlySet<CommandType> = new Set([
 
 // ── 信封 ──
 export const commandEnvelopeSchema = z.object({
+  workspace: v4ColdResumeWorkspaceSchema,
+  /** 仅 Host 根据当前附件握手注入；未知 CLI 不发送。 */
+  pluginDiscoveryUi: z.literal(true).optional(),
   /** Host 可信 attachment 注入；CLI 保留到原 input intent。 */
   inputOrigin: z.enum(["desktop", "mobile"]).optional(),
   ttft: localTtftContextSchema.optional(),
@@ -456,6 +546,145 @@ export function parseCommandEnvelope(
 }
 
 // ── ACK ──
+/** 同一审批已提交后的重试原因码。只有原权限可继续发布，不得据失败回执更新偏好。 */
+export const permissionGrantCommittedReasons = {
+  guarded: "fault.permissionGrant.committed.guarded",
+  yolo: "fault.permissionGrant.committed.yolo",
+} as const;
+export function committedPermissionGrantMode(reasonCode: string | undefined) {
+  if (reasonCode === permissionGrantCommittedReasons.guarded) return "guarded";
+  if (reasonCode === permissionGrantCommittedReasons.yolo) return "yolo";
+  return undefined;
+}
 
-// ACK / commands-query 分片见 command-ack.ts；此处 re-export 保持既有 import 路径不变。
-export * from "./command-ack.js";
+export const commandResultSchema = z.discriminatedUnion("type", [
+  z.object({
+    type: z.enum(["createSession", "createSelectionSideSession", "forkAssistant"]),
+    sessionId: z.string(),
+    input: z
+      .object({
+        delivery: z.enum(["startNow", "queue", "guide"]),
+        inputId: z.string(),
+        // Core admission ACK 不等待 TurnStarted；messageId 可能由后续事件补齐。
+        messageId: z.string().optional(),
+      })
+      .optional(),
+  }),
+  z.object({
+    type: z.literal("resolveInteraction"),
+    resolvedBy: z.object({
+      clientId: z.string(),
+      optionId: z.string().optional(),
+    }),
+  }),
+  z.object({
+    type: z.literal("applyFileRewind"),
+    applied: z.boolean(),
+    preview: v4ConversationFileRewindPreviewResultSchema,
+    response: z.string(),
+  }),
+  z.object({
+    type: z.literal("editUserQuery"),
+    // fork 仅保留旧 ACK 解码兼容；新 editUserQuery 不再生成 child session。
+    disposition: z.enum(["rewind", "fork", "blocked"]),
+    sessionId: z.string().min(1),
+    reasonCode: z.string().min(1).optional(),
+    preview: v4ConversationFileRewindPreviewResultSchema.optional(),
+  }),
+  z.object({
+    // startSavedWorkflow accepted ACK：
+    // runId 联接启动轮 run 卡状态 / 通知 / 侧板；toolCallId = launch-<uuid>，联接合成 CreateWorkflow 轮。
+    type: z.literal("startSavedWorkflow"),
+    runId: z.string().min(1),
+    toolCallId: z.string().min(1),
+  }),
+  amendWorkflowRunSettingsResultSchema,
+  z.object({
+    // messageId 只在 TurnStarted 后作为旁路归因补齐；Core admission ACK 不等待
+    // projection commit，不能把 messageId 作为输入 accepted 的必要条件。
+    type: z.literal("inputAccepted"),
+    delivery: z.enum(["startNow", "queue", "guide"]),
+    inputId: z.string(),
+    messageId: z.string().optional(),
+  }),
+  z.object({
+    // restart discarded 过去只返回一个无差别 fault，renderer 无法区分
+    // runtime-local queue 与仍需人工确认的 startNow。delivery 来自 session_input
+    // 持久事实，不能由客户端按当前 UI phase 猜测。
+    type: z.literal("inputDisposition"),
+    delivery: z.enum(["startNow", "queue", "guide"]),
+  }),
+]);
+export type CommandResult = z.infer<typeof commandResultSchema>;
+
+export const commandAckSchema = z.object({
+  /** 会话创建期采用的 App Memory 开关；旧发送端缺省表示未知。 */
+  memoryEnabled: z.boolean().optional(),
+  ttftExcluded: z.literal("capacity").optional(),
+  commandId: z.string(),
+  // accepted 不承诺跨 CLI 进程存活；最终收口以权威数据（sourceCommandId）为准。
+  status: z.enum(["accepted", "rejected", "stale", "duplicate", "noop", "failed"]),
+  // rejected/stale/noop/failed 必带；= guard id 或 fault code（命名空间）。
+  reasonCode: z.string().optional(),
+  message: z.string().optional(),
+  revisionAtDecision: z.number(),
+  // duplicate 回放缓存结果；accepted 亦可即时带（fork）。
+  result: commandResultSchema.optional(),
+});
+export type CommandAck = z.infer<typeof commandAckSchema>;
+
+// ── commands/query ──
+/**
+ * commands/query 读取命令记录失败时的 reasonCode（status 为 failed）。它表示"无法确认命令是否执行"，
+ * 不表示命令执行失败；调用方不能据此做破坏性清理（docs/git/worktree.md §3.5）。
+ */
+export const COMMAND_QUERY_UNAVAILABLE_REASON = "fault.command.queryUnavailable" as const;
+export const commandKeySchema = z
+  .object({
+    // null 只属于全局/createSession 幂等桶；session 命令必须携带 sessionId。
+    sessionId: z.string().nullable(),
+    commandId: z.string().min(1),
+  })
+  .strict();
+export type CommandKey = z.infer<typeof commandKeySchema>;
+
+export const commandsQueryParamsSchema = z
+  .object({
+    commands: z.array(commandKeySchema).min(1).max(64),
+    clock: z.literal(true).optional(),
+  })
+  .strict()
+  .refine(
+    (params) => !params.clock || params.commands.every((key) => key.sessionId === null),
+    "clock probes cannot query session commands",
+  );
+export type CommandsQueryParams = z.infer<typeof commandsQueryParamsSchema>;
+
+// 命令对应回合的当前状态：owner 全量投影中 sourceCommandId 匹配的第一个 turnHeader。
+// 修复原因：快照只下发 60 行尾窗，长回合的 header 会滚出窗口，客户端据此判定 wait 结果会得到
+// unknown，审批也匹配不到回合。由 owner 直接给出，不受尾窗限制；只出现在 session bucket。
+export const commandQueryTurnSchema = z
+  .object({
+    turnId: turnHeaderRowSchema.shape.turnId,
+    state: turnHeaderRowSchema.shape.state,
+  })
+  .strict();
+export type CommandQueryTurn = z.infer<typeof commandQueryTurnSchema>;
+
+export const commandQueryItemSchema = z
+  .object({
+    key: commandKeySchema,
+    result: z.union([commandAckSchema, z.literal("unknown")]),
+    turn: commandQueryTurnSchema.optional(),
+  })
+  .strict()
+  .refine((item) => !item.turn || item.key.sessionId !== null, "global commands carry no turn");
+export type CommandQueryItem = z.infer<typeof commandQueryItemSchema>;
+
+export const commandsQueryResultSchema = z
+  .object({
+    results: z.array(commandQueryItemSchema).min(1).max(64),
+    clock: localTtftClockSchema.optional(),
+  })
+  .strict();
+export type CommandsQueryResult = z.infer<typeof commandsQueryResultSchema>;

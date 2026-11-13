@@ -2,12 +2,25 @@ import { createElement, type ReactNode } from "react";
 import { renderToStaticMarkup } from "react-dom/server";
 import { describe, expect, it, vi } from "vitest";
 import type { ConversationSnapshot } from "@zcode/shared/zcode-protocol-v4";
+import { ServiceProvider } from "@/hooks/useServices.js";
 import { ZCodeIntlProvider } from "@/i18n/IntlProvider.js";
 import { ConversationComposer } from "@/v4/ConversationComposer.js";
 import { RemoteConversationAvailability } from "@/v4/RemoteConversationAvailability.js";
 
 // fork 开关「提示词优化」的渲染门禁：关闭时 composer 里不能出现 ✨，打开时才渲染。
 // 组件自身默认 true（设置尚未加载的瞬间），所以关掉开关必须靠宿主显式传 false。
+// v3.18 起 composer 无条件挂载语音输入（useComposerVoiceInput 读登录态），
+// 这个渲染门禁不关心语音，只需登录态返回已登录即可，不引入真实 store。
+vi.mock("@/store/StoreProvider.js", async () => {
+  const { createContext } = await import("react");
+  const select = (selector: (state: unknown) => unknown) =>
+    selector({ user: { id: "test-user" }, theme: "zai-light" });
+  return {
+    StoreContext: createContext(null),
+    useZCodeStore: select,
+    useZCodeStoreWithDefault: select,
+  };
+});
 vi.mock("@/ControlHintTooltip.js", async () => {
   const React = await import("react");
   return {
@@ -122,25 +135,27 @@ const AnyConversationComposer = ConversationComposer as unknown as (props: {
 
 function renderMarkup(promptOptimizerEnabled: boolean | undefined): string {
   return renderToStaticMarkup(
-    createElement(
-      ZCodeIntlProvider,
-      { initialLocale: "zh-CN" },
-      createElement(RemoteConversationAvailability, {
-        available: true,
-        children: createElement(AnyConversationComposer as never, {
-          snapshot: makeSnapshot(),
-          sessionId: "session-1",
-          workspacePath: "/workspace",
-          provider: undefined,
-          onSendText: vi.fn(async () => {}),
-          onStop: vi.fn(),
-          onSelectModel: vi.fn(),
-          onSelectThought: vi.fn(),
-          onSwitchMode: vi.fn(),
-          promptOptimizerEnabled,
+    createElement(ZCodeIntlProvider, {
+      initialLocale: "zh-CN",
+      children: createElement(ServiceProvider, {
+        services: {} as never,
+        children: createElement(RemoteConversationAvailability, {
+          available: true,
+          children: createElement(AnyConversationComposer as never, {
+            snapshot: makeSnapshot(),
+            sessionId: "session-1",
+            workspacePath: "/workspace",
+            provider: undefined,
+            onSendText: vi.fn(async () => {}),
+            onStop: vi.fn(),
+            onSelectModel: vi.fn(),
+            onSelectThought: vi.fn(),
+            onSwitchMode: vi.fn(),
+            promptOptimizerEnabled,
+          }),
         }),
       }),
-    ),
+    }),
   );
 }
 

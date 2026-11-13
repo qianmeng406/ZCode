@@ -6,7 +6,7 @@ import {
   CheckCircle2Icon,
   CircleAlertIcon,
   CircleDashedIcon,
-  LoaderCircleIcon,
+  LoaderCircle,
   PauseCircleIcon,
 } from "lucide-react";
 import { Button } from "@/components/ui/button.js";
@@ -46,7 +46,7 @@ function StatusIcon({ status }: { status: DirectoryItem["status"] }) {
   const className = "size-4 shrink-0";
   switch (status) {
     case "running":
-      return <LoaderCircleIcon aria-hidden className={`${className} animate-spin`} />;
+      return <LoaderCircle aria-hidden className={`${className} animate-spin`} />;
     case "waiting":
     case "blocked":
       return <PauseCircleIcon aria-hidden className={className} />;

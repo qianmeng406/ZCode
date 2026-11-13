@@ -1,4 +1,5 @@
 import type { ToolSearchExecutionContext } from "@zcode/contracts";
+import type { SessionControlBinding } from "../session-control/contract.js";
 import type {
   AgentExecutionTelemetryPort,
   AgentTelemetryActorKind,
@@ -12,6 +13,7 @@ import type {
   EmbeddedSearchBackend,
   ExecutionPort,
   ExecutionShellSelection,
+  PluginDiscoveryPort,
   FileSystemPort,
   HttpClientPort,
   ImageProcessorPort,
@@ -34,6 +36,7 @@ import type {
   TraceContext,
   TurnId,
   WorkflowEscalatePort,
+  WorkflowWebSearchBudgetPort,
   WorkflowPort,
   WorkflowSubmitPort,
 } from "@zcode/contracts";
@@ -108,10 +111,14 @@ export interface ToolExecutorOptions {
   workflowSubmitPort?: WorkflowSubmitPort;
   /** actor 的升级端口；存在即为该会话注册 escalate。 */
   workflowEscalatePort?: WorkflowEscalatePort;
+  /** actor 每个 ask 的 WebSearch 预算；缺席即无上限。 */
+  webSearchBudget?: WorkflowWebSearchBudgetPort;
   artifactStore?: ToolArtifactStorePort;
+  sessionControl?: SessionControlBinding;
   automationPort?: AutomationPort;
   offPeakPort?: OffPeakPort;
   topicResourcePort?: TopicResourcePort;
+  pluginDiscoveryPort?: PluginDiscoveryPort;
   sessionStore?: SessionStorePort;
   sessionModePort?: SessionModePort;
   /** 外部 coding agent 委派端口；缺席则 DelegateToExternalAgent 报能力缺席。 */
@@ -132,6 +139,7 @@ export interface ToolExecutorOptions {
   workingDirectory?: string;
   workspaceRoot?: string;
   workspaceIdentity?: string;
+  workspaceKey?: string;
   remoteSessionId?: string;
   clientMode?: "desktop-continuous" | "web-remote-replayable";
   deliveryKind?: "desktop-continuous" | "web-remote-replayable";
@@ -191,6 +199,7 @@ export interface ToolExecutor {
 
 export interface ToolExecuteOptions {
   toolSearch?: ToolSearchExecutionContext;
+  pluginDiscoveryUi?: boolean;
   automationTurn?: boolean;
   automationId?: string;
   offPeakTurn?: boolean;
@@ -237,10 +246,14 @@ export interface ToolExecutorDeps {
   workflowSubmitPort?: WorkflowSubmitPort;
   /** actor 的升级端口；存在即为该会话注册 escalate。 */
   workflowEscalatePort?: WorkflowEscalatePort;
+  /** actor 每个 ask 的 WebSearch 预算；缺席即无上限。 */
+  webSearchBudget?: WorkflowWebSearchBudgetPort;
   artifactStore?: ToolArtifactStorePort;
+  sessionControl?: SessionControlBinding;
   automationPort?: AutomationPort;
   offPeakPort?: OffPeakPort;
   topicResourcePort?: TopicResourcePort;
+  pluginDiscoveryPort?: PluginDiscoveryPort;
   sessionStore?: SessionStorePort;
   sessionModePort?: SessionModePort;
   /** 外部 coding agent 委派端口；缺席则 DelegateToExternalAgent 报能力缺席。 */
@@ -263,6 +276,7 @@ export interface ToolExecutorDeps {
   setWorkingDirectory?: (cwd: string) => Promise<void> | void;
   getWorkspaceRoot: () => string;
   workspaceIdentity?: string;
+  workspaceKey?: string;
   remoteSessionId?: string;
   clientMode?: "desktop-continuous" | "web-remote-replayable";
   deliveryKind?: "desktop-continuous" | "web-remote-replayable";

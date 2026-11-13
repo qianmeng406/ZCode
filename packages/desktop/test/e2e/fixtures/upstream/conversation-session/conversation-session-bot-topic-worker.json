@@ -1,7 +1,7 @@
 {
   "version": 1,
   "caseName": "conversation-session-bot-topic-worker",
-  "spec": "./test/e2e/conversation-session/conversation-session-bot-topic-worker.test.ts",
+  "spec": "./test/e2e/conversation-session/session-control/conversation-session-bot-topic-worker.test.ts",
   "fixtures": [
     {
       "id": "topic-slow",
@@ -77,14 +77,10 @@
         "statusCode": 200,
         "toolUse": {
           "id": "call_resource",
-          "name": "ReadSessionContext",
+          "name": "ReadTopicResource",
           "input": {
-            "strategy": "topic",
-            "query": "read archived file",
-            "attachment": {
-              "messageId": "om_archive",
-              "index": 0
-            }
+            "messageId": "om_archive",
+            "index": 0
           }
         }
       },

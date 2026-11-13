@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState, useSyncExternalStore } from "react";
+import { useCallback, useEffect, useRef, useState, useSyncExternalStore } from "react";
 import type { WebRemoteControlStatus } from "@zcode/shared";
 import { useOptionalPlatform } from "@/hooks/usePlatform.js";
 import {
@@ -42,6 +42,8 @@ export function useWebRemoteControlStatus({
   const sharedStatus = useSyncExternalStore(subscribe, getSnapshot, idleSnapshot);
 
   const [status, setStatus] = useState<WebRemoteControlStatus>({ status: "idle" });
+  // 最后发布值：同一批事件 A→B→A 时不能拿旧 render 的 status 做去重，否则 B→A 被误过滤。
+  const publishedStatusRef = useRef(status);
 
   useEffect(() => {
     if (useSharedPoller) return; // 共享路径由 useSyncExternalStore 驱动，不叠一份实例轮询。
@@ -53,13 +55,19 @@ export function useWebRemoteControlStatus({
     let disposed = false;
 
     const applyStatus = (nextStatus: WebRemoteControlStatus) => {
-      if (disposed) {
+      if (disposed || isSameWebRemoteControlStatus(publishedStatusRef.current, nextStatus)) {
         return;
       }
-      setStatus((currentStatus) =>
-        isSameWebRemoteControlStatus(currentStatus, nextStatus) ? currentStatus : nextStatus,
-      );
+      // 相同值的 updater 虽不触发 render，仍会留在 React pending 队列；空闲轮询会持续累积。
+      // 入队前比较最后发布值，并立即推进它，保证同一批事件 A→B→A 不被旧 render 值误过滤。
+      publishedStatusRef.current = nextStatus;
+      setStatus(nextStatus);
     };
+
+    if (!enabled || !platform) {
+      applyStatus({ status: "idle" });
+      return;
+    }
 
     const syncStatus = async () => {
       try {

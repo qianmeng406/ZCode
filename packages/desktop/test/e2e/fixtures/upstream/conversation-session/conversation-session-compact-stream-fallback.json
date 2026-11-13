@@ -1,7 +1,7 @@
 {
   "version": 1,
   "caseName": "conversation-session-compact-stream-fallback",
-  "spec": "./test/e2e/conversation-session/conversation-session-compact-stream-fallback.test.ts",
+  "spec": "./test/e2e/conversation-session/context/conversation-session-compact-stream-fallback.test.ts",
   "fixtures": [
     {
       "id": "compact-stream-fallback-title",

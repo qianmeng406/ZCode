@@ -165,10 +165,14 @@ export function useSettings(options: { cacheKey?: string; services?: IServiceAcc
       if (
         forkFeatures !== undefined ||
         typeof patch.askUserQuestionAutoResolutionEnabled === "boolean" ||
-        typeof patch.modelIoFullRetentionEnabled === "boolean"
+        typeof patch.modelIoFullRetentionEnabled === "boolean" ||
+        typeof patch.pluginAutoRecommendationEnabled === "boolean"
       ) {
         const currentSettings = getSettingsSnapshot(cacheKey).settings;
         const preferences = {
+          pluginAutoRecommendationEnabled:
+            patch.pluginAutoRecommendationEnabled ??
+            currentSettings?.pluginAutoRecommendationEnabled === true,
           askUserQuestionAutoResolutionEnabled:
             patch.askUserQuestionAutoResolutionEnabled ??
             currentSettings?.askUserQuestionAutoResolutionEnabled !== false,

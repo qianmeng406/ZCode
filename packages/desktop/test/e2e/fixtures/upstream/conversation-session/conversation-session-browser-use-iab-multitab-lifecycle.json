@@ -1,7 +1,7 @@
 {
   "version": 1,
   "caseName": "conversation-session-browser-use-iab-multitab-lifecycle",
-  "spec": "./test/e2e/conversation-session/conversation-session-browser-use-iab-multitab-lifecycle.test.ts",
+  "spec": "./test/e2e/conversation-session/browser-use/conversation-session-browser-use-iab-multitab-lifecycle.test.ts",
   "fixtures": [
     {
       "id": "upstream-browser-use-multitab-title",

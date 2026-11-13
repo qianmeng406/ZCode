@@ -2,6 +2,8 @@ import {
   TID_CHAT_ASSISTANT_HISTORY_CONTENT,
   TID_CHAT_ASSISTANT_HISTORY_TRIGGER,
   TID_CHAT_ASSISTANT_MESSAGE,
+  TID_CHAT_TOOL_CALL_BLOCK,
+  testId,
 } from "@zcode/shared/test-ids";
 import {
   getLatestUpstreamToolResultByToolCallId,
@@ -9,7 +11,7 @@ import {
 } from "./conversation-session-network.js";
 import {
   expandAssistantHistoriesWithContent,
-  expandVisibleToolCallGroups,
+  expandVisibleSummaryGroups,
   getToolCallDiagnostics,
   type ToolCallBlockSnapshot,
   type ToolCallDiagnostics,
@@ -46,6 +48,62 @@ export async function waitForToolCallBlockByToolCallId(
   timeout = 20000,
 ): Promise<ToolCallBlockSnapshot> {
   return waitForToolCallBlock({ type: "toolCallId", value: toolCallId }, timeout);
+}
+
+/**
+ * 等已结束轮次的工具卡片收进“工作记录”后再返回。
+ * Bug 根因：轮次结束（canStop=false）约 0.3 秒后，卡片才从展开区收进工作记录并重新挂载；
+ * waitForToolCallBlockByToolCallId 可能在收起前命中旧节点，调用方随后按 testid 再查 DOM
+ * 会落空（运行时采样：命中后 213ms 仍在、319ms 消失，展开工作记录后卡片恢复且文案正确）。
+ * 修复：以“卡片位于展开的工作记录内容里”作为收起完成的信号，再交给通用等待器取快照。
+ * 只用于以正文结束的轮次（已在 TS11/TS14 运行时验证）；进行中或已停止的卡片沿用通用等待器。
+ */
+export async function waitForFoldedToolCallBlockByToolCallId(
+  toolCallId: string,
+  timeout = 20000,
+): Promise<ToolCallBlockSnapshot> {
+  await browser.waitUntil(
+    async () => {
+      await expandAssistantHistoriesWithContent();
+      await expandVisibleSummaryGroups();
+      return browser.execute(
+        (contentPrefix, blockTestId) =>
+          document.querySelector(
+            `[data-testid^="${contentPrefix}-"] [data-testid="${blockTestId}"]`,
+          ) !== null,
+        TID_CHAT_ASSISTANT_HISTORY_CONTENT,
+        testId(TID_CHAT_TOOL_CALL_BLOCK, toolCallId),
+      );
+    },
+    { timeout, timeoutMsg: `工具卡片没有收进工作记录: ${toolCallId}` },
+  );
+  return waitForToolCallBlockByToolCallId(toolCallId, timeout);
+}
+
+/**
+ * 展开已完成回合里某个工具卡的详情，直到触发器真的是展开态。
+ *
+ * 失败原因：回合结束后，已完成回合会把工具块收进折叠的 assistant history，折叠内容不挂载。
+ * 先找到块、再点击的两步写法，可能在收起前一刻看到块，随后点击落在已卸载的节点上，
+ * 而 history 之后保持收起。这里每轮都先展开 history 与摘要组，再点工具卡，
+ * 直到 `aria-expanded="true"`，不依赖收起发生的时刻。
+ */
+export async function expandToolCallDetails(toolCallId: string, timeout = 30000): Promise<void> {
+  const trigger = `[data-tool-call-id="${toolCallId}"] [role="button"][aria-expanded]`;
+  await browser.waitUntil(
+    async () => {
+      await expandAssistantHistoriesWithContent();
+      await expandVisibleSummaryGroups();
+      return browser.execute((selector: string) => {
+        const element = document.querySelector<HTMLElement>(selector);
+        if (!element) return false;
+        if (element.getAttribute("aria-expanded") === "true") return true;
+        element.click();
+        return false;
+      }, trigger);
+    },
+    { timeout, interval: 250, timeoutMsg: `工具卡没有展开：${toolCallId}` },
+  );
 }
 
 export async function listToolCallBlocks(): Promise<ToolCallBlockSnapshot[]> {
@@ -196,7 +254,7 @@ async function waitForToolCallBlock(
           return true;
         }
         await expandAssistantHistoriesWithContent();
-        await expandVisibleToolCallGroups();
+        await expandVisibleSummaryGroups();
         return false;
       },
       {

@@ -1,7 +1,7 @@
 {
   "version": 1,
   "caseName": "conversation-session-fork-side-pane-empty-state",
-  "spec": "./test/e2e/conversation-session/conversation-session-fork-side-pane-empty-state.test.ts",
+  "spec": "./test/e2e/conversation-session/branching/conversation-session-fork-side-pane-empty-state.test.ts",
   "fixtures": [
     {
       "id": "fork-side-pane-empty-state-title",

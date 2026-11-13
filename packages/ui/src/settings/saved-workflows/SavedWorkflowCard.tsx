@@ -1,5 +1,5 @@
 import { memo, type ReactNode } from "react";
-import { Ban, CircleCheck, Loader2, TriangleAlert } from "lucide-react";
+import { Ban, CircleCheck, LoaderCircle, TriangleAlert } from "lucide-react";
 import { type ZCodeSavedWorkflowEntry, type ZCodeSavedWorkflowRun } from "@zcode/shared";
 import {
   TID_WORKFLOW_CARD,
@@ -62,7 +62,7 @@ export function SavedWorkflowLastRunBadge({
       break;
     case "running":
       // running 用活动色 warning（与实例详情页状态头同源）。
-      icon = <Loader2 className="size-4 animate-spin" strokeWidth={1.33} aria-hidden="true" />;
+      icon = <LoaderCircle className="size-4 animate-spin" strokeWidth={1.33} aria-hidden="true" />;
       className = "rounded-lg bg-warning/10 text-warning";
       break;
     case "stopped":

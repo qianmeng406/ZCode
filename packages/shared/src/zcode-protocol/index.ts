@@ -1,5 +1,7 @@
 import { requestVerificationReasons } from "../request-security-edition/verification-policy.js";
 import { zcodeProtocolTraceSchema } from "./trace.js";
+export * from "../app-control/contract.js";
+import { appControlProtocol, appControlCancelMethod } from "../app-control/contract.js";
 import {
   forkFeaturesObjectSchema,
   forkFeaturesSchema,
@@ -8,6 +10,8 @@ import {
 // Bot 反向回复的名字解析/待澄清结果与 App、CLI 使用同一严格 schema。
 export { channelReplyRequestSchema, channelReplyResultSchema } from "../channel-mention.js";
 export { zcodeProtocolTraceSchema, type ZCodeProtocolTrace } from "./trace.js";
+// 扩展进程 P2 的插件只读查询（plugins/readUserOptions、plugins/mentionItems）。
+export * from "./plugin-host-queries/contract.js";
 import {
   databaseMigrationFactsSchema,
   databaseStartupErrorCodeSchema,
@@ -76,6 +80,7 @@ import { modelSelectionSchema } from "../model-selection.js";
 import { APP_USAGE_RANGES, appUsageSnapshotSchema } from "../usage-stats.js";
 import { DYNAMIC_WORKFLOW_MODES } from "../dynamic-workflow-feature.js";
 import { errorAttributionSchema } from "../zcode-protocol-v4/snapshot.js";
+import { workflowLaunchMetaSchema } from "../zcode-protocol-v4/workflow-row-meta.js";
 // 后台详情共享精简的只读响应 schema，不携带命令或计时元数据。
 export * from "../background-bash-output.js";
 export * from "../process-diagnostic.js";
@@ -165,6 +170,8 @@ export const ZCODE_PROTOCOL_VERSION = 1 as const;
 // V4 wire 与 legacy 主协议并存；禁止为了 V4 physical framing 改写 legacy 版本。
 export const ZCODE_PROTOCOL_V4_WIRE_VERSION = 3 as const;
 export const zcodeRuntimeCapabilitiesSchema = z.object({
+  highspeedCardOwner: z.boolean().optional(),
+  pluginDiscoveryUi: z.boolean().optional(),
   sessionLifecycleWorkspace: z.boolean().optional(),
   sessionDirectorySource: z.boolean().optional(),
   // 热会话行窗口（rows/range 的 residency）协商位：旧执行端会剥掉并冷恢复，additive 缺省 false。
@@ -173,6 +180,29 @@ export const zcodeRuntimeCapabilitiesSchema = z.object({
   genUiContext: z.boolean().optional(),
   historyFirst: z.boolean().optional(),
   independentPlanState: z.boolean().optional(),
+  /**
+   * CLI 支持"会话 cwd 与 workspace 不同"：createSession.cwd / worktreeCreation、
+   * forkAssistant.targetCwd、按 Host 请求的 workspace key 冷恢复（docs/git/worktree.md §9.3）。
+   * 旧 CLI 会静默丢弃这些字段，Host 据此决定是否开放 worktree 入口。
+   */
+  worktreeCwd: z.boolean().optional(),
+  /**
+   * CLI 认识 `{kind:"extension"}` 输入来源（sendText.source、createSession.firstInput.source）。
+   * 旧 CLI 对 sendText 整条拒绝、对 firstInput 静默剥掉来源，Host 据此决定能否代扩展发消息
+   * （apps/zcode-cli/docs/design/v2/conversation-input-source.md §7）。
+   */
+  extensionInputSource: z.boolean().optional(),
+  /**
+   * CLI 认识对话引用上的 comment / agent 字段（选区批注）。旧 CLI 的 quote schema 非 strict，
+   * 会静默剥掉这两个字段：用户看到批注而模型收不到，所以 App 据此决定是否提供"批注"入口。
+   */
+  conversationQuoteComment: z.boolean().optional(),
+  /**
+   * CLI 认识 plugins/overview 的 includeExtensionSummary 参数，并按它在商店信息里带 extensionSummary
+   * （docs/plugins/plugin-publishing.md §4.3）。参数与结果的 schema 都是 strict：旧 CLI 拒绝新参数，
+   * 旧 services 拒绝新字段，所以 services 只在看到这一位时才要这个字段。
+   */
+  pluginExtensionSummary: z.boolean().optional(),
   // 显式 contextProfile 协商位；旧执行端缺失等价于 false。只证明 standard/minimal。
   contextProfileState: z.boolean().optional(),
   // 融合档位（contextProfile=fusion）协商位：additive，旧执行端缺失等价于 false。
@@ -514,6 +544,7 @@ export const zcodeProtocolMessageSchema = z.union([
 export type ZCodeProtocolMessage = z.infer<typeof zcodeProtocolMessageSchema>;
 
 export const zcodeProtocolNotifications = {
+  pluginStartupDegraded: "startup/pluginsDegraded",
   storageStartup: "startup/storageState",
   providerRuntimeHeadersCancelled: "interaction/providerRuntimeHeadersCancelled",
   mcpTelemetry: "process/mcpTelemetry",
@@ -524,6 +555,8 @@ export const zcodeProtocolNotifications = {
   processNetworkRequests: "process/networkRequests",
   workspaceGenerateTextProgress: "workspace/generateTextProgress",
 } as const;
+
+export const zcodePluginStartupDegradedSchema = z.object({ reason: z.literal("timeout") }).strict();
 
 /** 启动控制面独立于 task stream；数据库身份不可携带路径/凭据。 */
 export const zcodeStorageStartupStateSchema = z
@@ -1621,6 +1654,10 @@ export const zcodeTurnStartedEventPayloadSchema = z
   .object({
     // CLI 的高精度执行时间可含小数；漏声明会使 strict 校验丢弃整条开始事件，Bot 因此无法清空上一轮回复。
     executionStartedAt: z.number().nonnegative().optional(),
+    // Bugfix：CLI TurnStartedPayloadBase 新增的统计来源、工作流启动元数据与尾注下标漏声明时，
+    // strict 校验丢弃整条 turn.started，Bot 收不到 task_run_started，上一轮正文会串进下一轮投递。
+    workflowLaunch: workflowLaunchMetaSchema.optional(),
+    epilogueStart: z.number().int().nonnegative().optional(),
     turnNumber: z.number().int().nonnegative(),
     input: z.string(),
     inputId: nonEmptyString.optional(),
@@ -1631,6 +1668,8 @@ export const zcodeTurnStartedEventPayloadSchema = z
     offPeakTaskId: nonEmptyString.optional(),
     offPeakRunType: z.enum(["init", "resume"]).optional(),
     inputSource: zcodeTurnInputSourceSchema.optional(),
+    // CLI 已在开始事件中携带输入来源；漏声明会使严格校验拒绝会话事件，导致运行中摘要读取失败。
+    inputOrigin: z.enum(["desktop", "mobile"]).optional(),
     inputVisibility: zcodeMessageVisibilitySchema.optional(),
     executionKind: z.enum(["agent", "controlOnly"]).optional(),
     targetId: nonEmptyString.optional(),
@@ -1657,6 +1696,11 @@ export const zcodeTurnSteerQueuedEventPayloadSchema = z
     inputSize: z.number().int().nonnegative(),
     commandKind: zcodeTurnSteerCommandKindSchema.optional(),
     source: zcodeTurnSteerSourceSchema.optional(),
+    // Bugfix：CLI TurnSteerQueuedPayload 的字段漏声明会让 strict 校验丢弃整条排队事件。
+    // inputPresentation 的取值由 CLI contracts 定义且 v3 消费方不读取；这里不复制枚举，
+    // 避免 CLI 新增取值时再次整条丢弃。
+    inputPresentation: nonEmptyString.optional(),
+    automationId: nonEmptyString.optional(),
     toolDisallowlist: z.array(nonEmptyString).optional(),
     delivery: zcodeTurnSteerDeliverySchema.optional(),
     targetTurnId: nonEmptyString,
@@ -2139,6 +2183,8 @@ export const zcodeSessionMessagesParamsSchema = z
     sessionId: nonEmptyString,
     afterMessageId: nonEmptyString.optional(),
     limit: z.number().int().positive().optional(),
+    // 缺省保留最近历史窗口；forward 从 cursor 后最早消息开始分页。
+    direction: z.enum(["forward", "backward"]).optional(),
   })
   .strict();
 export type ZCodeSessionMessagesParams = z.infer<typeof zcodeSessionMessagesParamsSchema>;
@@ -2196,6 +2242,8 @@ export const zcodeSessionRuntimePreferencesResultSchema = z
     nativeSearchEnhancementsEnabled: z.boolean(),
     toolSearchMode: appToolSearchModeSchema.default("off"),
     subagentRuntimeConfigEnabled: z.boolean().optional(),
+    // 旧 Host 缺席即不注册 App 控制工具；只由 Host 装配能力声明。
+    appControlEnabled: z.boolean().optional(),
     memoryEnabled: z.boolean().default(false),
     /**
      * fork 定制功能开关。缺省回落到 DEFAULT_FORK_FEATURES（旧 Host 不发送时等价于
@@ -2230,6 +2278,7 @@ export const zcodeSessionSendParamsSchema = z
   .object({
     sessionId: nonEmptyString,
     modelSelection: modelSelectionSchema.optional(),
+    modelSelectionBasis: modelSelectionSchema.optional(),
     modelExecution: modelExecutionSchema.optional(),
     inputId: nonEmptyString.optional(),
     queryId: nonEmptyString.optional(),
@@ -2531,6 +2580,22 @@ export const zcodeSessionCloseResultSchema = z
   })
   .strict();
 export type ZCodeSessionCloseResult = z.infer<typeof zcodeSessionCloseResultSchema>;
+/**
+ * 卸载 cwd 位于 directory 内的全部驻留会话；任一会话忙时全部不卸载（docs/git/worktree.md §8.3）。
+ * 随 worktreeCwd 能力提供。
+ */
+export const zcodeSessionReleaseUnderDirectoryParamsSchema = z
+  .object({ directory: nonEmptyString })
+  .strict();
+export type ZCodeSessionReleaseUnderDirectoryParams = z.infer<
+  typeof zcodeSessionReleaseUnderDirectoryParamsSchema
+>;
+export const zcodeSessionReleaseUnderDirectoryResultSchema = z
+  .object({ released: z.array(nonEmptyString), busy: z.array(nonEmptyString) })
+  .strict();
+export type ZCodeSessionReleaseUnderDirectoryResult = z.infer<
+  typeof zcodeSessionReleaseUnderDirectoryResultSchema
+>;
 export const zcodeWorkspaceReadPresentationParamsSchema = z
   .object({ workspace: zcodeWorkspaceRefSchema })
   .strict();
@@ -3484,6 +3549,9 @@ export const zcodePluginInfoSchema = z
     mcpServerNames: z.array(z.string()),
     hookDetails: z.array(zcodePluginHookDetailSchema).optional(),
     rootPath: z.string(),
+    // 插件的持久数据目录（CLI 的 PluginMetadata.dataPath，与 ${ZCODE_PLUGIN_DATA} 同值）。
+    // 扩展的 ctx.extension.dataPath 只取它，App 不自己拼路径；旧 CLI 不报告时缺省。
+    dataPath: z.string().optional(),
     userConfig: z.record(z.string(), zcodePluginUserConfigOptionSchema).optional(),
     configuredOptions: z.record(z.string(), zcodePluginOptionValueSchema).optional(),
     // 缺省表示 package 可用；missing 用于保留已声明但目标 Host 尚未物化的配置行。
@@ -4034,6 +4102,19 @@ export const zcodePluginsSetEnabledResultSchema = z
   .strict();
 export type ZCodePluginsSetEnabledResult = z.infer<typeof zcodePluginsSetEnabledResultSchema>;
 
+/**
+ * 目录条目的扩展摘要（docs/plugins/plugin-publishing.md §4.2–4.3）：插件要求的插件 API 版本范围与
+ * 扩展申请的权限档位。CLI 只透传、只留这两个键；App 用 isExtensionEngineCompatible 判断。
+ * grants 是开放的字符串数组：以后新增的档位不能让旧 App 整页解析失败。
+ */
+export const zcodePluginExtensionSummarySchema = z
+  .object({
+    engines: z.object({ zcode: z.string().min(1) }).strict(),
+    grants: z.array(z.string()),
+  })
+  .strict();
+export type ZCodePluginExtensionSummary = z.infer<typeof zcodePluginExtensionSummarySchema>;
+
 // 商店信息（Store Listing）：目录条目携带的展示性元数据（显示名/icon/分类/作者/链接/hero/
 // 示例提示词），全部可选，UI 缺失时按降级矩阵处理（字母头像/隐藏区块/省略信息行）。
 // i18n 采用 `<字段>I18n` map，locale 解析复用 shared 的 plugin-display-name helper。
@@ -4059,6 +4140,11 @@ export const zcodePluginStoreListingSchema = z
      * 不参与安装门禁与计费，命名也不绑定具体套餐商品名。
      */
     requiresPaidPlan: z.boolean().optional(),
+    /**
+     * 带扩展的插件：只在 plugins/overview 带 includeExtensionSummary 时出现（§4.3 能力位）。
+     * 已装插件的 listing 来自目录最新版条目，所以这里是最新版的摘要。
+     */
+    extensionSummary: zcodePluginExtensionSummarySchema.optional(),
   })
   .strict();
 export type ZCodePluginStoreListing = z.infer<typeof zcodePluginStoreListingSchema>;
@@ -4152,6 +4238,8 @@ export const zcodePluginsOverviewParamsSchema = z
   .object({
     workspace: zcodeWorkspaceRefSchema,
     configScope: zcodePluginScopeSchema.optional(),
+    /** 要商店信息里的 extensionSummary。只发给声明了 pluginExtensionSummary 的 CLI（§4.3）。 */
+    includeExtensionSummary: z.boolean().optional(),
   })
   .strict();
 export const zcodePluginsOverviewResultSchema = z
@@ -4655,6 +4743,19 @@ export type SessionLifecycleFailure = z.infer<typeof sessionLifecycleFailureSche
 export type SessionLifecycleSnapshot = z.infer<typeof sessionLifecycleSnapshotSchema>;
 
 export const zcodeProtocolMethods = {
+  appControlListProjects: appControlProtocol.listProjects.method,
+  appControlListSessions: appControlProtocol.listSessions.method,
+  appControlReadSession: appControlProtocol.readSession.method,
+  appControlCreateSession: appControlProtocol.createSession.method,
+  appControlForkSession: appControlProtocol.forkSession.method,
+  appControlSendToSession: appControlProtocol.sendToSession.method,
+  appControlWaitSessions: appControlProtocol.waitSessions.method,
+  appControlInterruptSession: appControlProtocol.interruptSession.method,
+  appControlRenameSession: appControlProtocol.renameSession.method,
+  appControlOpenSession: appControlProtocol.openSession.method,
+  appControlSetSessionArchived: appControlProtocol.setSessionArchived.method,
+  appControlSetSessionPinned: appControlProtocol.setSessionPinned.method,
+  appControlCancel: appControlCancelMethod,
   sessionLifecycleChanged: "session/lifecycle/changed",
   sessionLifecycleGetState: "session/lifecycle/getState",
   sessionLifecycleEnsureReady: "session/lifecycle/ensureReady",
@@ -4690,6 +4791,7 @@ export const zcodeProtocolMethods = {
   sessionRunMemoryDream: "session/runMemoryDream",
   sessionGoal: "session/goal",
   sessionClose: "session/close",
+  sessionReleaseUnderDirectory: "session/releaseUnderDirectory",
   // setModel 仍被 zcodeSessionService 的 desktop 旧链路消费；replayable
   // switchModelConfig 已直接由目标 Environment Registry 解析 Selection。
   sessionSetModel: "session/setModel",
@@ -4775,6 +4877,10 @@ export const zcodeProtocolMethods = {
   pluginsResetConfig: "plugins/resetConfig",
   pluginsValidate: "plugins/validate",
   pluginsDescribe: "plugins/describe",
+  // 扩展 settings 能力读本插件 user 层有效值（含敏感值）；旧 CLI method-not-found → App 当作不支持。
+  pluginsReadUserOptions: "plugins/readUserOptions",
+  // 输入框 `@` 面板的 MCP 工具候选项：只在内存里的会话上调插件工具；旧 CLI method-not-found → 不显示这一组。
+  pluginsMentionItems: "plugins/mentionItems",
   automationCreate: "automation/create",
   topicResourceRead: "topic/resource/read",
   channelReply: "bot/channel/reply",
@@ -4800,6 +4906,7 @@ export const zcodeProtocolMethods = {
   interactionRequestUserInput: "interaction/requestUserInput",
   interactionRequestProviderRuntimeHeaders: "interaction/requestProviderRuntimeHeaders",
   interactionRequestOfficialMcpAuthHeaders: "interaction/requestOfficialMcpAuthHeaders",
+  interactionRequestCredentialCipher: "interaction/requestCredentialCipher",
   // browser-use 反向请求由 agent 发起，host 转给 main 中的 CDP executor。
   interactionBrowserList: "interaction/browserList",
   interactionBrowserExecute: "interaction/browserExecute",

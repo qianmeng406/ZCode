@@ -111,6 +111,42 @@ export function supportsHistoryFirst(
   return check;
 }
 
+const pluginDiscoveryUiChecks = new WeakMap<object, Promise<boolean>>();
+/** 插件商店 UI 能力位（v3.18）：旧 CLI 不声明即视为不支持，入口不出现。 */
+export function supportsPluginDiscoveryUi(
+  client: Pick<ZCodeProtocolClient, "request">,
+): Promise<boolean> {
+  const existing = pluginDiscoveryUiChecks.get(client);
+  if (existing) return existing;
+  const check = client
+    .request(zcodeProtocolMethods.runtimeCapabilities, {}, zcodeRuntimeCapabilitiesSchema)
+    .then((result) => result.pluginDiscoveryUi === true)
+    .catch(() => {
+      pluginDiscoveryUiChecks.delete(client);
+      return false;
+    });
+  pluginDiscoveryUiChecks.set(client, check);
+  return check;
+}
+
+const pluginExtensionSummaryChecks = new WeakMap<object, Promise<boolean>>();
+/** plugins/overview 的 includeExtensionSummary：旧 CLI 的参数 schema 是 strict，多一个键整条拒绝。 */
+export function supportsPluginExtensionSummary(
+  client: Pick<ZCodeProtocolClient, "request">,
+): Promise<boolean> {
+  const existing = pluginExtensionSummaryChecks.get(client);
+  if (existing) return existing;
+  const check = client
+    .request(zcodeProtocolMethods.runtimeCapabilities, {}, zcodeRuntimeCapabilitiesSchema)
+    .then((result) => result.pluginExtensionSummary === true)
+    .catch(() => {
+      pluginExtensionSummaryChecks.delete(client);
+      return false;
+    });
+  pluginExtensionSummaryChecks.set(client, check);
+  return check;
+}
+
 const genUiChecks = new WeakMap<object, Promise<void>>();
 /** 状态不能回退到拼接用户正文；不支持时保留草稿并拒绝发送。 */
 export function ensureGenUiContextSupport(
@@ -128,5 +164,23 @@ export function ensureGenUiContextSupport(
       throw new Error("proto.genUiContextUnsupported", { cause });
     });
   genUiChecks.set(client, check);
+  return check;
+}
+
+const highspeedOwnerChecks = new WeakMap<object, Promise<boolean>>();
+/** 旧CLI的严格metadata不认识ownerKey；不支持时只去掉新增字段，保留发送。 */
+export function supportsHighspeedCardOwner(
+  client: Pick<ZCodeProtocolClient, "request">,
+): Promise<boolean> {
+  const existing = highspeedOwnerChecks.get(client);
+  if (existing) return existing;
+  const check = client
+    .request(zcodeProtocolMethods.runtimeCapabilities, {}, zcodeRuntimeCapabilitiesSchema)
+    .then((result) => result.highspeedCardOwner === true)
+    .catch(() => {
+      highspeedOwnerChecks.delete(client);
+      return false;
+    });
+  highspeedOwnerChecks.set(client, check);
   return check;
 }

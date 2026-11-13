@@ -136,7 +136,6 @@ export function CodingPlanUpgradeDialog({
     <CodingPlanEmbeddedWebviewDialog
       open
       onOpenResult={onOpenResult}
-      credentialService={credentialService}
       providerId={providerId}
       funnelContext={target.funnelContext}
       audience={target.initialAudience}

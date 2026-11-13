@@ -1,5 +1,5 @@
 import { useCallback, useRef, useState, type ClipboardEvent } from "react";
-import { FileText, ImageIcon, Loader2, Paperclip, Send, X } from "lucide-react";
+import { FileText, ImageIcon, LoaderCircle, Paperclip, Send, X } from "lucide-react";
 import type { FeedbackAttachmentKind } from "@zcode/shared";
 import type { IFeedbackService } from "@zcode/services";
 import { Button } from "@/components/ui/button.js";
@@ -253,7 +253,7 @@ export function FeedbackSupplementComposer({
           onClick={() => void handleSubmit()}
           className="h-8 rounded-lg px-3"
         >
-          {submitting ? <Loader2 className="animate-spin" /> : <Send />}
+          {submitting ? <LoaderCircle className="animate-spin" /> : <Send />}
           {submitting
             ? formatMessage({ id: "feedback.supplement.sending" })
             : formatMessage({ id: "feedback.supplement.send" })}

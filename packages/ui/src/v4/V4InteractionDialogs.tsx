@@ -1,7 +1,11 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import type { ZCodeElicitationRequest, ZCodePermissionOption, ZCodeProvider } from "@zcode/shared";
-import type { ConversationSnapshot } from "@zcode/shared/zcode-protocol-v4";
+import type {
+  ConversationSnapshot,
+  UserInputRequestPayload,
+} from "@zcode/shared/zcode-protocol-v4";
 import type { ModelSelectionView } from "@zcode/provider";
+import type { ComposerScope } from "@/v4/composer/composerDraftStore.js";
 import type { PlanExecutionModelChoice, PlanExecutionModelGroup } from "@/ElicitationDialog.js";
 import { PermissionDialog } from "@/PermissionDialog.js";
 import { workflowSessionModelOf } from "@/components/workflow-timeline/workflowRunSettings.js";
@@ -19,6 +23,8 @@ import {
 import type { ElicitationFormDraft } from "@/store/zcodeSessionStoreTypes.js";
 import { createCommandEnvelope } from "@/v4/commandFactory.js";
 import { pendingCommandRegistry } from "@/v4/pendingCommandRegistry.js";
+import { createInteractionAutoResolutionIntentTracker } from "@/v4/interactionAutoResolutionCommand.js";
+export type { InteractionAutoResolutionIntentTracker } from "@/v4/interactionAutoResolutionCommand.js";
 import { sendInteractionAutoResolutionSnooze } from "@/v4/interactionAutoResolutionCommand.js";
 import {
   pendingPermissionToLegacyRequest,
@@ -40,23 +46,33 @@ export interface V4InteractionDialogsProps {
   /** 计划批准卡片「执行模型」下拉候选目录；缺席时下拉不渲染（跟随会话模型）。 */
   modelSelectionView?: ModelSelectionView | null;
   onCommandSettled?: (commandId: string) => void;
+  /** fork：对话审查队列需要解析最近 scope（会话内的草稿/store 作用域）。 */
+  resolveRecentScope: (sessionId: string) => Promise<ComposerScope>;
   onPlanInteractionAccepted?: (interactionId: string) => void;
 }
 
-import {
-  buildV4ElicitationProgressKey,
-  createInteractionAutoResolutionIntentTracker,
-  getCurrentSessionInteractionSnapshot,
-  resolveV4ElicitationRequest,
-} from "@/v4/v4InteractionDialogHelpers.js";
 
-export {
-  buildV4ElicitationProgressKey,
-  createInteractionAutoResolutionIntentTracker,
-  getCurrentSessionInteractionSnapshot,
-  resolveV4ElicitationRequest,
-} from "@/v4/v4InteractionDialogHelpers.js";
-export type { InteractionAutoResolutionIntentTracker } from "@/v4/v4InteractionDialogHelpers.js";
+export function getCurrentSessionInteractionSnapshot(
+  sessionId: string,
+  snapshot: ConversationSnapshot | null,
+): ConversationSnapshot | null {
+  return snapshot?.sessionId === sessionId ? snapshot : null;
+}
+
+export function resolveV4ElicitationRequest(
+  projected: ZCodeElicitationRequest | null,
+  botProgress: ZCodeElicitationRequest | null,
+): ZCodeElicitationRequest | null {
+  // Bugfix：V4 snapshot 只保留原始阻塞请求，Bot 代答后的逐题进度必须覆盖同一 request 的投影。
+  if (projected && botProgress?.requestId === projected.requestId) {
+    return botProgress;
+  }
+  return projected;
+}
+
+export function buildV4ElicitationProgressKey(request: ZCodeElicitationRequest): string {
+  return `${request.requestId}:${request.currentQuestionIndex ?? 0}:${JSON.stringify(request.answerDrafts ?? {})}`;
+}
 
 export function V4InteractionDialogs({
   sessionId,
@@ -358,25 +374,27 @@ export function V4InteractionDialogs({
     );
   }
 
+  // 先窄化出 userInput 载荷：下面要用 payload.toolName，联合类型上取不到。
   const projectedElicitation =
-    pending.payload.kind === "userInput"
-      ? resolveV4ElicitationRequest(
-          pendingUserInputToElicitationRequest(sessionId, {
-            ...pending,
-            payload: pending.payload,
-          }),
-          botElicitationProgress,
-        )
-      : null;
-  if (projectedElicitation) {
-    const isExitPlanMode = pending.payload.toolName?.trim().toLowerCase() === "exitplanmode";
+    pending.payload.kind === "userInput" ? pending.payload : null;
+  const elicitationRequest = projectedElicitation
+    ? resolveV4ElicitationRequest(
+        pendingUserInputToElicitationRequest(sessionId, {
+          ...pending,
+          payload: projectedElicitation,
+        }),
+        botElicitationProgress,
+      )
+    : null;
+  if (elicitationRequest && projectedElicitation) {
+    const isExitPlanMode = projectedElicitation.toolName?.trim().toLowerCase() === "exitplanmode";
     const isAskUserQuestion =
-      pending.payload.toolName?.trim().toLowerCase() === "askuserquestion" ||
+      projectedElicitation.toolName?.trim().toLowerCase() === "askuserquestion" ||
       pending.autoResolution !== undefined;
     return (
       <V4PlanElicitationDialog
-        key={buildV4ElicitationProgressKey(projectedElicitation)}
-        request={projectedElicitation}
+        key={buildV4ElicitationProgressKey(elicitationRequest)}
+        request={elicitationRequest}
         autoResolution={isAskUserQuestion ? pending.autoResolution : undefined}
         botElicitationProgress={botElicitationProgress}
         localElicitationDraft={localElicitationDraft}
@@ -404,9 +422,11 @@ export function V4InteractionDialogs({
     );
   }
 
+  // 走到这里 payload 必然是 userInput（上方 permission/elicit 分支已 return）；
+  // adapter 要求收窄后的载荷类型，重新取一次并断言。
   const model = pendingUserInputToViewModel({
     ...pending,
-    payload: pending.payload,
+    payload: pending.payload as UserInputRequestPayload,
   });
   return (
     <V4UserInputDialog

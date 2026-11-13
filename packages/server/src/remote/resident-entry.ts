@@ -77,7 +77,8 @@ async function runServeCommand(): Promise<number> {
     environmentConfigRoot: getAppConfigDir(),
     content: readBundledZCodeBuiltinProviderConfig(),
   });
-  const { services } = createStdioServices({
+  // v3.18 起 createStdioServices 是异步的（内部要先准备 app-control 等服务）。
+  const { services } = await createStdioServices({
     env: process.env,
     zcodeBuiltinProviderConfigFilePath,
   });

@@ -154,6 +154,13 @@ export { repairPersistedRemoteSessionPaths } from "./runtime/helpers/persisted-r
 // parentID / part 内嵌锚点随之重映射。导出而不是让它再写一份，是因为漏掉任何一处重映射的症状
 // （悬空 parentID、指向父会话的锚点）离成因都很远。
 export { cloneMessageForFork, clonePartForFork } from "./runtime/helpers/steering.js";
+// context 组成：bootstrap 的 v4 contextComposition 处理器消费查询结果类型。
+export type {
+  ContextCompositionChangeListener,
+  ContextCompositionChangeReason,
+  ContextCompositionMeasurement,
+  ContextCompositionQuery,
+} from "./runtime/context-composition/index.js";
 // 手机远控输入预测：bootstrap 的 v4 inputPrediction 处理器直接消费这些纯函数。
 // （2026-11-02 重构：预测由独立辅助请求生成，sidecar 只保留解析/收敛纯函数。）
 export {
@@ -175,7 +182,10 @@ export type {
   AgentRuntimeConfig,
   AgentRuntimeDeps,
   ConversationRewindResult,
+  EditPendingInputOptions,
+  EditPendingInputResult,
   ExecuteTurnOptions,
+  LockPendingInputEditResult,
   ModelExecutionContext,
   PromptAdmissionOptions,
   PromptAdmissionReceipt,
@@ -183,6 +193,7 @@ export type {
   ResumeSessionOptions,
   ResumeSessionResult,
   StartSavedWorkflowRunResult,
+  StableConversationForkTargetCwd,
   AmendWorkflowRunSettingsInput,
   AmendWorkflowRunSettingsResult,
   TurnResult,

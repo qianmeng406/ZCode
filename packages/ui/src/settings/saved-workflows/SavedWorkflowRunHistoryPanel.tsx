@@ -1,5 +1,5 @@
 import type { ReactNode } from "react";
-import { Ban, ChevronRight, CircleCheck, Loader2, TriangleAlert } from "lucide-react";
+import { Ban, ChevronRight, CircleCheck, LoaderCircle, TriangleAlert } from "lucide-react";
 import { type ZCodeSavedWorkflowRun } from "@zcode/shared";
 import { TID_WORKFLOW_RUN_ROW } from "@zcode/shared";
 
@@ -98,7 +98,11 @@ export function SavedWorkflowRunHistory({
               break;
             case "running":
               icon = (
-                <Loader2 className="size-4 animate-spin" strokeWidth={1.33} aria-hidden="true" />
+                <LoaderCircle
+                  className="size-4 animate-spin"
+                  strokeWidth={1.33}
+                  aria-hidden="true"
+                />
               );
               statusClass = "text-warning";
               break;

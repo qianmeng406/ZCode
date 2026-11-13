@@ -103,7 +103,7 @@ export {
   VIDEO_INPUT_MAX_BYTES,
   READ_VIDEO_MAX_INPUT_BYTES,
   COMPLETED_TOOL_PART_METADATA_SCHEMA_VERSION,
-  SESSION_ENTRY_BASH_SHELL_SELECTION,
+  BROWSER_TURN_SCREENSHOT_SOURCE,
   SESSION_ENTRY_MODEL_SELECTION,
   SESSION_ENTRY_TARGET_COMPLETION_VERIFICATION,
   SESSION_ENTRY_USER_INPUT_AUTO_RESOLUTION,
@@ -160,10 +160,12 @@ export type {
   ModelInputMessage,
   ModelInputFormat,
   ModelReasoningContentBlock,
+  ModelTextContentBlock,
   ModelToolCall,
   ModelToolContract,
   ModelUsage,
   ModelUsageSummary,
+  PendingInputEditLock,
   PendingSteerInputInfo,
   PendingTurnInput,
   TurnAttachmentMeta,
@@ -226,6 +228,7 @@ export type {
   ToolCallId,
   WorkflowPort,
   WorkflowEscalatePort,
+  WorkflowWebSearchBudgetPort,
   WorkflowSubmitPort,
   TodoItem,
   SessionGoal,
@@ -302,7 +305,6 @@ export {
   getAutoCompactThreshold,
   getMessagesToSummarize,
   getUsageTotalTokens,
-  hasEnoughMessagesToCompact,
   maybeLocalMicrocompactMessages,
   shouldAutoCompact,
   buildDefaultMicrocompactThreshold,
@@ -324,3 +326,4 @@ export {
 } from "../subagent/index.js";
 export type { AgentProfile, ExploreSubagentRuntimeRequest } from "../subagent/index.js";
 export { registerMcpTools } from "../mcp/index.js";
+export type { PluginDiscoveryPort } from "@zcode/contracts";

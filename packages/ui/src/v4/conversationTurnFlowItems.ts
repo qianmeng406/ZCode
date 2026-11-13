@@ -13,6 +13,7 @@ export type ConversationTurnFlowItem =
   | { kind: "assistantHistory"; rows: AssistantWorkRow[] }
   | { kind: "assistantText"; row: AssistantTextRow; latest: boolean }
   | { kind: "assistantWork"; rows: AssistantWorkRow[] }
+  // fork：CUA 工具组（浏览器/computer-use 的多次调用聚成一组渲染）。
   | ConversationCuaGroupRenderItem;
 
 function isUserInputRow(row: ConversationRow): row is UserInputRow {

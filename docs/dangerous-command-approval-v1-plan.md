@@ -10,6 +10,7 @@
 - Robocopy 仅 CMD/Git Bash：可靠定位的 `/L` 列举不确认；`/JOB` 文件不展开，未知参数不能生成列举豁免。Git clean 取消必须有 `-d` 或 pathspec 的条件，保留原帮助、dry-run 与取消顺序。
 - 逐词事实增加内部 `hasUnquotedGlob`，保留原 dynamic/位置语义；方言传到规则调度，不把 POSIX 路径或 rmdir 按 CMD 解释。
 - 仍排除 PowerShell、brace/变量/命令替换展开、脚本、隐式配置、rimraf/shred/truncate、远端删除、Git 局部回退；wrapper 仍仅 env/time/sudo，xargs/find-exec/npx 不扩展。未命中/unsupported 沿原策略，不表示安全。
+- 匹配器只作用于 Bash：MCP 工具（含 node_repl 的 `js`）不经过它，Guarded 下按 YOLO 基础策略放行；Bash 里的 `node -e` / `python -c` 等内联代码返回 unsupported，同样放行。这是已知覆盖限制（2026-11-05 记录），不表示这些调用安全。
 
 参数归属回归：CMD 的 `rd/s/q target`、`rd target/s/q`、`del/q file` 按内建命令粘连开关识别，引用路径中的斜杠和重定向目标不拆成开关。Git Bash Robocopy 识别静态 `/c/...` 盘符路径，不因此放宽未知开关或 `/JOB` 的参数数量。rm 保留 GNU 风格危险选项扫描，批量计数同时覆盖 BSD 首个目标后把 `--help` 等当文件名的语义；不探测平台或文件系统，在存在批量删除解释时确认。
 
@@ -68,7 +69,7 @@
 ### staging 合并兼容（2026-09-18）
 
 - 沿用独立 Plan 状态：`guarded + planEnabled=true` 仍受 Plan 限制；进入/退出 Plan 保留 guarded 权限，不恢复旧的 mode=plan 状态切换。
-- 普通审批保留 staging 的工具预览、会话授权与 Full access；危险请求的 `user-once` 约束优先，不提供也不接受项目/会话永久授权或 Full access，不被 `prepareApproval.proceed` 放行。
+- 普通审批保留 staging 的工具预览、会话授权与 Full access；危险请求的 `user-once` 约束优先，不提供项目/会话永久允许规则。主任务可由用户在新版审批框明确切换至完全访问并通过风险确认，子任务和独立工作流不开放此切换；本次工具应答仍是允许一次，不被 `prepareApproval.proceed` 放行。
 - 新 workflow 工具的 `alwaysAsk`、预览和会话授权沿用 staging 行为；已删除的旧 CLI workflow 命令不恢复。普通子任务继续透传同一个 broker 登记信号和最内层 origin。
 - 模式菜单保留独立 Plan 勾选及草稿语义，权限列表仍以 Guarded 替换 Edit；历史 edit 可以回显，Guarded 保留蓝色和 Edit 图标。
 
@@ -378,8 +379,8 @@ DCA-V1-01/03..08 转为 guarded 合同；02 保持 PowerShell pruned；09..12 �
 ### 复现命令（2026-09-17 更新为正式路径）
 
 ```sh
-E2E_PROVIDER_REPLAY_FIXTURE_PATH=packages/desktop/test/e2e/fixtures/upstream/common.json,packages/desktop/test/e2e/fixtures/upstream/conversation-session/conversation-session-guarded.json pnpm --filter @zcode/desktop exec wdio run wdio.conf.ts --spec './test/e2e/conversation-session/conversation-session-guarded.test.ts'
-pnpm --filter @zcode/desktop e2e:fixture:check -- --spec './test/e2e/conversation-session/conversation-session-guarded.test.ts'
+E2E_PROVIDER_REPLAY_FIXTURE_PATH=packages/desktop/test/e2e/fixtures/upstream/common.json,packages/desktop/test/e2e/fixtures/upstream/conversation-session/conversation-session-guarded.json pnpm --filter @zcode/desktop exec wdio run wdio.conf.ts --spec './test/e2e/conversation-session/task-management/conversation-session-guarded.test.ts'
+pnpm --filter @zcode/desktop e2e:fixture:check -- --spec './test/e2e/conversation-session/task-management/conversation-session-guarded.test.ts'
 pnpm --filter @zcode/bootstrap exec vitest run --no-file-parallelism tests/guarded-interaction-lifecycle.test.ts tests/guarded-permission-options.test.ts tests/guarded-projection.test.ts tests/guarded-workflow.test.ts tests/automation-port.test.ts tests/v4-native-session-mgmt.test.ts tests/v4-native-model-config.test.ts tests/v4-native-interaction-background.test.ts tests/workflow-effective-selection.test.ts tests/session-selection-cold-resume.test.ts tests/v4-native-queue.test.ts
 pnpm typecheck
 pnpm --filter @zcode/desktop typecheck:e2e

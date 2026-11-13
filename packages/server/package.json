@@ -11,7 +11,7 @@
     "./source-server/*.js": "./src/source-server/*.ts"
   },
   "scripts": {
-    "dev": "tsup --watch --onSuccess 'node dist/entry-http.js'",
+    "dev": "node ../../scripts/build-windows-runtime-host.mjs --if-windows --ensure && tsup --watch --onSuccess 'node dist/entry-http.js'",
     "build": "tsup && pnpm run build:remote",
     "build:remote": "tsx build-remote.ts",
     "lint": "oxlint",

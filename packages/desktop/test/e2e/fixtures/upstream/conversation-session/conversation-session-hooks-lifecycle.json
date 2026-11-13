@@ -1,7 +1,7 @@
 {
   "version": 1,
   "caseName": "conversation-session-hooks-lifecycle",
-  "spec": "./test/e2e/conversation-session/conversation-session-hooks-lifecycle.test.ts",
+  "spec": "./test/e2e/conversation-session/hooks/conversation-session-hooks-lifecycle.test.ts",
   "fixtures": [
     {
       "id": "hooks-full-chain-title",

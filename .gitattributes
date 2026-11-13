@@ -30,7 +30,8 @@ docs/knip/docs/licenses/** -text -whitespace
 third-party/inventory.json linguist-generated=true
 
 # Gen UI vendor 快照带 sha256 清单，构建期按字节校验；autocrlf 的 CRLF 转换会让哈希全部失配。
-# 规则覆盖整个 assets/**（是上游 assets/vendor/** 规则的超集）。
+# 规则覆盖整个 assets/**（是上游 assets/vendor/** 规则的超集，故上游那条更窄的
+# `assets/vendor/** -text` 被本规则吸收，不再重复列出）。
 apps/zcode-cli/packages/visualize-plugin/skills/visualize/assets/** -text -whitespace
 
 # Gen UI 内联运行时的构建期完整性校验同样按字节算 sha256（与 runtime-manifest.json 对齐），
@@ -44,3 +45,9 @@ apps/zcode-cli/packages/core/tests/fixtures/** text eol=lf
 # 动态工作流图契约：expected/*.mmd 逐行解析，autocrlf 的 CRLF 检出会让控制流商
 # 等整组断言在 Windows 上误报。
 apps/zcode-cli/packages/dynamic-workflow/tests/graphs/** text eol=lf
+
+# design 内置插件（v3.18 新增）：第三方设计资源保持上游原字节（许可登记按原文哈希校验）；
+# SessionStart hook 是 sh/cmd 双写法脚本，CRLF 会让 sh 解析失败，固定 LF。
+apps/zcode-cli/packages/design-plugin/skills/design/design-resources/** -text -whitespace linguist-vendored=true
+apps/zcode-cli/packages/design-plugin/hooks/design-rules text eol=lf
+apps/zcode-cli/packages/design-plugin/hooks/run-hook.cmd text eol=lf

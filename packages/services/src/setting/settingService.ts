@@ -11,6 +11,8 @@ import {
   appSettingsSchema,
   formatLogPrefix,
   formatZodError,
+  hasLegacyIncompatiblePersistedLocale,
+  toPersistedSettingsLocaleFields,
   USER_INSTRUCTIONS_MAX_BYTES,
   USER_INSTRUCTIONS_TOO_LARGE_ERROR_CODE,
 } from "@zcode/shared";
@@ -108,6 +110,9 @@ function shouldPersistSettingsMigrations(rawValue: unknown): boolean {
   return (
     // 原因：只在内存迁移仍会把磁盘上的 3 留给回滚客户端；必须走现有写锁落盘。
     raw.remoteBoundaryOnboardingVersion === 3 ||
+    // 原因：本特性开发期间内部版本把 ja-JP 等写进了旧字段 locale/localePreference；
+    // 旧版本读到会重置整份设置，所以读到就立即按新格式（旧字段降级 + uiLocale 新字段）落盘。
+    hasLegacyIncompatiblePersistedLocale(raw) ||
     (needsLegacyAccountConnectionMigration(rawValue) &&
       readIncompleteLegacyTeamConnections(rawValue).length === 0) ||
     raw.closeToTrayOnWindowsMigrationInitialized !== true ||

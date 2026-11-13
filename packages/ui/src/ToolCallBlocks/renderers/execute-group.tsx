@@ -118,7 +118,6 @@ export function ExecuteGroupToolCallBlock(context: ToolCallBlockRenderContext) {
       })}
       primaryText={isRunning && runningActionLabel ? runningPrimaryText : completedSummary}
       secondaryText={isRunning ? runningSecondaryText : undefined}
-      summaryContentSeparator="·"
       expandedPrimaryText={completedSummary}
       // ToolLayout 默认会在展开态沿用 secondaryText，导致命令数量后残留当前命令。
       // 父组展开后由子 tool summary 表达当前命令，因此这里必须显式清空。

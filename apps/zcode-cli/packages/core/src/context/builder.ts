@@ -32,6 +32,7 @@ import {
   buildContextManagementSection,
   buildDynamicBehaviorSection,
   buildSessionGuidanceSection,
+  buildTotalTokensSection,
 } from "./dynamic-sections.js";
 
 // -----------------------------------------------
@@ -170,7 +171,7 @@ export class ContextBuilder {
       sections.push(buildMinimalGuardrailsSection());
     } else if (!hasCustomSystemPrompt) {
       if (!isWorkflowActor && this.config.presentationSurface === "zcode_desktop") {
-        sections.push(buildDesktopContextSection(this.config.genUiOutputDirectory));
+        sections.push(buildDesktopContextSection(Boolean(this.config.genUiOutputDirectory)));
       }
 
       // behaviour part right after stable sp...
@@ -343,9 +344,10 @@ export class ContextBuilder {
   }
 }
 
-// 环境、模型、日期由运行时按当前事实宣告；builder 只保留 section 作开关与用量统计。
+// 环境（含 Desktop 段）、模型、日期由运行时按当前事实宣告；builder 只保留 section 作开关与用量统计。
 const RUNTIME_ANNOUNCED_SOURCES: ReadonlySet<ContextSection["source"]> = new Set([
   "env_info",
+  "desktop_context",
   "model",
   "current_date",
 ]);
@@ -360,15 +362,20 @@ export function buildMetaUserAttachments(sections: ContextSection[]): ContextMet
     };
   const attachments: ContextMetaUserAttachment[] = [];
   for (const attachmentSource of Object.values(sourceMap)) {
-    const content = buildSectionContent(
-      sections.filter(
-        (section) =>
-          section.injectionTarget === "meta_user" &&
-          !RUNTIME_ANNOUNCED_SOURCES.has(section.source) &&
-          (sourceMap[section.source] ?? "context_prefix") === attachmentSource,
-      ),
+    const grouped = sections.filter(
+      (section) =>
+        section.injectionTarget === "meta_user" &&
+        !RUNTIME_ANNOUNCED_SOURCES.has(section.source) &&
+        (sourceMap[section.source] ?? "context_prefix") === attachmentSource,
     );
-    if (content) attachments.push({ source: attachmentSource, content });
+    const content = buildSectionContent(grouped);
+    if (!content) continue;
+    const files = grouped.flatMap((section) => section.instructionFiles ?? []);
+    attachments.push({
+      source: attachmentSource,
+      content,
+      ...(files.length > 0 ? { files } : {}),
+    });
   }
   return attachments;
 }

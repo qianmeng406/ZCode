@@ -1,7 +1,7 @@
 {
   "version": 1,
   "caseName": "conversation-session-model-switch-restore-repro",
-  "spec": "./test/e2e/conversation-session/conversation-session-model-switch-restore-repro.test.ts",
+  "spec": "./test/e2e/conversation-session/models/conversation-session-model-switch-restore-repro.test.ts",
   "fixtures": [
     {
       "id": "upstream-conversation-model-switch-restore-repro-quota-failure",

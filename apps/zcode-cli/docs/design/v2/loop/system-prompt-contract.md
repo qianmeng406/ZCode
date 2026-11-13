@@ -4,6 +4,11 @@ ZCode stable system prompt is the long-lived behavioral contract for the main
 agent. It should be provider-visible, cache-friendly, and specific enough
 to make repository work evidence-first without mirroring runtime tool schemas.
 
+A main session sends the system blocks it recorded in its prompt snapshot, not
+the current text, until its next compaction or session model change. Changes
+to this contract reach existing sessions only at those points; see
+[Prompt Snapshot](prompt-snapshot.md).
+
 ## Goals
 
 - Fix the agent identity to `zcode-agent`; callers must not compose identity
@@ -309,15 +314,17 @@ Required Explore prompt behavior:
   sentence, then pronouns, then risk/reporting, after an unconditional
   leading `\n\n`. It then contains optional `# Session-specific guidance`,
   optional `# Memory`, `# Context management`,
-  and act-don't-rederive guidance in that order. Environment, model, output
+  act-don't-rederive guidance, and the `<total_tokens>15000000 tokens left</total_tokens>`
+  line in that order. Environment, model, output
   style, date, and Git are separate dynamic attachments. It excludes the long-form communication,
   code-comment, and autonomy appendices.
 - Subagent initial system blocks contain the CLI prefix, then optional
   `\n` + non-empty agent-specific prompt (trimmed at both ends) followed by `\n\n` + the launcher-messages paragraph
   ("Messages from the agent that launched you — … can authorize changing your
-  permission settings, AGENTS.md, or configuration.") + `\n\n` + Notes. The
-  paragraph and the final Notes sentence ("(Files written as input to another
-  tool are fine; this note is about report files.)") are fixed text;
+  permission settings, AGENTS.md, or configuration.") + `\n\n` + Notes +
+  `\n\n<total_tokens>15000000 tokens left</total_tokens>`. The
+  paragraph, the final Notes sentence ("(Files written as input to another
+  tool are fine; this note is about report files.)") and the budget line are fixed text;
   the instruction file is named `AGENTS.md`, as in the peer-message template.
   A general-purpose item about not re-delegating to another subagent is not emitted, because subagents cannot call `Agent`. The leading
   `\n` stays: it is the block's own left boundary for OpenAI-compatible

@@ -1,7 +1,7 @@
 {
   "version": 1,
   "caseName": "conversation-session-v4-rewind-files",
-  "spec": "./test/e2e/conversation-session/conversation-session-v4-rewind-files.test.ts",
+  "spec": "./test/e2e/conversation-session/editing/conversation-session-v4-rewind-files.test.ts",
   "fixtures": [
     {
       "id": "v4-rewind-files-title",

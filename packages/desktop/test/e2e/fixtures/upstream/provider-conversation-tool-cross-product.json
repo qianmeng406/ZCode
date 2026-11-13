@@ -11,7 +11,6 @@
         "lastUserMessageExcludes": ["E2E_TOOL_CROSS_PRODUCT_READ_SESSION_CONTEXT"],
         "bodyIncludes": ["E2E_TOOL_CROSS_PRODUCT_READ"],
         "bodyExcludes": [
-          "E2E_TOOL_CROSS_PRODUCT_READ_SESSION_CONTEXT",
           "Generate a concise title",
           "CRITICAL: Respond with TEXT ONLY"
         ]

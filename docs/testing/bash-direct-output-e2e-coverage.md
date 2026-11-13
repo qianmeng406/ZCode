@@ -198,12 +198,12 @@ fixture check 唯一提示为 response-only 的 `E2E_BDO_QUERY_NOTIFIED` 未作�
 ```bash
 ZCODE_E2E_COVERAGE=1 \
 pnpm --filter @zcode/desktop test:e2e -- \
-  --spec ./test/e2e/conversation-session/conversation-session-bash-direct-output.test.ts \
-  --spec ./test/e2e/conversation-session/conversation-session-terminal-expanded-details-and-status.test.ts
+  --spec ./test/e2e/conversation-session/tools/conversation-session-bash-direct-output.test.ts \
+  --spec ./test/e2e/conversation-session/tools/conversation-session-tool-groups-history-restore.test.ts
 ```
 
 隔离 replay 在同一命令前设置 `E2E_PROVIDER_REPLAY_FIXTURE_PATH` 为
-`packages/desktop/test/e2e/fixtures/upstream/common.json,packages/desktop/test/e2e/fixtures/upstream/conversation-session/conversation-session-bash-direct-output.json,packages/desktop/test/e2e/fixtures/upstream/conversation-session/conversation-session-terminal-expanded-details-and-status.json`。
+`packages/desktop/test/e2e/fixtures/upstream/common.json,packages/desktop/test/e2e/fixtures/upstream/conversation-session/conversation-session-bash-direct-output.json,packages/desktop/test/e2e/fixtures/upstream/conversation-session/conversation-session-tool-groups-history-restore.json`。
 V4 background-work 的本次证据仅取 Bash cancel 单条；不把整个文件中的其它场景算入验收集。
 
 最终 run 复用了同一工作区、同一 coverage 配置下已完成的 Desktop/CLI 构建，以
@@ -233,7 +233,7 @@ V4 background-work 的本次证据仅取 Bash cancel 单条；不把整个文件
 
 ```bash
 pnpm --filter @zcode/desktop test:e2e \
-  --spec ./test/e2e/conversation-session/conversation-session-bash-direct-output.test.ts \
+  --spec ./test/e2e/conversation-session/tools/conversation-session-bash-direct-output.test.ts \
   --mochaOpts.grep BDO07
 ```
 
