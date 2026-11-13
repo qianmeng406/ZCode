@@ -69,14 +69,12 @@ import {
   getConversationStatusPanelOffsetClassName,
 } from "@/v4/conversationLayout.js";
 import {
-  buildConversationTurnRenderUnits,
   createConversationTurnRenderUnitsSelector,
   TurnRenderUnitCache,
   type ConversationTurnRenderUnit,
 } from "@/v4/conversationTurnRenderUnits.js";
 import {
   CONVERSATION_TURN_NAVIGATOR_MIN_WIDTH_PX,
-  createConversationTurnNavigatorQueryRowIdsSelector,
   resolveConversationTurnNavigatorActiveQueryRowId,
   resolveConversationTurnNavigatorHydrationRetryDelayMs,
   shouldHydrateConversationTurnNavigatorDirectory,

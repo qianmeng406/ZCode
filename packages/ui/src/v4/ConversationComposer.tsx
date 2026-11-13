@@ -3213,6 +3213,14 @@ function ConversationComposerImpl({
             ) : null}
           </>
         ) : null}
+        {voiceInput.available && remoteAvailable ? (
+          <VoiceInputButton
+            state={voiceInput.state}
+            onToggle={voiceInput.toggle}
+            subscribeLevel={voiceInput.subscribeLevel}
+            permissionGuide={voiceInput.permissionGuide}
+          />
+        ) : null}
         {showStopControl ? (
           <ControlHintTooltip title={stopTooltipTitle} shortcut="Esc">
             <Button

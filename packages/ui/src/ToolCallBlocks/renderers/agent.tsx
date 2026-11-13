@@ -1,13 +1,7 @@
 import { XIcon, SquareIcon } from "lucide-react";
 import { useToolPresentationCapabilities } from "@/ToolCallBlocks/presentationCapabilities.js";
-import {
-  resolveSubagentColorFromName,
-  SUBAGENT_WORKFLOW_COLOR,
-} from "@/lib/subagentColors.js";
-import {
-  agentColor as workflowAgentColor,
-  WorkflowAgentFace,
-} from "@/components/workflow-timeline/WorkflowAgentFace.js";
+import { resolveSubagentColorFromName, SUBAGENT_WORKFLOW_COLOR } from "@/lib/subagentColors.js";
+import { WorkflowAgentFace } from "@/components/workflow-timeline/WorkflowAgentFace.js";
 import { useCallback, useMemo, type ReactNode } from "react";
 import { cn } from "@/components/lib/utils.js";
 import { SUBAGENT_TEXT_COLOR_CLASS } from "@/lib/subagentColors.js";
@@ -247,6 +241,16 @@ export function AgentToolCallBlock(context: ToolCallBlockRenderContext) {
   const agentNameDetail =
     agentName && agentColor ? (
       <>
+        {context.showIcon !== false ? (
+          <WorkflowAgentFace
+            avatarIndex={undefined}
+            name={agentName}
+            color={SUBAGENT_WORKFLOW_COLOR[agentColor]}
+            status={faceStatus}
+            showCompletionMark={faceStatus === "done"}
+            className="size-4 min-h-4! min-w-4!"
+          />
+        ) : null}
         <AgentNameText color={agentColor} name={agentName} />
         {externalBadge}
       </>

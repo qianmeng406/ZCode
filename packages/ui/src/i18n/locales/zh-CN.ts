@@ -2145,6 +2145,7 @@ const zhCN: Record<string, string> = {
   "chat.selections.limit.count": "最多可添加 8 条注释。",
   "chat.selections.limit.total": "注释原文总计最多 16,000 个字符。",
   "sidePane.launcher.selection-side-conversation": "在侧边面板中继续对话。",
+  "sidePane.launcher.sites": "查看站点、部署记录和用量。",
   "sidePane.oracleReviewHistory": "审查记录",
   "sidePane.launcher.review": "查看代码变更与差异。",
   "sidePane.launcher.oracle-review": "查看历次 Oracle 审查结论与历史。",
@@ -3788,6 +3789,7 @@ const zhCN: Record<string, string> = {
   "settings.fontSmoothingDescription": "开启后使用灰度平滑，文字可能显得更细。效果因显示器而异。",
   "settings.uiFontSize": "界面字号",
   "settings.uiFontSizeDescription": "调整应用界面的文字大小，图标和布局尺寸不受影响。",
+  "settings.agentBehavior.title": "行为与工具",
   "settings.conversationTurnNavigator": "会话回合导航",
   "settings.conversationTurnNavigatorDescription":
     "在聊天左侧显示回合索引，并自动补齐完整历史。长会话中关闭可减少加载与计算开销。",

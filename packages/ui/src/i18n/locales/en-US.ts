@@ -2325,6 +2325,7 @@ const enUS: Record<string, string> = {
   "chat.selections.limit.count": "You can add at most 8 annotations.",
   "chat.selections.limit.total": "Annotations can quote at most 16,000 characters in total.",
   "sidePane.launcher.selection-side-conversation": "Continue a conversation in the side pane.",
+  "sidePane.launcher.sites": "View sites, deployments, and usage.",
   "sidePane.oracleReviewHistory": "Review history",
   "sidePane.launcher.review": "Review code changes and diffs.",
   "sidePane.launcher.oracle-review": "Browse past Oracle review conclusions.",
@@ -4056,6 +4057,7 @@ const enUS: Record<string, string> = {
   "settings.uiFontSize": "UI font size",
   "settings.uiFontSizeDescription":
     "Adjust interface text without changing icons or layout dimensions.",
+  "settings.agentBehavior.title": "Behavior and tools",
   "settings.conversationTurnNavigator": "Conversation turn navigator",
   "settings.conversationTurnNavigatorDescription":
     "Show the turn index beside the chat and auto-load full history. Turn off for long sessions to reduce loading and computation.",
