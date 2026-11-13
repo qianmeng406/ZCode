@@ -63,6 +63,15 @@ export const REQUIRED_ASAR_RUNTIME_MODULES = [
   // 已在线上触发安装包启动即报 Cannot find module 'ms'（Require stack: debug/src/common.js），
   // 自动更新链路直接崩。ms 是叶子包，显式注入即可让 debug 在 app.asar 内稳定解析。
   "ms",
+  // 主进程静态依赖 pkijs（desktopNetworkPolicy 的自定义 CA 链验证）。3.18 起
+  // bundle.mjs 的校验名单已包含它，但注入名单漏了：增量打包只补这份清单里的
+  // 闭包，于是产出"能生成但缺 pkijs"的坏包，再被自己的校验拦下。
+  // 两条注入/校验名单必须同源，这里补齐。
+  "pkijs",
+  // 自动更新入口从 electron-updater 起校验完整闭包（26.17.0 的 pnpm collector
+  // 仍可能漏 deduped 传递依赖）。校验名单一直有它、注入名单没有，增量产物因此
+  // 没有这个包；补进注入名单让两路径产出同构。
+  "electron-updater",
 ];
 
 export function createRuntimeModuleLookupRoots({ desktopRoot, workspaceRoot }) {
