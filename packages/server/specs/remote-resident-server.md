@@ -90,8 +90,9 @@ fork 的服务端改动不会自动随包发布（实测：安装包会部署官
    （归档根 = mount 目录内容，`sha256` 校验归档本身，版本号后缀 = 归档哈希前 12 位；
    已用官方 3.14.3 server-bundle 实物核对）。
 2. 把产出目录内容上传到自建托管根。
-3. 把 `ZCODE_CDN_BASE_URL` 写进 `.env.production`（构建期固化，推荐，已在本 fork 配好
-   指向自建发布树）。构建期该键**只读 .env 文件**：联调时常在 shell 里 export 本地地址，
+3. 把 `ZCODE_CDN_BASE_URL` 写进 `.env.production` 或调用方自己的未跟踪 env 文件
+   （**不要提交**：仓库的 file-policy 会拦 `.env.production` 改动，且公开仓库不应出现
+   个人服务器地址）。构建期该键**只读 .env 文件**：联调时常在 shell 里 export 本地地址，
    若让它并入 `process.env` 会静默覆盖仓库配置（实测把 `http://127.0.0.1:8899` 烘进安装包）。
    需要运行时临时覆盖时用 `ZCODE_REMOTE_ASSET_CDN_BASE_URL`（host 运行时读取），
    且必须确保应用进程真的拿到该变量——应用已在运行时再次启动只会聚焦旧实例，env 不生效。
