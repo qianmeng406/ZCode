@@ -1389,8 +1389,7 @@ function ConversationTurnGroupImpl({
   // 判据用 latestAssistantTextRow.state 而不是 unit.isRunning：回合可能还在跑
   // （模型说完一段正在调工具），但最新文本行已经终态，那时 copyText 仍须可用。
   const assistantTextTerminal =
-    latestAssistantTextRow?.state === "complete" ||
-    latestAssistantTextRow?.state === "interrupted";
+    latestAssistantTextRow?.state === "complete" || latestAssistantTextRow?.state === "interrupted";
   const assistantRawCopyText = useMemo(
     () => (assistantTextTerminal ? resolveAssistantCopyText(unit) : undefined),
     [

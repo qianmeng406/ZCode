@@ -23,7 +23,7 @@ modules:
       - packages/session-control/src/application/cli/index.ts
       - packages/session-control/src/application/app/index.ts
       - packages/session-control/src/testing/index.ts
-    layers: {contract: contract, domain: domain, app: application}
+    layers: { contract: contract, domain: domain, app: application }
     owner: conversation
   - id: app-control-protocol
     roots: [packages/shared/src/app-control]
@@ -32,17 +32,27 @@ modules:
     publicEntrypoints:
       - packages/shared/src/app-control/index.ts
       - packages/shared/src/app-control/contract.ts
-    layers: {contract: .}
+    layers: { contract: . }
     owner: conversation
   - id: app-control
     roots: [packages/services/src/app-control]
     managed: true
-    requires: [session-control, shared, services, session, project, project-storage, provider, remote-projects]
+    requires:
+      [
+        session-control,
+        shared,
+        services,
+        session,
+        project,
+        project-storage,
+        provider,
+        remote-projects,
+      ]
     publicEntrypoints:
       - packages/services/src/app-control/index.ts
       - packages/services/src/app-control/contract.ts
       - packages/services/src/app-control/discovery-directory.ts
-    layers: {adapters: .}
+    layers: { adapters: . }
     owner: conversation
   - id: cli-session-control-tools
     roots: [apps/zcode-cli/packages/core/src/tool/session-control]
@@ -51,7 +61,7 @@ modules:
     publicEntrypoints:
       - apps/zcode-cli/packages/core/src/tool/session-control/contract.ts
       - apps/zcode-cli/packages/core/src/tool/session-control/index.ts
-    layers: {app: .}
+    layers: { app: . }
     owner: agent
   - id: cli-session-control-bootstrap
     roots: [apps/zcode-cli/packages/bootstrap/src/session-control]
@@ -60,7 +70,7 @@ modules:
     publicEntrypoints:
       - apps/zcode-cli/packages/bootstrap/src/session-control/contract.ts
       - apps/zcode-cli/packages/bootstrap/src/session-control/index.ts
-    layers: {adapters: .}
+    layers: { adapters: . }
     owner: agent
   - id: cli-session-control-runtime
     roots:
@@ -71,7 +81,7 @@ modules:
     publicEntrypoints:
       - apps/zcode-cli/packages/bootstrap/src/cli-session-control/contract.ts
       - apps/zcode-cli/packages/bootstrap/src/cli-session-control/index.ts
-    layers: {adapters: .}
+    layers: { adapters: . }
     owner: agent
   - id: cli-active-transcript
     roots: [apps/zcode-cli/packages/bootstrap/src/active-transcript]
@@ -80,7 +90,7 @@ modules:
     publicEntrypoints:
       - apps/zcode-cli/packages/bootstrap/src/active-transcript/index.ts
       - apps/zcode-cli/packages/bootstrap/src/active-transcript/contract.ts
-    layers: {adapters: .}
+    layers: { adapters: . }
     owner: conversation
   - id: cli-session-fork-commit
     roots: [apps/zcode-cli/packages/core/src/runtime/session-fork-commit]
@@ -89,7 +99,7 @@ modules:
     publicEntrypoints:
       - apps/zcode-cli/packages/core/src/runtime/session-fork-commit/index.ts
       - apps/zcode-cli/packages/core/src/runtime/session-fork-commit/contract.ts
-    layers: {app: .}
+    layers: { app: . }
     owner: conversation
   - id: cli-conversation-materialization
     roots: [apps/zcode-cli/packages/bootstrap/src/zcode-protocol-v4/materialization]
@@ -98,7 +108,7 @@ modules:
     publicEntrypoints:
       - apps/zcode-cli/packages/bootstrap/src/zcode-protocol-v4/materialization/index.ts
       - apps/zcode-cli/packages/bootstrap/src/zcode-protocol-v4/materialization/contract.ts
-    layers: {adapters: .}
+    layers: { adapters: . }
     owner: conversation
   - id: app-control-navigation
     roots: [packages/desktop/src/app-control-navigation]
@@ -110,7 +120,7 @@ modules:
       - packages/desktop/src/app-control-navigation/host.ts
       - packages/desktop/src/app-control-navigation/main.ts
       - packages/desktop/src/app-control-navigation/renderer.ts
-    layers: {adapters: .}
+    layers: { adapters: . }
     owner: conversation
   - id: rpc
     roots: [packages/rpc/src]
@@ -182,7 +192,7 @@ modules:
     publicEntrypoints:
       - packages/design-runtime/src/index.ts
       - packages/design-runtime/src/contract.ts
-    layers: {app: "."}
+    layers: { app: "." }
     owner: browser
   - id: zcode-cli
     roots: [apps/zcode-cli]
@@ -196,7 +206,7 @@ modules:
     publicEntrypoints:
       - packages/shared/src/agent-crash-diagnostic/index.ts
       - packages/shared/src/agent-crash-diagnostic/contract.ts
-    layers: {app: "."}
+    layers: { app: "." }
     owner: desktop
   - id: conversation-telemetry-engine
     roots: [packages/shared/src/conversation-telemetry]
@@ -819,7 +829,7 @@ modules:
       - apps/zcode-cli/packages/bootstrap/src/zcode-protocol/context-composition/index.ts
       - apps/zcode-cli/packages/bootstrap/src/zcode-protocol/context-composition/tracker.ts
       - packages/services/src/zcode-agent/contextCompositionClient.ts
-    layers: {app: .}
+    layers: { app: . }
     owner: agent
   # plugin-host-queries：扩展进程 P2 的插件宿主查询——敏感选项私有存储、plugins/readUserOptions、
   # plugins/mentionItems 的线格式、CLI 实现与 App 侧客户端。规格：apps/zcode-cli/docs/design/v2/plugin-compat.md
@@ -841,7 +851,7 @@ modules:
       - apps/zcode-cli/packages/bootstrap/src/zcode-protocol/plugin-user-options.ts
       - apps/zcode-cli/packages/bootstrap/src/zcode-protocol/plugin-mention-items.ts
       - packages/services/src/zcode-agent/pluginHostQueriesClient.ts
-    layers: {app: .}
+    layers: { app: . }
     owner: plugin
   # remote-resident-rows-range：rowsRange 只读热会话（residency="resident-only"）的 Host 侧执行端能力确认，
   # 供手机任务列表预加载；旧 CLI 不认识该参数时 Host 直接拒绝，不触发冷恢复。
@@ -872,7 +882,7 @@ modules:
       - apps/zcode-cli/packages/contracts/src/interfaces/plugin-discovery.port.ts
       - apps/zcode-cli/packages/contracts/src/tools/plugin-discovery.ts
       - apps/zcode-cli/packages/core/src/tool/handlers/plugin-discovery.ts
-    layers: {app: .}
+    layers: { app: . }
     owner: plugin
   # 卡片只投影协议载荷并提交选择；不拥有安装或重载状态。
   - id: plugin-install-interaction
@@ -890,7 +900,7 @@ modules:
       - packages/shared/src/zcode-protocol-v4/pluginInstall.ts
       - packages/ui/src/v4/PluginInstallCard.tsx
       - packages/ui/src/settings/PluginAutoRecommendationSetting.tsx
-    layers: {app: .}
+    layers: { app: . }
     owner: plugin
   - id: tool-discovery
     roots:
@@ -1012,7 +1022,7 @@ modules:
     publicEntrypoints:
       - apps/zcode-cli/packages/core/src/tool/handlers/read-topic-resource.ts
       - apps/zcode-cli/packages/core/src/tool/topic-resource/contract.ts
-    layers: {app: .}
+    layers: { app: . }
     owner: agent
   # bot-topic-history-attachment：登记既有话题历史附件构造，提示改指向 ReadTopicResource 时纳管。
   - id: bot-topic-history-attachment
@@ -1024,7 +1034,7 @@ modules:
     publicEntrypoints:
       - packages/services/src/bots/topicHistoryAttachment.ts
       - packages/services/src/bots/topic-history-attachment/contract.ts
-    layers: {app: .}
+    layers: { app: . }
     owner: conversation
 
   # composer-toolbar-layout：登记既有 DOM 布局入口，不改调用路径。
@@ -1662,7 +1672,7 @@ modules:
     managed: true
     requires: [ui]
     publicEntrypoints: [packages/ui/src/ToolCallBlocks/session/contract.ts]
-    layers: {ui: "."}
+    layers: { ui: "." }
     owner: conversation
   # extension-host-protocol：扩展进程三方共用的纯 schema、类型与纯函数（docs/plugins/extension-host.md §4）。
   - id: extension-host-protocol
@@ -2618,3 +2628,127 @@ exceptions:
     paths:
       - packages/ui/src/root/GlobalDatabaseStartupLoading.tsx
     reason: 启动失败页在现有复制诊断/重试/退出旁增加导出日志按钮（docs/desktop/database-migration-startup-gate-plan.md）。只扩展既有失败页交互，不新增文件、不改变启动状态 owner 或模块边界；接管 packages/ui/src/root 不在本次范围内。
+  - id: upstream-v3-18-1-unmanaged-new-files
+    rule: unmanaged-new-file
+    paths:
+      - apps/zcode-cli/packages/adapters/src/fs/wsl-file-system-adapter.ts
+      - apps/zcode-cli/packages/bootstrap/src/app/external-agent-probe-types.ts
+      - apps/zcode-cli/packages/bootstrap/src/app/session-execution-port-binding.ts
+      - apps/zcode-cli/packages/bootstrap/src/app/session-execution-routing-port.ts
+      - apps/zcode-cli/packages/bootstrap/src/zcode-protocol-v4/commands/handlers/external-agent.ts
+      - apps/zcode-cli/packages/bootstrap/src/zcode-protocol/external-agent-changes-parse.ts
+      - apps/zcode-cli/packages/bootstrap/src/zcode-protocol/external-agent-changes.ts
+      - apps/zcode-cli/packages/bootstrap/src/zcode-protocol/external-agent-driver.ts
+      - apps/zcode-cli/packages/bootstrap/src/zcode-protocol/external-agent-port-impl.ts
+      - apps/zcode-cli/packages/bootstrap/src/zcode-protocol/external-agent-probe.ts
+      - apps/zcode-cli/packages/bootstrap/src/zcode-protocol/input-prediction-context.ts
+      - apps/zcode-cli/packages/bootstrap/src/zcode-protocol/provider-upstream-models.ts
+      - apps/zcode-cli/packages/bootstrap/src/zcode-protocol/session-execution-port-inject.ts
+      - apps/zcode-cli/packages/bootstrap/src/zcode-protocol/session-execution.ts
+      - apps/zcode-cli/packages/bootstrap/src/zcode-protocol/session-external-agent.ts
+      - apps/zcode-cli/packages/contracts/src/interfaces/external-agent.port.ts
+      - apps/zcode-cli/packages/contracts/src/tools/research.ts
+      - apps/zcode-cli/packages/core/src/context/fusion-sections.ts
+      - apps/zcode-cli/packages/core/src/context/sections/minimal-guardrails.ts
+      - apps/zcode-cli/packages/core/src/context/sections/session-execution.ts
+      - apps/zcode-cli/packages/core/src/runtime/methods/workspace-deep-review.ts
+      - apps/zcode-cli/packages/core/src/tool/handlers/bash-update-task-policy.ts
+      - apps/zcode-cli/packages/core/src/tool/handlers/delegate-to-external-agent.ts
+      - apps/zcode-cli/packages/core/src/tool/handlers/external-agent-activity.ts
+      - apps/zcode-cli/packages/core/src/tool/handlers/external-agent-progress.ts
+      - apps/zcode-cli/packages/core/src/tool/handlers/external-agent-tasks.ts
+      - apps/zcode-cli/packages/core/src/tool/handlers/external-agent-wait.ts
+      - apps/zcode-cli/packages/core/src/tool/handlers/research-tools.ts
+      - packages/desktop/src/host/sessionLinuxConnection.ts
+      - packages/desktop/src/host/sessionLinuxExecutionManager.ts
+      - packages/desktop/src/main/desktopRemoteUsageArmsTelemetry.ts
+      - packages/desktop/src/main/desktopWindowsStaleShortcutRepair.ts
+      - packages/server/src/remote/remoteExistsMany.ts
+      - packages/server/src/remote/remoteReadFiles.ts
+      - packages/server/src/remote/resident-bridge.ts
+      - packages/server/src/remote/resident-connect.ts
+      - packages/server/src/remote/resident-daemon.ts
+      - packages/server/src/remote/resident-entry.ts
+      - packages/server/src/remote/resident-protocol.ts
+      - packages/server/src/remote/server-command.ts
+      - packages/server/src/sessionLinuxExecution/leaseRegistry.ts
+      - packages/server/src/sessionLinuxExecution/pathMapping.ts
+      - packages/server/src/sessionLinuxExecution/sessionLinuxExecutionChannel.ts
+      - packages/services/src/feedback/feedbackLocalTicketStore.ts
+      - packages/services/src/zcode-agent/sessionExecutionBridge.ts
+      - packages/shared/src/externalAgentBinding.ts
+      - packages/shared/src/externalAgentCatalog.ts
+      - packages/shared/src/externalAgentSessions.ts
+      - packages/shared/src/externalAgentStream.ts
+      - packages/shared/src/oracle-review/findings.ts
+      - packages/shared/src/session-handoff/index.ts
+      - packages/shared/src/session-handoff/prompt.ts
+      - packages/shared/src/sessionExecutionEnvironment.ts
+      - packages/shared/src/sessionExecutionOperations.ts
+      - packages/shared/src/sessionExecutionWire.ts
+      - packages/shared/src/zcode-protocol-v4/create-session-config.ts
+      - packages/shared/src/zcode-protocol-v4/external-agent-probe.ts
+      - packages/shared/src/zcode-protocol-v4/external-agent.ts
+      - packages/ui/src/SessionExecutionEnvironmentDialog.tsx
+      - packages/ui/src/ToolCallBlocks/renderers/changes-group.tsx
+      - packages/ui/src/ToolCallBlocks/renderers/cua-group.tsx
+      - packages/ui/src/ToolCallBlocks/renderers/execute-group.tsx
+      - packages/ui/src/app-shell/ExternalAgentActivitySidePane.tsx
+      - packages/ui/src/app-shell/ExternalAgentTranscriptSidePane.tsx
+      - packages/ui/src/app-shell/FileExplorerSidePane.tsx
+      - packages/ui/src/hooks/useSessionExecutionEnvironment.ts
+      - packages/ui/src/lib/assistantAutoFilePreviewPreference.ts
+      - packages/ui/src/lib/codePreviewPersistence.ts
+      - packages/ui/src/lib/codingPlanQuotaResetPrompt.ts
+      - packages/ui/src/lib/conversationTurnNavigatorPreference.ts
+      - packages/ui/src/lib/documentHiddenMotionPause.ts
+      - packages/ui/src/lib/embeddedBrowserOpenBridge.ts
+      - packages/ui/src/lib/onDemandLoadingGuards.ts
+      - packages/ui/src/lib/performanceModePreference.ts
+      - packages/ui/src/lib/planExecutionModel.ts
+      - packages/ui/src/lib/taskLifecycleEvents.ts
+      - packages/ui/src/lib/taskNavigationTarget.ts
+      - packages/ui/src/settings/model-provider-section/ProviderUpstreamModelPicker.tsx
+      - packages/ui/src/settings/model-provider-section/useUpstreamModelFetch.ts
+      - packages/ui/src/v4/CodingPlanQuotaResetPrompt.tsx
+      - packages/ui/src/v4/V4PlanElicitationDialog.tsx
+      - packages/ui/src/v4/composer/ComposerTurnMetricsCapsule.tsx
+      - packages/ui/src/v4/composer/ExternalAgentActivityCard.tsx
+      - packages/ui/src/v4/composer/ExternalAgentActivityCardSlot.tsx
+      - packages/ui/src/v4/composer/ExternalAgentBindDialog.tsx
+      - packages/ui/src/v4/composer/ExternalAgentReadOnlyBadge.tsx
+      - packages/ui/src/v4/composer/composerTurnMetricsFact.ts
+      - packages/ui/src/v4/composer/externalAgentCommands.ts
+      - packages/ui/src/v4/composer/externalAgentProbe.ts
+      - packages/ui/src/v4/composer/newTaskDraft.ts
+      - packages/ui/src/v4/composer/promptOptimizerContext.ts
+      - packages/ui/src/v4/composer/promptOptimizerPrompt.ts
+      - packages/ui/src/v4/composer/promptOptimizerStore.ts
+      - packages/ui/src/v4/composer/useInputPrediction.ts
+      - packages/ui/src/v4/composer/usePromptOptimizer.ts
+      - packages/ui/src/v4/conversationCuaGroups.ts
+      - packages/ui/src/v4/conversationFullHistoryJob.ts
+      - packages/ui/src/v4/externalAgent/ExternalAgentToolRow.tsx
+      - packages/ui/src/v4/externalAgent/externalAgentActivityStore.ts
+      - packages/ui/src/v4/externalAgent/externalAgentTranscriptStore.ts
+      - packages/ui/src/v4/handoff/SessionHandoffDialog.tsx
+      - packages/ui/src/v4/oracleReview/OracleReviewBanner.tsx
+      - packages/ui/src/v4/oracleReview/OracleReviewBannerParts.tsx
+      - packages/ui/src/v4/oracleReview/OracleReviewQueuePanel.tsx
+      - packages/ui/src/v4/oracleReview/oracleReviewContextAnalysis.ts
+      - packages/ui/src/v4/oracleReview/oracleReviewContextFetch.ts
+      - packages/ui/src/v4/oracleReview/oracleReviewGather.ts
+      - packages/ui/src/v4/oracleReview/oracleReviewMaterial.ts
+      - packages/ui/src/v4/oracleReview/oracleReviewPendingProgress.ts
+      - packages/ui/src/v4/oracleReview/oracleReviewPrompt.ts
+      - packages/ui/src/v4/oracleReview/oracleReviewQueueState.ts
+      - packages/ui/src/v4/oracleReview/oracleReviewRunner.ts
+      - packages/ui/src/v4/oracleReview/oracleReviewStore.ts
+      - packages/ui/src/v4/oracleReview/oracleReviewSupport.ts
+      - packages/ui/src/v4/oracleReview/oracleReviewVerdict.ts
+      - packages/ui/src/v4/oracleReview/reviewQueue.ts
+      - packages/ui/src/v4/oracleReview/useOracleReview.ts
+      - packages/ui/src/v4/oracleReview/useOracleReviewQueue.ts
+      - packages/ui/src/workspace-file-search/fetchWorkspaceFileEntries.ts
+      - packages/ui/vite/harness.config.ts
+    reason: 官方 v3.18.1 同步引入的既有实现文件，落在 bootstrap/core/contracts/shared/server/desktop/services/ui 的未受管目录中。这批文件是上游持续演进的模块内部实现（语音输入、执行环境路由、提示词快照、上游模型目录、目标完成校验等），fork 只跟进同步、不做结构改造；为 120 个上游文件逐个登记 managed 模块需要各自梳理边界，不在同步范围内。全部为单一职责模块，无新增跨层深导入。

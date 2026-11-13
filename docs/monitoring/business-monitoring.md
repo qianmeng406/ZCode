@@ -81,11 +81,11 @@ UI store（当前模式唯一 owner）
 统计用户在以下三个入口**实际应用的模式变化**，不代表所有来源的界面切换总量。
 事件使用 `element_name=ui_mode_switch`、`event_type=ck`，位置复用现有 `event_region`：
 
-| 用户入口 | `event_region` | 上报时机 |
-| --- | --- | --- |
-| 用户头像菜单 | `app.profile` | 选择不同模式并应用到 UI store 后 |
-| Settings 常规 | `app.setting` | 选择不同模式并应用到 UI store 后 |
-| Onboarding | `app.onboarding` | 提交引导、实际应用已选择的模式后；点卡片只改草稿，不报 |
+| 用户入口      | `event_region`   | 上报时机                                               |
+| ------------- | ---------------- | ------------------------------------------------------ |
+| 用户头像菜单  | `app.profile`    | 选择不同模式并应用到 UI store 后                       |
+| Settings 常规 | `app.setting`    | 选择不同模式并应用到 UI store 后                       |
+| Onboarding    | `app.onboarding` | 提交引导、实际应用已选择的模式后；点卡片只改草稿，不报 |
 
 `event_extra_detail.previous_ui_mode` 是应用前的模式，`ui_mode` 是应用后的模式，均为字符串。
 沿用 `work`（内部 office）、`code`（内部 coding），只有无法读取可归属模式时才为 `unknown`。

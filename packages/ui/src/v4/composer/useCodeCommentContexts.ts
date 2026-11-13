@@ -42,10 +42,7 @@ export function seedCodeCommentContextsForScope(
 }
 
 /** composer 编辑态的 edit scope 用完即弃：离开时不缓存，原草稿 scope 正常缓存。 */
-function stashScopeContexts(
-  scopeKey: string,
-  contexts: readonly CodeCommentComposerAttachment[],
-) {
+function stashScopeContexts(scopeKey: string, contexts: readonly CodeCommentComposerAttachment[]) {
   if (isComposerEditScopeId(scopeKey)) {
     scopedCodeCommentContexts.delete(scopeKey);
     return;

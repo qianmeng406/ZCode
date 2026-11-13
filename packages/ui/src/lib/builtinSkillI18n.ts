@@ -64,9 +64,11 @@ const BUILTIN_SKILL_DESCRIPTIONS: Record<string, Record<"zh-CN" | "en-US", strin
     "en-US":
       "Control ZCode's built-in browser to open, inspect, click, type, screenshot, or verify webpages and local development targets.",
   },
-  "design": {
-    "zh-CN": "设计工作流：交付物是写入工作区的 HTML 设计稿、可交互原型或 HTML 演示稿时使用，覆盖需求理解、新建与改版、品牌配色、视觉探索与审查。对话内的交互视图用 visualize，.pptx 文件交给 presentations。",
-    "en-US": "Design workflow for workspace deliverables: HTML design files, interactive prototypes, and HTML slide decks, covering intake, new designs and redesigns, color and brand, exploration, and review. Use visualize for in-chat views and presentations for .pptx files.",
+  design: {
+    "zh-CN":
+      "设计工作流：交付物是写入工作区的 HTML 设计稿、可交互原型或 HTML 演示稿时使用，覆盖需求理解、新建与改版、品牌配色、视觉探索与审查。对话内的交互视图用 visualize，.pptx 文件交给 presentations。",
+    "en-US":
+      "Design workflow for workspace deliverables: HTML design files, interactive prototypes, and HTML slide decks, covering intake, new designs and redesigns, color and brand, exploration, and review. Use visualize for in-chat views and presentations for .pptx files.",
   },
   "dispatching-parallel-agents": {
     "zh-CN": "面对 2 个以上彼此独立、无共享状态或顺序依赖的任务时使用。",

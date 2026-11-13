@@ -10,10 +10,7 @@
         "lastUserMessageIncludes": ["E2E_TOOL_CROSS_PRODUCT_READ"],
         "lastUserMessageExcludes": ["E2E_TOOL_CROSS_PRODUCT_READ_SESSION_CONTEXT"],
         "bodyIncludes": ["E2E_TOOL_CROSS_PRODUCT_READ"],
-        "bodyExcludes": [
-          "Generate a concise title",
-          "CRITICAL: Respond with TEXT ONLY"
-        ]
+        "bodyExcludes": ["Generate a concise title", "CRITICAL: Respond with TEXT ONLY"]
       },
       "response": {
         "statusCode": 200,

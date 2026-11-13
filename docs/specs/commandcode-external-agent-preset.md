@@ -43,7 +43,7 @@
   空结果回 `root`。
 - 首行是头：`{"type":"session","version":3,"id","timestamp","cwd"}`。
 - 其后每行一个条目（V3，免费模型实跑落盘）：`{"type":"message","id","parentId",
-  "timestamp","message":{"role","content","meta"}}`；`message.meta.isMeta === true`
+"timestamp","message":{"role","content","meta"}}`；`message.meta.isMeta === true`
   是 CLI 注入元数据，列表与上下文都跳过。旧版扁平 `{role,content,metadata}` 也兼容。
 - `content` 是 Anthropic 形状的 part 数组：
   - `{type:"text",text}` / `{type:"thinking",thinking}`；
@@ -71,7 +71,7 @@
 
 - 绑定对话框出现「Command Code」，模型来自本机缓存，档位逐模型正确。
 - 委派 invocation 为 `-p --output-format json --trust --skip-onboarding [--model]
-  [--effort] --yolo [-r id]`，prompt 在 stdin。
+[--effort] --yolo [-r id]`，prompt 在 stdin。
 - `--output-format json` 的 result 帧解析出正文、错误与 `sessionId`。
 - 续接菜单能列出该 cwd 下的 headless 会话；上下文面板能还原用户/助手/工具条目。
 

@@ -51,7 +51,6 @@ export interface V4InteractionDialogsProps {
   onPlanInteractionAccepted?: (interactionId: string) => void;
 }
 
-
 export function getCurrentSessionInteractionSnapshot(
   sessionId: string,
   snapshot: ConversationSnapshot | null,
@@ -375,8 +374,7 @@ export function V4InteractionDialogs({
   }
 
   // 先窄化出 userInput 载荷：下面要用 payload.toolName，联合类型上取不到。
-  const projectedElicitation =
-    pending.payload.kind === "userInput" ? pending.payload : null;
+  const projectedElicitation = pending.payload.kind === "userInput" ? pending.payload : null;
   const elicitationRequest = projectedElicitation
     ? resolveV4ElicitationRequest(
         pendingUserInputToElicitationRequest(sessionId, {

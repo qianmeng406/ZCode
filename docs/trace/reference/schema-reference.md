@@ -310,19 +310,19 @@ failure_stage = schedule | execute | commit | unhandled
 
 ### 10.1 Operation 目录
 
-| Operation                         | 含义                      | 入口类别       |
-| --------------------------------- | ------------------------- | -------------- |
-| `goal_completion_verification`    | Goal 完成验证             | system-sidecar |
-| `goal_title_generation`           | Goal 标题生成             | system-sidecar |
-| `project_memory_extract`          | Project Memory 提取       | system-sidecar |
-| `project_memory_dream`            | Project Memory Dream/整理 | system-sidecar |
-| `project_memory_recall`           | Project Memory 召回       | system-sidecar |
-| `session_title_generation`        | Session 标题生成          | system-sidecar |
-| `tool_internal_model_call`        | 未单列的 Tool 内模型工作  | tool/system    |
-| `web_fetch_processing`            | Web Fetch 内容处理        | tool           |
-| `web_search`                      | Web Search 模型请求       | tool           |
-| `workspace_git_commit_message`    | Git Commit Message 生成   | system-sidecar |
-| `workspace_generate_text`         | Workspace 通用文本生成    | system-sidecar |
+| Operation                      | 含义                      | 入口类别       |
+| ------------------------------ | ------------------------- | -------------- |
+| `goal_completion_verification` | Goal 完成验证             | system-sidecar |
+| `goal_title_generation`        | Goal 标题生成             | system-sidecar |
+| `project_memory_extract`       | Project Memory 提取       | system-sidecar |
+| `project_memory_dream`         | Project Memory Dream/整理 | system-sidecar |
+| `project_memory_recall`        | Project Memory 召回       | system-sidecar |
+| `session_title_generation`     | Session 标题生成          | system-sidecar |
+| `tool_internal_model_call`     | 未单列的 Tool 内模型工作  | tool/system    |
+| `web_fetch_processing`         | Web Fetch 内容处理        | tool           |
+| `web_search`                   | Web Search 模型请求       | tool           |
+| `workspace_git_commit_message` | Git Commit Message 生成   | system-sidecar |
+| `workspace_generate_text`      | Workspace 通用文本生成    | system-sidecar |
 
 `agent_step` 和 `context_compaction` 也属于 `AgentTelemetryOperation`，但有专属父 Span，不作为
 Detached Start 的 operation。

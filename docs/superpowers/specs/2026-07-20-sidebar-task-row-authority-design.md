@@ -261,10 +261,10 @@ delete: task -> archive(confirm) -> Archived -> delete(confirm)
                                 -> ordinary control task remains visible
 ```
 
-| Case  | Setup                                                                                  | Action                                                                                | Assertions                                                              | Pruned combinations                                                                                    |
-| ----- | -------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------- | ----------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------ |
-| TSL19 | 创建 parent 并从完成态 assistant 分叉；CLI 行为 `task_type=fork` 且 `parent_id=parent` | 切到未发送 draft 后重启 App，在 resume child 前打开 `#` 会话目录                      | 精确 `session:<childId>` 可见，证明冷启动 sessions-index 已恢复 child   | Project row 现由 tasks-index 持有，fork 未落 task row 是独立缺口；workflow/辅助 child 由 focused tests |
-| TSL20 | 普通 task 从 Project 归档，再从 Archived 永久删除 | 按归档管理 2026-11-04 裁决检查持久数据后重启，普通任务作为列表已加载对照 | Host 索引与 CLI session/message/part 均移除，Project、Archived、mention 均不复活 | fork/附件引用等清理边界由 APD 系列覆盖 |
+| Case  | Setup                                                                                  | Action                                                                   | Assertions                                                                       | Pruned combinations                                                                                    |
+| ----- | -------------------------------------------------------------------------------------- | ------------------------------------------------------------------------ | -------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------ |
+| TSL19 | 创建 parent 并从完成态 assistant 分叉；CLI 行为 `task_type=fork` 且 `parent_id=parent` | 切到未发送 draft 后重启 App，在 resume child 前打开 `#` 会话目录         | 精确 `session:<childId>` 可见，证明冷启动 sessions-index 已恢复 child            | Project row 现由 tasks-index 持有，fork 未落 task row 是独立缺口；workflow/辅助 child 由 focused tests |
+| TSL20 | 普通 task 从 Project 归档，再从 Archived 永久删除                                      | 按归档管理 2026-11-04 裁决检查持久数据后重启，普通任务作为列表已加载对照 | Host 索引与 CLI session/message/part 均移除，Project、Archived、mention 均不复活 | fork/附件引用等清理边界由 APD 系列覆盖                                                                 |
 
 两条 case 先进入 `manual-review/pending`，使用 case-local provider fixture；fixture check 与 strict replay
 通过后仍留待本批统一人工 review。

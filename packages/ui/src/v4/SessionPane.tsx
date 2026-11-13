@@ -8053,73 +8053,79 @@ export function SessionPane({
               >
                 <ForkDestinationContext.Provider value={forkDestinationValue}>
                   <ConversationTimeline
-                  compactForRemoteControl={compactForRemoteControl}
-                  scrollToBottomActionRef={timelineScrollToBottomRef}
-                  scrollToQueryActionRef={timelineScrollToQueryRef}
-                  selectionPanelLayoutContainerRef={conversationLayoutContainerRef}
-                  rows={timelineSnapshot?.rows.window ?? []}
-                  pendingGuides={timelineSnapshot ? pendingGuideProjection?.pendingGuides : []}
-                  apiRetry={timelineSnapshot?.control.apiRetry ?? null}
-                  totalCount={timelineSnapshot?.rows.totalCount ?? 0}
-                  sessionKey={sessionId ?? "draft"}
-                  scrollMemoryKey={timelineScrollMemoryKey}
-                  rowContext={rowContext}
-                  onFork={forkActionsEnabled ? handleFork : undefined}
-                  onRetry={retryActionsEnabled ? handleRetry : undefined}
-                  onFeedbackChange={
-                    !readOnly && !selectionSideChat && sessionId
-                      ? handleAssistantFeedback
-                      : undefined
-                  }
-                  // handleEdit 的完整签名（文本/附件/撤销模式/引用/提交配置）比
-                  // UserInputEditHandler 更宽；这里包一层只转 target，避免方差检查失败。
-                  onEdit={
-                    editActionsEnabled
-                      ? (target) => {
-                          void handleEdit(target, "");
-                        }
-                      : undefined
-                  }
-                  canLoadOlder={timelineSnapshot ? hasOlderRows(timelineSnapshot) : false}
-                  loadingOlder={timelineSnapshot ? state.loadingOlder : false}
-                  onLoadOlder={handleLoadOlder}
-                  onLoadAllOlder={handleLoadAllOlder}
-                  windowCollapseEnabled={conversationWindowCollapseEnabled}
-                  stableRenderUnitsEnabled={stableRenderUnitsEnabled}
-                  scopedPresentationClockEnabled={scopedPresentationClockEnabled}
-                  coalescedBottomScrollEnabled={coalescedBottomScrollEnabled}
-                  idleTickScanReductionEnabled={idleTickScanReductionEnabled}
-                  onHistoryViewportStateChange={
-                    conversationWindowCollapseEnabled ? handleHistoryViewportStateChange : undefined
-                  }
-                  turnNavigatorDirectoryRevision={state.turnNavigatorDirectoryRevision}
-                  bottomDock={conversationBottomDock}
-                  hideTurnNavigator={shareSelectionPanelVisible && !compactForRemoteControl}
-                  turnNavigatorEnabled={conversationTurnNavigatorEnabled}
-                  backgroundScrollLocked={false}
-                  headerSlot={
-                    // unsupportedRowCount 也要开这个门：整份副本的行都被本 build 跳过时
-                    // rows 为空，但只读块必须留下来显示「需要更新 ZCode」，不能整块消失。
-                    importedShare &&
-                    (importedShare.rows.length > 0 || importedShare.unsupportedRowCount > 0) ? (
-                      <ConversationShareImportNotice
-                        rows={importedShare.rows}
-                        contentBlocks={importedShare.contentBlocks}
-                        unsupportedRowCount={importedShare.unsupportedRowCount}
-                        artifactNames={importedShareArtifactNames}
-                        artifactWorkspaceRelativePaths={importedShareArtifactWorkspaceRelativePaths}
-                        workspacePath={workspacePath}
-                        {...(workspaceIdentity ? { workspaceIdentity } : {})}
-                        {...(remoteSessionId ? { workspaceRemoteSessionId: remoteSessionId } : {})}
-                        locale={locale}
-                        theme={theme}
-                        codePreviewSettings={codePreviewSettings}
-                        onOpenShareUrl={onOpenBrowserUrl ? handleOpenImportedShareUrl : undefined}
-                        onOpenFileLink={onOpenFileLink}
-                        onOpenCodeViewer={onOpenCodeViewer}
-                      />
-                    ) : null
-                  }
+                    compactForRemoteControl={compactForRemoteControl}
+                    scrollToBottomActionRef={timelineScrollToBottomRef}
+                    scrollToQueryActionRef={timelineScrollToQueryRef}
+                    selectionPanelLayoutContainerRef={conversationLayoutContainerRef}
+                    rows={timelineSnapshot?.rows.window ?? []}
+                    pendingGuides={timelineSnapshot ? pendingGuideProjection?.pendingGuides : []}
+                    apiRetry={timelineSnapshot?.control.apiRetry ?? null}
+                    totalCount={timelineSnapshot?.rows.totalCount ?? 0}
+                    sessionKey={sessionId ?? "draft"}
+                    scrollMemoryKey={timelineScrollMemoryKey}
+                    rowContext={rowContext}
+                    onFork={forkActionsEnabled ? handleFork : undefined}
+                    onRetry={retryActionsEnabled ? handleRetry : undefined}
+                    onFeedbackChange={
+                      !readOnly && !selectionSideChat && sessionId
+                        ? handleAssistantFeedback
+                        : undefined
+                    }
+                    // handleEdit 的完整签名（文本/附件/撤销模式/引用/提交配置）比
+                    // UserInputEditHandler 更宽；这里包一层只转 target，避免方差检查失败。
+                    onEdit={
+                      editActionsEnabled
+                        ? (target) => {
+                            void handleEdit(target, "");
+                          }
+                        : undefined
+                    }
+                    canLoadOlder={timelineSnapshot ? hasOlderRows(timelineSnapshot) : false}
+                    loadingOlder={timelineSnapshot ? state.loadingOlder : false}
+                    onLoadOlder={handleLoadOlder}
+                    onLoadAllOlder={handleLoadAllOlder}
+                    windowCollapseEnabled={conversationWindowCollapseEnabled}
+                    stableRenderUnitsEnabled={stableRenderUnitsEnabled}
+                    scopedPresentationClockEnabled={scopedPresentationClockEnabled}
+                    coalescedBottomScrollEnabled={coalescedBottomScrollEnabled}
+                    idleTickScanReductionEnabled={idleTickScanReductionEnabled}
+                    onHistoryViewportStateChange={
+                      conversationWindowCollapseEnabled
+                        ? handleHistoryViewportStateChange
+                        : undefined
+                    }
+                    turnNavigatorDirectoryRevision={state.turnNavigatorDirectoryRevision}
+                    bottomDock={conversationBottomDock}
+                    hideTurnNavigator={shareSelectionPanelVisible && !compactForRemoteControl}
+                    turnNavigatorEnabled={conversationTurnNavigatorEnabled}
+                    backgroundScrollLocked={false}
+                    headerSlot={
+                      // unsupportedRowCount 也要开这个门：整份副本的行都被本 build 跳过时
+                      // rows 为空，但只读块必须留下来显示「需要更新 ZCode」，不能整块消失。
+                      importedShare &&
+                      (importedShare.rows.length > 0 || importedShare.unsupportedRowCount > 0) ? (
+                        <ConversationShareImportNotice
+                          rows={importedShare.rows}
+                          contentBlocks={importedShare.contentBlocks}
+                          unsupportedRowCount={importedShare.unsupportedRowCount}
+                          artifactNames={importedShareArtifactNames}
+                          artifactWorkspaceRelativePaths={
+                            importedShareArtifactWorkspaceRelativePaths
+                          }
+                          workspacePath={workspacePath}
+                          {...(workspaceIdentity ? { workspaceIdentity } : {})}
+                          {...(remoteSessionId
+                            ? { workspaceRemoteSessionId: remoteSessionId }
+                            : {})}
+                          locale={locale}
+                          theme={theme}
+                          codePreviewSettings={codePreviewSettings}
+                          onOpenShareUrl={onOpenBrowserUrl ? handleOpenImportedShareUrl : undefined}
+                          onOpenFileLink={onOpenFileLink}
+                          onOpenCodeViewer={onOpenCodeViewer}
+                        />
+                      ) : null
+                    }
                     emptyState={
                       !remoteAvailable ? (
                         <div className="p-6 text-center text-ui-base text-foreground-subtle">
