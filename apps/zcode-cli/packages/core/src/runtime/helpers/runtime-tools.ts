@@ -93,7 +93,6 @@ function registerRuntimeBuiltInTools(runtime: AgentRuntimeInternal, deps: AgentR
     // fork 工具开关：默认全关；运行期由 updateForkToolSwitches 改写，冷恢复从 runtimeConfig 读。
     includeMonitor: runtime.config.forkToolSwitches?.monitorTool === true,
     includeNotebookEdit: runtime.config.forkToolSwitches?.notebookEdit === true,
-    includeApplyPatch: runtime.config.forkToolSwitches?.applyPatch === true,
     // 委派工具的门是「本会话绑定了外部 agent」，即只读锁——端口全局装配，不能当在场事实。
     includeExternalAgent: runtime.externalAgentReadOnly === true,
     embeddedSearchEnabled: resolveRuntimeEmbeddedSearchEnabled(runtime),

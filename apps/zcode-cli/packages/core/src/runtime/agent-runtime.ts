@@ -950,7 +950,7 @@ export interface AgentRuntime {
   /** 缺省等待最多 60 秒；null 等待全部已调度提取结束，不设置 drain deadline。 */
   drainMemoryExtractions(timeoutMs?: number | null): Promise<void>;
   /**
-   * fork 工具开关的运行期更新（Monitor/NotebookEdit/ApplyPatch）。会话内即时生效：
+   * fork 工具开关的运行期更新（Monitor/NotebookEdit）。会话内即时生效：
    * 可见性立刻改变，注册表增删在没有 active turn 时立刻执行，否则在本 turn 收口后执行。
    */
   updateForkToolSwitches(preferences: import("@zcode/shared").ForkToolPreferences): void;

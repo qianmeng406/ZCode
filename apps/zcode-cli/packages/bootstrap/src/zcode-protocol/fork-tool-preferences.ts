@@ -2,7 +2,7 @@ import { zcodeWorkspaceUpdateForkToolPreferencesParamsSchema } from "@zcode/shar
 import { parseParams, type ZCodeProtocolAgentServerContext } from "./server-types.js";
 
 /**
- * fork 工具开关（Monitor / NotebookEdit / ApplyPatch）是 workspace 级偏好，但真正生效的是
+ * fork 工具开关（Monitor / NotebookEdit）是 workspace 级偏好，但真正生效的是
  * 每个 session runtime 的工具注册表。与 model-io 同模式：先更新进程级缓存供新建/冷恢复
  * 继承，再推给每个活跃 session，避免"新会话能看见、老会话看不见"的分裂。
  *

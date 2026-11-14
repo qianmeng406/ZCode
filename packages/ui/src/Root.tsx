@@ -462,7 +462,6 @@ function RootInner({
   }, [
     appSettings?.forkFeatures?.monitorTool,
     appSettings?.forkFeatures?.notebookEdit,
-    appSettings?.forkFeatures?.applyPatch,
     services.zcodeAgentService,
   ]);
 

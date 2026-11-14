@@ -12,7 +12,6 @@ import { createTestSessionEventStore } from "./test-event-store.js";
 const ALL_OFF: ForkToolPreferences = {
   monitorTool: false,
   notebookEdit: false,
-  applyPatch: false,
 };
 
 function createRuntime(forkToolSwitches: ForkToolPreferences = ALL_OFF) {
@@ -33,19 +32,19 @@ function visibleToolNames(runtime: ReturnType<typeof createRuntime>): string[] {
 }
 
 describe("fork tool switches", () => {
-  it("冷启动按 config 注册：默认全关时三个工具都不在工具面上", () => {
+  it("冷启动按 config 注册：默认全关时两个工具都不在工具面上", () => {
     const runtime = createRuntime();
     const names = visibleToolNames(runtime);
-    for (const name of ["Monitor", "NotebookEdit", "ApplyPatch"]) {
+    for (const name of ["Monitor", "NotebookEdit"]) {
       expect(names).not.toContain(name);
       expect(runtime.getToolRegistry().has(name)).toBe(false);
     }
   });
 
   it("冷启动打开开关时对应工具立刻可见", () => {
-    const runtime = createRuntime({ ...ALL_OFF, applyPatch: true });
-    expect(visibleToolNames(runtime)).toContain("ApplyPatch");
-    expect(runtime.getToolRegistry().has("ApplyPatch")).toBe(true);
+    const runtime = createRuntime({ ...ALL_OFF, monitorTool: true });
+    expect(visibleToolNames(runtime)).toContain("Monitor");
+    expect(runtime.getToolRegistry().has("Monitor")).toBe(true);
   });
 
   it("无 active turn 时开关同时改动可见性与注册表，并推进投影版本", () => {

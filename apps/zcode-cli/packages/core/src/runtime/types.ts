@@ -180,7 +180,7 @@ export interface AgentRuntimeConfig {
   toolAllowlist?: readonly string[];
   toolDisallowlist?: readonly string[];
   /**
-   * fork 工具开关（Monitor/NotebookEdit/ApplyPatch）。缺省全关（fail-closed）；
+   * fork 工具开关（Monitor/NotebookEdit）。缺省全关（fail-closed）；
    * 运行期可通过 `updateForkToolSwitches` 即时改写，关闭即从注册表移除。
    */
   forkToolSwitches?: ForkToolPreferences;

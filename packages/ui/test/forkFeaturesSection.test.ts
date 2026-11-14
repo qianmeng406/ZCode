@@ -38,7 +38,6 @@ function renderSection(overrides: Partial<Parameters<typeof ForkFeaturesSectionC
     onPromptOptimizerEnabledChange: vi.fn(),
     onMonitorToolEnabledChange: vi.fn(),
     onNotebookEditEnabledChange: vi.fn(),
-    onApplyPatchEnabledChange: vi.fn(),
     onMemoryFileEditingEnabledChange: vi.fn(),
     onMemoryCaptureEnabledChange: vi.fn(),
     onMemoryDreamManualEnabledChange: vi.fn(),
@@ -51,7 +50,6 @@ function renderSection(overrides: Partial<Parameters<typeof ForkFeaturesSectionC
       promptOptimizerEnabled: true,
       monitorToolEnabled: false,
       notebookEditEnabled: false,
-      applyPatchEnabled: false,
       memoryFileEditingEnabled: false,
       memoryCaptureEnabled: false,
       memoryDreamManualEnabled: false,
@@ -86,9 +84,6 @@ describe("ForkFeaturesSectionContent", () => {
     expect(switchByName("settings.forkFeatures.notebookEdit").getAttribute("aria-checked")).toBe(
       "false",
     );
-    expect(switchByName("settings.forkFeatures.applyPatch").getAttribute("aria-checked")).toBe(
-      "false",
-    );
   });
 
   it("routes each click to its own handler", () => {
@@ -96,12 +91,10 @@ describe("ForkFeaturesSectionContent", () => {
 
     fireEvent.click(switchByName("settings.forkFeatures.monitorTool"));
     fireEvent.click(switchByName("settings.forkFeatures.notebookEdit"));
-    fireEvent.click(switchByName("settings.forkFeatures.applyPatch"));
     fireEvent.click(switchByName("settings.forkFeatures.memoryCapture"));
 
     expect(handlers.onMonitorToolEnabledChange).toHaveBeenCalledWith(true);
     expect(handlers.onNotebookEditEnabledChange).toHaveBeenCalledWith(true);
-    expect(handlers.onApplyPatchEnabledChange).toHaveBeenCalledWith(true);
     expect(handlers.onMemoryCaptureEnabledChange).toHaveBeenCalledWith(true);
     expect(handlers.onPromptOptimizerEnabledChange).not.toHaveBeenCalled();
   });
@@ -146,7 +139,6 @@ describe("ForkFeaturesSectionContent", () => {
     const handlers = renderSection({
       monitorToolEnabled: true,
       notebookEditEnabled: true,
-      applyPatchEnabled: true,
     });
 
     const applied = screen.getByText("settings.forkFeatures.preset.applied");
@@ -180,7 +172,7 @@ describe("ForkFeaturesSectionContent", () => {
   it("labels default-off features as experimental without tagging shipped ones", () => {
     renderSection();
 
-    // 6 项默认关闭的功能各一个徽标；promptOptimizer 与 Oracle 审查已随版本发布，不标实验。
-    expect(screen.getAllByText("settings.forkFeatures.experimentalBadge")).toHaveLength(6);
+    // 5 项默认关闭的功能各一个徽标；promptOptimizer 与 Oracle 审查已随版本发布，不标实验。
+    expect(screen.getAllByText("settings.forkFeatures.experimentalBadge")).toHaveLength(5);
   });
 });

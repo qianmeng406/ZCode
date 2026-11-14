@@ -29,7 +29,6 @@ import { toolSearchToolEntry } from "./tool-search.js";
 import { readToolEntry } from "./read.js";
 import { writeToolEntry } from "./write.js";
 import { editToolEntry } from "./edit.js";
-import { applyPatchToolEntry } from "./apply-patch.js";
 import { bashToolEntry, createBashToolEntry } from "./bash.js";
 import type { BashTimeoutPolicy } from "../bash-timeout-policy.js";
 import { createJsToolEntry, jsToolEntry } from "./node-repl.js";
@@ -111,8 +110,7 @@ export const builtInTools: ToolEntry[] = [
   readToolEntry,
   writeToolEntry,
   editToolEntry,
-  // fork 定制：结构化补丁编辑（默认不注册，由 forkToolSwitches.applyPatch 打开）。
-  applyPatchToolEntry,
+  // applyPatchToolEntry,
   bashToolEntry,
   globToolEntry,
   grepToolEntry,
@@ -250,12 +248,11 @@ interface RegisterBuiltInToolsOptions {
   /** node_repl（js）默认关闭，由官方 browser-use 插件启用。 */
   includeNodeRepl?: boolean;
   /**
-   * fork 工具开关（Monitor / NotebookEdit / ApplyPatch）。三者都必须显式为 true 才注册，
+   * fork 工具开关（Monitor / NotebookEdit）。两者都必须显式为 true 才注册，
    * 缺席代表调用方不参与该功能——首次装配与分支刷新共用同一组选项。
    */
   includeMonitor?: boolean;
   includeNotebookEdit?: boolean;
-  includeApplyPatch?: boolean;
   /**
    * 外部 agent 委派工具面的注册门：只有真的绑定了外部 agent 的会话才注册。
    *
@@ -386,9 +383,6 @@ export function registerBuiltInTools(
       continue;
     }
     if (entry.metadata.name === "NotebookEdit" && options.includeNotebookEdit !== true) {
-      continue;
-    }
-    if (entry.metadata.name === "ApplyPatch" && options.includeApplyPatch !== true) {
       continue;
     }
     // 委派工具只在真的绑定了外部 agent 的会话里注册（理由见 includeExternalAgent 的说明）。

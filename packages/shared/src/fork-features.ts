@@ -14,7 +14,6 @@ import { z } from "zod";
 export const FORK_FEATURE_KEYS = [
   "monitorTool",
   "notebookEdit",
-  "applyPatch",
   "promptOptimizer",
   "memoryFileEditing",
   "memoryCapture",
@@ -27,7 +26,6 @@ export type ForkFeatures = Record<ForkFeatureKey, boolean>;
 export const DEFAULT_FORK_FEATURES: ForkFeatures = {
   monitorTool: false,
   notebookEdit: false,
-  applyPatch: false,
   promptOptimizer: true,
   memoryFileEditing: false,
   memoryCapture: false,
@@ -37,18 +35,18 @@ export const DEFAULT_FORK_FEATURES: ForkFeatures = {
 /**
  * 对象本身（不含整对象缺省）。广播 payload 用它 + `.optional()`：旧窗口发出的广播不带
  * 这个键，解析结果必须仍然是"没有这个键"，不能凭空补一份默认值。
+ *
+ * 不用 `.strict()`：settings.json / 会话记录的旧落盘可能还残留已移除的开关键（如
+ * applyPatch），读侧必须剥掉而不是整份打回。
  */
-export const forkFeaturesObjectSchema = z
-  .object({
-    monitorTool: z.boolean().default(false),
-    notebookEdit: z.boolean().default(false),
-    applyPatch: z.boolean().default(false),
-    promptOptimizer: z.boolean().default(true),
-    memoryFileEditing: z.boolean().default(false),
-    memoryCapture: z.boolean().default(false),
-    memoryDreamManual: z.boolean().default(false),
-  })
-  .strict();
+export const forkFeaturesObjectSchema = z.object({
+  monitorTool: z.boolean().default(false),
+  notebookEdit: z.boolean().default(false),
+  promptOptimizer: z.boolean().default(true),
+  memoryFileEditing: z.boolean().default(false),
+  memoryCapture: z.boolean().default(false),
+  memoryDreamManual: z.boolean().default(false),
+});
 
 /** 读取侧：整对象缺席时回落到 DEFAULT_FORK_FEATURES（旧 setting.json / 旧 Host）。 */
 export const forkFeaturesSchema = forkFeaturesObjectSchema.default(() => ({
@@ -56,7 +54,7 @@ export const forkFeaturesSchema = forkFeaturesObjectSchema.default(() => ({
 }));
 
 /**
- * 写路径（AppSettings patch）用的 schema：**七个字段全部必填**。
+ * 写路径（AppSettings patch）用的 schema：**六个字段全部必填**。
  *
  * SettingService 的 patch 合并是浅合并，`{ forkFeatures: { monitorTool: true } }` 会把其余
  * 开关整体替换掉。这里用必填字段把这种调用在 schema 边界直接打回，避免运行期静默重置。
@@ -65,7 +63,6 @@ export const forkFeaturesPatchSchema = z
   .object({
     monitorTool: z.boolean(),
     notebookEdit: z.boolean(),
-    applyPatch: z.boolean(),
     promptOptimizer: z.boolean(),
     memoryFileEditing: z.boolean(),
     memoryCapture: z.boolean(),
@@ -74,14 +71,13 @@ export const forkFeaturesPatchSchema = z
   .strict();
 
 /**
- * 需要改动运行时工具注册表的三个开关。单独成 schema 是因为它们走一条独立的
+ * 需要改动运行时工具注册表的两个开关。单独成 schema 是因为它们走一条独立的
  * workspace/updateForkToolPreferences 协议方法即时下发，其余四个只在读取侧判断。
  */
 export const forkToolPreferencesSchema = z
   .object({
     monitorTool: z.boolean(),
     notebookEdit: z.boolean(),
-    applyPatch: z.boolean(),
   })
   .strict();
 
@@ -90,14 +86,12 @@ export type ForkToolPreferences = z.infer<typeof forkToolPreferencesSchema>;
 export const FORK_TOOL_FEATURE_KEYS = [
   "monitorTool",
   "notebookEdit",
-  "applyPatch",
 ] as const satisfies readonly ForkFeatureKey[];
 
 export function pickForkToolPreferences(features: ForkFeatures): ForkToolPreferences {
   return {
     monitorTool: features.monitorTool,
     notebookEdit: features.notebookEdit,
-    applyPatch: features.applyPatch,
   };
 }
 

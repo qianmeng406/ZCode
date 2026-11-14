@@ -4102,9 +4102,9 @@ const enUS: Record<string, string> = {
     "This version adds six opt-in features, all off by default. Turn them on one by one, or use a recommended combo below. With a switch off, behavior matches the version before the feature existed.",
   "settings.forkFeatures.noticeDismiss": "Got it",
   "settings.forkFeatures.group.presets": "Recommended combos",
-  "settings.forkFeatures.preset.tools": "Long tasks and multi-file edits",
+  "settings.forkFeatures.preset.tools": "Long tasks",
   "settings.forkFeatures.preset.toolsDescription":
-    "Turns on Monitor, Notebook editing, and multi-file patches at once: wait for conditions, edit notebooks, and change several files in one call.",
+    "Turns on Monitor and Notebook editing at once: wait for conditions instead of polling logs, and edit notebooks cell by cell.",
   "settings.forkFeatures.preset.memory": "Editable and capturable memory",
   "settings.forkFeatures.preset.memoryDescription":
     "Turns on memory file editing, one-click capture, and manual consolidation so memory becomes maintainable instead of read-only.",
@@ -4122,11 +4122,8 @@ const enUS: Record<string, string> = {
   "settings.forkFeatures.notebookEdit": "Notebook editing",
   "settings.forkFeatures.notebookEditDescription":
     "Allows cell-level edits of Jupyter notebooks (.ipynb). Turned off, Edit keeps rejecting notebook files as before.",
-  "settings.forkFeatures.applyPatch": "Multi-file patch (ApplyPatch)",
-  "settings.forkFeatures.applyPatchDescription":
-    "Applies one structured patch spanning several files, cutting back-and-forth on multi-file changes; edits still produce rewind checkpoints.",
   "settings.forkFeatures.toolsApplyImmediately":
-    "These three tool switches apply immediately: the current session sees the change on its next request, no new session needed.",
+    "These two tool switches apply immediately: the current session sees the change on its next request, no new session needed.",
   "settings.forkFeatures.memoryDisabledHint":
     "Memory is currently off. The three options below only matter once memory has data; enable memory on the Memory page first.",
   "settings.forkFeatures.memoryFileEditing": "Memory file editing",

@@ -378,7 +378,7 @@ export class ZCodeProtocolAgentServer {
         askUserQuestionAutoResolutionEnabled: true,
         modelIoFullRetentionEnabled: false,
         // fork 工具开关 fail-closed：Host 必须显式 workspace/updateForkToolPreferences 才打开。
-        forkToolPreferences: { monitorTool: false, notebookEdit: false, applyPatch: false },
+        forkToolPreferences: { monitorTool: false, notebookEdit: false },
         offPeakToolEnabled: false,
         // 动态工作流灰度门 fail-closed：Host 必须显式 workspace/updateDynamicWorkflowPolicy
         // 才开启。

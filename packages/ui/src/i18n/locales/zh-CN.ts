@@ -3834,9 +3834,9 @@ const zhCN: Record<string, string> = {
     "本版本新增 6 项定制能力，默认全部关闭。可以逐项开启，也可以用下面的推荐组合一次打开；每个开关关闭时行为回到该功能引入之前。",
   "settings.forkFeatures.noticeDismiss": "知道了",
   "settings.forkFeatures.group.presets": "推荐组合",
-  "settings.forkFeatures.preset.tools": "长任务与多文件编辑",
+  "settings.forkFeatures.preset.tools": "长任务",
   "settings.forkFeatures.preset.toolsDescription":
-    "一次开启 Monitor、Notebook 编辑与多文件补丁：等条件、改 notebook、跨文件改动能直接用。",
+    "一次开启 Monitor 与 Notebook 编辑：等条件成立而不是反复轮询，按 cell 改 notebook。",
   "settings.forkFeatures.preset.memory": "记忆可编辑与沉淀",
   "settings.forkFeatures.preset.memoryDescription":
     "一次开启记忆文件编辑、一键沉淀与手动整理，让记忆从只读变成可维护。",
@@ -3854,11 +3854,8 @@ const zhCN: Record<string, string> = {
   "settings.forkFeatures.notebookEdit": "Notebook 编辑",
   "settings.forkFeatures.notebookEditDescription":
     "允许按 cell 读写 Jupyter Notebook（.ipynb）。关闭时 Edit 仍按原方式拒绝 notebook 文件。",
-  "settings.forkFeatures.applyPatch": "多文件补丁（ApplyPatch）",
-  "settings.forkFeatures.applyPatchDescription":
-    "一次提交覆盖多个文件的结构化补丁，减少多文件改动时的往返次数；改动仍会进入回滚检查点。",
   "settings.forkFeatures.toolsApplyImmediately":
-    "这三个工具开关即时生效：当前会话的下一轮请求就会看到变化，无需新建会话。",
+    "这两个工具开关即时生效：当前会话的下一轮请求就会看到变化，无需新建会话。",
   "settings.forkFeatures.memoryDisabledHint":
     "记忆功能当前未开启。下面三项需要有记忆数据才有意义，请先在「记忆」页启用记忆。",
   "settings.forkFeatures.memoryFileEditing": "记忆文件编辑",

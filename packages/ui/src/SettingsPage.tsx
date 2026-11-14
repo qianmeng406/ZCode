@@ -184,7 +184,6 @@ function runSettingsActionAsync<T>(options: {
 const FORK_FEATURE_ACTIONS = {
   monitorTool: "toggle_monitor_tool",
   notebookEdit: "toggle_notebook_edit",
-  applyPatch: "toggle_apply_patch",
   promptOptimizer: "toggle_prompt_optimizer",
   memoryFileEditing: "toggle_memory_file_editing",
   memoryCapture: "toggle_memory_capture",
@@ -2432,10 +2431,6 @@ export function SettingsPage({
                               notebookEditEnabled={forkFeatures.notebookEdit}
                               onNotebookEditEnabledChange={(enabled) => {
                                 void handleForkFeatureToggle("notebookEdit", enabled);
-                              }}
-                              applyPatchEnabled={forkFeatures.applyPatch}
-                              onApplyPatchEnabledChange={(enabled) => {
-                                void handleForkFeatureToggle("applyPatch", enabled);
                               }}
                               memoryFileEditingEnabled={forkFeatures.memoryFileEditing}
                               onMemoryFileEditingEnabledChange={(enabled) => {

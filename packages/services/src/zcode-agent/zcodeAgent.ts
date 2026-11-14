@@ -753,7 +753,7 @@ export interface IZCodeAgentService {
    */
   syncAppRuntimePreferences(preferences: ZCodeAgentAppRuntimePreferences): Promise<void>;
   /**
-   * fork 工具开关（Monitor/NotebookEdit/ApplyPatch）变化的即时下发。会话内生效，
+   * fork 工具开关（Monitor/NotebookEdit）变化的即时下发。会话内生效，
    * 不需要重开会话；同样不得为此启动空闲 Agent。
    */
   syncForkToolPreferences(preferences: ForkToolPreferences, features?: ForkFeatures): Promise<void>;

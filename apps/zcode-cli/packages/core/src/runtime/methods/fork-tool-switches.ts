@@ -19,7 +19,6 @@ import type { AgentRuntimeInternal } from "../internal.js";
 const FORK_TOOL_NAMES = {
   monitorTool: "Monitor",
   notebookEdit: "NotebookEdit",
-  applyPatch: "ApplyPatch",
 } as const satisfies Record<keyof ForkToolPreferences, string>;
 
 const FORK_TOOL_KEY_BY_NAME = new Map<string, keyof ForkToolPreferences>(

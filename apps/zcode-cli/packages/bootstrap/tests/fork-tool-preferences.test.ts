@@ -18,7 +18,7 @@ describe("fork tool preferences", () => {
         askUserQuestionAutoResolutionEnabled: true,
         modelIoFullRetentionEnabled: false,
         offPeakToolEnabled: false,
-        forkToolPreferences: { monitorTool: false, notebookEdit: false, applyPatch: false },
+        forkToolPreferences: { monitorTool: false, notebookEdit: false },
       },
       sessions: new Map([
         [
@@ -40,7 +40,7 @@ describe("fork tool preferences", () => {
       ]),
     } as unknown as ZCodeProtocolAgentServerContext;
 
-    const preferences = { monitorTool: true, notebookEdit: false, applyPatch: true };
+    const preferences = { monitorTool: true, notebookEdit: false };
     const result = zcodeWorkspaceUpdateForkToolPreferencesResultSchema.parse(
       await updateForkToolPreferences(context, { workspace, preferences }),
     );
@@ -58,7 +58,7 @@ describe("fork tool preferences", () => {
         askUserQuestionAutoResolutionEnabled: true,
         modelIoFullRetentionEnabled: false,
         offPeakToolEnabled: false,
-        forkToolPreferences: { monitorTool: false, notebookEdit: false, applyPatch: false },
+        forkToolPreferences: { monitorTool: false, notebookEdit: false },
       },
       sessions: new Map(),
     } as unknown as ZCodeProtocolAgentServerContext;

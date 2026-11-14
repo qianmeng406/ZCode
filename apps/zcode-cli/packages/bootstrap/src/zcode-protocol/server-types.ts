@@ -158,7 +158,7 @@ export interface ZCodeProtocolAgentServerContext {
     askUserQuestionAutoResolutionEnabled: boolean;
     modelIoFullRetentionEnabled: boolean;
     /**
-     * fork 工具开关（Monitor/NotebookEdit/ApplyPatch）。缺省全 false（fail-closed）：
+     * fork 工具开关（Monitor/NotebookEdit）。缺省全 false（fail-closed）：
      * 不认识 workspace/updateForkToolPreferences 的旧 Host 不会打开这些工具。
      */
     forkToolPreferences: ForkToolPreferences;

@@ -41,7 +41,6 @@ export function refreshBranchAwareBuiltInTools(runtime: AgentRuntimeInternal): v
     // 但两个入口必须读同一份配置，否则 shell 快照初始化会把已开的工具面算成另一套。
     includeMonitor: runtime.config.forkToolSwitches?.monitorTool === true,
     includeNotebookEdit: runtime.config.forkToolSwitches?.notebookEdit === true,
-    includeApplyPatch: runtime.config.forkToolSwitches?.applyPatch === true,
     // 与 runtime-tools.ts 同源：委派工具的门是只读锁（绑定事实）。
     // 两个注册入口必须读同一份判据，否则 shell 快照初始化会把已绑定的工具面算成另一套。
     includeExternalAgent: runtime.externalAgentReadOnly === true,

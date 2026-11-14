@@ -13,7 +13,6 @@ describe("fork feature preferences", () => {
     expect(DEFAULT_FORK_FEATURES).toEqual({
       monitorTool: false,
       notebookEdit: false,
-      applyPatch: false,
       promptOptimizer: true,
       memoryFileEditing: false,
       memoryCapture: false,
@@ -48,13 +47,21 @@ describe("fork feature preferences", () => {
     });
   });
 
-  it("projects only the three runtime tool switches", () => {
+  it("projects only the two runtime tool switches", () => {
     expect(
       pickForkToolPreferences({
         ...DEFAULT_FORK_FEATURES,
         monitorTool: true,
-        applyPatch: true,
       }),
-    ).toEqual({ monitorTool: true, notebookEdit: false, applyPatch: true });
+    ).toEqual({ monitorTool: true, notebookEdit: false });
+  });
+
+  it("strips removed switches from legacy persisted objects instead of rejecting them", () => {
+    // applyPatch 已随功能移除；旧 fork-features.json / 旧广播可能还带着这个键，
+    // 读侧必须剥掉（strict 会把整份对象打回，设置读取直接失败）。
+    expect(forkFeaturesSchema.parse({ monitorTool: true, applyPatch: true })).toEqual({
+      ...DEFAULT_FORK_FEATURES,
+      monitorTool: true,
+    });
   });
 });

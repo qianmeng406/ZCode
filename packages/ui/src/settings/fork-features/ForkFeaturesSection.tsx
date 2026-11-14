@@ -23,7 +23,7 @@ import {
 export type ForkFeaturePresetId = "tools" | "memory";
 
 export const FORK_FEATURE_PRESETS: Record<ForkFeaturePresetId, readonly ForkFeatureKey[]> = {
-  tools: ["monitorTool", "notebookEdit", "applyPatch"],
+  tools: ["monitorTool", "notebookEdit"],
   memory: ["memoryFileEditing", "memoryCapture", "memoryDreamManual"],
 };
 
@@ -58,8 +58,6 @@ export interface ForkFeaturesSectionContentProps {
   onMonitorToolEnabledChange: (enabled: boolean) => void;
   notebookEditEnabled: boolean;
   onNotebookEditEnabledChange: (enabled: boolean) => void;
-  applyPatchEnabled: boolean;
-  onApplyPatchEnabledChange: (enabled: boolean) => void;
   memoryFileEditingEnabled: boolean;
   onMemoryFileEditingEnabledChange: (enabled: boolean) => void;
   memoryCaptureEnabled: boolean;
@@ -84,8 +82,6 @@ export function ForkFeaturesSectionContent({
   onMonitorToolEnabledChange,
   notebookEditEnabled,
   onNotebookEditEnabledChange,
-  applyPatchEnabled,
-  onApplyPatchEnabledChange,
   memoryFileEditingEnabled,
   onMemoryFileEditingEnabledChange,
   memoryCaptureEnabled,
@@ -100,7 +96,7 @@ export function ForkFeaturesSectionContent({
   const { intl } = useZCodeIntl();
   const text = (id: string) => intl.formatMessage({ id });
   const memorySwitchDisabled = !memoryEnabled;
-  const toolsPresetApplied = monitorToolEnabled && notebookEditEnabled && applyPatchEnabled;
+  const toolsPresetApplied = monitorToolEnabled && notebookEditEnabled;
   const memoryPresetApplied =
     memoryFileEditingEnabled && memoryCaptureEnabled && memoryDreamManualEnabled;
 
@@ -216,11 +212,6 @@ export function ForkFeaturesSectionContent({
           "settings.forkFeatures.notebookEdit",
           notebookEditEnabled,
           onNotebookEditEnabledChange,
-        )}
-        {switchRow(
-          "settings.forkFeatures.applyPatch",
-          applyPatchEnabled,
-          onApplyPatchEnabledChange,
         )}
         <p className="mx-4 my-3 rounded-lg bg-surface/60 px-3 py-2 text-ui-sm leading-5 text-foreground-subtle">
           {text("settings.forkFeatures.toolsApplyImmediately")}

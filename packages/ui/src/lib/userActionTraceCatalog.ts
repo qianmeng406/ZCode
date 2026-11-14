@@ -101,7 +101,6 @@ export const SETTINGS_USER_ACTION_FEATURES = {
   "settings.fork_features": [
     "toggle_monitor_tool",
     "toggle_notebook_edit",
-    "toggle_apply_patch",
     "toggle_prompt_optimizer",
     "toggle_memory_file_editing",
     "toggle_memory_capture",
