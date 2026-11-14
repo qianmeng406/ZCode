@@ -9,7 +9,6 @@ export type OpenTabLauncherItemId =
   | "files"
   | "review"
   | "oracle-review"
-  | "file-explorer"
   | "terminal"
   | "browser"
   | "developer-tools";
@@ -17,7 +16,6 @@ export type OpenTabLauncherItemId =
 export function resolveOpenTabLauncherItemIds({
   developerToolsEnabled,
   hasReviewTab,
-  hasFileExplorerTab = false,
   canOpenSelectionSideConversation = false,
   canOpenOracleReview = false,
   canOpenSites = false,
@@ -25,7 +23,6 @@ export function resolveOpenTabLauncherItemIds({
 }: {
   developerToolsEnabled: boolean;
   hasReviewTab: boolean;
-  hasFileExplorerTab?: boolean;
   canOpenSelectionSideConversation?: boolean;
   /** 有活动会话才有「审查记录」可看：Oracle 审查历史按 sessionId 键控。 */
   canOpenOracleReview?: boolean;
@@ -46,10 +43,6 @@ export function resolveOpenTabLauncherItemIds({
 
   if (canOpenOracleReview) {
     itemIds.push("oracle-review");
-  }
-
-  if (!hasFileExplorerTab) {
-    itemIds.push("file-explorer");
   }
 
   // Sites 面板是官方插件 zcode-site 的 UI surface，产品要求作为内置入口排在辅助对话前。

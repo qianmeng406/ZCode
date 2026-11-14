@@ -251,7 +251,6 @@ export function App({
     handleNavigateFileManager,
     handleOpenPluginMarket,
     handleOpenTerminalTab,
-    handleOpenFileExplorerTab,
     handleOpenSubagentSession,
     handleOpenBackgroundBash,
     handleOpenSubagentDirectory,
@@ -1367,7 +1366,6 @@ export function App({
             handleToggleBrowser={handleToggleBrowser}
             handleOpenBrowserTab={handleOpenBrowserTab}
             handleOpenBrowserPermissionSettings={handleOpenBrowserPermissionSettings}
-            handleOpenFileExplorerTab={handleOpenFileExplorerTab}
             handleOpenWhiteboard={handleOpenWhiteboard}
             handleOpenDeveloperTools={handleOpenDeveloperTools}
             handleOpenFileManager={handleOpenFileManager}

@@ -454,7 +454,6 @@ const WorkspaceShellLayoutContent = memo(function WorkspaceShellLayoutComponent(
   handleToggleBrowser,
   handleOpenBrowserTab,
   handleOpenBrowserPermissionSettings,
-  handleOpenFileExplorerTab,
   handleOpenWhiteboard,
   handleOpenDeveloperTools,
   handleOpenFileManager,
@@ -2242,7 +2241,6 @@ const WorkspaceShellLayoutContent = memo(function WorkspaceShellLayoutComponent(
   const renderSidePanePanel = (options: { mobileOverlay?: boolean } = {}) => (
     <AnimatedSidePanePanel
       services={services}
-      onOpenFileExplorerTab={handleOpenFileExplorerTab}
       isDesktop={isDesktop}
       isWindowsDesktop={isWindowsDesktop}
       frameClassName={resolveWorkspaceShellWindowChromeClass({

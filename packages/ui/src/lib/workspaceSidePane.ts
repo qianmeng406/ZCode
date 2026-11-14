@@ -51,21 +51,6 @@ export interface GitSidePaneTab {
   openedAt?: number;
 }
 
-/**
- * 工作区文件树标签（加号菜单 / 打开标签页选择器里的「文件」）。
- *
- * 身份是 **workspace**：一条 workspace 永远只有一份文件树，所以 id 是固定常量，
- * 重复点击幂等地聚焦同一个 tab（同 git）。树数据不冻进 tab——面板每次挂载自己
- * 读目录，重启后恢复的 tab 不会显示过期状态。
- */
-export interface FileExplorerSidePaneTab {
-  id: "file-explorer";
-  type: "file-explorer";
-  ownerTaskId?: string | null;
-  workspaceKey?: string | null;
-  openedAt?: number;
-}
-
 export interface FileManagerTarget {
   workspacePath: string;
   workspaceName?: string;
@@ -650,7 +635,6 @@ export type WorkspaceSidePaneTab =
   | BrowserSidePaneTab
   | BrowserPermissionsSidePaneTab
   | GitSidePaneTab
-  | FileExplorerSidePaneTab
   | CodeViewerSidePaneTab
   | TreemappingSidePaneTab
   | WhiteboardSidePaneTab
@@ -711,7 +695,11 @@ export function normalizeWorkspaceSidePaneState(
 
   // Treemapping 当前需要从侧边栏隐藏。旧版本可能已经把 treemapping tab
   // 写进了 workspace 级 side pane 记忆，这里在状态边界统一过滤，避免恢复后入口继续出现。
-  const filteredTabs = current.tabs.filter((tab) => tab.type !== "treemapping");
+  // file-explorer（fork 的文件树标签页）已被上游原生 file-manager 取代并整体移除；
+  // tab 可能来自旧持久化 JSON（类型上已不存在，运行时仍可能出现），按字符串过滤丢弃。
+  const filteredTabs = current.tabs.filter(
+    (tab) => tab.type !== "treemapping" && (tab.type as string) !== "file-explorer",
+  );
   if (filteredTabs.length === 0) {
     return null;
   }
@@ -800,10 +788,6 @@ function createTreemappingSidePaneTab(
     openedAt: Date.now(),
     source,
   };
-}
-
-function createFileExplorerSidePaneTab(): FileExplorerSidePaneTab {
-  return { id: "file-explorer", type: "file-explorer", openedAt: Date.now() };
 }
 
 function createModelTrajectorySidePaneTab(options: {
@@ -1309,7 +1293,7 @@ export function isSidePaneTabVisibleInScope(
   }
   if (!sidePaneTabMatchesWorkspace(tab, scope.workspaceKey)) return false;
   switch (tab.type) {
-    // workspace 级标签（fork 定制：文件树/git/开发者工具不随对话切换回收），任意对话 scope 均可见。
+    // workspace 级标签（fork 定制：git/开发者工具不随对话切换回收），任意对话 scope 均可见。
     case "git":
     case "developer-tools":
     // 扩展视图是工作区级（docs/plugins/extension-host.md §8）：草稿首发、切换会话后保留。
@@ -1318,7 +1302,6 @@ export function isSidePaneTabVisibleInScope(
     case "extension-logs":
     case "plugin-market":
     case "treemapping":
-    case "file-explorer":
       return true;
     case "browser-use":
       return tab.sessionId === scope.ownerTaskId;
@@ -2002,18 +1985,6 @@ export function activateTreemappingSidePane(
   source?: TreemappingSidePaneSource,
 ): WorkspaceSidePaneState {
   return activateSidePaneTab(current, createTreemappingSidePaneTab(source));
-}
-
-/**
- * 打开（或聚焦已打开的）工作区文件树标签。
- *
- * 固定 id 使重复点击幂等；文件树是 workspace 级状态，不随对话切换回收
- * （见 WORKSPACE_GLOBAL_SIDE_PANE_TAB_TYPES）。
- */
-export function openFileExplorerSidePane(
-  current: WorkspaceSidePaneState | null,
-): WorkspaceSidePaneState {
-  return activateSidePaneTab(current, createFileExplorerSidePaneTab());
 }
 
 export function openWhiteboardSidePane(

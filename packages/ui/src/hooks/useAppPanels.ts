@@ -71,7 +71,6 @@ import {
   openCodeViewerSidePane,
   openCodeViewerSidePanes,
   activateGitSidePane,
-  openFileExplorerSidePane,
   getActiveSidePaneTab,
   getVisibleSidePaneTabs,
   sidePaneOwnerKey,
@@ -1322,15 +1321,6 @@ export function useAppPanels(options: {
     workspaceRemoteSessionId,
   ]);
 
-  const handleOpenFileExplorerTab = useCallback(() => {
-    revealSidePaneForCurrentOwner();
-    commitOpenedSidePaneState((current) => {
-      const next = openFileExplorerSidePane(current);
-      logger.info(`[App] 打开右侧文件标签 workspace=${workspaceAbsPath} tabs=${next.tabs.length}`);
-      return next;
-    });
-  }, [commitOpenedSidePaneState, revealSidePaneForCurrentOwner, workspaceAbsPath]);
-
   const handleOpenModelTrajectory = useCallback(
     (params: { taskId: string; title?: string | null }) => {
       if (!params.taskId) {
@@ -2191,7 +2181,6 @@ export function useAppPanels(options: {
     handleOpenPluginMarket,
     handleOpenNewSidePaneTab,
     handleOpenTerminalTab,
-    handleOpenFileExplorerTab,
     handleOpenModelTrajectory,
     handleOpenSubagentSession,
     handleOpenBackgroundBash,

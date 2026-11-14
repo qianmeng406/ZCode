@@ -66,7 +66,6 @@ import {
 } from "@/components/ui/resizable.js";
 import { Tabs, TabsContent, TabsList } from "@/components/ui/tabs.js";
 import { SidePaneTabOverview } from "@/app-shell/SidePaneTabOverview.js";
-import { FileExplorerSidePane } from "@/app-shell/FileExplorerSidePane.js";
 import { SubagentSessionSidePane } from "@/app-shell/SubagentSessionSidePane.js";
 import { SubagentDirectorySidePane } from "@/app-shell/SubagentDirectorySidePane.js";
 import { OracleReviewSidePane } from "@/app-shell/OracleReviewSidePane.js";
@@ -135,7 +134,6 @@ import {
   BugIcon,
   ChevronRightIcon,
   FileDiffIcon,
-  FolderIcon,
   FolderOpenIcon,
   EarthIcon,
   GlobeIcon,
@@ -385,7 +383,6 @@ export function AnimatedSidePanePanel({
   onOpenTerminalTab,
   onOpenReviewTab,
   onOpenOracleReviewTab,
-  onOpenFileExplorerTab,
   onOpenSelectionSideConversation,
   onRevealGitFileInTree,
   onOpenBrowserUrl,
@@ -480,7 +477,6 @@ export function AnimatedSidePanePanel({
   onOpenReviewTab: () => void;
   /** 「审查记录」启动器：打开活动会话的 Oracle 审查面板（历史结论常驻在那里）。 */
   onOpenOracleReviewTab?: () => void;
-  onOpenFileExplorerTab: () => void;
   onOpenSelectionSideConversation: () => void;
   onRevealGitFileInTree?: (path: string) => void;
   onOpenBrowserUrl: (url: string) => void;
@@ -587,7 +583,6 @@ export function AnimatedSidePanePanel({
   const isWindowResizeSettling = useWindowResizeSettling(hasRenderedSidePane);
   const panelLayout = resolveAnimatedSidePanePanelLayout({ mobileOverlay });
   const hasReviewTab = visibleTabs.some((tab) => tab.type === "git");
-  const hasFileExplorerTab = visibleTabs.some((tab) => tab.type === "file-explorer");
   const canOpenSelectionSideConversation = shouldOfferSelectionSideConversation({
     activeTaskId,
     isMobileTextInputViewport,
@@ -822,13 +817,6 @@ export function AnimatedSidePanePanel({
       icon: HistoryIcon,
       onOpen: () => onOpenOracleReviewTab?.(),
     },
-    "file-explorer": {
-      id: "file-explorer",
-      label: intl.formatMessage({ id: "fileExplorer.title" }),
-      description: intl.formatMessage({ id: "fileExplorer.title" }),
-      icon: FolderIcon,
-      onOpen: onOpenFileExplorerTab,
-    },
     terminal: {
       id: "terminal",
       label: intl.formatMessage({ id: "terminal.title" }),
@@ -856,7 +844,6 @@ export function AnimatedSidePanePanel({
     canOpenSites,
     developerToolsEnabled,
     hasReviewTab,
-    hasFileExplorerTab,
     canOpenOracleReview: onOpenOracleReviewTab !== undefined,
     supportsEmbeddedBrowser,
   })
@@ -974,7 +961,6 @@ export function AnimatedSidePanePanel({
         reviewTitle: intl.formatMessage({ id: "sidePane.review" }),
         fileManagerTitle: intl.formatMessage({ id: "fileManager.title" }),
         codeViewerTitle: intl.formatMessage({ id: "codeViewer.title" }),
-        fileExplorerTitle: intl.formatMessage({ id: "fileExplorer.title" }),
         treemappingTitle: intl.formatMessage({ id: "treemapping.title" }),
         whiteboardTitle: intl.formatMessage({ id: "whiteboard.title" }),
         modelTrajectoryTitle: intl.formatMessage({
@@ -1369,16 +1355,6 @@ export function AnimatedSidePanePanel({
                             {...(onRevealGitFileInTree === undefined
                               ? {}
                               : { onRevealFileInTree: onRevealGitFileInTree })}
-                          />
-                        ) : tab.type === "file-explorer" ? (
-                          <FileExplorerSidePane
-                            workspacePath={workspaceAbsPath}
-                            workspaceIdentity={workspaceIdentity}
-                            workspaceRemoteSessionId={workspaceRemoteSessionId}
-                            canOpenLocalFileManager={isDesktop}
-                            active={isVisible && tab.id === visibleActiveTabId}
-                            onOpenBrowserUrl={isDesktop ? onOpenBrowserUrl : undefined}
-                            onOpenCodeViewer={onOpenCodeViewer}
                           />
                         ) : tab.type === "code-viewer" || tab.type === "file-manager" ? (
                           <FileManagerPaneBoundary

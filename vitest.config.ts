@@ -83,7 +83,6 @@ const forkNodeTestRunnerFiles = [
   "packages/ui/test/codingPlanQuotaResetPrompt.test.ts",
   "packages/ui/test/composerContextProfile.test.ts",
   "packages/ui/test/conversationTurnNavigatorSetting.test.ts",
-  "packages/ui/test/fileExplorerSidePaneState.test.ts",
   "packages/ui/test/nonCliAcpRetirement.test.ts",
   "packages/ui/test/onDemandLoadingGuards.test.ts",
   "packages/ui/test/oracleReview.test.ts",
