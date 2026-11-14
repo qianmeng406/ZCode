@@ -400,6 +400,11 @@ export function composeExternalSubAgentConfigFields(
 /**
  * 外部档位候选：探测到的逐模型目录是唯一权威（模型对不上就不给候选，不猜）；
  * 目录读不到时退 preset 的静态兜底表。
+ *
+ * 目录命中但 `supportedEfforts` 为空（固定档模型）不能直接返回空——那会把
+ * CodeBuddy 这类 claude-family CLI 的档位入口整条隐藏（实测反馈「档位选择
+ * 没了」）。固定档回落规则（claude-family 回 CLI 选择器缺省档、
+ * variant/commandcode-exec 隐藏）以 shared 的 resolveEffortLevels 为单一真值。
  */
 export function resolveExternalEffortCandidates(
   status: ExternalAgentPresetStatus | undefined,
@@ -408,7 +413,9 @@ export function resolveExternalEffortCandidates(
 ): string[] {
   if (status && status.modelCatalog.length > 0) {
     const entry = model ? status.modelCatalog.find((item) => item.id === model) : undefined;
-    return entry?.supportedEfforts ?? [];
+    if (!entry) return [];
+    if (entry.supportedEfforts.length > 0) return [...entry.supportedEfforts];
+    return resolveEffortLevels(preset, model, status.modelCatalog);
   }
   return resolveEffortLevels(preset, model);
 }
@@ -838,10 +845,10 @@ function SubagentChannelControl({
   };
 
   return (
-    // 定宽右列：渠道 / 模型 / 档位三行控件的左右缘都对齐，提示文案通栏右对齐，
-    // 不再被各自的 fit-content 宽度挤成参差的多行孤字。
+    // 定宽右列：渠道 / 模型 / 档位三行控件通栏对齐，提示文案收尾。模型与档位
+    // 的当前值就在下方下拉里，不再重复挂徽标（徽标曾因通栏换行挤成孤行）。
     <div className="flex w-64 min-w-0 max-w-full flex-col items-stretch gap-1">
-      <div className="flex min-w-0 flex-wrap items-center justify-end gap-1.5">
+      <div className="flex min-w-0 items-center gap-1.5">
         <Select value={value} onValueChange={handlePresetChange}>
           <SelectTrigger
             size="lg"
@@ -862,16 +869,6 @@ function SubagentChannelControl({
             ))}
           </SelectContent>
         </Select>
-        {selectedPreset && currentModel ? (
-          <span className="inline-flex items-center rounded-md bg-surface px-1.5 py-0.5 text-ui-sm text-foreground-subtle ring-1 ring-border">
-            {currentModel}
-          </span>
-        ) : null}
-        {selectedPreset && currentEffort ? (
-          <span className="inline-flex items-center rounded-md bg-surface px-1.5 py-0.5 text-ui-sm text-foreground-subtle ring-1 ring-border">
-            {currentEffort}
-          </span>
-        ) : null}
       </div>
       {selectedPreset ? (
         <div className="flex min-w-0 items-center gap-1.5">

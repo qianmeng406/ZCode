@@ -110,6 +110,34 @@ describe("resolveExternalEffortCandidates", () => {
     expect(resolveExternalEffortCandidates(status, codebuddyPreset!, "free-typed")).toEqual([]);
   });
 
+  it("目录命中但 supportedEfforts 为空（固定档模型）回落 CLI 选择器缺省档，不隐藏入口", () => {
+    const status = {
+      preset: codebuddyPreset,
+      installed: true,
+      models: ["kimi-k3-1"],
+      modelCatalog: [{ id: "kimi-k3-1", name: "kimi-k3-1", supportedEfforts: [] }],
+    } as unknown as ExternalAgentPresetStatus;
+    const resolved = resolveExternalEffortCandidates(status, codebuddyPreset!, "kimi-k3-1");
+    // codebuddy 是 claude-family：固定档回落缺省档（low/medium/high/xhigh），
+    // 与 CLI 侧 EffortPanel 对固定档的做法一致（实测反馈：直接返回空会把档位
+    // 选择整条隐藏，用户以为档位功能丢了）。
+    expect(resolved).toEqual(["low", "medium", "high", "xhigh"]);
+  });
+
+  it("目录命中但固定档 + variant 驱动（opencode）保持隐藏（传错档位必报错）", () => {
+    const opencodePreset = EXTERNAL_AGENT_BINDABLE_PRESETS.find(
+      (preset) => preset.id === "opencode",
+    );
+    expect(opencodePreset).toBeDefined();
+    const status = {
+      preset: opencodePreset,
+      installed: true,
+      models: ["kimi-k3"],
+      modelCatalog: [{ id: "kimi-k3", name: "kimi-k3", supportedEfforts: [] }],
+    } as unknown as ExternalAgentPresetStatus;
+    expect(resolveExternalEffortCandidates(status, opencodePreset!, "kimi-k3")).toEqual([]);
+  });
+
   it("目录为空（读不到）时退 preset 静态兜底表", () => {
     const status = {
       preset: codebuddyPreset,
