@@ -51,6 +51,33 @@ function spyOnSubagentMaterialization(projection: ProductProjection) {
   );
 }
 
+describe("ProductProjection 空载荷事件", () => {
+  // 回归：ExternalAgentBindingChanged(null) 是解绑，冷恢复的「投影与 entry 对齐」
+  // 会给每条会话补发一次。applyEventInternal 对所有事件都读 payload.inputId，
+  // 过去直接解构 null，整次冷恢复挂在 "Cannot read properties of null (reading 'inputId')"，
+  // UI 因此显示「初始化失败，暂时无法发送」。
+  it("ExternalAgentBindingChanged(null) 归约时不抛错并把外部 agent 清空", () => {
+    const projection = new ProductProjection("cold-hydration-session", "epoch-null-payload");
+
+    expect(() =>
+      projection.applyEvent(
+        sessionEvent(1, SessionEventType.ExternalAgentBindingChanged, null),
+      ),
+    ).not.toThrow();
+    expect(projection.getSnapshot().externalAgent).toBeNull();
+
+    // 冷恢复走 hydration accumulator 的另一条归约路径，同样不能解构 null。
+    projection.beginHydrationReplay();
+    expect(() =>
+      projection.applyHydrationEvent(
+        sessionEvent(2, SessionEventType.ExternalAgentBindingChanged, null),
+      ),
+    ).not.toThrow();
+    expect(() => projection.completeHydrationReplay()).not.toThrow();
+    expect(projection.getSnapshot().externalAgent).toBeNull();
+  });
+});
+
 describe("ProductProjection cold hydration subagent materialization", () => {
   it("exposes live stopControl only for runtime-owned spawn, then strips it on cold replay", () => {
     const spawn = sessionEvent(1, SessionEventType.SubagentSpawned, {

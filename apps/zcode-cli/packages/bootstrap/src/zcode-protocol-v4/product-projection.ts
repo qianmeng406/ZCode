@@ -1395,13 +1395,16 @@ export class ProductProjection {
       : [];
     // 接纳先于 TurnStarted；只在同一归约事务已有执行/队列事实或明确失败时移除，
     // 不能在 ACK 后补 pending，否则快速完成会留下永久幽灵条目。
+    // 载荷允许为 null：ExternalAgentBindingChanged(null) 就是解绑，冷恢复的
+    // 「投影与 entry 对齐」会为每条会话补发一次。这里对**所有**事件都跑，直接解构
+    // null 会让整次冷恢复挂在 "Cannot read properties of null (reading 'inputId')"。
     const payload = event.payload as {
       inputId?: string;
       sourceCommandId?: string;
       intent?: { sourceCommandId?: string };
-    };
+    } | null;
     const pendingCommandId =
-      payload.inputId ?? payload.sourceCommandId ?? payload.intent?.sourceCommandId;
+      payload?.inputId ?? payload?.sourceCommandId ?? payload?.intent?.sourceCommandId;
     const resolvesPending =
       event.type === SessionEventType.TurnStarted ||
       event.type === SessionEventType.TurnSteerQueued ||
