@@ -69,7 +69,6 @@ export const conversationInputSourceSchema = z.discriminatedUnion("kind", [
       title: z.string().max(250).optional(),
     })
     .strict(),
-  extensionInputSourceSchema,
 ]);
 export type ConversationInputSource = z.infer<typeof conversationInputSourceSchema>;
 
