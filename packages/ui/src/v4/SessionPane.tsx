@@ -1947,12 +1947,6 @@ export function SessionPane({
   const composerTextInsertRequest = useZCodeSessionStore(
     (store) => store.getWorkspaceState(workspacePath, workspaceIdentity).composerTextInsertRequest,
   );
-  const oracleReviewQueueAction = useZCodeSessionStore(
-    (store) => store.getWorkspaceState(workspacePath, workspaceIdentity).oracleReviewQueueAction,
-  );
-  const clearOracleReviewQueueAction = useZCodeSessionStore(
-    (store) => store.clearOracleReviewQueueAction,
-  );
   const timelineBottomRequest = useZCodeSessionStore(
     (store) => store.getWorkspaceState(workspacePath, workspaceIdentity).timelineBottomRequest,
   );
@@ -7486,10 +7480,6 @@ export function SessionPane({
       listenAddToChatEvents={focused}
       externalTextInsertRequest={focused && sessionId === null ? composerTextInsertRequest : null}
       onExternalTextInsertApplied={handleExternalTextInsertApplied}
-      oracleReviewQueueAction={focused ? oracleReviewQueueAction : null}
-      onOracleReviewQueueActionApplied={(requestId) =>
-        clearOracleReviewQueueAction(workspacePath, requestId, workspaceIdentity)
-      }
       inputPredictionEnabled={sharedSettings?.inputPredictionEnabled ?? false}
       autoFocusEnabled={focused}
       disabled={

@@ -133,15 +133,6 @@ export interface ComposerTextInsertRequest {
   mode?: "replace" | "prepend-if-missing";
 }
 
-/** 审查队列行触发的会话级动作：由侧栏写入，SessionPane 转交 composer 消费。 */
-export interface OracleReviewQueueActionRequest {
-  requestId: number;
-  sessionId: string;
-  kind: "fix" | "ask";
-  reviewId: string;
-  text: string;
-}
-
 /** 会话列表右键「导出交接」：请求对应 SessionPane 打开交接对话框。 */
 export interface SessionHandoffOpenRequest {
   requestId: number;
@@ -204,8 +195,6 @@ export interface WorkspaceZCodeUIState {
     | null;
   composerTextInsertVersion: number;
   composerTextInsertRequest: ComposerTextInsertRequest | null;
-  oracleReviewQueueActionVersion: number;
-  oracleReviewQueueAction: OracleReviewQueueActionRequest | null;
   sessionHandoffOpenRequestVersion: number;
   sessionHandoffOpenRequest: SessionHandoffOpenRequest | null;
   timelineBottomRequestVersion: number;
@@ -282,16 +271,6 @@ export interface ZCodeSessionStoreState {
     mode?: "replace" | "prepend-if-missing",
   ) => number;
   clearComposerTextInsertRequest: (
-    workspacePath: string,
-    requestId: number,
-    workspaceIdentity?: string,
-  ) => void;
-  requestOracleReviewQueueAction: (
-    workspacePath: string,
-    request: Omit<OracleReviewQueueActionRequest, "requestId">,
-    workspaceIdentity?: string,
-  ) => number;
-  clearOracleReviewQueueAction: (
     workspacePath: string,
     requestId: number,
     workspaceIdentity?: string,
@@ -602,8 +581,6 @@ export function createDefaultWorkspaceState(
     pluginUiOpenRequest: null,
     composerTextInsertVersion: 0,
     composerTextInsertRequest: null,
-    oracleReviewQueueActionVersion: 0,
-    oracleReviewQueueAction: null,
     sessionHandoffOpenRequestVersion: 0,
     sessionHandoffOpenRequest: null,
     timelineBottomRequestVersion: 0,

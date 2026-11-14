@@ -125,10 +125,7 @@ import { useOptionalServices } from "@/hooks/useServices.js";
 import { logger } from "@/logger.js";
 import { runUserAction, startUserAction } from "@/lib/userActionTelemetry.js";
 import { useZCodeSessionStore } from "@/store/zcodeSessionStore.js";
-import type {
-  ComposerMentionPrefill,
-  OracleReviewQueueActionRequest,
-} from "@/store/zcodeSessionStoreTypes.js";
+import type { ComposerMentionPrefill } from "@/store/zcodeSessionStoreTypes.js";
 import { FileDisplayIcon, resolveFileDisplayDescriptor } from "@/lib/fileDisplay.js";
 import {
   isImageChatComposerAttachment,
@@ -674,9 +671,6 @@ export interface ConversationComposerProps {
   externalTextInsertRequest?: ExternalTextInsertRequest | null;
   onExternalTextInsertApplied?: (requestId: number) => void;
   /** 打开会话交接（导出 Markdown）；由 SessionPane 提供，缺少时不渲染入口。 */
-  /** 审查队列行触发的会话级动作（追问/修复）；只消费 sessionId 匹配的请求。 */
-  oracleReviewQueueAction?: OracleReviewQueueActionRequest | null;
-  onOracleReviewQueueActionApplied?: (requestId: number) => void;
   /**
    * fork 定制：把已持久化的 composer 内容回填到编辑框（会话切换/冷恢复后用）。
    * requestId 保证同一内容可被连续两次请求回填。
@@ -822,8 +816,6 @@ function ConversationComposerImpl({
   editFocusRequest = 0,
   editSubmitRequest = 0,
   onSubmissionSettled,
-  oracleReviewQueueAction = null,
-  onOracleReviewQueueActionApplied,
   composerRestoreRequest = null,
   onComposerRestoreApplied,
   suppressGoalCommands = false,
@@ -2556,30 +2548,6 @@ function ConversationComposerImpl({
     },
     [oracleReview, submit],
   );
-
-  // 审查队列 → composer：fix 走既有的 review handoff（保留来源标记与落盘确认），
-  // ask 只把问题填进输入框，不冒充已确认审查。
-  const appliedOracleQueueActionRef = useRef<number | null>(null);
-  useEffect(() => {
-    const request = oracleReviewQueueAction;
-    if (!request || request.sessionId !== sessionId) return;
-    if (appliedOracleQueueActionRef.current === request.requestId) return;
-    appliedOracleQueueActionRef.current = request.requestId;
-    if (request.kind === "fix") {
-      handleOracleFixRequest(request.text, request.reviewId);
-    } else {
-      inputApiRef.current?.setText(request.text);
-      updateText(request.text);
-      inputApiRef.current?.focus();
-    }
-    onOracleReviewQueueActionApplied?.(request.requestId);
-  }, [
-    oracleReviewQueueAction,
-    sessionId,
-    handleOracleFixRequest,
-    updateText,
-    onOracleReviewQueueActionApplied,
-  ]);
 
   useEffect(() => {
     if (!visibleError || !conversationTelemetry || !telemetryVisible) return;

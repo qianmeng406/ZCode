@@ -1259,11 +1259,7 @@ export function AnimatedSidePanePanel({
                             onOpenSubagentSession={onOpenSubagentSession}
                           />
                         ) : tab.type === "oracle-review" ? (
-                          <OracleReviewSidePane
-                            tab={tab}
-                            onClose={() => onCloseTab(tab.id)}
-                            onOpenCodeViewer={onOpenCodeViewer}
-                          />
+                          <OracleReviewSidePane tab={tab} onClose={() => onCloseTab(tab.id)} />
                         ) : tab.type === "external-agent-activity" ? (
                           <ExternalAgentActivitySidePane
                             tab={tab}
