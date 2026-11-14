@@ -24,7 +24,24 @@ export const RUNTIME_MODE_REMINDER_CONFIG = Object.freeze({
 
 const planResearchAgentCount = 3;
 
-function buildPlanWorkflow() {
+/**
+ * `orchestrator`：主控（绑定外部 agent）变体。主控下 ExitPlanMode 被前置拦截
+ * （exitPlanModeHandler），提醒正文若仍要求「必须以 ExitPlanMode 收尾」，模型会
+ * 在同一份提醒里看到两段互相矛盾的指令（实测反例见 buildOrchestratorSection 注释），
+ * 所以 Phase 5 的收尾方式随主控切换成委派。
+ */
+function buildPlanWorkflow(orchestrator = false) {
+  const phase5 = orchestrator
+    ? `### Phase 5: Delegate the implementation
+At the very end of your turn, once you have asked the user questions and are happy with your final plan - put the complete final plan into \`task\` and delegate it: call DelegateToExternalAgent (short tasks) or StartExternalAgentTask (long tasks; fetch the report with GetExternalAgentTaskResult). Do NOT call ExitPlanMode — it is rejected while the external agent is bound.
+This is critical - your turn should only end with either using the ${ASK_USER_QUESTION_TOOL_NAME} tool OR a delegation call. Do not stop unless it's for these 2 reasons
+
+**Important:** Use ${ASK_USER_QUESTION_TOOL_NAME} ONLY to clarify requirements or choose between approaches. Do NOT ask about plan approval in any other way - no text questions, no AskUserQuestion. Phrases like "Is this plan okay?", "Should I proceed?", "How does this plan look?", "Any changes before we start?", or similar MUST NOT be used — implementation starts via delegation, and session continuity stays under the user's control.`
+    : `### Phase 5: Call ${EXIT_PLAN_MODE_TOOL_NAME}
+At the very end of your turn, once you have asked the user questions and are happy with your final plan - you should always call ${EXIT_PLAN_MODE_TOOL_NAME} to indicate to the user that you are done planning. When calling ${EXIT_PLAN_MODE_TOOL_NAME}, pass the complete final plan in its \`plan\` parameter.
+This is critical - your turn should only end with either using the ${ASK_USER_QUESTION_TOOL_NAME} tool OR calling ${EXIT_PLAN_MODE_TOOL_NAME}. Do not stop unless it's for these 2 reasons
+
+**Important:** Use ${ASK_USER_QUESTION_TOOL_NAME} ONLY to clarify requirements or choose between approaches. Use ${EXIT_PLAN_MODE_TOOL_NAME} to request plan approval. Do NOT ask about plan approval in any other way - no text questions, no AskUserQuestion. Phrases like "Is this plan okay?", "Should I proceed?", "How does this plan look?", "Any changes before we start?", or similar MUST use ${EXIT_PLAN_MODE_TOOL_NAME}.`;
   return `## Plan Workflow
 
 ### Phase 1: Initial Understanding
@@ -52,7 +69,7 @@ Goal: Review the plan(s) from Phase 2 and ensure alignment with the user's inten
 3. Use ${ASK_USER_QUESTION_TOOL_NAME} to clarify any remaining questions with the user
 
 ### Phase 4: Final Plan
-Goal: Prepare your complete final plan for the \`plan\` parameter of ${EXIT_PLAN_MODE_TOOL_NAME}.
+Goal: Prepare your complete final plan${orchestrator ? " to hand to the external agent" : ` for the \`plan\` parameter of ${EXIT_PLAN_MODE_TOOL_NAME}`}.
 - Begin with a **Context** section: explain why this change is being made \u2014 the problem or need it addresses, what prompted it, and the intended outcome
 - Include only your recommended approach, not all alternatives
 - Ensure that the final plan is concise enough to scan quickly, but detailed enough to execute effectively
@@ -60,11 +77,7 @@ Goal: Prepare your complete final plan for the \`plan\` parameter of ${EXIT_PLAN
 - Reference existing functions and utilities you found that should be reused, with their file paths
 - Include a verification section describing how to test the changes end-to-end (run the code, use MCP tools, run tests)
 
-### Phase 5: Call ${EXIT_PLAN_MODE_TOOL_NAME}
-At the very end of your turn, once you have asked the user questions and are happy with your final plan - you should always call ${EXIT_PLAN_MODE_TOOL_NAME} to indicate to the user that you are done planning. When calling ${EXIT_PLAN_MODE_TOOL_NAME}, pass the complete final plan in its \`plan\` parameter.
-This is critical - your turn should only end with either using the ${ASK_USER_QUESTION_TOOL_NAME} tool OR calling ${EXIT_PLAN_MODE_TOOL_NAME}. Do not stop unless it's for these 2 reasons
-
-**Important:** Use ${ASK_USER_QUESTION_TOOL_NAME} ONLY to clarify requirements or choose between approaches. Use ${EXIT_PLAN_MODE_TOOL_NAME} to request plan approval. Do NOT ask about plan approval in any other way - no text questions, no AskUserQuestion. Phrases like "Is this plan okay?", "Should I proceed?", "How does this plan look?", "Any changes before we start?", or similar MUST use ${EXIT_PLAN_MODE_TOOL_NAME}.
+${phase5}
 
 NOTE: At any point in time through this workflow you should feel free to ask the user questions or clarifications using the ${ASK_USER_QUESTION_TOOL_NAME} tool. Don't make large assumptions about user intent. The goal is to present a well researched plan to the user, and tie any loose ends before implementation begins.`;
 }
@@ -84,15 +97,18 @@ function buildOrchestratorSection(full: boolean): string {
 
 This session is bound to an external coding agent (主控模式): you are the orchestrator, and you stay read-only for the whole binding lifetime. File edits, workspace-modifying commands, and ${EXIT_PLAN_MODE_TOOL_NAME} are NOT available to you — do not attempt them and do not try to unbind or switch modes on your own.
 
-Implement by delegation instead: put the complete, self-contained plan into \`task\` and call DelegateToExternalAgent (short tasks) or StartExternalAgentTask + GetExternalAgentTaskResult (long tasks; the result call blocks until the external agent settles and returns its report). The external agent does not see this conversation — the \`task\` must carry every fact it needs. Review its report and the workspace change summary, then iterate with follow-up delegations. External-session continuity is controlled by the user (the badge menu pins which external session is continued — do not try to manage it).`;
+Implement by delegation instead: put the complete, self-contained plan into \`task\` and call DelegateToExternalAgent (short tasks) or StartExternalAgentTask + GetExternalAgentTaskResult (long tasks). GetExternalAgentTaskResult blocks waiting for the external agent: it returns the report as soon as the task settles, or a running snapshot when the single-wait cap is reached — call it again to keep waiting. The external agent does not see this conversation — the \`task\` must carry every fact it needs. Review its report and the workspace change summary, then iterate with follow-up delegations. External-session continuity is controlled by the user (the badge menu pins which external session is continued — do not try to manage it).`;
   }
-  return `Orchestrator mode active (bound external agent): you are read-only — implement by delegating (DelegateToExternalAgent / StartExternalAgentTask); do not call ${EXIT_PLAN_MODE_TOOL_NAME}.`;
+  return `Orchestrator mode active (bound external agent): you are read-only — implement by delegating (DelegateToExternalAgent, or StartExternalAgentTask + GetExternalAgentTaskResult for long tasks); do not call ${EXIT_PLAN_MODE_TOOL_NAME}.`;
 }
 
-const PLAN_MODE_FULL_REMINDER = [
-  "Plan mode is active. The user indicated that they do not want you to execute yet -- you MUST NOT make any edits, run any non-readonly tools (including changing configs or making commits), or otherwise make any changes to the system. This supercedes any other instructions you have received.",
-  buildPlanWorkflow(),
-];
+const PLAN_MODE_FULL_HEADER =
+  "Plan mode is active. The user indicated that they do not want you to execute yet -- you MUST NOT make any edits, run any non-readonly tools (including changing configs or making commits), or otherwise make any changes to the system. This supercedes any other instructions you have received.";
+
+/** 全文正文按主控变体构造：Phase 5 收尾随主控切到委派（见 buildPlanWorkflow 注释）。 */
+function fullPlanReminderBody(orchestrator: boolean): string {
+  return [PLAN_MODE_FULL_HEADER, buildPlanWorkflow(orchestrator)].join("\n\n");
+}
 
 const PLAN_MODE_SPARSE_REMINDER = [
   `Plan mode still active (see full instructions earlier in conversation). Read-only. Follow 5-phase workflow. End turns with ${ASK_USER_QUESTION_TOOL_NAME} (for clarifications) or ${EXIT_PLAN_MODE_TOOL_NAME} (for plan approval). Never ask about plan approval via text or AskUserQuestion.`,
@@ -101,7 +117,7 @@ const PLAN_MODE_SPARSE_REMINDER = [
 /** 子会话的 Plan 提醒：只保留只读约束，不含主会话的五阶段流程与收尾要求。 */
 function buildSubagentPlanModeReminder(askUserQuestionAvailable: boolean): string {
   return [
-    PLAN_MODE_FULL_REMINDER[0],
+    PLAN_MODE_FULL_HEADER,
     "Only take read-only actions, and answer the delegated query comprehensively.",
     ...(askUserQuestionAvailable
       ? [
@@ -454,12 +470,14 @@ export function buildRuntimeModeReminder(
     body = (full ? RESEARCH_MODE_FULL_REMINDER : RESEARCH_MODE_SPARSE_REMINDER).join("\n");
   } else {
     // 主控（绑定外部 agent）是 plan 的修饰态：提醒正文追加主控段，身份仍是 plan，
-    // 节流/activation 逻辑与普通 plan 完全一致。
-    const planBody = (full ? PLAN_MODE_FULL_REMINDER : PLAN_MODE_SPARSE_REMINDER).join("\n");
-    body =
-      options.externalAgentReadOnly === true
-        ? `${planBody}\n\n${buildOrchestratorSection(full)}`
-        : planBody;
+    // 节流/activation 逻辑与普通 plan 完全一致。全文的工作流本身也按主控变体构造
+    // （Phase 5 收尾换成委派），否则同一段正文里「必须调 ExitPlanMode」与主控段的
+    // 「不要调 ExitPlanMode」互相矛盾。
+    const orchestrator = options.externalAgentReadOnly === true;
+    const planBody = full
+      ? fullPlanReminderBody(orchestrator)
+      : PLAN_MODE_SPARSE_REMINDER.join("\n");
+    body = orchestrator ? `${planBody}\n\n${buildOrchestratorSection(full)}` : planBody;
   }
   return { body, identity, kind };
 }
@@ -503,7 +521,7 @@ export function hasFullRuntimeModeReminder(entries: readonly RuntimeMessageEntry
     if (
       isRuntimeAttachmentEntry(entry) &&
       entry.metadata.source === "runtime_mode" &&
-      entry.content.startsWith(PLAN_MODE_FULL_REMINDER[0]!)
+      entry.content.startsWith(PLAN_MODE_FULL_HEADER)
     ) {
       return true;
     }

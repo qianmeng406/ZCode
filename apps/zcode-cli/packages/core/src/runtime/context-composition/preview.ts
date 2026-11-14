@@ -127,6 +127,11 @@ function simulateRequestEntries(
     entries,
     runtime.getMode(),
     runtime.getPlanEnabled(),
+    {
+      // 主控段必须与真实请求一致：turn-loop 与 compact 后重发都按只读锁追加
+      // Orchestrator 段，预演漏传会让主控下的分镜统计少算这段正文。
+      externalAgentReadOnly: runtime.externalAgentReadOnly === true,
+    },
   );
   if (modeReminder) entries.push(systemReminderAttachmentEntry("runtime_mode", modeReminder));
   const outputStyleReminder = buildRuntimeOutputStyleReminderBody(outputStyle);

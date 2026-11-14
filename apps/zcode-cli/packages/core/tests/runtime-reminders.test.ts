@@ -624,6 +624,49 @@ describe("runtime request reminders", () => {
     expect(body).not.toMatch(/plan file|Launch Plan|Phase 6/i);
   });
 
+  // 主控（绑定外部 agent）：工作流本身切换成委派收尾，不再与 Orchestrator 段的
+  // 「不要调 ExitPlanMode」互相矛盾；委派语义与工具实现对齐（等待有单次上限）。
+  it("builds the orchestrator variant: workflow ends in delegation, not ExitPlanMode", () => {
+    const full = buildRuntimeModeReminderBody([], "plan", true, {
+      externalAgentReadOnly: true,
+    })!;
+    expect(full).toContain("Plan mode is active.");
+    expect(full).toContain("### Phase 5: Delegate the implementation");
+    expect(full).not.toContain("### Phase 5: Call ExitPlanMode");
+    expect(full).toContain("OR a delegation call");
+    expect(full).toContain("it is rejected while the external agent is bound");
+    // Orchestrator 段仍在，且等待语义与 external-agent-tasks 的单次上限一致。
+    expect(full).toContain("## Orchestrator mode (bound external agent)");
+    expect(full).toContain("a running snapshot when the single-wait cap is reached");
+    expect(full).not.toContain("blocks until the external agent settles");
+
+    // 同一 activation 内第 2 次提醒（1 次全文 + 5 个人类轮）才落进 sparse 档。
+    const sparse = buildRuntimeModeReminderBody(
+      [
+        {
+          message: { role: "user" as const, content: "prior runtime reminder" },
+          metadata: { source: "runtime_mode" as const },
+        },
+        ...Array.from(
+          { length: RUNTIME_MODE_REMINDER_CONFIG.TURNS_BETWEEN_ATTACHMENTS },
+          (_, index) => ({
+            message: { role: "user" as const, content: `turn ${index}` },
+            metadata: realUserRuntimeMetadata(),
+          }),
+        ),
+        // 轮首收集时本轮 prompt 不计入（见 getRuntimeModeReminderState），补一条
+        // assistant 让 5 个用户轮都被计满。
+        { message: { role: "assistant" as const, content: "ack" } },
+      ],
+      "plan",
+      true,
+      { externalAgentReadOnly: true },
+    )!;
+    expect(sparse).toContain("Orchestrator mode active");
+    expect(sparse).toContain("GetExternalAgentTaskResult");
+    expect(sparse).not.toContain("### Phase");
+  });
+
   // 修复原因：子会话继承 Plan 后收到主会话的五阶段提醒，被要求再派生 Explore、以
   // AskUserQuestion 或 ExitPlanMode 收尾，而子会话没有这些工具。
   it("gives subagent children a read-only plan reminder without the main workflow", () => {
