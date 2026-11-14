@@ -25,16 +25,19 @@
 - 跟进官方新版本时如何保留定制能力，见 [docs/upstream-sync.md](docs/upstream-sync.md)。
 - 官方文档：[中文 README](https://github.com/zai-org/ZCode/blob/main/README.md)、[英文 README](https://github.com/zai-org/ZCode/blob/main/README.en.md)、[UI Plugin 开发说明](https://github.com/zai-org/ZCode/blob/aac4755666d09fdcd70272fcf063c077a639015f/UI_PLUGIN.md)。官方新版中的功能、目录和命令不一定存在于本定制版，请以当前检出的源码与 `package.json` 为准。
 
-- **2026-11-13**：合并官方 **v3.18.1** 基线（[`c5904686`](https://github.com/zai-org/ZCode/commit/c5904686ea8341826b3affe5d993d06a134fa779)），保留全部既有定制能力。合并中修掉四处静默丢失：语音输入按钮、设置页「行为与工具」标题 i18n key、`ExtensionViewsProvider` 与托管 worktree 创建视图的整段渲染块被冲掉；增量打包的运行时注入名单补上 `pkijs` 与 `electron-updater`（此前每次增量包自校验必失败）；`.env.production` 回到上游版本、自建 CDN 说明移入 [spec](packages/server/specs/remote-resident-server.md)。
-- **2026-11-13（续）**：修复**所有会话打开即报「初始化失败，暂时无法发送」**。根因不是数据损坏：fork 自加的解绑事件 `ExternalAgentBindingChanged(null)` 会在冷恢复时为每条会话补发一次（让投影与入口对齐），而投影对所有事件无条件读 `payload.inputId`，解构 `null` 直接抛错，整次冷恢复失败。改为空载荷安全读取并补回归测试（覆盖 live 与 hydration replay 两条归约路径）。
-- **2026-11-08**：**外部 Agent 主控（委派编排）**：把聊天会话绑定给外部 CLI agent（CodeBuddy、OpenCode 两个完整驱动），本方只读主控、委派执行，含活动卡片/过程面板、转录面板、外部会话列表与删除。本批要点：**OpenCode CLI 完整适配**（第二个 full 驱动——结果解析/活动流/续接/转录全量接入，档位走 `--model provider/model#variant` 后缀并从本地模型缓存做逐模型档位探测）、绑定探测三态（「未检测到」与「探测失败（可重试）」区分，全失败不缓存）、外部 agent 执行超时改为**进度看门狗**（有输出就继续等，停滞才终止）、续接语义由用户钉死（钉住的会话永远续接，不续接绝不写回）、委派工作目录与真实会话工作区对齐（修复 PWD 漂移导致外部 agent 落错 project）。同批合并官方 v3.17.2 基线（[`a9fe401e`](https://github.com/zai-org/ZCode/commit/a9fe401eede6e6e5e01be9048679c206fe6f02d9)），保留既有定制能力（子会话精简 Plan 提醒与主控段并存、执行状态恢复走 fork 安装通道）。
-- **2026-11-01**：输入预测重构——不再独立调用模型，改为**主轮回复末尾附带候选块**（设置页开关只控注入提示词，模型选择器移除）；新增**会话交接导出**（最近 3 轮材料窗口，右键会话菜单入口）。修复：纯工具调用步指标胶囊缺「首 token」项、共享运行时任务路由能力协商（上游合并遗漏）、预测指令注入毁掉带附件消息、输入预测展示门槛 0.8→0.6、GLM 内置工具重写器误吞粗体开头正文。
-- **2026-10-31**：合并官方 v3.17.1 基线（[`a60ba6a7`](https://github.com/zai-org/ZCode/commit/a60ba6a7e5a06742270ca605f5d2cc2766afa7e1)），保留既有定制能力；同时修复 Windows 下工具路径比较与权限规则匹配（`@zcode/core` 单元测试在 Windows 上全绿）。
-- **2026-10-22**：合并官方 v3.16.2 基线，保留既有定制能力。
-- **2026-10-19**：更新至 ZCode v3.16.2 版本。
-- **2026-10-16**：更新至 ZCode v3.16.1 版本。
-- 2026-10-10：更新至 ZCode v3.15.1 版本。
-- 2026-9-23：更新至 ZCode v3.14.3 版本。
+## 版本更新记录
+
+官方 3.18.x 起不再打 git tag，基线以上游 `main` 的同步提交为准；校验祖先关系用提交 SHA 而非 tag。各版本同步时均保留全部既有定制能力。
+
+| 本仓库同步时间 | 上游版本 | 上游基线提交                                                                                                                     |
+| -------------- | -------- | -------------------------------------------------------------------------------------------------------------------------------- |
+| 2026-11-13     | v3.18.1  | [`c5904686`](https://github.com/zai-org/ZCode/commit/c5904686ea8341826b3affe5d993d06a134fa779)                                   |
+| 2026-11-08     | v3.17.2  | [`a9fe401e`](https://github.com/zai-org/ZCode/commit/a9fe401eede6e6e5e01be9048679c206fe6f02d9)                                   |
+| 2026-10-31     | v3.17.1  | [`a60ba6a7`](https://github.com/zai-org/ZCode/commit/a60ba6a7e5a06742270ca605f5d2cc2766afa7e1)                                   |
+| 2026-10-22     | v3.16.2  | [`3c5b2276`](https://github.com/zai-org/ZCode/commit/3c5b227649371507ddc4eb46ac5133afe6db1cab)                                   |
+| 2026-10-20     | v3.16.1  | [`0a1fc56d`](https://github.com/zai-org/ZCode/commit/0a1fc56d279fd1001f78387bd81aec1c26767411)                                   |
+| 2026-10-13     | v3.15.1  | [`aac4755`](https://github.com/zai-org/ZCode/commit/aac4755666d09fdcd70272fcf063c077a639015f)（自 Myzcode 迁移定制内容时的基线） |
+| 2026-09-23     | v3.14.3  | [`29628c9`](https://github.com/zai-org/ZCode/commit/29628c9acdb81b703bbd4080c207a0e7ce5e276e)（旧仓库 Myzcode 的原始基线）       |
 
 ## 本定制版的新增与改动
 
