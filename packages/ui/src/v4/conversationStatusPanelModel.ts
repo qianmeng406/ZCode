@@ -48,9 +48,6 @@ export interface ConversationStatusPanelSessionPlansModel {
 
 export interface ConversationStatusPanelRunningSubagent extends RunningSubagentSummary {
   stopControl?: { taskId: string; executionId: string };
-  /** fork：逐个停止子智能体（v4 后台任务 id + 显式可停位）。 */
-  controlWorkId?: string;
-  cancellable?: boolean;
 }
 
 /**

@@ -35,7 +35,7 @@ Since 3.18.x the official project no longer publishes git tags; the baseline is 
 
 ## Fork Customizations
 
-This fork adds external agent orchestration — bind a session to an external CLI agent (CodeBuddy, OpenCode, Qoder CLI CN, Qoder CLI, Command Code) and supervise read-only while delegating — plus external CLIs as subagents and as built-in execution channels (general-purpose / Explore, with per-CLI verified read-only modes), dual-model review (Oracle), execution-model selection during plan approval, turn navigation, goal controls, per-subagent stop, permission modes, prompt optimization, and a per-session WSL execution environment. See [README.md](README.md) for details.
+This fork adds external agent orchestration — bind a session to an external CLI agent (CodeBuddy, OpenCode, Qoder CLI CN, Qoder CLI, Command Code) and supervise read-only while delegating — plus external CLIs as subagents and as built-in execution channels (general-purpose / Explore, with per-CLI verified read-only modes), dual-model review (Oracle), execution-model selection during plan approval, turn navigation, goal controls, permission modes, prompt optimization, and a per-session WSL execution environment. See [README.md](README.md) for details.
 
 **Beta mode (prompt-fusion mode test version)** is an independent, mutually exclusive work mode (`mode=beta`) in the composer menu, alongside the confirmation, autonomous, research, and full-access modes. It combines progress within authorization, minimal complete changes, purposeful delegation, and evidence-based verification while retaining skills, memory, and project instructions. It uses full-access permissions with fewer confirmations. Plan remains an independent switch (read-only while on); selecting another work mode exits Beta. See the [Beta mode specification](apps/zcode-cli/docs/design/v2/loop/fusion-context-profile.md).
 
@@ -51,7 +51,7 @@ This fork adds external agent orchestration — bind a session to an external CL
 
 **Goal controls** add pause/resume, deletion of the current goal, and "continue from this iteration" to the goal panel. A running goal cannot be deleted; continuing a historical iteration restarts the goal with that iteration's title, and pause/resume retries a bounded number of times when the snapshot revision is stale instead of silently doing nothing.
 
-**Per-subagent stop** lets foreground subagents be stopped individually from the status panel. The action appears only for rows that resolve to a background handle or runtime task id; rows explicitly marked non-cancellable stay disabled. (Upstream v3.18.1 ships an equivalent native `stopSubagent` capability; this fork keeps an adapted variant that locates rows by taskId + executionId — the semantics are the same.)
+**Per-subagent stop** lets foreground subagents be stopped individually from the status panel. The action appears only for rows that resolve to a background handle or runtime task id; rows explicitly marked non-cancellable stay disabled. (The fork's adapted variant was retired: upstream v3.18.1 ships the equivalent native `stopSubagent` capability, and this fork now uses it as is.)
 
 **Settings consolidation** moves the prompt optimizer (model, reasoning level, optimization method, and context range) and the review model into the Settings page. The composer keeps only the optimize, standard-review, and deep-review actions, and the previous locally stored model selection is migrated once.
 

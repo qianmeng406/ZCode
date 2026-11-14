@@ -1005,11 +1005,9 @@ function PlanStatusSection({
 }
 
 function RunningWorkCancelButton({
-  label,
   workId,
   onCancel,
 }: {
-  label?: string;
   workId: string;
   onCancel?: (workId: string) => void;
 }) {
@@ -1030,9 +1028,9 @@ function RunningWorkCancelButton({
       variant="ghost"
       size="sm"
       data-testid={testId(TID_V4_BACKGROUND_WORK_CANCEL, workId)}
-      aria-label={
-        label ?? intl.formatMessage({ id: "chat.summaryPanel.stopRunningBackgroundTask" })
-      }
+      aria-label={intl.formatMessage({
+        id: "chat.summaryPanel.stopRunningBackgroundTask",
+      })}
       onClick={handleClick}
       className="pointer-events-auto relative z-[2] ml-auto h-6 shrink-0 px-1.5 text-ui-base text-[var(--color-foreground)]"
     >
@@ -1606,36 +1604,20 @@ function SubagentStatusSection({
             subagent,
           });
           const canOpenSubagentSession = Boolean(request && onOpenSubagentSession);
-          // 后台 Agent 用 backgroundWork.workId；前台 Agent 没有 background work，
-          // 但 runtime 任务注册表用 agentId 作为同一个 taskId，Stop 仍可精确到这一行。
-          // 显式 cancellable=false 是唯一的不停信号（类型不支持 / 已不可控）。
-          const stopWorkId =
-            subagent.cancellable === false
-              ? undefined
-              : (subagent.controlWorkId ?? subagent.agentId);
-          // fork：逐个停止子智能体走 onStopSubagent（需要 taskId + executionId 对），
-          // 上游的 onCancelBackgroundWork 只认 workId，两者不能混用。
-          const stopControl =
-            stopWorkId && subagent.stopControl
-              ? subagent.stopControl
-              : stopWorkId
-                ? { taskId: stopWorkId, executionId: subagent.childSessionId }
-                : undefined;
-          const canStop = Boolean(stopControl && onStopSubagent);
-          const requestStopSubagent = (workId: string) => {
-            const control = stopControl ?? {
-              taskId: workId,
-              executionId: subagent.childSessionId,
-            };
-            onStopSubagent?.(control);
-          };
+          const stopControl = subagent.stopControl;
+          const pendingStopKey = stopControl
+            ? JSON.stringify([stopControl.taskId, stopControl.executionId])
+            : null;
+          const stopPending = Boolean(pendingStopKey && pendingSubagentStops?.has(pendingStopKey));
+          const canStopSubagent = Boolean(stopControl && onStopSubagent);
           return (
             <li
               key={subagent.childSessionId}
-              data-testid={stopWorkId ? testId(TID_V4_BACKGROUND_WORK_ITEM, stopWorkId) : undefined}
+              data-testid="v4-running-subagent-item"
               data-background-task-kind="agent"
               data-child-session-id={subagent.childSessionId}
-              data-work-id={stopWorkId}
+              data-subagent-task-id={stopControl?.taskId}
+              data-subagent-execution-id={stopControl?.executionId}
               data-work-status="running"
               className={cn(
                 "group relative flex min-w-0 items-start gap-2 rounded-lg px-2 py-2 hover:bg-[var(--color-hover)]",
@@ -1677,12 +1659,28 @@ function SubagentStatusSection({
                       intl.formatMessage,
                     )}
                   </span>
-                  {canStop && stopWorkId ? (
-                    <RunningWorkCancelButton
-                      label={intl.formatMessage({ id: "chat.statusPanel.stopRunningSubagent" })}
-                      workId={stopWorkId}
-                      onCancel={requestStopSubagent}
-                    />
+                  {canStopSubagent && stopControl ? (
+                    <Button
+                      type="button"
+                      variant="ghost"
+                      size="sm"
+                      data-testid="v4-running-subagent-stop"
+                      data-subagent-task-id={stopControl.taskId}
+                      data-subagent-execution-id={stopControl.executionId}
+                      aria-label={intl.formatMessage({
+                        id: "chat.summaryPanel.stopRunningSubagent",
+                      })}
+                      aria-busy={stopPending}
+                      disabled={stopPending}
+                      onClick={(event) => {
+                        event.stopPropagation();
+                        onStopSubagent?.(stopControl);
+                      }}
+                      className="pointer-events-auto relative z-[2] ml-auto h-6 shrink-0 px-1.5 text-ui-base text-[var(--color-foreground)]"
+                    >
+                      <SquareIcon aria-hidden className="size-3 fill-current" />
+                      {intl.formatMessage({ id: "chat.statusPanel.runningStop" })}
+                    </Button>
                   ) : null}
                 </span>
               </div>
