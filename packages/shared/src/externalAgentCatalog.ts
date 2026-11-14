@@ -581,12 +581,15 @@ export const EXTERNAL_AGENT_PRESETS: readonly ExternalAgentPreset[] = [
     // 全部模型都是 200K/400K/1M 三层，`--context-window` 收正整数 token 数。
     contextWindowFlag: "--context-window",
     contextWindowLevelsByModel: { "": [200000, 400000, 1000000] },
-    // S7 渠道化：**已评估，未完成**（2026-11-12）。绑定/委派可用（adaptation: full
-    // 那套实测仍成立），但不能承接内置身份的执行渠道。
+    // S7 渠道化：**已评估，未完成**（2026-11-12 首评，2026-11-15 复测仍阻塞）。
+    // 绑定/委派可用（adaptation: full 那套实测仍成立），但不能承接内置身份的执行渠道。
     //
     // 阻塞项是"拿不到运行证据"，不是代码或调用形状问题：
-    // - 三个不同模型（GLM-5.3 / Auto / Efficient）全部卡在服务端 p4 队列
+    // - 2026-11-12：三个模型（GLM-5.3 / Auto / Efficient）卡服务端 p4 队列
     //   （`model_queue_status status=queued`，单次等 6.5 分钟无响应，上限 1 小时）；
+    // - 2026-11-15 复测（CLI 已升 1.1.87）：GLM-5.3-Flash 等 20 分钟、Ultimate 等
+    //   3 分钟（用户取消），会话 jsonl 都秒级落盘且含 user/runtime-config 事件，
+    //   但 stream-json stdout 零字节、无任何 assistant 事件——仍是同一队列症状。
     // - 账号本身正常（personal_standard，已登录，`qodercli status` 正常），
     //   同一台机器上 qoderclicn 秒回——所以是国际版服务端容量，不是本地问题。
     //
@@ -594,14 +597,16 @@ export const EXTERNAL_AGENT_PRESETS: readonly ExternalAgentPreset[] = [
     // - `--permission-mode dont_ask` 在 init 事件里如实上报 `dontAsk`，是可用只读档位；
     // - `--permission-mode plan` 与 CN 版同坑：choices 里没有它，传了被**静默降级**
     //   成 default（所以将来开启时必须用 dont_ask，不能用 plan）；
-    // - 与 qoderclicn 同为 1.1.86 同一份 CLI 代码，取消/续接/transcript 的形状一致。
+    // - 与 qoderclicn 同一份 CLI 代码，取消/续接/transcript 的形状一致；
+    // - 2026-11-15 `--list-models` 新增 Qwen4-Max-Preview（静态表暂缺其档位集合，
+    //   需用 /model + /effort 面板补采；补采前该模型命中 "" 键 = 无档位入口）。
     //
     // 补完方式：队列空闲后按 §3.7 跑一遍（1 运行 / 2 取消 / 3 续接 / 4 失败语义 /
     // 5 transcript / 6 dont_ask 只读），通过后把 subagentChannelReady 改成 true、
     // 加 readOnlyPermissionMode: "dont_ask"、删掉下面的 blocked 字段。
     subagentChannelReady: false,
     subagentChannelBlockedBy:
-      "服务端模型队列长期占满（p4，三模型均 6min+ 无响应），§3.7 第 1 项「运行」拿不到实测证据；本地已确认 dont_ask 为可用只读档位（plan 会被静默降级）",
+      "国际版服务端模型队列长期占满（2026-11-12 p4 三模型 6min+；2026-11-15 复测 1.1.87 仍复现：GLM-5.3-Flash 20min/Ultimate 3min 零模型事件），§3.7 第 1 项「运行」拿不到实测证据；本地已确认 dont_ask 为可用只读档位（plan 会被静默降级）",
   },
   {
     id: "commandcode",
