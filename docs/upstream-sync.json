@@ -20,18 +20,18 @@
   },
   "currentBase": {
     "tag": null,
-    "commit": "a60ba6a7e5a06742270ca605f5d2cc2766afa7e1",
-    "sourceCommit": "73158b64ace2c753b67e77e1f83bbaca31b43944",
-    "note": "3.17.1 未打 tag，以上游同步提交发布；后续同步的 --is-ancestor 校验改用该 commit SHA。"
+    "commit": "c5904686ea8341826b3affe5d993d06a134fa779",
+    "sourceCommit": "c5904686ea8341826b3affe5d993d06a134fa779",
+    "note": "3.18.1 未打 git tag，以上游 main 的同步提交发布；后续同步的 --is-ancestor 校验改用该 commit SHA。上一基线为 v3.17.2（a9fe401e），再上一版 v3.17.1（a60ba6a7）。"
   },
   "versions": {
-    "desktop": "3.17.1",
+    "desktop": "3.18.1",
     "cli": "0.17.1"
   },
   "retiredFeatures": [
     "companion/mobile 自建移动端远控",
     "项目开发模式（workflow）与阶段侧栏",
-    "Command Code 渠道与网关额度子系统",
+    "Command Code 作为模型供应商渠道与网关额度子系统（注意：外部 agent 主控里的 Command Code CLI 预设 commandcode 仍然保留，两者不是一回事）",
     "ACP 运行时与内置 Agent CLI（仅保留旧会话读取/恢复兼容）"
   ]
 }

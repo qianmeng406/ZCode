@@ -20,10 +20,13 @@
 
 ## 上游基线
 
-- 上游项目为 [zai-org/ZCode](https://github.com/zai-org/ZCode)（Apache-2.0）；本仓库基于官方 **v3.17.2**（提交 [`a9fe401e`](https://github.com/zai-org/ZCode/commit/a9fe401eede6e6e5e01be9048679c206fe6f02d9)，tag `v3.17.2`），根目录 `package.json` 版本同为 `3.17.2`。
+- 上游项目为 [zai-org/ZCode](https://github.com/zai-org/ZCode)（Apache-2.0）；本仓库基于官方 **v3.18.1**（提交 [`c5904686`](https://github.com/zai-org/ZCode/commit/c5904686ea8341826b3affe5d993d06a134fa779)），根目录 `package.json` 版本同为 `3.18.1`。
+- 官方 3.18.x 未打 git tag，以上游 `main` 的同步提交发布，因此后续的 `--is-ancestor` 校验用该 commit SHA 而非 tag。
 - 跟进官方新版本时如何保留定制能力，见 [docs/upstream-sync.md](docs/upstream-sync.md)。
 - 官方文档：[中文 README](https://github.com/zai-org/ZCode/blob/main/README.md)、[英文 README](https://github.com/zai-org/ZCode/blob/main/README.en.md)、[UI Plugin 开发说明](https://github.com/zai-org/ZCode/blob/aac4755666d09fdcd70272fcf063c077a639015f/UI_PLUGIN.md)。官方新版中的功能、目录和命令不一定存在于本定制版，请以当前检出的源码与 `package.json` 为准。
 
+- **2026-11-13**：合并官方 **v3.18.1** 基线（[`c5904686`](https://github.com/zai-org/ZCode/commit/c5904686ea8341826b3affe5d993d06a134fa779)），保留全部既有定制能力。合并中修掉四处静默丢失：语音输入按钮、设置页「行为与工具」标题 i18n key、`ExtensionViewsProvider` 与托管 worktree 创建视图的整段渲染块被冲掉；增量打包的运行时注入名单补上 `pkijs` 与 `electron-updater`（此前每次增量包自校验必失败）；`.env.production` 回到上游版本、自建 CDN 说明移入 [spec](packages/server/specs/remote-resident-server.md)。
+- **2026-11-13（续）**：修复**所有会话打开即报「初始化失败，暂时无法发送」**。根因不是数据损坏：fork 自加的解绑事件 `ExternalAgentBindingChanged(null)` 会在冷恢复时为每条会话补发一次（让投影与入口对齐），而投影对所有事件无条件读 `payload.inputId`，解构 `null` 直接抛错，整次冷恢复失败。改为空载荷安全读取并补回归测试（覆盖 live 与 hydration replay 两条归约路径）。
 - **2026-11-08**：**外部 Agent 主控（委派编排）**：把聊天会话绑定给外部 CLI agent（CodeBuddy、OpenCode 两个完整驱动），本方只读主控、委派执行，含活动卡片/过程面板、转录面板、外部会话列表与删除。本批要点：**OpenCode CLI 完整适配**（第二个 full 驱动——结果解析/活动流/续接/转录全量接入，档位走 `--model provider/model#variant` 后缀并从本地模型缓存做逐模型档位探测）、绑定探测三态（「未检测到」与「探测失败（可重试）」区分，全失败不缓存）、外部 agent 执行超时改为**进度看门狗**（有输出就继续等，停滞才终止）、续接语义由用户钉死（钉住的会话永远续接，不续接绝不写回）、委派工作目录与真实会话工作区对齐（修复 PWD 漂移导致外部 agent 落错 project）。同批合并官方 v3.17.2 基线（[`a9fe401e`](https://github.com/zai-org/ZCode/commit/a9fe401eede6e6e5e01be9048679c206fe6f02d9)），保留既有定制能力（子会话精简 Plan 提醒与主控段并存、执行状态恢复走 fork 安装通道）。
 - **2026-11-01**：输入预测重构——不再独立调用模型，改为**主轮回复末尾附带候选块**（设置页开关只控注入提示词，模型选择器移除）；新增**会话交接导出**（最近 3 轮材料窗口，右键会话菜单入口）。修复：纯工具调用步指标胶囊缺「首 token」项、共享运行时任务路由能力协商（上游合并遗漏）、预测指令注入毁掉带附件消息、输入预测展示门槛 0.8→0.6、GLM 内置工具重写器误吞粗体开头正文。
 - **2026-10-31**：合并官方 v3.17.1 基线（[`a60ba6a7`](https://github.com/zai-org/ZCode/commit/a60ba6a7e5a06742270ca605f5d2cc2766afa7e1)），保留既有定制能力；同时修复 Windows 下工具路径比较与权限规则匹配（`@zcode/core` 单元测试在 Windows 上全绿）。
@@ -35,11 +38,11 @@
 
 ## 本定制版的新增与改动
 
-以下列出本仓库在官方 v3.17.2 基线之上的定制能力与修改，不表示这些能力全部为本项目独有。官方后续版本可能提供相似功能。
+以下列出本仓库在官方 v3.18.1 基线之上的定制能力与修改，不表示这些能力全部为本项目独有。官方后续版本可能提供相似功能。
 
 ### 一、新增功能
 
-- **外部 Agent 主控（委派编排）**：把聊天会话绑定给外部 CLI agent，本方进入**只读主控**模式并按需委派任务。已适配并实测的驱动：**CodeBuddy**、**OpenCode**、**Qoder CLI CN**、**Qoder CLI**（国际版）、**Command Code**——绑定对话框探测版本与模型清单（OpenCode 档位按模型逐个探测）、委派结果与活动流实时进卡片与侧栏过程面板、外部会话列表/续接/转录/删除齐备；委派 cwd 与会话工作区对齐（PWD），执行超时按进度看门狗判定（有输出不超时，停滞才终止）；绑定探测失败与未安装分开展示并可重试。子会话的 Plan 提醒会同时保留主控段（上游 v3.17.2 的子会话精简提醒与 fork 主控段并存）。
+- **外部 Agent 主控（委派编排）**：把聊天会话绑定给外部 CLI agent，本方进入**只读主控**模式并按需委派任务。已适配并实测的驱动：**CodeBuddy**、**OpenCode**、**Qoder CLI CN**、**Qoder CLI**（国际版）、**Command Code**——绑定对话框探测版本与模型清单（OpenCode 档位按模型逐个探测）、委派结果与活动流实时进卡片与侧栏过程面板、外部会话列表/续接/转录/删除齐备；委派 cwd 与会话工作区对齐（PWD），执行超时按进度看门狗判定（有输出不超时，停滞才终止）；绑定探测失败与未安装分开展示并可重试。子会话的 Plan 提醒会同时保留主控段（上游的子会话精简提醒与 fork 主控段并存）。
 - **外部 CLI 作为子智能体**：在设置页「智能体」中直接创建外部 CLI 子智能体（Markdown profile 声明 `backend: external` + `preset` + 模型/档位/上下文窗口），模型可直接在 `subagent_type` 里点名使用；也支持把外部 CLI 作为**内置身份的「执行渠道」**——general-purpose 与 Explore 可分别指定由哪个外部 CLI 执行，Explore 走各 CLI 已实测的只读档位（详见下表）。渠道候选是 fail-closed 的：未实测通过的 CLI 不出现在候选里，手改状态文件也会被收敛回内置执行。
 
   执行渠道的就绪状态（§3.7 六项实测：运行 / 取消 / 续接 / 失败语义 / transcript / 只读）：
@@ -388,7 +391,7 @@ node dist/zcode/debug/zcode/bin/zcode.mjs --web \
 
 ## 仓库结构
 
-以下为本定制仓库的主要目录；`本定制版新增` 表示相对上游 v3.17.1 基线新增，不是官方最新源码树的完整目录清单。
+以下为本定制仓库的主要目录；`本定制版新增` 表示相对上游 v3.18.1 基线新增，不是官方最新源码树的完整目录清单。
 
 | 目录                                                 | 职责                                       |
 | ---------------------------------------------------- | ------------------------------------------ |
