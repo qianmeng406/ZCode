@@ -51,7 +51,7 @@ This fork adds external agent orchestration — bind a session to an external CL
 
 **Goal controls** add pause/resume, deletion of the current goal, and "continue from this iteration" to the goal panel. A running goal cannot be deleted; continuing a historical iteration restarts the goal with that iteration's title, and pause/resume retries a bounded number of times when the snapshot revision is stale instead of silently doing nothing.
 
-**Per-subagent stop** lets foreground subagents be stopped individually from the status panel. The action appears only for rows that resolve to a background handle or runtime task id; rows explicitly marked non-cancellable stay disabled.
+**Per-subagent stop** lets foreground subagents be stopped individually from the status panel. The action appears only for rows that resolve to a background handle or runtime task id; rows explicitly marked non-cancellable stay disabled. (Upstream v3.18.1 ships an equivalent native `stopSubagent` capability; this fork keeps an adapted variant that locates rows by taskId + executionId — the semantics are the same.)
 
 **Settings consolidation** moves the prompt optimizer (model, reasoning level, optimization method, and context range) and the review model into the Settings page. The composer keeps only the optimize, standard-review, and deep-review actions, and the previous locally stored model selection is migrated once.
 
