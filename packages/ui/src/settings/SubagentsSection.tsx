@@ -838,17 +838,20 @@ function SubagentChannelControl({
   };
 
   return (
-    <div className="flex min-w-0 max-w-full flex-col items-end gap-1">
+    // 定宽右列：渠道 / 模型 / 档位三行控件的左右缘都对齐，提示文案通栏右对齐，
+    // 不再被各自的 fit-content 宽度挤成参差的多行孤字。
+    <div className="flex w-64 min-w-0 max-w-full flex-col items-stretch gap-1">
       <div className="flex min-w-0 flex-wrap items-center justify-end gap-1.5">
         <Select value={value} onValueChange={handlePresetChange}>
           <SelectTrigger
-            size="sm"
-            className="w-fit min-w-32 justify-between"
+            size="lg"
+            className="w-full min-w-0 justify-between [&_[data-slot=select-value]]:min-w-0"
             disabled={disabled || pending}
           >
             <SelectValue />
           </SelectTrigger>
-          <SelectContent>
+          {/* 与 settings 其他选择框同款：popper 锚在触发器下方，宽度跟随触发器。 */}
+          <SelectContent position="popper" align="end" sideOffset={4}>
             <SelectItem value={INHERIT_MODEL_VALUE}>
               {intl.formatMessage({ id: "settings.subagents.channel.native" })}
             </SelectItem>
@@ -871,17 +874,17 @@ function SubagentChannelControl({
         ) : null}
       </div>
       {selectedPreset ? (
-        <div className="flex min-w-0 max-w-full flex-wrap items-center justify-end gap-1.5">
+        <div className="flex min-w-0 items-center gap-1.5">
           {modelCandidates.length > 0 ? (
             <Select value={currentModel || INHERIT_MODEL_VALUE} onValueChange={handleModelChange}>
               <SelectTrigger
-                size="sm"
-                className="w-fit min-w-28 justify-between"
+                size="lg"
+                className="min-w-0 flex-1 justify-between [&_[data-slot=select-value]]:min-w-0"
                 disabled={disabled || pending}
               >
                 <SelectValue />
               </SelectTrigger>
-              <SelectContent>
+              <SelectContent position="popper" align="end" sideOffset={4}>
                 <SelectItem value={INHERIT_MODEL_VALUE}>
                   {intl.formatMessage({ id: "settings.subagents.form.external.model.inherit" })}
                 </SelectItem>
@@ -895,8 +898,8 @@ function SubagentChannelControl({
           ) : (
             <Input
               type="text"
-              size="sm"
-              className="h-7 w-40"
+              size="lg"
+              className="min-w-0 flex-1"
               value={currentModel}
               disabled={disabled || pending}
               onBlur={(event) => handleModelChange(event.target.value || INHERIT_MODEL_VALUE)}
@@ -914,13 +917,13 @@ function SubagentChannelControl({
           {effortCandidates.length > 0 ? (
             <Select value={currentEffort || INHERIT_MODEL_VALUE} onValueChange={handleEffortChange}>
               <SelectTrigger
-                size="sm"
-                className="w-fit min-w-24 justify-between"
+                size="lg"
+                className="w-28 shrink-0 justify-between [&_[data-slot=select-value]]:min-w-0"
                 disabled={disabled || pending}
               >
                 <SelectValue />
               </SelectTrigger>
-              <SelectContent>
+              <SelectContent position="popper" align="end" sideOffset={4}>
                 <SelectItem value={INHERIT_MODEL_VALUE}>
                   {intl.formatMessage({ id: "settings.subagents.form.external.model.inherit" })}
                 </SelectItem>
@@ -935,7 +938,8 @@ function SubagentChannelControl({
         </div>
       ) : null}
       {selectedPreset ? (
-        <span className="max-w-64 text-right text-ui-sm text-foreground-subtle">
+        // text-balance：中文提示在列宽边缘断行时不留单字孤行（如「它」独占一行）。
+        <span className="text-balance text-right text-ui-sm text-foreground-subtle">
           {selectedStatus && !selectedStatus.installed && !selectedStatus.probeError
             ? intl.formatMessage({ id: "settings.subagents.form.external.notInstalled" })
             : intl.formatMessage(
