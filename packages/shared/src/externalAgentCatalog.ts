@@ -198,6 +198,16 @@ export const externalAgentPresetSchema = z.object({
    */
   effortLevelsByModel: z.record(z.string().max(200), z.array(z.string())).default({}),
   /**
+   * 固定档模型的档位回落（探测目录命中该模型但 `supportedEfforts` 为空时）。
+   *
+   * 缺省回落 `effortLevelsByModel` 静态表——各家语义由各自的表表达：
+   * qoder 系「未知模型宁可不显示」（`""` 为空表）、codex/claude 是 CLI 级值域。
+   * 只有**有实测面板行为**的预设才显式覆盖：codebuddy 的 EffortPanel 对固定档
+   * 不隐藏、回落基础四档（见 CLI_PICKER_DEFAULT_EFFORTS），静态表（CLI 级值域）
+   * 与它不一致，不能套用。
+   */
+  fixedTierEfforts: z.array(z.string()).optional(),
+  /**
    * 显式上下文窗口的 argv flag（如 qoder 的 `--context-window <tokens>`）。
    * 声明 = 该 CLI 允许用户按模型指定窗口大小；缺席 = 不提供该入口。
    */
@@ -265,24 +275,24 @@ export function resolveEffortLevels(
   model: string | undefined,
   probedModels?: readonly ExternalAgentModelInfo[],
 ): string[] {
-  // 服务端目录命中：有 supportedEfforts 用之；固定档回落到 CLI 选择器的缺省档——
-  // codebuddy 的 EffortPanel 对固定档也是这么做的（不隐藏，回落基础档）。
-  //
-  // 例外是 `variant`（opencode）：档位是模型串的一部分，传错档位 CLI 直接报
-  // `Variant unavailable for <model>: <level>`——这时"回落缺省档"不是宽容而是必然
-  // 失败。所以空候选一律当作"该模型没有档位"，不显示档位入口。
+  // 服务端目录命中：有 supportedEfforts 用之；固定档（空 supportedEfforts）按
+  // 预设语义回落，**不能一刀切**：
+  // - variant（opencode）：档位是模型串的一部分，传错档位 CLI 直接报
+  //   `Variant unavailable for <model>: <level>`——空候选就是"没有档位"；
+  // - commandcode-exec：没有 reasoningEfforts 的模型收到 --effort 不会得到有效
+  //   档位，显示入口只会让用户以为生效了；
+  // - codebuddy：EffortPanel 对固定档不隐藏、回落基础四档（实测其
+  //   filterEffortLevelsForPicker 的 ep 常量），显式 fixedTierEfforts 覆盖；
+  // - 其余（claude-code / codex / qoder 系）：回落自己的静态表——qoder 系的表
+  //   逐模型实测且「未知模型宁可不显示」（"" 为空表），codex/claude 是 CLI 级
+  //   值域。统一回通用四档会把 qoder 逐模型表打穿（Qwen3.8-* 会显示出不存在
+  //   的 high，还会漏 none/max）。
   const probed = probedModels?.find((entry) => entry.id === model);
   if (probed) {
     if (probed.supportedEfforts.length > 0) return probed.supportedEfforts;
-    // 空候选的语义按驱动族区分：
-    // - variant（opencode）：档位在模型串里，传错档位直接报错；
-    // - commandcode-exec：没有 reasoningEfforts 的模型收到 --effort 不会得到有效档位，
-    //   显示档位入口只会让用户以为生效了。
-    // 两者都返回空。claude-family/codex 的固定档模型则回落到 CLI 选择器缺省档
-    // （codebuddy 的 EffortPanel 就是这么做的，隐藏入口反而让人以为不支持）。
-    return preset.effortDelivery === "variant" || preset.driver === "commandcode-exec"
-      ? []
-      : [...CLI_PICKER_DEFAULT_EFFORTS];
+    if (preset.effortDelivery === "variant" || preset.driver === "commandcode-exec") return [];
+    if (preset.fixedTierEfforts) return [...preset.fixedTierEfforts];
+    // 其余预设：穿到下面的静态表分支回落（不返回通用缺省档）。
   }
   const exact = preset.effortLevelsByModel[model ?? ""];
   if (exact) return exact;
@@ -312,6 +322,16 @@ const CODEX_EFFORT_LEVELS = [
   "persistent",
   "max",
 ] as const;
+
+/**
+ * CLI 档位选择器的缺省候选（codebuddy 专用，见其 fixedTierEfforts）。
+ *
+ * codebuddy 的 EffortPanel 规则：模型没有 `supportedEfforts`（固定档）时，面板
+ * **不隐藏**，而是回落到这组基础档（`filterEffortLevelsForPicker` 的 `ep` 常量）。
+ * 固定档模型也是可选的——发出去是否被后端采纳是另一回事，但选择面与 CLI 一致。
+ * 其他预设没有同等实测证据，固定档一律回落各自的静态表（见 resolveEffortLevels）。
+ */
+export const CLI_PICKER_DEFAULT_EFFORTS = ["low", "medium", "high", "xhigh"] as const;
 
 /**
  * 内置预设。
@@ -367,6 +387,9 @@ export const EXTERNAL_AGENT_PRESETS: readonly ExternalAgentPreset[] = [
     models: [],
     effortDelivery: "flag",
     effortLevelsByModel: { "": [...CODEBUDDY_EFFORT_LEVELS] },
+    // 固定档模型回落 EffortPanel 的基础四档（实测其 filterEffortLevelsForPicker），
+    // 不用静态表——那 CLI 级值域（含 minimal）比面板宽，与 CLI 选择面不一致。
+    fixedTierEfforts: [...CLI_PICKER_DEFAULT_EFFORTS],
   },
   {
     id: "codex",
@@ -806,15 +829,6 @@ export function parseServerModelCache(raw: unknown): ExternalAgentModelInfo[] {
   }
   return parsed;
 }
-
-/**
- * CLI 档位选择器的缺省候选。
- *
- * codebuddy 的 EffortPanel 规则：模型没有 `supportedEfforts`（固定档）时，面板
- * **不隐藏**，而是回落到这组基础档（`filterEffortLevelsForPicker` 的 `ep` 常量）。
- * 固定档模型也是可选的——发出去是否被后端采纳是另一回事，但选择面与 CLI 一致。
- */
-export const CLI_PICKER_DEFAULT_EFFORTS = ["low", "medium", "high", "xhigh"] as const;
 
 /**
  * 从本地 `product.json` 解析模型目录（服务端缓存读不到时的兜底）。

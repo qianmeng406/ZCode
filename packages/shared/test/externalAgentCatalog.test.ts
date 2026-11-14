@@ -653,6 +653,40 @@ test("档位候选：claude-family 探测到空候选时仍回落缺省档（与
   assert.deepEqual(levels, [...CLI_PICKER_DEFAULT_EFFORTS]);
 });
 
+test("档位候选：固定档回落按预设区分（不是一刀切缺省档）", () => {
+  const probedFixed = (id: string) => [{ id, name: id, supportedEfforts: [] }];
+  // claude-code：无面板证据，回落自己的静态表（CLI 级 5 档，含 max）。
+  const claude = findExternalAgentPreset("claude-code")!;
+  assert.deepEqual(
+    resolveEffortLevels(claude, "some-fixed-model", probedFixed("some-fixed-model")),
+    claude.effortLevelsByModel[""],
+  );
+  // codex：静态表是 config.toml 的 7 档，通用四档会漏 3 个合法值。
+  const codex = findExternalAgentPreset("codex")!;
+  assert.deepEqual(
+    resolveEffortLevels(codex, "some-fixed-model", probedFixed("some-fixed-model")),
+    codex.effortLevelsByModel[""],
+  );
+  // qoder 系：逐模型静态表权威（面板枚举实测）——命中表时回落逐模型集合，
+  // 不是通用四档（Qwen3.8-* 会显示出不存在的 high，还会漏 none/max）。
+  const qoderCn = findExternalAgentPreset("qodercli-cn")!;
+  assert.deepEqual(
+    resolveEffortLevels(qoderCn, "Qwen3.8-Max", probedFixed("Qwen3.8-Max")),
+    qoderCn.effortLevelsByModel["Qwen3.8-Max"],
+  );
+  // qoder 系未知模型：静态表 "" 为空（宁可没有入口）→ 仍隐藏。
+  assert.deepEqual(
+    resolveEffortLevels(qoderCn, "brand-new-model", probedFixed("brand-new-model")),
+    [],
+  );
+  // commandcode：没有 reasoningEfforts 的模型收到 --effort 不会得到有效档位 → 隐藏。
+  const commandcode = findExternalAgentPreset("commandcode")!;
+  assert.deepEqual(
+    resolveEffortLevels(commandcode, "some-fixed-model", probedFixed("some-fixed-model")),
+    [],
+  );
+});
+
 test("档位按模型分开记：改 A 模型不影响 B 模型", () => {
   const bound = withModelEffort({ ...baseBinding, model: "model-a" }, "model-a", "high");
   const switched = withModelEffort(bound, "model-b", "low");
