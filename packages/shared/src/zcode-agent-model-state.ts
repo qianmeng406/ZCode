@@ -43,10 +43,10 @@ const ZCODE_AGENT_MODE_OPTIONS = [
     description: "Edit and run commands with fewer confirmations.",
   },
   {
-    id: "beta",
-    name: "Beta mode",
+    id: "fusion",
+    name: "Fusion mode",
     description:
-      "Prompt-fusion mode (test version): full context with the fused behavior prompt, and full-access permissions with fewer confirmations.",
+      "Fused behavior prompt with full context and toolset; full-access permissions with fewer confirmations.",
   },
 ] as const satisfies readonly ZCodeTaskModeInfo[];
 // 菜单隐藏 Edit/minimal 不等于删除历史值；恢复/投影不能因候选变化把旧 edit/minimal 降为 build。
@@ -60,6 +60,8 @@ const ZCODE_AGENT_MODE_ID_SET = new Set<string>([
 // OpenRouter 会把 `:free` 作为模型 ID 的一部分。UI/configOptions 的展示态
 // 不能再用冒号分隔 thought level，否则草稿选择会静默截断真实 modelId。
 export function normalizeAvailableZCodeMode(mode: ZCodeSessionMode): string {
+  // 旧持久化值 beta（原测试名）回显为 fusion，不能因候选改名降级成 build。
+  if (mode === "beta") return "fusion";
   return ZCODE_AGENT_MODE_ID_SET.has(mode) ? mode : "build";
 }
 

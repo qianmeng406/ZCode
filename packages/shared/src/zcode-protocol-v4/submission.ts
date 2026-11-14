@@ -9,7 +9,9 @@ export const submissionModeSchema = z.enum([
   "guarded",
   "research",
   "minimal",
-  // Beta 独立工作模式（提示词融合模式测试版本）：additive；发送前须协商 betaMode 能力位。
+  // 融合模式（fusion，原测试名 beta）：additive；发送前须协商 fusionMode 能力位。
+  // beta 是旧值，保留做旧端 payload 的读取兼容。
+  "fusion",
   "beta",
 ]);
 export type SubmissionMode = z.infer<typeof submissionModeSchema>;

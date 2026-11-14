@@ -7809,10 +7809,10 @@ const zhCN: Record<string, string> = {
   "chat.error.feedback": "反馈问题",
   "chat.error.feedbackOpened": "已打开反馈，并自动带上报错现场",
   "chat.error.noAvailableModel": "当前没有可用模型。请开通编程套餐或配置自定义模型。",
-  "chat.error.proto.betaModeUnsupported":
-    "当前连接的 ZCode 执行端不支持 Beta 模式（提示词融合模式测试版本）。请更新执行端后重试；未替换为其他模式。",
+  "chat.error.proto.fusionModeUnsupported":
+    "当前连接的 ZCode 执行端不支持融合模式。请更新执行端后重试；未替换为其他模式。",
   "chat.error.proto.fusionContextProfileUnsupported":
-    "当前连接的 ZCode 执行端不支持 Beta 模式（提示词融合模式测试版本）。请更新执行端后重试；档位未发生变更。",
+    "当前连接的 ZCode 执行端不支持融合档位。请更新执行端后重试；档位未发生变更。",
   "chat.error.proto.contextProfileUnsupported":
     "当前连接的 ZCode 执行端不支持显式上下文档位。请更新执行端后重试。",
   "chat.error.proto.independentPlanUnsupported":
@@ -8028,12 +8028,12 @@ const zhCN: Record<string, string> = {
   "mode.description.glm.default": "使用默认确认策略。",
   "mode.label.glm.research": "资料查询",
   "mode.label.glm.minimal": "极简模式",
-  "mode.label.glm.beta": "Beta 模式",
+  "mode.label.glm.fusion": "融合模式",
   "mode.label.glm.orchestrator": "主控模式",
   "mode.description.glm.orchestrator":
     "只读分析并制定计划，交给绑定的外部 agent 执行；不能直接改文件。",
-  "mode.description.glm.beta":
-    "提示词融合模式测试版本：协作、有据推进、按需委派，保留完整上下文与工具集；默认「完全访问」权限（减少确认次数），计划开启时只读。",
+  "mode.description.glm.fusion":
+    "融合行为提示词：协作、有据推进、按需委派，保留完整上下文与工具集；默认「完全访问」权限（减少确认次数），计划开启时只读。",
   "mode.description.glm.build": "改文件前先问我。",
   "mode.description.glm.edit": "自动编辑文件。",
   "mode.description.glm.plan": "编辑前先出计划。",

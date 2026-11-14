@@ -2673,7 +2673,7 @@ export async function switchV4Mode(mode: string) {
   }
 }
 
-/** 读取 Composer 档位锚点（data-context-profile；Beta 模式化后用于核对无档位残留）。 */
+/** 读取 Composer 档位锚点（data-context-profile；融合模式化后用于核对无档位残留）。 */
 export function getV4ContextProfile(): Promise<string | null> {
   return browser.execute((modelTestId) => {
     return (

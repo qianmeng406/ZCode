@@ -187,9 +187,11 @@ export function toZCodeTaskMode(mode: ZCodeTaskMode | undefined): ZCodeSessionMo
       return "build";
     case "research":
     case "minimal":
-    // Beta 是独立工作模式，必须原样透传，不能落到 undefined 被调用方降级为 build。
+    // 融合模式（fusion，原测试名 beta）必须原样透传，不能落到 undefined 被调用方降级为
+    // build；beta 是旧持久化值，回显为 fusion。
+    case "fusion":
     case "beta":
-      return mode;
+      return mode === "beta" ? "fusion" : mode;
     default: {
       // 穷尽检查：未来新增 ZCodeTaskMode 时强制在这里给出映射。
       const exhaustive: never = mode;

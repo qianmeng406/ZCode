@@ -1,3 +1,4 @@
+import { toCollaborationMode } from "../zcode-protocol-v4/collaboration-mode.js";
 import { isAbsolute, relative, resolve } from "node:path";
 import { classifyLocalSessionDirectory } from "@zcode/adapters/config";
 import { resolveModelSelectionAtAdmission } from "../zcode-protocol-v4/commands/input-admission.js";
@@ -2992,9 +2993,7 @@ interface LegacyGoalContinuation {
   canContinue: boolean;
 }
 
-function resolveLegacyGoalContinuation(
-  record: ZCodeProtocolSessionRecord,
-): LegacyGoalContinuation {
+function resolveLegacyGoalContinuation(record: ZCodeProtocolSessionRecord): LegacyGoalContinuation {
   const isPlanMode = record.app.runtime.getPlanEnabled?.() ?? record.app.getMode?.() === "plan";
   return { isPlanMode, canContinue: !isPlanMode && !record.activeAbortController };
 }
@@ -3192,7 +3191,7 @@ export async function setMode(context: ZCodeProtocolAgentServerContext, rawParam
   const params = parseParams(zcodeSessionSetModeParamsSchema, rawParams);
   const record = requireSession(context, params.sessionId);
   assertExpectedRevision(record, params.expectedRevision);
-  await record.app.setMode(params.mode);
+  await record.app.setMode(toCollaborationMode(params.mode));
   return await afterStateMutation(context, record, "mode_changed");
 }
 
@@ -4043,7 +4042,7 @@ async function createRecord(
     resume,
     additionalDirectories: params.additionalDirectories ?? startupPreferences.additionalDirectories,
     runtimeConfig: {
-      mode: "mode" in params ? params.mode : undefined,
+      mode: "mode" in params ? toCollaborationMode(params.mode) : undefined,
       modelSelection: "model" in params ? toRuntimeModelSelection(initialModel) : undefined,
       parentSessionId,
       taskType,

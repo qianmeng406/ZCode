@@ -208,9 +208,9 @@ export const zcodeRuntimeCapabilitiesSchema = z.object({
   // 融合档位（contextProfile=fusion）协商位：additive，旧执行端缺失等价于 false。
   // contextProfileState=true 不代表支持 fusion，两条能力独立判定。
   fusionContextProfile: z.boolean().optional(),
-  // Beta 独立工作模式（mode=beta）协商位：additive，旧执行端缺失等价于 false。
-  // 历史 fusionContextProfile 只证明融合档位支持，不能用于放行 Beta。
-  betaMode: z.boolean().optional(),
+  // 融合模式（mode=fusion，原测试名 beta）协商位：additive，旧执行端缺失等价于 false。
+  // 历史 fusionContextProfile 只证明融合档位支持，不能用于放行本模式。
+  fusionMode: z.boolean().optional(),
 });
 export const zcodeRuntimeCapabilitiesParamsSchema = z
   .object({

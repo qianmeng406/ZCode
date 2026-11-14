@@ -69,7 +69,7 @@ import { randomUUID } from "node:crypto";
 import { createTopicResourceBridge } from "./topicResourceBridge.js";
 import { uploadTopicResourceToClient } from "./topicResourceUpload.js";
 import {
-  ensureBetaModeSupport,
+  ensureFusionModeSupport,
   ensureContextProfileSupport,
   ensureFusionContextProfileSupport,
   ensureIndependentPlanSupport,
@@ -4928,9 +4928,9 @@ export function createZCodeAgentService(
       }
       const startedAt = Date.now();
       const client = await getClient(params);
-      // Beta 独立工作模式是 additive 能力：旧执行端会按旧 schema 静默剥掉 mode=beta，
-      // 拒绝发生在创建会话副作用之前，不静默降级到其他模式（fusionContextProfile 不证明 Beta）。
-      if (params.mode === "beta") await ensureBetaModeSupport(client);
+      // 融合模式是 additive 能力：旧执行端会按旧 schema 静默剥掉 mode=fusion，
+      // 拒绝发生在创建会话副作用之前，不静默降级到其他模式（fusionContextProfile 不证明本模式）。
+      if (params.mode === "fusion") await ensureFusionModeSupport(client);
       await ensureAccountProviderConfigSynced({
         client,
         reason: "session_create",
@@ -6941,9 +6941,9 @@ export function createZCodeAgentService(
 
     async setMode(params: ZCodeAgentSetModeParams) {
       const client = await getClient(params);
-      // Beta 独立工作模式是 additive 能力：旧执行端缺 betaMode 能力位时显式拒绝，
-      // 不静默把 Beta 换成其他模式（fusionContextProfile 只证明历史档位支持）。
-      if (params.mode === "beta") await ensureBetaModeSupport(client);
+      // 融合模式是 additive 能力：旧执行端缺 fusionMode 能力位时显式拒绝，
+      // 不静默把本模式换成其他模式（fusionContextProfile 只证明历史档位支持）。
+      if (params.mode === "fusion") await ensureFusionModeSupport(client);
       return client.request(
         zcodeProtocolMethods.sessionSetMode,
         {
@@ -7348,7 +7348,7 @@ export function createZCodeAgentService(
           independentPlanState: true,
           contextProfileState: true,
           fusionContextProfile: true,
-          betaMode: true,
+          fusionMode: true,
           // 与 connection scope 的 hello 同一份能力集：直连 base service 的宿主内部消费者
           // 也能收到 `workflowRun.*` 增量（是否真收由它自己的 clientHello 决定）。
           workflowRunDeltas: true,
@@ -7576,14 +7576,14 @@ export function createZCodeAgentService(
       if (requestedContextProfile === "fusion") {
         await ensureFusionContextProfileSupport(client);
       }
-      // Beta 独立工作模式需要独立的 betaMode 能力位（fusionContextProfile 不证明 Beta），
-      // 拒绝发生在创建会话/改状态副作用之前；显式 mode=beta 才检查，其余模式不做额外拒绝。
-      const requestedBetaMode =
-        planPayload.mode === "beta" ||
-        planPayload.config?.mode === "beta" ||
-        planPayload.firstInput?.mode === "beta";
-      if (requestedBetaMode) {
-        await ensureBetaModeSupport(client);
+      // 融合模式需要独立的 fusionMode 能力位（fusionContextProfile 不证明本模式），
+      // 拒绝发生在创建会话/改状态副作用之前；显式 mode=fusion 才检查，其余模式不做额外拒绝。
+      const requestedFusionMode =
+        planPayload.mode === "fusion" ||
+        planPayload.config?.mode === "fusion" ||
+        planPayload.firstInput?.mode === "fusion";
+      if (requestedFusionMode) {
+        await ensureFusionModeSupport(client);
       }
       // RPC facade 会清掉调用方可伪造的顶层 clientMode，再用 trusted carrier 注入 host
       // 真值；host 内部 adapter 直调仍兼容显式 clientMode。

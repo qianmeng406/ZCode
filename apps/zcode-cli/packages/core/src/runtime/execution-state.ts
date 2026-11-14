@@ -20,8 +20,8 @@ import {
 
 export function readRuntimeExecutionState(runtime: AgentRuntimeInternal): ExecutionState {
   // 读取的是已提交状态（不是用户切换），走恢复语义：只做无损归一
-  // （beta+fusion 归一 Beta+standard），build+fusion 等历史组合原样保留，
-  // 不把 build+fusion 自动升级成完全访问的 Beta。
+  // （fusion+fusion 归一 fusion+standard；旧值 beta 归一 fusion），build+fusion 等历史组合原样保留，
+  // 不把 build+fusion 自动升级成完全访问的融合模式。
   // 用 resolveExecutionState 的切换语义重读会误清遗留融合档位。
   return resolveRestoredExecutionState(runtime.config);
 }
@@ -66,8 +66,8 @@ export function installRuntimeExecutionState(
   // 自包含解析：缺省档位按 next.mode 做旧 minimal 兼容映射。
   // 「改权限/Plan/授权保留档位」由 patch 语义的 resolveExecutionState(input, previous)
   // 在调用方完成；这里不做二次 patch 解析，否则恢复持久化状态会被 invocation 档位污染。
-  // 恢复/安装走读取归一入口：beta+fusion 归一 Beta+standard；build+fusion 等历史组合
-  // 保留原权限与档位（Beta 是完全访问，不能自动升级）。
+  // 恢复/安装走读取归一入口：fusion+fusion 归一 fusion+standard（旧值 beta 归一 fusion）；
+  // build+fusion 等历史组合保留原权限与档位（融合模式是完全访问，不能自动升级）。
   const resolved = resolveRestoredExecutionState(next);
   runtime.config.mode = resolved.mode;
   runtime.config.planEnabled = resolved.planEnabled;

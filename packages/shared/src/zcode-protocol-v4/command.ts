@@ -111,7 +111,7 @@ export const commandPayloadSchemas = {
         modelSelection: modelSelectionSchema.optional(),
         mode: submissionModeSchema.optional(),
         planEnabled: z.boolean().optional(),
-        // fork 定制：本轮沿用的执行上下文档案（研究/beta 等模式切换）。
+        // fork 定制：本轮沿用的执行上下文档案（研究/融合等模式切换）。
         contextProfile: contextProfileSchema.optional(),
         // 与 sendText.source 同一契约（扩展代建会话的首条消息）。旧 CLI 的 z.object 会静默剥掉它，
         // 消息照常创建却没有来源，所以带 extension 来源时 Host 必须先确认
@@ -170,7 +170,7 @@ export const commandPayloadSchemas = {
       modelSelectionBasis: modelSelectionSchema.optional(),
       mode: submissionModeSchema.optional(),
       planEnabled: z.boolean().optional(),
-      // fork 定制：本轮沿用的执行上下文档案（研究/beta 等模式切换）。
+      // fork 定制：本轮沿用的执行上下文档案（研究/融合等模式切换）。
       contextProfile: contextProfileSchema.optional(),
       // 本次执行仍使用上面的标准 Selection；这里只携带不持久化语义、动态鉴权和 child 策略。
       // 仅 idle startNow 接受，防止 Secret/Ticket 进入普通 CommandInbox。
@@ -213,7 +213,7 @@ export const commandPayloadSchemas = {
     modelSelection: modelSelectionSchema.optional(),
     mode: submissionModeSchema.optional(),
     planEnabled: z.boolean().optional(),
-    // fork 定制：本轮沿用的执行上下文档案（研究/beta 等模式切换）。
+    // fork 定制：本轮沿用的执行上下文档案（研究/融合等模式切换）。
     contextProfile: contextProfileSchema.optional(),
     heldQueueDisposition: z.enum(["clearQueueAndSend", "keepQueueAndSend"]).optional(),
     expectedHeldQueueItemIds: z.array(z.string().min(1)).optional(),
@@ -360,8 +360,19 @@ export const commandPayloadSchemas = {
   // additive（冻结面按黄金测试背书演进）：agent 协作模式切换。
   // 值域 = core CollaborationMode 的可切换子集（auto 非用户可切，不进 UI 命令面）。
   switchCollaborationMode: z.object({
-    // fork 追加 research / minimal / beta 三种协作模式（上游只有前五个）。
-    mode: z.enum(["build", "edit", "plan", "yolo", "guarded", "research", "minimal", "beta"]),
+    // fork 追加 research / minimal / fusion 三种协作模式（上游只有前五个）；
+    // beta 是旧测试名，保留做旧渲染端 payload 的读取兼容。
+    mode: z.enum([
+      "build",
+      "edit",
+      "plan",
+      "yolo",
+      "guarded",
+      "research",
+      "minimal",
+      "fusion",
+      "beta",
+    ]),
   }),
   setFollowupMode: z.object({ mode: z.enum(["queue", "guide"]) }),
   // ── 外部 coding agent 绑定（fork 独有，上游无对应功能点）──

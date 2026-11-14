@@ -174,13 +174,13 @@ describe("PermissionService mode policy", () => {
     });
   });
 
-  it("beta mode reuses full-access (yolo) permission policy", () => {
+  it("fusion mode reuses full-access (yolo) permission policy", () => {
     // Beta 权限明确复用完全访问（yolo）：非 Plan 直通放行，与 yolo 逐字段一致，不落入兜底。
     const service = new PermissionService();
     expect(
       service.checkPermission({
         input: { query: "latest zcode" },
-        mode: "beta",
+        mode: "fusion",
         riskLevel: "low",
         toolName: "WebSearch",
       }),
@@ -188,7 +188,7 @@ describe("PermissionService mode policy", () => {
     expect(
       service.checkPermission({
         input: { command: "echo hi" },
-        mode: "beta",
+        mode: "fusion",
         riskLevel: "high",
         toolName: "Bash",
       }),
@@ -197,7 +197,7 @@ describe("PermissionService mode policy", () => {
     expect(
       service.checkPermission({
         input: { command: "echo hi" },
-        mode: "beta",
+        mode: "fusion",
         planEnabled: true,
         riskLevel: "high",
         toolName: "Bash",
@@ -206,7 +206,7 @@ describe("PermissionService mode policy", () => {
     expect(
       service.checkPermission({
         input: { query: "latest zcode" },
-        mode: "beta",
+        mode: "fusion",
         planEnabled: true,
         riskLevel: "low",
         toolName: "WebSearch",

@@ -569,6 +569,7 @@ describe("createProtocolAutomationPort", () => {
       ["edit", "edit"],
       ["plan", "plan"],
       ["yolo", "yolo"],
+      ["fusion", "yolo"],
       ["beta", "yolo"],
       ["minimal", "build"],
     ] as const;

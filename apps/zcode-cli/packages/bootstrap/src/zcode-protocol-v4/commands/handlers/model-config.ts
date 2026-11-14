@@ -74,7 +74,9 @@ const SWITCHABLE_MODES: ReadonlySet<string> = new Set([
   "guarded",
   "research",
   // minimal（极简模式）入口已移除：不接受切换到 minimal，历史值仅保留读取回显。
-  // Beta 独立工作模式（提示词融合模式测试版本）：additive；协议层 betaMode 能力协商在 Host 完成。
+  // 融合模式（fusion，原测试名 beta）：additive；协议层 fusionMode 能力协商在 Host 完成。
+  // beta 是旧 UI payload 值，保留做读取兼容。
+  "fusion",
   "beta",
 ]);
 
@@ -300,10 +302,7 @@ export const modelConfigHandlers = { switchModelConfig, switchCollaborationMode 
  * 读失败按"未绑定"处理：绑定读取是配置查询，不该让模式切换整体失败；
  * 真异常时下一次切换还会重新检查。
  */
-async function hasBoundExternalAgent(
-  host: V4CommandCoreHost,
-  sessionId: string,
-): Promise<boolean> {
+async function hasBoundExternalAgent(host: V4CommandCoreHost, sessionId: string): Promise<boolean> {
   const binding = await readSessionExternalAgent({
     // host 注入的 context.deps.sessionStore 是唯一权威；record 视图上没有这个字段。
     sessionId,

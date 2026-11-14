@@ -82,8 +82,9 @@ export const zcodeSessionModeSchema = z.enum([
   "auto",
   "research",
   "minimal",
-  // Beta 独立工作模式（提示词融合模式测试版本）：additive；旧端 schema 缺失会剥掉该值，
-  // 读取边界按 mode 缺省回退，不静默改语义。
+  // 融合模式（fusion，原测试名 beta）：additive；旧端 schema 缺失会剥掉该值，
+  // 读取边界按 mode 缺省回退，不静默改语义。beta 是旧持久化值，保留做读取兼容。
+  "fusion",
   "beta",
 ]);
 export const zcodeSessionStatusSchema = z.enum([

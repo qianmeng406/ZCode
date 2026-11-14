@@ -49,11 +49,11 @@ const HISTORICAL_MODEL_UNAVAILABLE_MESSAGES = [
 /**
  * 协议 reasonCode → 文案 key 词表。reasonCode 可能出现在 code 也可能裸在 message
  * （服务层按 Error("proto.xxx") 抛出），两处都查。fusion 档位被旧执行端拒绝时用户
- * 看到的是“这个 ZCode 连接不支持 Beta 模式（提示词融合模式测试版本）”，而不是裸 code。
+ * 看到的是“这个 ZCode 连接不支持融合模式”，而不是裸 code。
  */
 const PROTO_REASON_MESSAGE_IDS: Readonly<Record<string, string>> = {
-  // Beta 模式（mode=beta）被旧执行端拒绝：不再写 contextProfile=fusion，档位未被变更。
-  "proto.betaModeUnsupported": "chat.error.proto.betaModeUnsupported",
+  // 融合模式（mode=fusion，原测试名 beta）被旧执行端拒绝：不再写 contextProfile=fusion，档位未被变更。
+  "proto.fusionModeUnsupported": "chat.error.proto.fusionModeUnsupported",
   "proto.fusionContextProfileUnsupported": "chat.error.proto.fusionContextProfileUnsupported",
   "proto.contextProfileUnsupported": "chat.error.proto.contextProfileUnsupported",
   "proto.independentPlanUnsupported": "chat.error.proto.independentPlanUnsupported",

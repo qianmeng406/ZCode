@@ -268,9 +268,10 @@ function normalizeCronAutomationMode(
     case "acceptEdits":
     case "autoEdit":
       return "build";
-    // CronAutomation 只承载五档；Beta 是完全访问，来自旧/前向客户端的 beta 归位 yolo。
-    // 表单不再展示 Beta（automationAgentConfigOptions 已按协议五档过滤），避免
-    // “选了 Beta 实际跑 yolo”的误导；这里的映射只作防御性兜底。
+    // CronAutomation 只承载五档；融合模式是完全访问，来自旧/前向客户端的值归位 yolo。
+    // 表单不再展示融合模式（automationAgentConfigOptions 已按协议五档过滤），避免
+    // “选了融合实际跑 yolo”的误导；这里的映射只作防御性兜底（beta 是旧测试名）。
+    case "fusion":
     case "beta":
       return "yolo";
     default: {

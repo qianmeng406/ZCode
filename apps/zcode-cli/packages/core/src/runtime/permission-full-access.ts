@@ -3,6 +3,7 @@ import {
   PERMISSION_FULL_ACCESS_ENTRY,
   permissionFullAccessReceiptSchema,
   SessionEventType,
+  type CollaborationMode,
   type SessionEvent,
   type SessionModeChangedPayload,
 } from "@zcode/contracts";
@@ -22,6 +23,9 @@ import {
 const appliedGrants = new WeakMap<AgentRuntimeInternal, Map<string, SessionEvent>>();
 
 /** 完全访问只改当前任务；receipt 固定目标集合，发布失败后不能重新抓取后来队列。 */
+/** intent.mode 的提交值域：auto 是运行时内部权限态，不进入用户 intent。 */
+type SubmittableIntentMode = Exclude<CollaborationMode, "auto">;
+
 export async function grantPermissionMode(
   this: AgentRuntimeInternal,
   interactionId: string,
@@ -67,13 +71,14 @@ export async function grantPermissionMode(
       signal?.throwIfAborted();
       const queueItemIds = projection.pendingSteerInputs.map((item) => item.pendingInputId);
       const previous = readRuntimeExecutionState(this);
-      // Beta 已是完全访问权限：授权保留 Beta。事件、持久化执行状态与内存安装必须写同一个
-      // 值，不能只改内存——否则投影/重启会回 yolo，下一次提交静默退出 Beta。
+      // 融合模式已是完全访问权限：冗余的完全访问授权保留本模式（不因重复授权退出）；
+      // 显式的自主（guarded）授权是用户选择，照写目标模式。事件、持久化执行状态与内存
+      // 安装必须写同一个值，不能只改内存——否则投影/重启会回 yolo，下一次提交静默退出。
       // 必须用带 ExecutionState 上下文的对象字面量：条件表达式不是字面量初始化，
-      // 先存到变量会把 "beta" | "yolo" 拓宽成 string，导致 buildExecutionStateEntry 拒绝入参。
+      // 先存到变量会把值拓宽成 string，导致 buildExecutionStateEntry 拒绝入参。
       const next: ExecutionState = {
         ...previous,
-        mode: previous.mode === "beta" ? "beta" : "yolo",
+        mode: previous.mode === "fusion" && mode === "yolo" ? "fusion" : mode,
       };
       event = this.createEvent(
         SessionEventType.SessionModeChanged,
@@ -106,13 +111,18 @@ export async function grantPermissionMode(
         });
     }
     const payload = event.payload as SessionModeChangedPayload;
+    // 旧 receipt 的 beta（原测试名）等价 fusion；事件类型已不含 beta（receipt schema 仍接受），
+    // 从宽松形态读原始值归一，避免把「运行期可能的旧值」误标为类型层不可能。
+    const rawCommittedMode: string = (event.payload as { mode: string }).mode;
+    const committedMode: CollaborationMode =
+      rawCommittedMode === "beta" ? "fusion" : (rawCommittedMode as CollaborationMode);
     // 重试只允许完成原授权，不能把另一模式的既有回执当作本次选择成功。
-    // Beta 会话的授权事件写的是 beta（保留 Beta），这是合法的提权结果，不算模式不符。
-    if (payload.mode !== mode && payload.mode !== "beta") {
-      if (payload.mode !== "guarded" && payload.mode !== "yolo")
+    // 融合会话的授权事件写的是 fusion（保留本模式），这是合法的提权结果，不算模式不符。
+    if (committedMode !== mode && committedMode !== "fusion") {
+      if (committedMode !== "guarded" && committedMode !== "yolo")
         throw new Error("Invalid committed permission mode");
       throw Object.assign(new Error("Permission grant mode mismatch"), {
-        reasonCode: permissionGrantCommittedReasons[payload.mode],
+        reasonCode: permissionGrantCommittedReasons[committedMode],
       });
     }
     unpublishedPermissionGrants.set(this, {
@@ -126,15 +136,16 @@ export async function grantPermissionMode(
       this.lastPermissionGrantId = interactionId;
       // 统一走已提交状态安装：授权只改权限，但同样要失效工具缓存并推进派生版本，
       // 否则 minimal→yolo 等切换会沿用旧档位的工具表与前缀。payload 经 receipt 校验
-      // 固定为 yolo 或 beta（Beta 会话保留 Beta）；以会话当前状态为基线解析，保留上下文档位。
+      // 固定为 yolo / fusion / beta（旧值归一 fusion）；以会话当前状态为基线解析，保留上下文档位。
       const previous = readRuntimeExecutionState(this);
-      const grantedMode: "beta" | "yolo" = payload.mode === "beta" ? "beta" : "yolo";
+      const grantedMode: CollaborationMode = rawCommittedMode === "beta" ? "fusion" : committedMode;
       installRuntimeExecutionState(
         this,
         resolveExecutionState({ mode: grantedMode, planEnabled: payload.planEnabled }, previous),
       );
-      // intent 只接受提交模式值域：授权后排队输入沿用本次授权目标（Beta 保留 beta）。
-      const intentMode: "beta" | "yolo" = grantedMode;
+      // intent 只接受提交模式值域：授权后排队输入沿用本次授权目标（融合会话的冗余
+      // 完全访问授权沿用 fusion）。
+      const intentMode: SubmittableIntentMode = grantedMode;
       for (const item of this.activeTurn?.pendingInputs ?? []) {
         if (ids.has(item.id) && item.intent) item.intent = { ...item.intent, mode: intentMode };
       }

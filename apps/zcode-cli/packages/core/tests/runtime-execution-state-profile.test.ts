@@ -114,25 +114,29 @@ describe("runtime execution state profile-only change", () => {
     expect(runtime.contextProjectionRevision).toBe(1);
   });
 
-  it("beta input forces standard profile and persists the full transition", async () => {
+  it("fusion input forces standard profile and persists the full transition", async () => {
     const { runtime, saved, events } = makeRuntime({
       mode: "minimal",
       contextProfile: "minimal",
     });
-    const next = await applyRuntimeExecutionState(runtime, { mode: "beta" }, { source: "command" });
+    const next = await applyRuntimeExecutionState(
+      runtime,
+      { mode: "fusion" },
+      { source: "command" },
+    );
     // Beta 覆盖遗留 minimal：完整上下文 + 完整工具表，权限复用完全访问（yolo）。
-    expect(next).toEqual({ mode: "beta", planEnabled: false, contextProfile: "standard" });
-    expect(runtime.config.mode).toBe("beta");
+    expect(next).toEqual({ mode: "fusion", planEnabled: false, contextProfile: "standard" });
+    expect(runtime.config.mode).toBe("fusion");
     expect(runtime.config.contextProfile).toBe("standard");
     expect(saved).toHaveLength(1);
     expect(events).toHaveLength(1);
     const payload = events[0]?.payload as Record<string, unknown>;
-    expect(payload.mode).toBe("beta");
+    expect(payload.mode).toBe("fusion");
     expect(payload.contextProfile).toBe("standard");
     expect(payload.previousMode).toBe("minimal");
   });
 
-  it("restore preserves build+fusion and yolo+fusion without escalating to beta", async () => {
+  it("restore preserves build+fusion and yolo+fusion without escalating to fusion mode", async () => {
     // 恢复是读取不是切换：Beta 是完全访问，build+fusion 不能自动升级（否则静默提权）。
     const preservedBuild = makeRuntime();
     installRuntimeExecutionState(preservedBuild.runtime, {

@@ -67,15 +67,23 @@ it("plan/permission patches preserve fusion profile until an explicit mode switc
       contextProfile: "fusion",
     }),
   ).toEqual({ mode: "yolo", planEnabled: false, contextProfile: "fusion" });
-  // 任何来源的 beta+fusion 恢复值都归一为 Beta+standard（Beta 强制完整上下文）。
+  // 任何来源的 fusion+fusion（含旧值 beta）恢复值都归一为 fusion+standard（强制完整上下文）。
+  expect(
+    resolveRestoredExecutionState({
+      mode: "fusion",
+      planEnabled: true,
+      contextProfile: "fusion",
+    }),
+  ).toEqual({ mode: "fusion", planEnabled: true, contextProfile: "standard" });
+  // 旧测试名 beta 在读取边界归一为 fusion。
   expect(
     resolveRestoredExecutionState({
       mode: "beta",
       planEnabled: true,
       contextProfile: "fusion",
     }),
-  ).toEqual({ mode: "beta", planEnabled: true, contextProfile: "standard" });
-  // 显式切回非 beta 模式：清遗留 fusion，且不反迁移回 Beta。
+  ).toEqual({ mode: "fusion", planEnabled: true, contextProfile: "standard" });
+  // 显式切回非融合模式：清遗留 fusion，且不反迁移回融合模式。
   expect(resolveExecutionState({ mode: "build" }, current)).toEqual({
     mode: "build",
     planEnabled: false,
@@ -85,7 +93,7 @@ it("plan/permission patches preserve fusion profile until an explicit mode switc
   expect(resolveExecutionState({ mode: "yolo", contextProfile: "fusion" }, current)).toEqual(
     current,
   );
-  // 真正变更为另一个非 beta 模式才清融合。
+  // 真正变更为另一个非融合模式才清融合。
   expect(resolveExecutionState({ mode: "guarded", contextProfile: "fusion" }, current)).toEqual({
     mode: "guarded",
     planEnabled: false,
@@ -101,21 +109,28 @@ it("plan/permission patches preserve fusion profile until an explicit mode switc
   expect(resolveExecutionState({ mode: "unknown-mode" }, current)).toEqual(current);
 });
 
-it("beta mode forces standard profile and overrides legacy minimal filtering", () => {
-  // Beta 必须拿到完整上下文与完整工具：覆盖遗留 minimal/fusion 过滤。
+it("fusion mode forces standard profile and overrides legacy minimal filtering", () => {
+  // 融合模式必须拿到完整上下文与完整工具：覆盖遗留 minimal/fusion 过滤。
+  expect(
+    resolveExecutionState(
+      { mode: "fusion" },
+      { mode: "minimal", planEnabled: false, contextProfile: "minimal" },
+    ),
+  ).toEqual({ mode: "fusion", planEnabled: false, contextProfile: "standard" });
+  expect(
+    resolveExecutionState({
+      mode: "fusion",
+      planEnabled: false,
+      contextProfile: "fusion",
+    }),
+  ).toEqual({ mode: "fusion", planEnabled: false, contextProfile: "standard" });
+  // 旧测试名 beta 在接纳边界等价 fusion。
   expect(
     resolveExecutionState(
       { mode: "beta" },
       { mode: "minimal", planEnabled: false, contextProfile: "minimal" },
     ),
-  ).toEqual({ mode: "beta", planEnabled: false, contextProfile: "standard" });
-  expect(
-    resolveExecutionState({
-      mode: "beta",
-      planEnabled: false,
-      contextProfile: "fusion",
-    }),
-  ).toEqual({ mode: "beta", planEnabled: false, contextProfile: "standard" });
+  ).toEqual({ mode: "fusion", planEnabled: false, contextProfile: "standard" });
 });
 
 it("additive fusionContextProfile capability bit negotiates on both wires", () => {

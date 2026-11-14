@@ -10,6 +10,7 @@
 // 合成事件是「视图重建」用途：只需产出与真实事件流「归约等价」的最小序列。
 // v4 冷恢复只能重放 ProductProjection 认识的事件；如果 transcript 里的
 // tool/reasoning/subagent/compact part 不反向合成，重启后历史可见运行态会从快照里消失。
+import { toCollaborationMode } from "./collaboration-mode.js";
 import type {
   AssistantErrorInfo,
   BackgroundResultOriginMeta,
@@ -434,7 +435,7 @@ function inputIntentOfMessage(message: MessageWithParts): TurnInputIntentMetadat
       text: value.text,
       genUiContext: value.genUiContext,
       ...(value.modelSelection ? { modelSelection: value.modelSelection } : {}),
-      ...(value.mode ? { mode: value.mode } : {}),
+      ...(value.mode ? { mode: toCollaborationMode(value.mode) } : {}),
       ...(value.planEnabled !== undefined ? { planEnabled: value.planEnabled } : {}),
       ...(value.contextProfile !== undefined ? { contextProfile: value.contextProfile } : {}),
       admissionSeq: value.order.admissionSeq,
@@ -723,7 +724,12 @@ export const HOOK_LIFECYCLE_EVENT_TYPES = new Set<string>([
 /** 受管 worktree 的创建结果（docs/git/worktree.md §6.6.4）；新建会话首轮前或 fork 分隔标记后。 */
 function worktreeCreationOfMessage(
   message: MessageWithParts,
-): Extract<MessagePart, { type: "timeline"; timelineType: "worktree_creation" }>["worktreeCreation"] | undefined {
+):
+  | Extract<
+      MessagePart,
+      { type: "timeline"; timelineType: "worktree_creation" }
+    >["worktreeCreation"]
+  | undefined {
   if (getConversationMessageProjectionPolicy(message) !== "timelineOnly") return undefined;
   for (const part of message.parts) {
     if (part.type === "timeline" && part.timelineType === "worktree_creation") {

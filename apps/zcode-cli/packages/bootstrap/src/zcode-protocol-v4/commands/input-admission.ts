@@ -181,8 +181,8 @@ export function resolveSubmittedExecutionState(
           ...(entrySelection!.options ? { options: { ...entrySelection!.options } } : {}),
         };
   }
-  // 运行时权威执行状态（读取边界只做无损归一：beta+fusion 归一 Beta+standard，
-  // build+fusion 等历史组合保留原权限）；admission 据此冻结旧发送端语义。
+  // 运行时权威执行状态（读取边界只做无损归一：fusion+fusion 归一 fusion+standard，
+  // 旧值 beta 归一 fusion；build+fusion 等历史组合保留原权限）；admission 据此冻结旧发送端语义。
   const current = record.app.runtime?.getExecutionState?.() ??
     resolveExecutionState({
       mode: record.app.getMode?.(),

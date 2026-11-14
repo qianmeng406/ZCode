@@ -39,8 +39,8 @@ const DRAFT_PRESETS: Record<
   Partial<{ mode: string; planEnabled: boolean; contextProfile: ContextProfile }>
 > = {
   default: { mode: "build", planEnabled: false, contextProfile: "standard" },
-  beta: { mode: "beta", planEnabled: false, contextProfile: "standard" },
-  "beta-plan": { mode: "beta", planEnabled: true, contextProfile: "standard" },
+  beta: { mode: "fusion", planEnabled: false, contextProfile: "standard" },
+  "beta-plan": { mode: "fusion", planEnabled: true, contextProfile: "standard" },
   "legacy-build-fusion": { mode: "build", planEnabled: false, contextProfile: "fusion" },
   "legacy-minimal": { mode: "minimal", planEnabled: false, contextProfile: "minimal" },
   "guarded-fusion": { mode: "guarded", planEnabled: false, contextProfile: "fusion" },

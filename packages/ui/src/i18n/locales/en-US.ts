@@ -8233,10 +8233,10 @@ const enUS: Record<string, string> = {
   "chat.error.feedback": "Report issue",
   "chat.error.feedbackOpened": "Feedback opened with the error context attached",
   "chat.error.noAvailableModel": "No model available. Upgrade or set a custom model.",
-  "chat.error.proto.betaModeUnsupported":
-    "The connected ZCode runtime does not support Beta mode (prompt-fusion mode test version). Update the runtime and try again; no other mode was substituted.",
+  "chat.error.proto.fusionModeUnsupported":
+    "The connected ZCode runtime does not support Fusion mode. Update the runtime and try again; no other mode was substituted.",
   "chat.error.proto.fusionContextProfileUnsupported":
-    "The connected ZCode runtime does not support Beta mode (prompt-fusion mode test version). Update the runtime and try again; the profile was not changed.",
+    "The connected ZCode runtime does not support the fusion profile. Update the runtime and try again; the profile was not changed.",
   "chat.error.proto.contextProfileUnsupported":
     "The connected ZCode runtime does not support explicit context profiles. Update the runtime and try again.",
   "chat.error.proto.independentPlanUnsupported":
@@ -8460,12 +8460,12 @@ const enUS: Record<string, string> = {
   "mode.description.glm.default": "Use default confirmations.",
   "mode.label.glm.research": "Research",
   "mode.label.glm.minimal": "Legacy minimal (auto)",
-  "mode.label.glm.beta": "Beta mode",
+  "mode.label.glm.fusion": "Fusion",
   "mode.label.glm.orchestrator": "Orchestrator",
   "mode.description.glm.orchestrator":
     "Analyze read-only, produce the plan, and delegate execution to the bound external agent. Direct edits are blocked.",
-  "mode.description.glm.beta":
-    "Prompt-fusion mode test version: collaborative, evidence-driven and delegation-aware behavior with the full context and toolset. Uses full-access permissions with fewer confirmations; plan stays read-only.",
+  "mode.description.glm.fusion":
+    "Fused behavior prompt: collaborative, evidence-driven and delegation-aware, with the full context and toolset. Uses full-access permissions with fewer confirmations; plan stays read-only.",
   "mode.description.glm.build": "Ask before file changes.",
   "mode.description.glm.edit": "Edit files automatically.",
   "mode.description.glm.plan": "Plan before editing.",

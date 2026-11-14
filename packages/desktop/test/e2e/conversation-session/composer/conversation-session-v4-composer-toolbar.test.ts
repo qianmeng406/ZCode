@@ -747,7 +747,7 @@ describe("v4 M5 门禁：composer 工具条与 slash 候选面板", () => {
     await closeComposerPicker();
   });
 
-  it("Beta 模式独立单选：选 beta 不出现旧三态档位入口，计划保留，切其他权限退出", async () => {
+  it("融合模式独立单选：选 fusion 不出现旧三态档位入口，计划保留，切其他权限退出", async () => {
     await ensureCompletedTask();
 
     // 初始 build 权限，无档位徽标（Beta 不再以 contextProfile 表达）。
@@ -755,13 +755,13 @@ describe("v4 M5 门禁：composer 工具条与 slash 候选面板", () => {
     expect(cfg.mode).toBe("build");
     expect(await getV4ContextProfile()).toBe("standard");
 
-    // build → beta：模式菜单中不再有 standard/minimal/fusion context 三态档位入口，
-    // beta 作为独立单选项出现；选中后权限就是 beta，Plan 仍是独立开关且默认关闭。
+    // build → fusion：模式菜单中不再有 standard/minimal/fusion context 三态档位入口，
+    // fusion 作为独立单选项出现；选中后权限就是融合模式，Plan 仍是独立开关且默认关闭。
     await openComposerPicker("mode");
     const menuProbe = async () =>
       browser.execute(
         (itemTestId) => ({
-          beta: document.querySelector(`[data-testid="${testId(itemTestId, "beta")}"]`) !== null,
+          beta: document.querySelector(`[data-testid="${testId(itemTestId, "fusion")}"]`) !== null,
           standardContext:
             document.querySelector(`[data-testid="${testId(itemTestId, "standard-context")}"]`) !==
             null,
@@ -783,45 +783,45 @@ describe("v4 M5 门禁：composer 工具条与 slash 候选面板", () => {
     expect(menu.fusionContext).toBe(false);
     expect(menu.minimalMode).toBe(false);
 
-    const betaItem = $(`[data-testid="${testId(TID_CHAT_MODE_SELECT_ITEM, "beta")}"]`);
+    const betaItem = $(`[data-testid="${testId(TID_CHAT_MODE_SELECT_ITEM, "fusion")}"]`);
     await betaItem.waitForClickable({ timeout: 15000 });
     await betaItem.click();
     await browser.waitUntil(async () => (await getV4ModelConfig()).mode === "beta", {
       timeout: 30000,
-      timeoutMsg: "选中 Beta 后 data-mode 投影没有更新为 beta",
+      timeoutMsg: "选中融合模式后 data-mode 投影没有更新为 fusion",
     });
     expect(await getV4ContextProfile()).toBe("standard");
     expect((await getV4ConfigProjection()).planEnabled).toBe(false);
-    await waitForNoComposerPickerOpen("选中 beta");
+    await waitForNoComposerPickerOpen("选中 fusion");
 
     // 开启 Plan 再关回：计划开关与 Beta 正交，退出后回到缺省 build。
     await switchV4Mode("plan");
     await browser.waitUntil(async () => (await getV4ConfigProjection()).planEnabled, {
       timeout: 30000,
-      timeoutMsg: "Beta 下开启 Plan 后投影没有更新",
+      timeoutMsg: "融合模式下开启 Plan 后投影没有更新",
     });
-    expect((await getV4ModelConfig()).mode).toBe("beta");
+    expect((await getV4ModelConfig()).mode).toBe("fusion");
 
-    // 切 build/yolo 即退出 Beta：不残留档位徽标（profile 回到 standard）。
+    // 切 build/yolo 即退出融合模式：不残留档位徽标（profile 回到 standard）。
     await switchV4Mode("build");
     await browser.waitUntil(async () => (await getV4ModelConfig()).mode === "build", {
       timeout: 30000,
-      timeoutMsg: "切回 build 后没有退出 Beta",
+      timeoutMsg: "切回 build 后没有退出融合模式",
     });
     expect(await getV4ContextProfile()).toBe("standard");
     cfg = await getV4ModelConfig();
     expect(cfg.mode).toBe("build");
 
-    // 再进 Beta 并切 yolo 退出：退出路径覆盖高权限模式。
-    await switchV4Mode("beta");
+    // 再进融合模式并切 yolo 退出：退出路径覆盖高权限模式。
+    await switchV4Mode("fusion");
     await browser.waitUntil(async () => (await getV4ModelConfig()).mode === "beta", {
       timeout: 30000,
-      timeoutMsg: "第二次进入 Beta 失败",
+      timeoutMsg: "第二次进入融合模式失败",
     });
     await switchV4Mode("yolo");
     await browser.waitUntil(async () => (await getV4ModelConfig()).mode === "yolo", {
       timeout: 30000,
-      timeoutMsg: "切 yolo 后没有退出 Beta",
+      timeoutMsg: "切 yolo 后没有退出融合模式",
     });
     await switchV4Mode("build");
     await browser.waitUntil(async () => (await getV4ModelConfig()).mode === "build", {

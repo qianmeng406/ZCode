@@ -208,7 +208,7 @@ async function readMainTurnUsageCumulative(
   }
 }
 
-const STABLE_FORK_MODES = new Set<CollaborationMode>([
+const STABLE_FORK_MODES = new Set<string>([
   "plan",
   "build",
   "edit",
@@ -217,11 +217,14 @@ const STABLE_FORK_MODES = new Set<CollaborationMode>([
   "auto",
   "research",
   "minimal",
-  // Beta 独立工作模式：additive；fork 保留来源会话模式，旧端读边界按缺省回退。
+  // 融合模式（fusion，原测试名 beta）：additive；fork 保留来源会话模式，旧端读边界按缺省回退。
+  // beta 是旧 journal/会话值，保留做读取兼容并在 stableForkMode 归一。
+  "fusion",
   "beta",
 ]);
 
 function stableForkMode(value: string, fallback: CollaborationMode): CollaborationMode {
+  if (value === "beta") return "fusion";
   return STABLE_FORK_MODES.has(value as CollaborationMode)
     ? (value as CollaborationMode)
     : fallback;
@@ -1801,27 +1804,24 @@ export function createConversationV4Gateway(
   };
   nativeExecutor = new V4CommandExecutor(coreHost);
   // 存储元信息 → SessionSummary；目录扫描与受管 worktree 白名单两条读取路径共用。
-  const storedSessionSummary = (
-    session: SessionInfo,
-    workspaceId: string,
-  ) => ({
-        sessionId: String(session.id),
-        workspaceId,
-        ...(session.parentID ? { parentSessionId: String(session.parentID) } : {}),
-        title: session.title ?? "",
-        titleSource: normalizeStoredTitleSource(session.titleSource),
-        phase:
-          session.lastOutcome === "error"
-            ? ("error" as const)
-            : session.lastOutcome === "interrupted"
-              ? ("completedInterrupted" as const)
-              : ("completedSuccess" as const),
-        ...(session.lastOutcome ? { lastOutcome: session.lastOutcome } : {}),
-        sessionEnded: true,
-        hasBackgroundWork: false,
-        lastActivityAt: session.time?.updated ?? 0,
-        createdAt: session.time?.created ?? 0,
-      });
+  const storedSessionSummary = (session: SessionInfo, workspaceId: string) => ({
+    sessionId: String(session.id),
+    workspaceId,
+    ...(session.parentID ? { parentSessionId: String(session.parentID) } : {}),
+    title: session.title ?? "",
+    titleSource: normalizeStoredTitleSource(session.titleSource),
+    phase:
+      session.lastOutcome === "error"
+        ? ("error" as const)
+        : session.lastOutcome === "interrupted"
+          ? ("completedInterrupted" as const)
+          : ("completedSuccess" as const),
+    ...(session.lastOutcome ? { lastOutcome: session.lastOutcome } : {}),
+    sessionEnded: true,
+    hasBackgroundWork: false,
+    lastActivityAt: session.time?.updated ?? 0,
+    createdAt: session.time?.created ?? 0,
+  });
   /**
    * 本地 workspace 下 cwd 位于受管 worktree 的会话（docs/git/worktree.md §6.6.2）：目录扫描看不到，
    * Host 从 tasks-index 精确提供 id。只读：逐个读取，校验 cwd 映射回该 workspace 目录后才返回，

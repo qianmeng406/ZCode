@@ -3,6 +3,7 @@
 // 决策逻辑直驱 core（app 层 queue API，批1 已搬运）；queueItemId ≡ core 的
 // pendingInputId（同一 id 空间，无需翻译）。queue 变更的事件由 core runtime 自发，
 // 经 gateway ingest 推进 v4 投影——本组不需要 legacy 广播钩子。
+import { toCollaborationMode } from "../../collaboration-mode.js";
 import type {
   CommandEnvelope,
   CommandPayloadMap,
@@ -148,7 +149,7 @@ async function editQueueItem(
       : {}),
     ...(payload.conversationQuotes ? { conversationQuotes: payload.conversationQuotes } : {}),
     ...(payload.modelSelection ? { modelSelection: payload.modelSelection } : {}),
-    ...(payload.mode ? { mode: payload.mode } : {}),
+    ...(payload.mode ? { mode: toCollaborationMode(payload.mode) } : {}),
     ...(payload.planEnabled !== undefined ? { planEnabled: payload.planEnabled } : {}),
     ...(modelChanged ? { dropHighspeed: true } : {}),
   });
@@ -192,12 +193,13 @@ async function applyQueueItemsConfig(
       JSON.stringify(payload.modelSelection) !== JSON.stringify(queueItem.modelSelection);
     const result = await record.app.editQueueItem(queueItemId, undefined, {
       ...(payload.modelSelection ? { modelSelection: payload.modelSelection } : {}),
-      ...(payload.mode ? { mode: payload.mode } : {}),
+      ...(payload.mode ? { mode: toCollaborationMode(payload.mode) } : {}),
       ...(modelChanged ? { dropHighspeed: true } : {}),
     });
     if (result !== "edited") continue;
     applied += 1;
-    if (modelChanged) host.deleteQueuedTurnExecution?.(record.app.sessionId, queueItem.sourceCommandId);
+    if (modelChanged)
+      host.deleteQueuedTurnExecution?.(record.app.sessionId, queueItem.sourceCommandId);
   }
   if (applied === 0) throw new V4CommandNoopError("queue.itemMissing");
   return undefined;

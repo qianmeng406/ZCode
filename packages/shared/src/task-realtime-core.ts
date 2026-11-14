@@ -28,7 +28,9 @@ const zcodeTaskModeRealtimeValues = [
   "build",
   "research",
   "minimal",
-  // Beta 独立工作模式（提示词融合模式测试版本）：additive 值，权限复用完全访问（yolo）。
+  // 融合模式（fusion，原测试名 beta）：additive 值，权限复用完全访问（yolo）；
+  // beta 是旧持久化值，保留枚举做读取兼容。
+  "fusion",
   "beta",
 ] as const satisfies readonly ZCodeTaskMode[];
 const zcodeTaskMigrationSourceRealtimeValues = [

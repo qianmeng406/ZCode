@@ -1940,6 +1940,8 @@ function buildSearchableTextFromSnapshot(snapshot: ZCodeSessionStateSnapshot): s
 }
 
 function fromZCodeMode(mode: ZCodeSessionMode): ZCodeTaskMode {
+  // 旧持久化值 beta（原测试名）归一为 fusion 落索引。
+  if (mode === "beta") return "fusion";
   return mode === "build" ? "build" : mode;
 }
 

@@ -10,15 +10,17 @@ const COMPOSER_RECENT_KEY_PREFIX = "zcode-model-selection-recent-v1";
 
 /**
  * 可跨普通新任务继承的工作模式白名单。
- * Beta（提示词融合模式测试版本）是独立工作模式，与 build 等同组单选，随 Recent 继承。
+ * 融合模式（fusion，原测试名 beta）是独立工作模式，与 build 等同组单选，随 Recent 继承。
  * minimal 是旧组合语义，不随 Recent 外溢；更新提交仍记录模型选择（换任务继续用），
  * 只是不继承模式本身。zcodeUpdate 模式已移除，残留历史值解析失败同样不外溢。
+ * beta 是旧持久化值：Recent 历史里读到时先归一为 fusion 再判继承（见下方读取路径）。
  */
 const INHERITABLE_SUBMISSION_MODES = new Set<SubmissionMode>([
   "build",
   "edit",
   "yolo",
   "research",
+  "fusion",
   "beta",
 ]);
 
@@ -136,7 +138,12 @@ export function readComposerRecent(
     const selection = modelSelectionSchema.safeParse(
       "modelSelection" in record ? record.modelSelection : record,
     );
-    const mode = submissionModeSchema.safeParse("mode" in record ? record.mode : undefined);
+    // 旧 Recent 记录里的 beta（原测试名）归一为 fusion 再判白名单。
+    const parsedMode = submissionModeSchema.safeParse("mode" in record ? record.mode : undefined);
+    const mode =
+      parsedMode.success && parsedMode.data === "beta"
+        ? { success: true as const, data: "fusion" as SubmissionMode }
+        : parsedMode;
     // 自愈（spec §5.1）：存量 Recent 可能被加速轮覆盖写入隐藏加速 Provider，模型视图里它
     // 解析为 provider-not-found，会让新任务草稿的模型选择器卡在空态。按叶子丢弃模型、保留
     // mode，新草稿回落默认选择；与 readSessionModelSelection 丢弃加速常驻 entry 同口径。

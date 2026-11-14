@@ -25,7 +25,7 @@ function makeRuntime(contextProfile?: string, mode = "build"): AgentRuntimeInter
       planEnabled: false,
       ...(contextProfile === undefined ? {} : { contextProfile }),
     },
-    // Beta 档位映射按 mode=beta 判定；mock 与 runtime 方法面一致暴露 getMode。
+    // 融合模式档位映射按 mode=fusion 判定；mock 与 runtime 方法面一致暴露 getMode。
     getMode: () => mode,
     presentationSurface: "terminal",
     getTools: () => [],
@@ -54,10 +54,13 @@ describe("context profile mapping", () => {
     expect(sources).not.toContain("fusion_behavior");
   });
 
-  it("maps mode=beta to the fusion promptProfile branch", () => {
+  it("maps mode=fusion to the fusion promptProfile branch", () => {
     // Beta 是独立工作模式：主代理默认身份路径复用融合行为提示词（fusion_behavior /
     // fusion_context_management 段替换默认动态段），不新增第四套提示词段。
-    const builder = createContextBuilderFromSnapshot.call(makeRuntime("standard", "beta"), snapshot());
+    const builder = createContextBuilderFromSnapshot.call(
+      makeRuntime("standard", "fusion"),
+      snapshot(),
+    );
     const sources = builder.build().sections.map((s) => s.source);
     expect(sources).toContain("fusion_behavior");
     expect(sources).toContain("fusion_context_management");

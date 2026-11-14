@@ -4,7 +4,7 @@ import type { ZCodeProtocolClient } from "./zcodeProtocolClient.js";
 const checks = new WeakMap<object, Promise<void>>();
 const contextProfileChecks = new WeakMap<object, Promise<void>>();
 const fusionContextProfileChecks = new WeakMap<object, Promise<void>>();
-const betaModeChecks = new WeakMap<object, Promise<void>>();
+const fusionModeChecks = new WeakMap<object, Promise<void>>();
 
 /** Host 更新不代表远端 CLI 已更新；旧 CLI 会剥掉 Plan 字段，必须在发送前确认执行端。 */
 export function ensureIndependentPlanSupport(
@@ -72,24 +72,26 @@ export function ensureFusionContextProfileSupport(
 }
 
 /**
- * Beta 独立工作模式（mode=beta）是 additive 能力：现有 fusionContextProfile 只证明
- * 历史融合档位支持，不能放行 Beta（旧端两者支持集不同）。创建会话、改状态或提交输入
- * 携带显式 mode=beta 前确认执行端的独立 betaMode 能力位，缺能力时报
- * proto.betaModeUnsupported 而不是静默降级到其他模式或继承当前权限。
+ * 融合模式（mode=fusion，原测试名 beta）是 additive 能力：现有 fusionContextProfile 只证明
+ * 历史融合档位支持，不能放行本模式（旧端两者支持集不同）。创建会话、改状态或提交输入
+ * 携带显式 mode=fusion 前确认执行端的独立 fusionMode 能力位，缺能力时报
+ * proto.fusionModeUnsupported 而不是静默降级到其他模式或继承当前权限。
  */
-export function ensureBetaModeSupport(client: Pick<ZCodeProtocolClient, "request">): Promise<void> {
-  const cached = betaModeChecks.get(client);
+export function ensureFusionModeSupport(
+  client: Pick<ZCodeProtocolClient, "request">,
+): Promise<void> {
+  const cached = fusionModeChecks.get(client);
   if (cached) return cached;
   const check = client
     .request(zcodeProtocolMethods.runtimeCapabilities, {}, zcodeRuntimeCapabilitiesSchema)
     .then((result) => {
-      if (result.betaMode !== true) throw new Error("proto.betaModeUnsupported");
+      if (result.fusionMode !== true) throw new Error("proto.fusionModeUnsupported");
     })
     .catch((cause: unknown) => {
-      betaModeChecks.delete(client);
-      throw new Error("proto.betaModeUnsupported", { cause });
+      fusionModeChecks.delete(client);
+      throw new Error("proto.fusionModeUnsupported", { cause });
     });
-  betaModeChecks.set(client, check);
+  fusionModeChecks.set(client, check);
   return check;
 }
 

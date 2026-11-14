@@ -3381,9 +3381,11 @@ export function toZCodeMode(mode: ZCodeTaskMode | undefined): ZCodeSessionMode |
       return "research";
     case "minimal":
       return "minimal";
-    // Beta 是独立工作模式：必须原样透传；漏映射会被调用方的 ?? build 静默降级。
+    // 融合模式必须原样透传；漏映射会被调用方的 ?? build 静默降级。
+    // beta 是旧持久化值（原测试名），回显为 fusion。
+    case "fusion":
     case "beta":
-      return "beta";
+      return "fusion";
     case "build":
     case "default":
     case "acceptEdits":

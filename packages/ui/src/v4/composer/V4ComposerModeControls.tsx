@@ -100,8 +100,8 @@ function V4ComposerModeSwitchImpl({
   const displayProvider = provider ?? ZCODE_AGENT_PROVIDER;
   const modeShortcutLabel = useShortcutCommandLabel("cycleSessionMode");
   const modes = getZCodeAgentAvailableModes();
-  // Beta 由 shared 模式目录直接提供（mode=beta），UI 不再本地补候选。历史 fusion 档位
-  // 只做读取兼容：按原权限回显，不把 build+fusion 自动升级成完全访问的 Beta。
+  // 融合模式由 shared 模式目录直接提供（mode=fusion），UI 不再本地补候选。历史 fusion
+  // 档位只做读取兼容：按原权限回显，不把 build+fusion 自动升级成完全访问的融合模式。
   const permissionModes = modes.filter((mode) => mode.id !== "plan");
   // 主控项排在权限组最前：它是"绑定 + 只读"的入口，语义上高于具体权限档位。
   const selectablePermissions = [

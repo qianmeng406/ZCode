@@ -314,7 +314,7 @@ export class AgentRuntime {
       modelContextBudgetStrategy: DEFAULT_ZCODE_MODEL_CONTEXT_BUDGET_STRATEGY,
     };
     // 构造期安装的是持久化/调用方已有状态，是读取边界：只做无损归一
-    // （beta+fusion 归一 Beta+standard），build+fusion 等历史组合保留原权限。
+    // （fusion+fusion 归一 fusion+standard；旧值 beta 归一 fusion），build+fusion 等历史组合保留原权限。
     // 不能用切换语义在构造时误清遗留融合档位。
     Object.assign(this.config, resolveRestoredExecutionState(config));
     const definitions = createTurnAgentDefinitions(

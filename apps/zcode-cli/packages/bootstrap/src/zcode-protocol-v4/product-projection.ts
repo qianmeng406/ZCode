@@ -1,3 +1,4 @@
+import { toCollaborationMode } from "./collaboration-mode.js";
 import { normalizeGenUiInput } from "@zcode/core";
 import {
   PERMISSION_FULL_ACCESS_OPTION_ID,
@@ -4504,7 +4505,7 @@ export class ProductProjection {
           kind: queueItem.kind,
           text: queueItem.text,
           ...(queueItem.modelSelection ? { modelSelection: queueItem.modelSelection } : {}),
-          ...(queueItem.mode ? { mode: queueItem.mode } : {}),
+          ...(queueItem.mode ? { mode: toCollaborationMode(queueItem.mode) } : {}),
           ...(queueItem.planEnabled !== undefined ? { planEnabled: queueItem.planEnabled } : {}),
           admissionSeq: queueItem.order.admissionSeq,
           admittedAt: queueItem.admittedAt,
@@ -4858,7 +4859,7 @@ export class ProductProjection {
                 items: this.snapshot.queue.items.map((item) =>
                   payload.permissionGrant!.queueItemIds.includes(item.queueItemId) &&
                   queueMode.success
-                    ? // 授权只改本次目标队列的权限；Beta 会话保留 beta，不能硬编码 yolo。
+                    ? // 授权只改本次目标队列的权限；融合会话保留 fusion，不能硬编码 yolo。
                       { ...item, mode: queueMode.data }
                     : item,
                 ),

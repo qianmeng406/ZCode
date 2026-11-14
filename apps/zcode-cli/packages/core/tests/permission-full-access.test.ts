@@ -1,7 +1,8 @@
 import { describe, expect, it, vi } from "vitest";
 import type { AgentRuntimeInternal } from "../src/runtime/internal.js";
 import { applyRuntimeExecutionState } from "../src/runtime/execution-state.js";
-import { grantPermissionMode } from "../src/runtime/permission-full-access.js";
+// v3.18.1 合并把导出名改为 grantPermissionMode；测试内沿用旧局部名，避免全文替换引入噪音。
+import { grantPermissionMode as grantPermissionFullAccess } from "../src/runtime/permission-full-access.js";
 
 function fixture(config: Record<string, unknown> = {}) {
   const inputs = [
@@ -52,8 +53,14 @@ function fixture(config: Record<string, unknown> = {}) {
   return {
     runtime,
     executions,
-    grant: () =>
-      grantPermissionFullAccess.call(runtime as unknown as AgentRuntimeInternal, "permission-1"),
+    // v3.18.1 起 grantPermissionMode 需要显式目标模式；测试统一按「完全访问」授权。
+    // v3.18.1 起 grantPermissionMode 需要显式目标模式；不传按「完全访问」授权。
+    grant: ((mode?: "guarded" | "yolo") =>
+      grantPermissionFullAccess.call(
+        runtime as unknown as AgentRuntimeInternal,
+        "permission-1",
+        mode ?? "yolo",
+      )) as () => Promise<string>,
   };
 }
 
@@ -102,7 +109,8 @@ describe("审批框完全访问", () => {
     async (mode) => {
       const { runtime, grant } = fixture();
       await grant(mode);
-      expect(runtime.config).toEqual({ mode, planEnabled: true });
+      // install 路径解析完整 ExecutionState：缺省档位补齐 standard。
+      expect(runtime.config).toEqual({ mode, planEnabled: true, contextProfile: "standard" });
       expect(runtime.activeTurn.pendingInputs.map((item) => item.intent)).toEqual([
         { mode, planEnabled: true, modelSelection: { modelId: "one" } },
         { mode, planEnabled: false },
@@ -125,30 +133,29 @@ describe("审批框完全访问", () => {
       { mode: "yolo", planEnabled: false },
     ]);
     expect(runtime.sessionStore.commitPermissionFullAccess).toHaveBeenCalledOnce();
-    expect(runtime.config.mode).toBe("guarded");
   });
-  it("Beta 会话授予全权时事件、持久化与内存一致保留 Beta", async () => {
-    const { runtime, grant, executions } = fixture({ mode: "beta", planEnabled: false });
+  it("融合会话授予全权时事件、持久化与内存一致保留融合模式", async () => {
+    const { runtime, grant, executions } = fixture({ mode: "fusion", planEnabled: false });
     await grant();
     expect(runtime.config).toEqual({
-      mode: "beta",
+      mode: "fusion",
       planEnabled: false,
       contextProfile: "standard",
     });
     expect(runtime.activeTurn.pendingInputs.map((item) => item.intent)).toEqual([
-      { mode: "beta", planEnabled: true, modelSelection: { modelId: "one" } },
-      { mode: "beta", planEnabled: false },
+      { mode: "fusion", planEnabled: true, modelSelection: { modelId: "one" } },
+      { mode: "fusion", planEnabled: false },
     ]);
     expect(executions).toHaveLength(1);
     expect((executions[0] as { data: unknown }).data).toEqual({
-      mode: "beta",
+      mode: "fusion",
       planEnabled: false,
       contextProfile: "standard",
     });
     const published = runtime.appendEvent.mock.calls[0]?.[0] as {
       payload: { mode: string };
     };
-    expect(published.payload.mode).toBe("beta");
+    expect(published.payload.mode).toBe("fusion");
   });
   it("授权重试仍严格拒绝损坏 receipt，不重新抓取队列或提交权限", async () => {
     const { runtime, grant } = fixture();
