@@ -125,15 +125,14 @@ function patch(...lines: string[]): string {
   return ["*** Begin Patch", ...lines, "*** End Patch"].join("\n");
 }
 
+// 2026-11-15 决定把 ApplyPatch 还给上游的休眠状态（handlers/index.ts 注释掉注册），
+// fork 不再提供该开关。这里锁住「永不注册」：休眠实现若被人顺手放回注册表，
+// 会让一个没写进提示词、没经过验收的工具突然出现在模型工具面上。
 describe("ApplyPatch registration", () => {
-  it("默认不注册，只有显式打开 fork 开关才进入工具面", () => {
-    const off = createToolRegistry();
-    registerBuiltInTools(off);
-    expect(off.has("ApplyPatch")).toBe(false);
-
-    const on = createToolRegistry();
-    registerBuiltInTools(on, { includeApplyPatch: true });
-    expect(on.has("ApplyPatch")).toBe(true);
+  it("不进入内置工具表，注册表里查不到", () => {
+    const registry = createToolRegistry();
+    registerBuiltInTools(registry);
+    expect(registry.has("ApplyPatch")).toBe(false);
   });
 });
 
