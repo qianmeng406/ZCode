@@ -25,6 +25,7 @@ import { updateRuntimeBackgroundTask } from "../src/tool/executor/background-tas
 import { createExploreSubagentPort } from "../src/subagent/runner.js";
 import { taskStopToolEntry } from "../src/tool/handlers/task-stop.js";
 import { createTestSessionEventStore } from "./test-event-store.js";
+import { createTestModelFactory } from "./test-runtime-model.js";
 import { toPosixPath } from "./path-assert.js";
 
 function deferred<T = void>(): {

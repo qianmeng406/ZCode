@@ -41,10 +41,15 @@ function renderedText(result: ReturnType<typeof build>): string {
   return [
     ...result.systemMessages.map((message) => message.content),
     ...result.metaUserAttachments.map((attachment) => attachment.content),
-    // 环境与模型由 runtime 作为运行时公告单独宣告（RUNTIME_ANNOUNCED_SOURCES），
+    // 环境、模型、Desktop 由 runtime 作为运行时公告单独宣告（RUNTIME_ANNOUNCED_SOURCES），
     // 不在 builder 的 attachment 里；契约测试直接读 section 校验段是否存在。
     ...result.sections
-      .filter((section) => section.source === "env_info" || section.source === "model")
+      .filter(
+        (section) =>
+          section.source === "env_info" ||
+          section.source === "model" ||
+          section.source === "desktop_context",
+      )
       .map((section) => section.content),
   ].join("\n");
 }

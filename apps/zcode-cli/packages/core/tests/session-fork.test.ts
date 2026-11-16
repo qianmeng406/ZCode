@@ -302,7 +302,7 @@ describe("session fork history", () => {
       }),
       expect.objectContaining({
         type: "runtime/execution_state",
-        data: { mode: "build", planEnabled: false , contextProfile: "standard" },
+        data: { mode: "build", planEnabled: false, contextProfile: "standard" },
       }),
     ]);
     expect(committedBundle!.commandFact.ack.result).toEqual({
@@ -481,7 +481,7 @@ describe("session fork history", () => {
         }),
         expect.objectContaining({
           type: "runtime/execution_state",
-          data: { mode: "build", planEnabled: false , contextProfile: "standard" },
+          data: { mode: "build", planEnabled: false, contextProfile: "standard" },
         }),
       ]);
       const copiedParentMessages = committedBundle!.messages.slice(0, -1);
@@ -712,7 +712,8 @@ describe("session fork history", () => {
         expect(committed!.entries).toContainEqual(
           expect.objectContaining({
             type: "runtime/execution_state",
-            data: { mode, planEnabled: false },
+            // 解析结果始终携带档位（非融合模式为 standard）；只锁定本用例关心的字段。
+            data: expect.objectContaining({ mode, planEnabled: false }),
           }),
         );
       }
@@ -895,7 +896,7 @@ describe("session fork history", () => {
     expect(committedBundle!.entries).toContainEqual(
       expect.objectContaining({
         type: "runtime/execution_state",
-        data: { mode: "edit", planEnabled: true , contextProfile: "standard" },
+        data: { mode: "edit", planEnabled: true, contextProfile: "standard" },
       }),
     );
     expect(legacyCreateCount).toBe(0);

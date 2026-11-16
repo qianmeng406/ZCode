@@ -33,7 +33,11 @@ import { createInMemoryHookRunner } from "../src/hooks/index.js";
 import { createExploreSubagentPort } from "../src/subagent/runner.js";
 import { createTestSessionEventStore } from "./test-event-store.js";
 import { createTestModelFactory } from "./test-runtime-model.js";
-import { toPosixPath } from "./path-assert.js";
+import {
+  createDeferred,
+  createSubagentRunRequest,
+  waitForCondition,
+} from "./subagent-background-fixture.js";
 
 // 后台 agent 通知的固定 <note>；测试里写死，锁定字节。
 const LOCAL_AGENT_NOTE =
@@ -1760,78 +1764,6 @@ describe("subagent background notifications", () => {
       agentId: "agent_notification_enqueue_fails",
     });
     expect(task?.notified).not.toBe(true);
-  });
-
-  it("cancels auto-background timeout when a foreground local agent completes first", async () => {
-    const sessionId = createSessionId("subagent-auto-background-cancelled");
-    const turnId = createTurnId("subagent-auto-background-cancelled-turn");
-    const blockedArtifactWrite = createDeferred<void>();
-    let outputWriteStarted = false;
-    const notifications: string[] = [];
-    const actualFs = await vi.importActual<typeof import("node:fs/promises")>("node:fs/promises");
-    vi.resetModules();
-    vi.doMock("node:fs/promises", () => ({
-      ...actualFs,
-      writeFile: vi.fn(async (...args: Parameters<typeof actualFs.writeFile>) => {
-        const [path] = args;
-        // 产物路径随宿主平台（Windows 上是反斜杠），按 POSIX 形状判定是同一个 output.txt。
-        if (toPosixPath(String(path)).endsWith("/output.txt") && !outputWriteStarted) {
-          outputWriteStarted = true;
-          await blockedArtifactWrite.promise;
-        }
-        return actualFs.writeFile(...args);
-      }),
-    }));
-
-    try {
-      const { createExploreSubagentPort: createPortWithBlockedArtifactWrite } =
-        await import("../src/subagent/runner.js");
-      const port = createPortWithBlockedArtifactWrite({
-        autoBackgroundMs: 1,
-        createAgentId: () => "agent_auto_background_cancelled",
-        emitParentEvent: async () => {},
-        enqueueParentTaskNotification: ({ text }) => {
-          notifications.push(text);
-        },
-        runExploreAgent: async (request) => {
-          await request.onSessionReady?.();
-          return {
-            events: [],
-            response: "foreground child beat timeout",
-            traceId: "trace_subagent_auto_background_cancelled",
-          };
-        },
-      });
-
-      const outputPromise = port.run(createSubagentRunRequest({ sessionId, turnId }));
-      await waitForCondition(() => outputWriteStarted);
-      await new Promise((resolve) => setTimeout(resolve, 10));
-      const taskWhileArtifactWriteIsPending = await port.getTask?.(
-        "agent_auto_background_cancelled",
-      );
-      blockedArtifactWrite.resolve();
-
-      const output = await outputPromise;
-      expect(output).toMatchObject({
-        status: "completed",
-        agentId: "agent_auto_background_cancelled",
-      });
-      expect(taskWhileArtifactWriteIsPending).toMatchObject({
-        status: "running",
-        isBackgrounded: false,
-      });
-
-      const task = await port.getTask?.("agent_auto_background_cancelled");
-      expect(task).toMatchObject({
-        status: "completed",
-        isBackgrounded: false,
-      });
-      expect(notifications).toEqual([]);
-    } finally {
-      blockedArtifactWrite.resolve();
-      vi.doUnmock("node:fs/promises");
-      vi.resetModules();
-    }
   });
 
   it("keeps foreground local agents inline when auto-background timeout is not configured", async () => {

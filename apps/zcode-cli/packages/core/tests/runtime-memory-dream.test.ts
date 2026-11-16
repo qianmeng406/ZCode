@@ -279,11 +279,11 @@ describe("AgentRuntime Dream handler", () => {
       (message) =>
         message.role === "system" &&
         normalizeSeparators(providerMessagesToText([message])) ===
-          normalizeSeparators(expectedUpdate),
+          normalizeSeparators(expectedSystem),
     );
     expect(updateIndex).toBe(nextRequest.length - 1);
     expect(normalizeSeparators(providerMessagesToText([nextRequest[updateIndex]]))).toBe(
-      normalizeSeparators(expectedUpdate),
+      normalizeSeparators(expectedSystem),
     );
     expect((runtime as any).pendingMemoryUpdate).toBeUndefined();
 

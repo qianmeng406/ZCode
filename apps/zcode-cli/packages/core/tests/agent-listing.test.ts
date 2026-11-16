@@ -44,6 +44,8 @@ describe("agent listing attachments", () => {
       removedTypes: [],
       isInitial: true,
       showConcurrencyNote: true,
+      // 原生 profile 没有外部执行渠道：路由引导行不注入，但字段本身随 delta 结构化保留。
+      showExternalChannelNote: false,
     });
     expect(entry.content).toContain("Available agent types for the Agent tool:");
     expect(entry.content).not.toContain("private instructions");
