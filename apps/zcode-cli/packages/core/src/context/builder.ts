@@ -214,6 +214,8 @@ export class ContextBuilder {
       sections.push(
         useFusionSections ? buildFusionContextManagementSection() : buildContextManagementSection(),
       );
+      // 固定的 token 预算行，system 的最后一段（倒数由请求提醒附件表达）。
+      sections.push(buildTotalTokensSection());
 
       const gitSystemContextSection = buildGitSystemContextSection(this.config.envInfo);
       if (gitSystemContextSection) {
@@ -252,10 +254,10 @@ export class ContextBuilder {
     const requestUserContextSection = isMinimalProfile
       ? null
       : buildRequestUserContextSection({
-        userInstructions: this.config.userInstructions,
-        memoryIndexContent: this.config.memoryIndexContent,
-        memoryRoot: this.config.memoryRoot,
-      });
+          userInstructions: this.config.userInstructions,
+          memoryIndexContent: this.config.memoryIndexContent,
+          memoryRoot: this.config.memoryRoot,
+        });
     if (requestUserContextSection) {
       sections.push(requestUserContextSection);
     }

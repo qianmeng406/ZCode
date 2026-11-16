@@ -317,6 +317,26 @@ export async function runModelTextRequest(
 
         case "text_delta": {
           const visibleDelta = event.text;
+          // 有的 provider 不发 text_start（或工具后复用旧 id）：这里按到达顺序补块，
+          // 否则这段文字既没有 blockIndex，也不会进 result.textBlocks 落盘。
+          const { block, created } = getOrCreateTextBlock({
+            id: event.id,
+            textBlocks,
+            textById,
+            allocateBlockIndex,
+            lastAllocatedBlockIndex,
+          });
+          block.text += visibleDelta;
+          if (created && hasTextBlockInResponse) {
+            // 上一段文字的行可能还开着：补发一次，live 才会和冷恢复一样每个文字块一行。
+            await enqueueStreamingEvent({
+              assistantMessageId: options.assistantMessageId,
+              delta: "",
+              done: false,
+              kind: "text_start",
+            });
+          }
+          hasTextBlockInResponse = true;
           if (visibleDelta.length === 0) break;
           text += visibleDelta;
           options.onStreamTextDelta?.(visibleDelta);

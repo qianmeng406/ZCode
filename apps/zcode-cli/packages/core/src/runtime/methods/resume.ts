@@ -155,6 +155,11 @@ export async function resumeFromStore(
   this.contextBuilder = null;
   this.contextInitialized = false;
   this.lastEmittedLocalDate = undefined;
+  // 修复原因：bootstrap 复用同一个 runtime 再次恢复时，原因还停在上一次 compaction；
+  // 恢复后启动时重读的文件变化被写成「compaction 之后重读」。恢复等同新会话启动，回到 session_start。
+  this.instructionRefreshReason = undefined;
+  // token 预算计数器只在内存：恢复等同新会话启动，从零开始，下一条真实用户消息重新起算。
+  this.totalTokensBudget = createTotalTokensBudgetState();
   // 执行状态必须先于 context / MCP 初始化确定：极简档位会跳过 MCP 启动并过滤工具，
   // 先按 invocation 默认 build 初始化再回填持久化档位，会让本次恢复的上下文与工具缓存
   // 与最终模式不一致（MCP 启动也不可撤销）。恢复安装不持久化、不发布事件。

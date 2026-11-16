@@ -739,7 +739,9 @@ export async function executeTurnCommand(
                 // 设计模式能力信号只认 Host 在 v4 命令里可信注入的 intent.inputOrigin，不用 trace 属性兜底：
                 // 旧版 session/send（Bot 带附件时的回退路径）没有 intent.inputOrigin，也没有 Bot clientId，
                 // 将来即使有人往 trace 里写 telemetry.inputOrigin，也不会对 IM 用户声明设计模式。
-                ...(options?.intent?.inputOrigin ? { inputOrigin: options.intent.inputOrigin } : {}),
+                ...(options?.intent?.inputOrigin
+                  ? { inputOrigin: options.intent.inputOrigin }
+                  : {}),
                 ...(options?.intent?.clientId ? { inputClientId: options.intent.clientId } : {}),
               },
             ).map((entry) => {
@@ -917,6 +919,8 @@ export async function executeTurnCommand(
           turnRequestState: initialTurnRequestState,
           appliedProjectionRevision: initialProjection.appliedProjectionRevision,
           appliedProjectionModelKey: loopModelKey,
+          // 首轮意图决定本 turn 是否暴露插件发现工具；后续 steer 只会把它关掉（turn-guide-drain）。
+          pluginDiscoveryUi: options?.intent?.[PLUGIN_DISCOVERY_INPUT] === true,
           toolDisallowlist: options?.toolDisallowlist,
           traceId,
           turnAbortSignal,

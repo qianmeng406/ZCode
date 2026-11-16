@@ -33,6 +33,7 @@ import { commitTurnRequestEntries } from "./turn-output-token-continuation.js";
 import type { TurnRequestState } from "./turn-loop-state.js";
 import { countContextPrefixMessages } from "../deps.js";
 import type { Model, OutputStylePromptConfig } from "../deps.js";
+import type { SessionExecutionEnvironment } from "@zcode/shared";
 import type { RuntimeMessageEntry } from "../../agent/message-history.js";
 import type { AgentRuntimeInternal } from "../internal.js";
 import { buildContextHistoryEntries } from "./context-history-entries.js";
@@ -109,38 +110,24 @@ export async function appendRuntimeContextAnnouncements(
   traceContext: TraceContext,
   signal?: AbortSignal,
 ): Promise<void> {
-  const last = lastAnnouncedAttachments(state.entries);
-  const result = runtime.latestContextBuildResult;
-  const attachments: RuntimeAttachmentEntry[] = [];
-  if (result?.sections.some((section) => section.source === "env_info")) {
-    const previous = environmentOf(last.get("environment"))?.snapshot;
-    const snapshot = await resolveCurrentEnvironment(runtime, previous, traceContext, signal);
-    const hasFullBlock = state.entries.some((entry) => environmentOf(entry)?.full);
-    const announcement = snapshot
-      ? buildEnvironmentAnnouncement(
-          snapshot,
-          previous,
-          hasFullBlock,
-          runtime.config.getSessionExecutionEnvironment?.(),
-        )
-      : null;
-    if (announcement) attachments.push(environmentAttachment(announcement));
-    const identity = buildModelSection(model)!;
-    if (last.get("model")?.content !== identity.content) {
-      attachments.push(systemReminderAttachmentEntry("model", identity.content));
-    }
-    // output style 只对主线程宣告。内容与最近一次宣告不同时再宣告；
-    // 清除风格时，若最近一次宣告的是某个风格，宣告一次重置。
-    if (querySourceForTask(runtime.config.taskType) === "main_turn") {
-      const previousStyle = last.get("output_style_instructions")?.content;
-      const instructions =
-        buildOutputStyleInstructionsBody(outputStyle) ??
-        (previousStyle === undefined ? undefined : OUTPUT_STYLE_RESET_REMINDER);
-      if (instructions !== undefined && instructions !== previousStyle) {
-        attachments.push(systemReminderAttachmentEntry("output_style_instructions", instructions));
-      }
-    }
-  }
+  const contextResult = runtime.latestContextBuildResult;
+  const environment = announcesEnvironment(contextResult)
+    ? await resolveCurrentEnvironment(
+        runtime,
+        latestAnnouncedEnvironment(state.entries),
+        traceContext,
+        signal,
+      )
+    : undefined;
+  // 正式请求与 context 组成预演必须走同一条纯计算路径：Desktop 段与 Gen UI 目录只在
+  // buildRuntimeContextAnnouncements 的 withDesktopContext 里补齐，绕过它会整天少发这两段。
+  const attachments = buildRuntimeContextAnnouncements(runtime, state.entries, {
+    contextResult,
+    environment,
+    model,
+    outputStyle,
+    sessionExecutionEnvironment: runtime.config.getSessionExecutionEnvironment?.(),
+  });
   throwIfTurnAborted(signal);
   await persistAnnouncements(runtime, state, attachments, traceContext);
 }
@@ -161,6 +148,8 @@ export function buildRuntimeContextAnnouncements(
     environment: EnvironmentSnapshot | undefined;
     model: Model;
     outputStyle: OutputStylePromptConfig | undefined;
+    /** WSL 绑定：环境块的 Shell 与命令执行面由执行环境事实决定（fork 扩展）。 */
+    sessionExecutionEnvironment?: SessionExecutionEnvironment;
   },
 ): RuntimeAttachmentEntry[] {
   if (!announcesEnvironment(input.contextResult)) return [];
@@ -172,7 +161,12 @@ export function buildRuntimeContextAnnouncements(
   // 正式请求与 context 组成预演走同一份规则，预演出的环境公告与真实首个请求一致。
   const environment = input.environment && withDesktopContext(runtime, input.environment);
   const announcement = environment
-    ? buildEnvironmentAnnouncement(environment, previous, hasFullBlock)
+    ? buildEnvironmentAnnouncement(
+        environment,
+        previous,
+        hasFullBlock,
+        input.sessionExecutionEnvironment,
+      )
     : null;
   if (announcement) attachments.push(environmentAttachment(announcement));
   const identity = buildModelSection(input.model)!;

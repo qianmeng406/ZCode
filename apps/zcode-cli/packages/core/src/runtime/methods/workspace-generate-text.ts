@@ -29,7 +29,9 @@ const WORKSPACE_GENERATE_TEXT_TIMEOUT_MS = 60_000;
 // （实测日志：单条审查请求烧满 600s 客户端 deadline 才失败）。阈值取 2 倍静默窗口，
 // 连续两分钟没有任何事件即判为无产出循环，提前中止，把 10 分钟的浪费压到 2 分钟。
 const MODEL_STREAM_STALL_TIMEOUT_MS = 120_000;
-const CONNECTIVITY_PROBE_MAX_OUTPUT_TOKENS = 1;
+// 1 Token 会被部分上游的输出下限校验拒绝；连接测试以独立的 512 预算为目标。
+// 预算不能超过模型上限，否则合法的小容量模型会在本地 bind 时失败，无法发出请求。
+const CONNECTIVITY_PROBE_MAX_OUTPUT_TOKENS = 512;
 // 探测请求使用固定最小 prompt，避免多余推理开销；不可改写角色、文本或混入会话历史。
 const CONNECTIVITY_PROBE_SYSTEM = "You are ZCode connectivity probe.";
 const CONNECTIVITY_PROBE_USER = "hi";

@@ -15,16 +15,22 @@ export interface AgentListingDelta {
 
 export function parseAgentListingDelta(value: unknown): AgentListingDelta | undefined {
   if (typeof value !== "object" || value === null || Array.isArray(value)) return undefined;
-  const { addedTypes, addedLines, removedTypes, isInitial, showConcurrencyNote } = value as Record<
-    string,
-    unknown
-  >;
+  const {
+    addedTypes,
+    addedLines,
+    removedTypes,
+    isInitial,
+    showConcurrencyNote,
+    showExternalChannelNote,
+  } = value as Record<string, unknown>;
   if (
     !isStringArray(addedTypes) ||
     !isStringArray(addedLines) ||
     !isStringArray(removedTypes) ||
     typeof isInitial !== "boolean" ||
     typeof showConcurrencyNote !== "boolean" ||
+    // optional：老会话持久化的 delta 没有该字段；给了就必须是 boolean。
+    (showExternalChannelNote !== undefined && typeof showExternalChannelNote !== "boolean") ||
     addedTypes.length !== addedLines.length ||
     new Set(addedTypes).size !== addedTypes.length ||
     new Set(removedTypes).size !== removedTypes.length ||
@@ -37,6 +43,9 @@ export function parseAgentListingDelta(value: unknown): AgentListingDelta | unde
     removedTypes: [...removedTypes],
     isInitial: isInitial,
     showConcurrencyNote: showConcurrencyNote,
+    // 随结构化数据往返：丢了它，恢复后的历史与 live 侧不再等值，
+    // 「本次是否注入过外部渠道引导行」也失去唯一事实来源。
+    ...(typeof showExternalChannelNote === "boolean" ? { showExternalChannelNote } : {}),
   };
 }
 
