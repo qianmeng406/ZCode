@@ -1,5 +1,5 @@
-import { toCollaborationMode } from "../collaboration-mode.js";
 import { PLUGIN_DISCOVERY_INPUT, type TurnInputIntentMetadata } from "@zcode/contracts";
+import { normalizeLegacyWorkMode } from "@zcode/shared";
 import type { ContextProfile, ModelSelection } from "@zcode/shared";
 import type {
   AttachmentRef,
@@ -78,7 +78,7 @@ export function inputIntentMetadata(
     // goal 的 displayText（如 `/GoAl replace X`）不是 runtime 已解析的 canonical objective。
     text: options.text,
     ...(options.modelSelection ? { modelSelection: options.modelSelection } : {}),
-    ...(options.mode ? { mode: toCollaborationMode(options.mode) } : {}),
+    ...(options.mode ? { mode: normalizeLegacyWorkMode(options.mode) } : {}),
     ...(options.planEnabled !== undefined ? { planEnabled: options.planEnabled } : {}),
     ...(options.contextProfile !== undefined ? { contextProfile: options.contextProfile } : {}),
     ...(options.genUiContext !== undefined ? { genUiContext: options.genUiContext } : {}),
@@ -123,7 +123,7 @@ export function inputIntentMetadataFromCanonical(
     kind: canonical.kind,
     text,
     ...(canonical.modelSelection ? { modelSelection: canonical.modelSelection } : {}),
-    ...(canonical.mode ? { mode: toCollaborationMode(canonical.mode) } : {}),
+    ...(canonical.mode ? { mode: normalizeLegacyWorkMode(canonical.mode) } : {}),
     ...(canonical.planEnabled !== undefined ? { planEnabled: canonical.planEnabled } : {}),
     ...(canonical.contextProfile !== undefined ? { contextProfile: canonical.contextProfile } : {}),
     admissionSeq: admission.admissionSeq,
@@ -162,7 +162,7 @@ export function inputIntentMetadataFromQueueItem(
     kind: item.kind,
     text: canonicalText,
     ...(item.modelSelection ? { modelSelection: item.modelSelection } : {}),
-    ...(item.mode ? { mode: toCollaborationMode(item.mode) } : {}),
+    ...(item.mode ? { mode: normalizeLegacyWorkMode(item.mode) } : {}),
     ...(item.planEnabled !== undefined ? { planEnabled: item.planEnabled } : {}),
     ...(item.contextProfile !== undefined ? { contextProfile: item.contextProfile } : {}),
     admissionSeq: item.order.admissionSeq,

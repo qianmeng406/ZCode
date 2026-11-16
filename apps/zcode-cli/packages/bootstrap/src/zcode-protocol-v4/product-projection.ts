@@ -1,5 +1,5 @@
-import { toCollaborationMode } from "./collaboration-mode.js";
 import { normalizeGenUiInput } from "@zcode/core";
+import { normalizeLegacyWorkMode } from "@zcode/shared";
 import {
   PERMISSION_FULL_ACCESS_OPTION_ID,
   submissionModeSchema,
@@ -4505,7 +4505,7 @@ export class ProductProjection {
           kind: queueItem.kind,
           text: queueItem.text,
           ...(queueItem.modelSelection ? { modelSelection: queueItem.modelSelection } : {}),
-          ...(queueItem.mode ? { mode: toCollaborationMode(queueItem.mode) } : {}),
+          ...(queueItem.mode ? { mode: normalizeLegacyWorkMode(queueItem.mode) } : {}),
           ...(queueItem.planEnabled !== undefined ? { planEnabled: queueItem.planEnabled } : {}),
           admissionSeq: queueItem.order.admissionSeq,
           admittedAt: queueItem.admittedAt,

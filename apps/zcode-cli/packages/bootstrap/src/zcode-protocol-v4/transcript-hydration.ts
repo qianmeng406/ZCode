@@ -10,7 +10,6 @@
 // 合成事件是「视图重建」用途：只需产出与真实事件流「归约等价」的最小序列。
 // v4 冷恢复只能重放 ProductProjection 认识的事件；如果 transcript 里的
 // tool/reasoning/subagent/compact part 不反向合成，重启后历史可见运行态会从快照里消失。
-import { toCollaborationMode } from "./collaboration-mode.js";
 import type {
   AssistantErrorInfo,
   BackgroundResultOriginMeta,
@@ -22,7 +21,7 @@ import type {
   TurnInputIntentMetadata,
 } from "@zcode/contracts";
 import { INTERRUPT_MARKER_SOURCE, joinTaskNotificationBatch } from "@zcode/core";
-import { isHighspeedProviderId } from "@zcode/shared";
+import { isHighspeedProviderId, normalizeLegacyWorkMode } from "@zcode/shared";
 import type { EventId, SessionEvent, SessionId, TraceId, TurnId } from "@zcode/contracts";
 import {
   CompactTimelineStatus,
@@ -435,7 +434,7 @@ function inputIntentOfMessage(message: MessageWithParts): TurnInputIntentMetadat
       text: value.text,
       genUiContext: value.genUiContext,
       ...(value.modelSelection ? { modelSelection: value.modelSelection } : {}),
-      ...(value.mode ? { mode: toCollaborationMode(value.mode) } : {}),
+      ...(value.mode ? { mode: normalizeLegacyWorkMode(value.mode) } : {}),
       ...(value.planEnabled !== undefined ? { planEnabled: value.planEnabled } : {}),
       ...(value.contextProfile !== undefined ? { contextProfile: value.contextProfile } : {}),
       admissionSeq: value.order.admissionSeq,

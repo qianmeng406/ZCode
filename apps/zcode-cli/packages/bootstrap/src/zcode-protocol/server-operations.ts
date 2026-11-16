@@ -1,4 +1,3 @@
-import { toCollaborationMode } from "../zcode-protocol-v4/collaboration-mode.js";
 import { isAbsolute, relative, resolve } from "node:path";
 import { classifyLocalSessionDirectory } from "@zcode/adapters/config";
 import { resolveModelSelectionAtAdmission } from "../zcode-protocol-v4/commands/input-admission.js";
@@ -11,6 +10,7 @@ import {
   pickForkToolPreferences,
   DEFAULT_FORK_FEATURES,
   type ForkFeatures,
+  normalizeLegacyWorkMode,
 } from "@zcode/shared";
 /* eslint-disable max-lines -- ZCode Protocol 的 session/workspace 方法共享同一个 server context 与 snapshot helpers，迁移期先集中维护。 */
 import { observeSessionDebug } from "./session-debug.js";
@@ -3191,7 +3191,10 @@ export async function setMode(context: ZCodeProtocolAgentServerContext, rawParam
   const params = parseParams(zcodeSessionSetModeParamsSchema, rawParams);
   const record = requireSession(context, params.sessionId);
   assertExpectedRevision(record, params.expectedRevision);
-  await record.app.setMode(toCollaborationMode(params.mode));
+  // 协议 schema 保证 mode 必填；归一函数按 optional 建模，这里取到值即可。
+  const requestedMode = normalizeLegacyWorkMode(params.mode);
+  if (requestedMode === undefined) throw new Error("session.setMode requires a mode");
+  await record.app.setMode(requestedMode);
   return await afterStateMutation(context, record, "mode_changed");
 }
 
@@ -4042,7 +4045,7 @@ async function createRecord(
     resume,
     additionalDirectories: params.additionalDirectories ?? startupPreferences.additionalDirectories,
     runtimeConfig: {
-      mode: "mode" in params ? toCollaborationMode(params.mode) : undefined,
+      mode: "mode" in params ? normalizeLegacyWorkMode(params.mode) : undefined,
       modelSelection: "model" in params ? toRuntimeModelSelection(initialModel) : undefined,
       parentSessionId,
       taskType,

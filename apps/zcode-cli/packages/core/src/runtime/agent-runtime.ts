@@ -682,9 +682,9 @@ export interface AgentRuntime {
     traceContext?: TraceContext;
   }): Promise<boolean>;
   /** v4 queue 单项编辑：按 pendingInputId 原地替换排队输入（保位），并释放编辑锁。 */
-  editPendingInputById(options: EditPendingInputOptions & { traceContext?: TraceContext }): Promise<
-    EditPendingInputResult
-  >;
+  editPendingInputById(
+    options: EditPendingInputOptions & { traceContext?: TraceContext },
+  ): Promise<EditPendingInputResult>;
   /** composer 编辑态冻结：只对未 reserve 且无他人锁的排队项生效。 */
   lockPendingInputEdit(options: {
     pendingInputId: string;

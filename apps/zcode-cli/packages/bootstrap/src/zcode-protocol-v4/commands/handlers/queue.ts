@@ -3,13 +3,12 @@
 // 决策逻辑直驱 core（app 层 queue API，批1 已搬运）；queueItemId ≡ core 的
 // pendingInputId（同一 id 空间，无需翻译）。queue 变更的事件由 core runtime 自发，
 // 经 gateway ingest 推进 v4 投影——本组不需要 legacy 广播钩子。
-import { toCollaborationMode } from "../../collaboration-mode.js";
 import type {
   CommandEnvelope,
   CommandPayloadMap,
   CommandResult,
 } from "@zcode/shared/zcode-protocol-v4";
-import { isHighspeedProviderId } from "@zcode/shared";
+import { isHighspeedProviderId, normalizeLegacyWorkMode } from "@zcode/shared";
 import { createModelExecutionContext } from "../../../session-execution/index.js";
 import { mapAttachmentRefsToTurnAttachments } from "../attachment-refs.js";
 import { inputIntentMetadataFromQueueItem } from "../input-intent.js";
@@ -149,7 +148,7 @@ async function editQueueItem(
       : {}),
     ...(payload.conversationQuotes ? { conversationQuotes: payload.conversationQuotes } : {}),
     ...(payload.modelSelection ? { modelSelection: payload.modelSelection } : {}),
-    ...(payload.mode ? { mode: toCollaborationMode(payload.mode) } : {}),
+    ...(payload.mode ? { mode: normalizeLegacyWorkMode(payload.mode) } : {}),
     ...(payload.planEnabled !== undefined ? { planEnabled: payload.planEnabled } : {}),
     ...(modelChanged ? { dropHighspeed: true } : {}),
   });
@@ -193,7 +192,7 @@ async function applyQueueItemsConfig(
       JSON.stringify(payload.modelSelection) !== JSON.stringify(queueItem.modelSelection);
     const result = await record.app.editQueueItem(queueItemId, undefined, {
       ...(payload.modelSelection ? { modelSelection: payload.modelSelection } : {}),
-      ...(payload.mode ? { mode: toCollaborationMode(payload.mode) } : {}),
+      ...(payload.mode ? { mode: normalizeLegacyWorkMode(payload.mode) } : {}),
       ...(modelChanged ? { dropHighspeed: true } : {}),
     });
     if (result !== "edited") continue;

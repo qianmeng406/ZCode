@@ -22,6 +22,21 @@ export const executionPermissionModeSchema = z.enum([
 /** 旧工作模式值 → 现值。只在解析边界归一，不进枚举：新代码不得再产生旧值。 */
 const LEGACY_MODE_ALIASES: Record<string, string> = { beta: "fusion" };
 
+/** 可提交的工作模式值域：auto 是运行时内部权限态，用户提交永不携带。 */
+export type SubmittableWorkMode = Exclude<ExecutionState["mode"], "auto">;
+
+/**
+ * 把旧协议/持久化里的工作模式值归一为现值（beta → fusion）。
+ *
+ * 协议层枚举（ZCodeSessionMode / SubmissionMode）保留旧值做读取兼容，而运行时入口
+ * 不接受旧值；任何把协议值送进运行时的边界都应先过一次这里，否则会要么类型断裂、
+ * 要么让旧值绕过本文件的 resolve* 归一。
+ */
+export function normalizeLegacyWorkMode(mode: string | undefined): SubmittableWorkMode | undefined {
+  if (mode === undefined) return undefined;
+  return (LEGACY_MODE_ALIASES[mode] ?? mode) as SubmittableWorkMode;
+}
+
 function normalizeLegacyMode(mode: unknown): unknown {
   return typeof mode === "string" ? (LEGACY_MODE_ALIASES[mode] ?? mode) : mode;
 }
