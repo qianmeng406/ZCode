@@ -155,6 +155,55 @@ describe("parseOracleVerdict", () => {
     expect(unknown.findings).toBe("看不出结论");
   });
 
+  it("否定表达不判 pass（含「通过」字样但语义是否定）", () => {
+    // B1-01 回归：旧实现用 /^pass\b|通过/ 匹配任何含「通过」的串，导致这些全部误判 pass。
+    for (const wording of [
+      "未通过",
+      "不能通过",
+      "无法通过",
+      "尚未通过",
+      "没有通过",
+      "审核未通过",
+      "尚不能通过",
+      "不能算通过",
+      "该方案不能通过审查",
+    ]) {
+      const verdict = parseOracleVerdict(`VERDICT: ${wording}`).verdict;
+      expect(verdict, `「${wording}」必须判 fail，不得判 pass`).not.toBe("pass");
+      expect(verdict, `「${wording}」是确定的否定`).toBe("fail");
+    }
+  });
+
+  it("无法判断是否通过归 insufficient，不判 pass 也不判 fail", () => {
+    // 方案要求：不能强判 pass，也不应仅因含否定词就判确定 fail。
+    for (const wording of [
+      "无法判断是否通过",
+      "无法确认是否通过",
+      "不能确定是否通过",
+      "无法确认通过",
+    ]) {
+      expect(parseOracleVerdict(`VERDICT: ${wording}`).verdict, wording).toBe("insufficient");
+    }
+  });
+
+  it("肯定表达仍判 pass（否定规则不扩大误伤）", () => {
+    for (const wording of ["通过", "PASS", "审查通过", "已通过", "全部通过"]) {
+      expect(parseOracleVerdict(`VERDICT: ${wording}`).verdict, wording).toBe("pass");
+    }
+  });
+
+  it("加粗与代码围栏包壳的否定表达同样不判 pass", () => {
+    expect(parseOracleVerdict("**VERDICT:** **未通过**").verdict).toBe("fail");
+    expect(parseOracleVerdict("```\nVERDICT: 不能通过\n```").verdict).toBe("fail");
+  });
+
+  it("裁决行正文里的普通「通过」不当裁决", () => {
+    // 无 VERDICT 行时不得靠正文里的「通过」字样判 pass。
+    expect(parseOracleVerdict("我检查了这段代码，测试都通过了，但没有给出裁决。").verdict).toBe(
+      "unknown",
+    );
+  });
+
   it("解析 SCOPE / LIMITS 段", () => {
     const parsed = parseOracleVerdict(
       [

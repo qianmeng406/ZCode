@@ -9,6 +9,7 @@
 // 3. 变更摘要：执行后用 git 汇总改了哪些文件（主 agent 据此决定要不要复审 diff）；
 // 4. 后台任务：start/poll/cancel，长任务不阻塞主对话 turn。
 import { randomUUID } from "node:crypto";
+import { CoreErrorType, createCoreError } from "@zcode/contracts";
 import type {
   ExecutionPort,
   ExternalAgentChangeSummary,
@@ -105,7 +106,27 @@ export function createExternalAgentPort(
     signal?: AbortSignal,
   ): Promise<ExternalAgentDelegateOutcome> => {
     const sessionId = String(input.sessionId);
-    const binding = await options.readBinding(sessionId).catch(() => undefined);
+    // 区分「确实没绑定」与「读取绑定失败」：原来 catch 吞掉错误后一律返回 unbound，
+    // 绑定明明存在（只是这次读失败）时用户会看到「请先绑定外部 agent」并被误导去重新
+    // 绑定，真实故障被伪装成配置缺失（B1-07）。读取失败要走可观测的失败路径。
+    let binding: ExternalAgentBinding | undefined;
+    try {
+      binding = await options.readBinding(sessionId);
+    } catch (error) {
+      options.logger?.warn("external agent binding read failed", {
+        errorMessage: error instanceof Error ? error.message : String(error),
+        event: "external_agent.binding.read_failed",
+        sessionId,
+      });
+      throw createCoreError(
+        CoreErrorType.ToolExecutionFailed,
+        "读取外部 agent 绑定失败，无法委派。请检查会话存储后重试（这不是未绑定）。",
+        {
+          context: { sessionId },
+          recoverable: true,
+        },
+      );
+    }
     if (!binding) return { kind: "unbound" };
     // 实际发给 CLI 的正文在这里合成一次：既交给 driver，也回传给活动快照——
     // 面板要像子智能体一样先显示"主 agent 发了什么"，两处必须是同一份文本。
@@ -177,6 +198,10 @@ export function createExternalAgentPort(
       cwd: input.cwd,
     }).catch(() => undefined);
 
+    // 任务级取消事实：后台任务只看它自己的 controller（signal）；前台委派没有独立
+    // controller 时才回退调用方传入的 abortSignal。两者不能混用——后台任务活过父 turn
+    // 时，父 turn 的 abort 不代表任务被取消（B1-03）。
+    const taskCancelled = (signal ?? input.abortSignal)?.aborted === true;
     const outcome: ExternalAgentDelegateOutcome = {
       kind: "delegated",
       label: binding.label,
@@ -187,18 +212,19 @@ export function createExternalAgentPort(
       ...(result.externalSessionId ? { externalSessionId: result.externalSessionId } : {}),
       continued: result.continued,
       ...(changes ? { changes } : {}),
+      // 活动卡据此落 cancelled，不再回退读父 turn 的 signal。
+      cancelled: taskCancelled,
     };
     // 收口回调给活动卡落终态（同步委派与后台任务共用这条路径）。
     input.onSettled?.(outcome);
     // 摘要落库：活动快照是运行期事实，重启就没了；这份摘要让过程面板在冷恢复后
     // 还能回显"上次是谁跑的、成没成、多久、结论尾部"。写失败不影响结果。
     if (options.saveRunSummary) {
-      const status: ExternalAgentRunStatus =
-        signal?.aborted === true || input.abortSignal?.aborted === true
-          ? "cancelled"
-          : result.isError
-            ? "failed"
-            : "completed";
+      const status: ExternalAgentRunStatus = taskCancelled
+        ? "cancelled"
+        : result.isError
+          ? "failed"
+          : "completed";
       const tail = result.text.trim();
       await options
         .saveRunSummary(sessionId, {

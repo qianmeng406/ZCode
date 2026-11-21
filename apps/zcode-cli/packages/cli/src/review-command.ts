@@ -251,13 +251,42 @@ function parseCommitSubjects(logOutput: string): string[] {
   return lines;
 }
 
-async function collectReviewEvidence(params: {
+/** 导出仅为单测：无 HEAD 仓库的材料范围是本批次验收面。 */
+export async function collectReviewEvidence(params: {
   cwd: string;
   plan: ReviewPlan;
   runGit: (args: readonly string[], cwd: string) => Promise<string>;
 }): Promise<ReviewEvidence> {
   const { cwd, plan, runGit } = params;
-  const diffText = await runGit(diffArgsFor(plan), cwd);
+  const completenessNotes: string[] = [];
+  // 无 HEAD 的仓库（刚 git init、还没有首个提交）里 `git diff HEAD` 直接失败。
+  // 这时的待提交内容恰恰是用户最想审查的：退回到「未跟踪文件」而不是整体失败（B1-06）。
+  const diffText = await runGit(diffArgsFor(plan), cwd).catch(async (error: unknown) => {
+    // --base / --staged 是用户显式指定的基准；取不到就让错误如实上抛，不偷偷换材料范围。
+    if (plan.base || plan.staged) throw error;
+    const untracked = await runGit(["ls-files", "--others", "--exclude-standard"], cwd).catch(
+      () => "",
+    );
+    const files = untracked
+      .split(/\r?\n/u)
+      .map((line) => line.trim())
+      .filter(Boolean);
+    if (files.length === 0) throw error;
+    completenessNotes.push(
+      `当前仓库还没有 HEAD 提交；本次审查材料来自 ${files.length} 个未跟踪文件（未跟踪文件不在 \`git diff HEAD\` 范围内）。`,
+    );
+    // 未跟踪文件与 /dev/null 做 --no-index 比较，得到「整份新增」的 diff。逐个取，
+    // 避免一次传入过多路径触发命令行长度限制。
+    const parts: string[] = [];
+    for (const file of files) {
+      const one = await runGit(
+        ["diff", "--no-color", "--no-ext-diff", "-U3", "--no-index", "--", "/dev/null", file],
+        cwd,
+      ).catch(() => "");
+      if (one) parts.push(one);
+    }
+    return parts.join("");
+  });
   const split = splitUnifiedDiffIntoOracleSections(diffText, { maxBytes: plan.maxDiffBytes });
 
   const commits = plan.includeCommits
@@ -268,7 +297,6 @@ async function collectReviewEvidence(params: {
       )
     : [];
 
-  const completenessNotes: string[] = [];
   if (split.truncated) {
     completenessNotes.push(
       "改动数量或体积超出本次取数预算，部分文件未包含在审查材料里；结论只覆盖已纳入的改动。",
@@ -502,9 +530,7 @@ export async function runReviewCommand(
   const runGit = deps.runGit ?? defaultRunGit;
 
   // 基线是纯本地文件：启动模型前先读写预检，路径写错不必等完整审查跑完才发现。
-  const baselineFingerprints = plan.baselinePath
-    ? readBaselineFile(plan.baselinePath)
-    : undefined;
+  const baselineFingerprints = plan.baselinePath ? readBaselineFile(plan.baselinePath) : undefined;
   if (baselineFingerprints instanceof Error) {
     return reviewError(
       ctx,
@@ -665,7 +691,10 @@ export async function runReviewCommand(
     const parsedVerdict = parseOracleVerdict(result.text);
     const elapsedMs = Date.now() - startedAt;
     const outputTokens = result.usage?.outputTokens;
-    const structuredFindings = parseStructuredFindings(parsedVerdict.findings, parsedVerdict.verdict);
+    const structuredFindings = parseStructuredFindings(
+      parsedVerdict.findings,
+      parsedVerdict.verdict,
+    );
 
     // 基线：写模式把当前结果落盘当"已知问题"清单；读模式把命中项从结果与裁决里摘掉。
     let keptFindings = structuredFindings;

@@ -158,6 +158,9 @@ const handler: ToolHandler = async (input, context) => {
               isError: settled.isError,
               durationMs: settled.durationMs,
               text: settled.text,
+              // 任务级取消事实由执行端给出；不传会让 reporter 回退读父 turn 的
+              // abortSignal，把活过父 turn 的成功任务误标 cancelled（B1-03）。
+              ...(settled.cancelled === undefined ? {} : { cancelled: settled.cancelled }),
             }
           : {}),
       }),

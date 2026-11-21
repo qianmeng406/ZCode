@@ -128,8 +128,9 @@ export type CliPermissionMode =
   | "guarded"
   | "research"
   | "minimal"
-  // Beta 独立工作模式（提示词融合模式测试版本）：additive，权限复用完全访问（yolo）。
-  | "beta";
+  // 融合模式（原测试名 Beta，2026-11-15 定名）：additive，权限复用完全访问（yolo）。
+  // 旧持久化/协议值 beta 由 shared 的 normalizeLegacyWorkMode 在解析边界归一。
+  | "fusion";
 export type CliRuntimeMode = CliPermissionMode | "auto";
 
 export interface CliModeState {

@@ -42,15 +42,40 @@ const ORACLE_LIMITS_LINE_PATTERN = /^\s*(?:\*\*)?(?:LIMITS|限制)(?:\*\*)?\s*[:
 const ORACLE_SECTION_MARKER_PATTERN =
   /^\s*(?:\*\*)?(?:VERDICT|SUMMARY|FINDINGS|REQUIREMENTS|SCOPE|LIMITS|结论|判定|总评|总结|摘要|发现|问题清单|需求核验|审查范围|范围|限制)(?:\*\*)?\s*[:：]/iu;
 
+/**
+ * 否定式「通过」：语义是否定，但字面含「通过」。
+ *
+ * 修复原因（2026-11-18，B1-01）：旧实现用 `/^pass\b|通过/` 兜底，任何含「通过」的
+ * 词组都被判 pass——「未通过」「不能通过」「无法通过」「尚未通过」「不能算通过」
+ * 全部反向，审查把失败判成通过。这里把否定/不确定表达显式先判，再走肯定匹配。
+ * 顺序仍然是语义优先：不确定 > 否定 > 肯定。
+ */
+function classifyChineseVerdictPhrase(w: string): OracleVerdict | undefined {
+  // 1) 不确定：既不是通过也不是失败，保留证据不足语义，不得强判任一极性。
+  //    「无法判断是否通过」「无法确认通过」「不能确定能否通过」都落这里，必须在否定规则之前——
+  //    它们含「无法/不能」字样，若走否定规则会被判成确定 fail，而方案明确要求保留不确定。
+  if (/无法判断|无法确认|无法评估|不能确定|难以判断|说不准|无法核实/.test(w)) return "insufficient";
+  // 2) 否定：出现任一否定词就判 fail。这些词与「通过」共现时否定优先。
+  if (/未通过|没通过|没有通过|尚未|未满足|不满足|不能通过|无法通过|不得通过|不予通过/.test(w)) {
+    return "fail";
+  }
+  // 3) 「不能」/「无法」+ 通过/达标 的组合（含中间插字，如「不能算通过」）。
+  if (/(?:不能|无法|不得|不予)[^，。；\n]{0,6}(?:通过|达标|满足)/.test(w)) return "fail";
+  return undefined;
+}
+
 /** 宽松归一：认英文与中文同义表达；认不出返回 unknown。 */
 function normalizeOracleVerdictWord(word: string): OracleVerdict {
   const w = word.trim().toLowerCase();
   if (!w) return "unknown";
-  // 顺序即语义：不通过→fail（含「通过」字样），信息不足→insufficient，
-  // 通过但…→warn，纯通过/PASS→pass。
-  if (/^fail\b|失败|需要修复|不通过|不满足/.test(w)) return "fail";
+  // 顺序即语义：不确定 → 否定 → 警告 → 肯定。中文否定必须先于肯定判定，
+  // 否则「未通过」会被 `通过` 吞成 pass。
+  const chinese = classifyChineseVerdictPhrase(w);
+  if (chinese) return chinese;
+  if (/^fail\b|失败|需要修复|不通过/.test(w)) return "fail";
   if (/^warn\b|注意|警告/.test(w)) return "warn";
-  if (/^insufficient\b|信息不足|证据不足|材料不足|无法判断|无法评估/.test(w)) return "insufficient";
+  if (/^insufficient\b|信息不足|证据不足|材料不足/.test(w)) return "insufficient";
+  // 肯定兜底：只认「通过」前面没有否定的情形（否定已在上方返回）。
   if (/^pass\b|通过/.test(w)) return "pass";
   return "unknown";
 }

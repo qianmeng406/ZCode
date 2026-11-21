@@ -85,6 +85,15 @@ export type ExternalAgentDelegateOutcome =
       continued: boolean;
       /** 工作区改动摘要；git 不可用时缺席或 unavailable。 */
       changes?: ExternalAgentChangeSummary;
+      /**
+       * 这次任务本身是否被取消（任务级事实，不是父 turn 的 abort 状态）。
+       *
+       * B1-03：活动卡原来用发起委派那次工具调用的 abortSignal 判断「已取消」，而后台
+       * 任务用独立 controller、可以活过父 turn——父 turn 一取消，已经成功跑完的任务会
+       * 被标成 cancelled，卡片与持久摘要互相矛盾。执行端显式给出任务级事实；缺席时
+       * 调用方才回退旧语义（前台委派）。
+       */
+      cancelled?: boolean;
     }
   /** 当前会话没有绑定外部 agent。 */
   | { kind: "unbound" };

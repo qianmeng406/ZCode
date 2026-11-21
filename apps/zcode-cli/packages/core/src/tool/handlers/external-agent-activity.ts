@@ -50,8 +50,21 @@ export interface ExternalAgentActivityReporter {
     /** 源输出被截断（artifact 超重解析上限）：粘性标记，之后每帧都带上。 */
     sourceTruncated?: boolean;
   }): void;
-  /** 收口：success/失败/取消，`terminated` 表示被取消。 */
-  settled(outcome: { label?: string; isError?: boolean; durationMs?: number; text?: string }): void;
+  /**
+   * 收口：success/失败/取消。
+   *
+   * `cancelled` 应由**执行路径**给出「这次任务本身是否被取消」的事实。缺省时才回退读
+   * reporter 捕获的 `context.abortSignal`——那是发起委派那次工具调用所在 turn 的 signal。
+   * 后台任务用独立 controller，可以活过父 turn：父 turn 一取消，已经成功跑完的任务会被
+   * 误标成 cancelled，卡片与持久摘要互相矛盾（B1-03）。
+   */
+  settled(outcome: {
+    label?: string;
+    isError?: boolean;
+    durationMs?: number;
+    text?: string;
+    cancelled?: boolean;
+  }): void;
   /** 主动清空（例如 unbind 或会话切换）。 */
   clear(): void;
 }
@@ -291,7 +304,9 @@ export function createExternalAgentActivityReporter(
       if (outcome.label) agentLabel = outcome.label;
       reconcileFinalText(outcome.text);
       // 取消与失败要分开：卡片上"已取消"是用户主动的结果，不是错误。
-      const cancelled = context.abortSignal?.aborted === true;
+      // 优先用调用方给出的任务级事实；只有它没说明时才回退父 turn 的 signal
+      // （前台委派与旧调用方仍是这个语义）。
+      const cancelled = outcome.cancelled ?? context.abortSignal?.aborted === true;
       const status = cancelled ? "cancelled" : outcome.isError ? "failed" : "completed";
       const error =
         !cancelled && outcome.isError && !tail ? outcome.text?.slice(0, 300) : undefined;

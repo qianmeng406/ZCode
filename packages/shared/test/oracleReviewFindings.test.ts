@@ -64,6 +64,58 @@ describe("oracle review structured findings", () => {
     expect(findings.map((item) => item.message)).toEqual(["[high] a.ts:1 — x", "[low] b.ts:2 — y"]);
   });
 
+  it("地图位置解析：Windows 盘符路径不被截断（B1-05）", () => {
+    // 缺陷：FINDING_LOCATION_PATTERN 的字符类不含 `:`，`C:\repo\src\a.ts:12` 会从
+    // 第一个冒号之后重新起算，产出 file="eposrca.ts" —— 指错文件比不指更糟。
+    const [finding] = parseStructuredFindings("- [高] C:\\repo\\src\\a.ts:12 越界", "fail");
+    expect(finding?.file).toBe("C:\\repo\\src\\a.ts");
+    expect(finding?.line).toBe(12);
+  });
+
+  it("位置解析：含空格的文件名保留完整路径（B1-05）", () => {
+    // 缺陷：字符类不含空格，"my file.ts:12" 只截到 "file.ts"，丢了目录/前缀。
+    const [finding] = parseStructuredFindings("- [高] my file.ts:12 越界", "fail");
+    expect(finding?.file).toBe("my file.ts");
+    expect(finding?.line).toBe(12);
+  });
+
+  it("位置解析：无扩展名文件与脚本也能识别（B1-05）", () => {
+    // Makefile / scripts/build 这类没有扩展名的常见目标原来完全不解析位置。
+    const findings = parseStructuredFindings(
+      "- [高] Makefile:12 缺 .PHONY\n- [高] scripts/build:5 未加 set -e",
+      "fail",
+    );
+    expect(findings[0]?.file).toBe("Makefile");
+    expect(findings[0]?.line).toBe(12);
+    expect(findings[1]?.file).toBe("scripts/build");
+    expect(findings[1]?.line).toBe(5);
+  });
+
+  it("位置解析：行范围取起始行", () => {
+    const [finding] = parseStructuredFindings("- [高] src/a.ts:12-18 越界", "fail");
+    expect(finding?.file).toBe("src/a.ts");
+    expect(finding?.line).toBe(12);
+  });
+
+  it("位置解析：识别不到位置时退化为无位置，不编造", () => {
+    // 关键取舍：宁可没有位置（fingerprint 走 msg|），也不能给出错误路径。
+    for (const line of [
+      "- [高] 这个函数缺少边界校验",
+      "- [高] 第 12 行有问题",
+      "- [高] 见上文说明",
+    ]) {
+      const [finding] = parseStructuredFindings(line, "fail");
+      expect(finding?.file, line).toBeUndefined();
+      expect(finding?.line, line).toBeUndefined();
+    }
+  });
+
+  it("地图位置解析：普通散文里的冒号数字不当位置", () => {
+    // 避免把「错误码: 500」这类文本误判成 file:line。
+    const [finding] = parseStructuredFindings("- [中] 返回 HTTP 状态 200: 但语义错误", "warn");
+    expect(finding?.file).toBeUndefined();
+  });
+
   it("keeps fingerprints stable across separators, dot prefix, case and whitespace", () => {
     const base: StructuredFinding = {
       severity: "error",

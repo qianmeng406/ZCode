@@ -187,6 +187,9 @@ const normalizeLocaleOption = (value: string | undefined): UiLocale | undefined 
 const normalizePromptMode = (value: string | undefined): CliPermissionMode | undefined => {
   if (value === undefined) return undefined;
   const mode = value.toLowerCase();
+  // `beta` 是融合模式的旧名（2026-11-15 定名）：命令行仍接受它，但归一为 fusion，
+  // 与 shared 的 normalizeLegacyWorkMode 同一语义，不再产生旧值。
+  if (mode === "beta") return "fusion";
   if (
     mode === "build" ||
     mode === "plan" ||
@@ -195,12 +198,12 @@ const normalizePromptMode = (value: string | undefined): CliPermissionMode | und
     mode === "guarded" ||
     mode === "research" ||
     mode === "minimal" ||
-    mode === "beta"
+    mode === "fusion"
   ) {
     return mode;
   }
   throw new Error(
-    `Unsupported --mode value: ${value}. Supported modes: build, edit, plan, yolo, guarded, research, minimal, beta.`,
+    `Unsupported --mode value: ${value}. Supported modes: build, edit, plan, yolo, guarded, research, minimal, fusion.`,
   );
 };
 

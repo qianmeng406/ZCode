@@ -306,6 +306,104 @@ describe("createExternalAgentActivityReporter", () => {
   });
 });
 
+describe("createExternalAgentActivityReporter 的取消归因（B1-03）", () => {
+  it("父 turn 已取消但任务正常收口时，不标成 cancelled", () => {
+    // 修复原因：settled() 原来读 reporter 捕获的 context.abortSignal——那是发起委派的
+    // 那次工具调用所在 turn 的 signal。后台任务用独立 controller，可以活过父 turn；
+    // 父 turn 一取消，已经成功跑完的任务会被标成 cancelled，卡片与持久摘要互相矛盾。
+    const controller = new AbortController();
+    const emitEvent = vi.fn(async () => undefined);
+    const context = {
+      toolCallId: "call-bg",
+      sessionId: "sess-bg",
+      turnId: "turn-bg",
+      traceId: "trace-bg",
+      abortSignal: controller.signal,
+      emitEvent,
+    } as never;
+    const reporter = createExternalAgentActivityReporter(context, { agentLabel: "外部 agent" });
+    reporter.started({ label: "CodeBuddy" });
+
+    controller.abort(); // 父 turn 被用户取消
+    // 执行端给出任务级事实：任务本身没被取消。
+    reporter.settled({
+      isError: false,
+      durationMs: 1_000,
+      text: "任务实际已完成",
+      cancelled: false,
+    });
+
+    const event = emitEvent.mock.calls.at(-1)?.[0] as unknown as {
+      payload: { activity: { status: string } };
+    };
+    expect(event.payload.activity.status).toBe("completed");
+  });
+
+  it("任务自身失败时仍然报 failed，不被父 turn 取消覆盖", () => {
+    const controller = new AbortController();
+    const emitEvent = vi.fn(async () => undefined);
+    const context = {
+      toolCallId: "call-bg-fail",
+      sessionId: "sess-bg",
+      turnId: "turn-bg",
+      traceId: "trace-bg",
+      abortSignal: controller.signal,
+      emitEvent,
+    } as never;
+    const reporter = createExternalAgentActivityReporter(context, { agentLabel: "外部 agent" });
+    reporter.started({ label: "CodeBuddy" });
+    controller.abort();
+
+    reporter.settled({ isError: true, durationMs: 1_000, text: "装配失败", cancelled: false });
+    const event = emitEvent.mock.calls.at(-1)?.[0] as unknown as {
+      payload: { activity: { status: string } };
+    };
+    expect(event.payload.activity.status).toBe("failed");
+  });
+
+  it("任务级取消事实为 true 时报 cancelled（任务自身被取消）", () => {
+    const emitEvent = vi.fn(async () => undefined);
+    const context = {
+      toolCallId: "call-bg-cancel",
+      sessionId: "sess-bg",
+      turnId: "turn-bg",
+      traceId: "trace-bg",
+      abortSignal: new AbortController().signal,
+      emitEvent,
+    } as never;
+    const reporter = createExternalAgentActivityReporter(context, { agentLabel: "外部 agent" });
+    reporter.started({ label: "CodeBuddy" });
+
+    reporter.settled({ isError: false, durationMs: 1_000, cancelled: true });
+    const event = emitEvent.mock.calls.at(-1)?.[0] as unknown as {
+      payload: { activity: { status: string } };
+    };
+    expect(event.payload.activity.status).toBe("cancelled");
+  });
+
+  it("未给任务级事实时回退父 turn signal（前台委派旧语义不变）", () => {
+    const controller = new AbortController();
+    const emitEvent = vi.fn(async () => undefined);
+    const context = {
+      toolCallId: "call-fg",
+      sessionId: "sess-fg",
+      turnId: "turn-fg",
+      traceId: "trace-fg",
+      abortSignal: controller.signal,
+      emitEvent,
+    } as never;
+    const reporter = createExternalAgentActivityReporter(context, { agentLabel: "外部 agent" });
+    reporter.started({ label: "CodeBuddy" });
+    controller.abort();
+
+    reporter.settled({ isError: false, durationMs: 1_000 });
+    const event = emitEvent.mock.calls.at(-1)?.[0] as unknown as {
+      payload: { activity: { status: string } };
+    };
+    expect(event.payload.activity.status).toBe("cancelled");
+  });
+});
+
 describe("publishExternalAgentTaskStatus", () => {
   it("有最终正文时以结构化 text 条目下发（面板按 markdown 渲染，不是 raw tail）", () => {
     const { context, emitEvent } = makeContext();

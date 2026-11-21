@@ -243,6 +243,35 @@ describe("createExternalAgentPort", () => {
     expect(run).not.toHaveBeenCalled();
   });
 
+  it("读取绑定失败时明确报错，不伪装成 unbound（B1-07）", async () => {
+    // 修复原因：readBinding 原来被 .catch(() => undefined) 吞掉后一律返回 unbound。
+    // 绑定明明存在、只是这次读失败时，用户看到「请先绑定外部 agent」并被误导去重新
+    // 绑定，真实故障被伪装成配置缺失。
+    const { createExternalAgentPort } =
+      await import("../src/zcode-protocol/external-agent-port-impl.js");
+    const run = vi.fn();
+    const warnings: unknown[] = [];
+    const port = createExternalAgentPort({
+      executionPort: { run } as never,
+      readBinding: async () => {
+        throw new Error("session store locked");
+      },
+      logger: {
+        warn: (_message: string, meta: unknown) => warnings.push(meta),
+      } as never,
+    });
+
+    await expect(
+      port.delegate({ sessionId: "s" as never, task: "t", cwd: "/tmp" }),
+    ).rejects.toThrow(/读取外部 agent 绑定失败/);
+    // 未 spawn：读失败不是执行失败，不能白起进程。
+    expect(run).not.toHaveBeenCalled();
+    // 可观测：日志带事件名，不含凭据。
+    expect(warnings).toEqual([
+      expect.objectContaining({ event: "external_agent.binding.read_failed" }),
+    ]);
+  });
+
   it("已绑定时按绑定调用并回传解析后的文本", async () => {
     const { createExternalAgentPort } =
       await import("../src/zcode-protocol/external-agent-port-impl.js");
@@ -814,6 +843,70 @@ describe("外部 agent 实时输出", () => {
 
     expect(result.text.startsWith("（外部 agent 执行结束")).toBe(true);
     expect(result.text).not.toContain('"type":"system"');
+  });
+});
+
+describe("B1-04 输出解析完整性：用户 JSON 正文不被当流式信封", () => {
+  // 修复原因：looksLikeStreamJson 只看「以 { 开头 + 前 200 字符含 "type"」。
+  // 用户让 agent 分析一段 JSON（配置、API 响应、数据文件）时，那段正文本身
+  // 就满足这两个条件，于是被当成 driver 的 JSONL 信封丢掉，最终正文被替换成
+  // 「没有读到可解析的输出」——真实结论丢失。
+  async function runDriverWithResultText(resultText: string) {
+    const { createOneShotExternalAgentDriver } =
+      await import("../src/zcode-protocol/external-agent-driver.js");
+    // claude-family 驱动：stdout 是 driver 信封（含 type:result），result.result 是正文。
+    const stdout = JSON.stringify([
+      { type: "message", role: "user", content: [] },
+      { type: "result", subtype: "success", is_error: false, result: resultText },
+    ]);
+    const run = async () => ({
+      streams: { stdout: { text: stdout }, stderr: { text: "" } },
+      exitCode: 0,
+    });
+    const driver = createOneShotExternalAgentDriver({ executionPort: { run } as never });
+    return await driver.run({ binding: claudeFamily, prompt: "x", cwd: "/tmp" });
+  }
+
+  it("正文是 JSON 对象（含 type 字段）时仍完整返回", async () => {
+    // 用户贴的配置片段：合法 JSON、含 "type" 键，但绝不是什么流式信封。
+    const userJson = '{"type":"config","name":"demo","retries":3,"nested":{"type":"inner"}}';
+    const outcome = await runDriverWithResultText(userJson);
+    expect(outcome.text).toBe(userJson);
+  });
+
+  it("正文是 JSON 数组时仍完整返回", async () => {
+    const userJson = '[{"type":"event","id":1},{"type":"event","id":2}]';
+    const outcome = await runDriverWithResultText(userJson);
+    expect(outcome.text).toBe(userJson);
+  });
+
+  it("正文是带 type 的多行 JSON（工业数据）时仍完整返回", async () => {
+    const userJson = ['{"type":"sensor","value":21.5}', '{"type":"sensor","value":22.1}'].join(
+      "\n",
+    );
+    const outcome = await runDriverWithResultText(userJson);
+    expect(outcome.text).toBe(userJson);
+  });
+
+  it("真正的流式信封（无 result 条目）仍不被当正文", async () => {
+    // 反向守卫：不能因为修上面几条就把「确实是信封」的判断也放宽。
+    const { createOneShotExternalAgentDriver } =
+      await import("../src/zcode-protocol/external-agent-driver.js");
+    const stdout = [
+      JSON.stringify({ type: "system", subtype: "init", session_id: "s1" }),
+      JSON.stringify({
+        type: "assistant",
+        message: { role: "assistant", content: [{ type: "text", text: "进行中" }] },
+      }),
+    ].join("\n");
+    const run = async () => ({
+      streams: { stdout: { text: stdout }, stderr: { text: "" } },
+      exitCode: 0,
+    });
+    const driver = createOneShotExternalAgentDriver({ executionPort: { run } as never });
+    const outcome = await driver.run({ binding: claudeFamily, prompt: "x", cwd: "/tmp" });
+    // 没有 result 条目：不能把原始 JSONL 当委派正文回给主 agent。
+    expect(outcome.text).not.toBe(stdout);
   });
 });
 

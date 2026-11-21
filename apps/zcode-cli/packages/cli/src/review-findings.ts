@@ -4,6 +4,7 @@ import {
   mkdirSync,
   openSync,
   readFileSync,
+  renameSync,
   statSync,
   unlinkSync,
   writeFileSync,
@@ -89,8 +90,25 @@ export function writeBaselineFile(
     });
   }
   const payload: ReviewBaselineFile = { schemaVersion: 1, accepted };
-  mkdirSync(dirname(baselinePath), { recursive: true });
-  writeFileSync(baselinePath, `${JSON.stringify(payload, null, 2)}\n`, "utf8");
+  const directory = dirname(baselinePath);
+  mkdirSync(directory, { recursive: true });
+  // 原子替换（B1-06）：先写同目录临时文件再 rename。直接 writeFileSync 到目标时，
+  // 写到一半失败（磁盘满、进程被杀）会把旧基线留成截断的半个 JSON，下一次审查读基线
+  // 直接报结构错误——用户既丢基线又丢新结果。临时文件必须与目标同目录，rename 才在
+  // 同一文件系统内保持原子性。
+  const tempPath = join(directory, `.zcode-baseline-${process.pid}-${Date.now()}.tmp`);
+  try {
+    writeFileSync(tempPath, `${JSON.stringify(payload, null, 2)}\n`, "utf8");
+    renameSync(tempPath, baselinePath);
+  } catch (error) {
+    // 失败时清掉临时文件，旧目标文件保持原样。
+    try {
+      if (existsSync(tempPath)) unlinkSync(tempPath);
+    } catch {
+      /* 清理失败不掩盖原始错误 */
+    }
+    throw error;
+  }
 }
 
 /**

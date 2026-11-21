@@ -35,7 +35,51 @@ interface StreamingDriverCapabilities {
   };
   /** 全量重解析（收口权威重建）。 */
   parseActivities: (stdout: string) => ExternalAgentActivityEntry[];
+  /**
+   * 本族信封的首行事件类型集合。
+   *
+   * 用于区分「driver 的 JSONL 信封」与「用户让 agent 分析的 JSON 正文」——后者同样
+   * 以 `{` 开头、同样含 `"type"`，只靠字面检查会把它当信封丢掉（B1-04）。
+   */
+  envelopeTypes: ReadonlySet<string>;
 }
+
+/** claude-family 的信封事件类型（实测 codebuddy / claude code 输出）。 */
+const CLAUDE_FAMILY_ENVELOPE_TYPES = new Set([
+  "system",
+  "assistant",
+  "user",
+  "result",
+  "stream_event",
+  "file-history-snapshot",
+  "rate_limit_event",
+]);
+
+/** opencode `run --format json` 的事件类型（见 shared/externalAgentStream.ts 注释）。 */
+const OPENCODE_ENVELOPE_TYPES = new Set([
+  "text",
+  "reasoning",
+  "tool_use",
+  "step_start",
+  "step_finish",
+  "retry",
+  "error",
+]);
+
+/** Command Code 的事件帧类型。 */
+const COMMANDCODE_ENVELOPE_TYPES = new Set([
+  "system",
+  "assistant",
+  "user",
+  "result",
+  "stream_event",
+  "message_start",
+  "message_delta",
+  "message_stop",
+  "content_block_start",
+  "content_block_delta",
+  "content_block_stop",
+]);
 
 const STREAMING_DRIVERS: Partial<
   Record<ExternalAgentBinding["driver"], StreamingDriverCapabilities>
@@ -43,18 +87,21 @@ const STREAMING_DRIVERS: Partial<
   "claude-family": {
     createParser: createClaudeStreamParser,
     parseActivities: parseClaudeFamilyStreamActivities,
+    envelopeTypes: CLAUDE_FAMILY_ENVELOPE_TYPES,
   },
   // opencode 的 `run --format json` 同样是逐行 JSON 事件，字段形状不同但
   // "半行留缓冲 + 全量重解析"的语义一致，所以共用同一条驱动流程。
   "opencode-exec": {
     createParser: createOpencodeStreamParser,
     parseActivities: parseOpencodeStreamActivities,
+    envelopeTypes: OPENCODE_ENVELOPE_TYPES,
   },
   // Command Code 的 `-p --output-format json` 也是逐行 JSON（事件帧 + result），
   // 但正文/思考是增量 delta，解析器内部会累积后在边界产出。
   "commandcode-exec": {
     createParser: createCommandCodeStreamParser,
     parseActivities: parseCommandCodeStreamActivities,
+    envelopeTypes: COMMANDCODE_ENVELOPE_TYPES,
   },
 };
 
@@ -356,7 +403,8 @@ export function createOneShotExternalAgentDriver(input: {
       // 解析不到 result 时 parseExternalAgentResult 会把原始 stdout 当正文返回；
       // 流式驱动的 JSONL 不是正文——既不能进活动条目，也不能当委派结果。
       const hasResultText =
-        parsedText.length > 0 && !(capabilities && looksLikeStreamJson(parsedText));
+        parsedText.length > 0 &&
+        !(capabilities && looksLikeStreamJson(parsedText, capabilities.envelopeTypes));
       // 没流式到正文时（模型只回了 result，或没开 partial）：把最终回答作为一条正文条目，
       // 否则活动卡只有工具调用、看不到它的结论。
       if (!streamedText && hasResultText) {
@@ -370,7 +418,7 @@ export function createOneShotExternalAgentDriver(input: {
       // 里的原因），否则上层只能看到「已完成」，无从判断是 CLI 没输出还是我们没读到。
       const text = hasResultText
         ? parsed.text
-        : capabilities && looksLikeStreamJson(fullStdout)
+        : capabilities && looksLikeStreamJson(fullStdout, capabilities.envelopeTypes)
           ? describeMissingOutput(stdoutView, stderr)
           : rawStdout.trim()
             ? rawStdout
@@ -543,10 +591,32 @@ function describeMissingOutput(view: StreamOutputView, stderr?: string): string 
   return parts.join("；");
 }
 
-/** 是否像 claude-family 的 stream-json（首行就是 {"type":...} 事件）。 */
-function looksLikeStreamJson(text: string): boolean {
-  const head = text.trimStart().slice(0, 200);
-  return head.startsWith("{") && head.includes('"type"');
+/**
+ * 是否像该驱动族的 stream-json（首行就是协议事件）。
+ *
+ * 修复原因（2026-11-18，B1-04）：原实现是「以 `{` 开头 + 前 200 字符含 `"type"`」，
+ * 与驱动族无关。用户让 agent 分析一段 JSON（配置片段、API 响应、工业数据）时，那段
+ * 正文本身就满足两个条件，于是被当信封丢掉，最终正文被替换成「没有读到可解析的输出」,
+ * 真实结论丢失。方案要求用真实 envelope 与来源标记区分结构化事件与用户 JSON 正文，
+ * 不能靠「能 JSON.parse」判断。这里解析首行并要求其类型属于该族的事件集合。
+ */
+function looksLikeStreamJson(
+  text: string,
+  envelopeTypes: ReadonlySet<string> | undefined,
+): boolean {
+  if (!envelopeTypes) return false;
+  const firstLine = text.trimStart().split("\n", 1)[0]?.trim();
+  if (!firstLine?.startsWith("{")) return false;
+  try {
+    const record = JSON.parse(firstLine) as unknown;
+    if (!record || typeof record !== "object" || Array.isArray(record)) return false;
+    const type = (record as { type?: unknown }).type;
+    return typeof type === "string" && envelopeTypes.has(type);
+  } catch {
+    // 半行/非法 JSON：不能用信封语义解释，交给调用方走原文路径，
+    // 不能因为「看起来像」就丢掉正文。
+    return false;
+  }
 }
 
 /** 进度事件里最多带这么多字符（尾部，保留最后状态行）。 */

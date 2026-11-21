@@ -12,12 +12,13 @@ import {
 } from "@zcode/contracts";
 import { bashHandler, bashToolEntry } from "../src/tool/handlers/bash.js";
 import { formatPersistedOutputEnvelope } from "../src/tool/result-persistence-format.js";
+import { buildGhRateLimitHint } from "../src/tool/handlers/bash-gh-rate-limit.js";
 import { serializeOutput } from "../src/tool/executor/result-serialization.js";
 import type { ToolExecutorDeps } from "../src/tool/executor/types.js";
 import type { ToolExecutionContext } from "../src/tool/types.js";
 
-const GH_RATE_LIMIT_HINT =
-  "<system-reminder>GitHub API rate limit exceeded (5,000/hr shared across all tools and agents). Run `gh api rate_limit --jq .resources` and sleep until reset before further gh calls. If polling in a loop, use ScheduleWakeup instead of retrying.</system-reminder>";
+// 文案由实现单点定义（B1-08 起按可用工具集生成）；测试引用同一函数，避免两处漂移。
+const GH_RATE_LIMIT_HINT = buildGhRateLimitHint();
 const PNG_1X1_BASE64 =
   "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+/p9sAAAAASUVORK5CYII=";
 

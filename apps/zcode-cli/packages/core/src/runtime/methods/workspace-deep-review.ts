@@ -400,7 +400,10 @@ function bashEscapesWorkspace(
 function describeDeepReviewPathInput(toolCall: ModelToolCall): string | null {
   const input = stringRecord(toolCall.input);
   if (!input) return null;
-  for (const key of ["file_path", "filePath", "path", "glob"]) {
+  // 修复原因（2026-11-18，B1-02）：Glob 的真实入参是 `{ pattern, path }`，而这里只读
+  // `glob`/`path` —— `pattern="../**"` 因此从未被检查，Read/Grep 的 "../x" 被拦、Glob 却
+  // 放行整棵父目录树。补上 `pattern`，与 GlobInputSchema 的实际字段保持一致。
+  for (const key of ["file_path", "filePath", "path", "glob", "pattern"]) {
     const value = input[key];
     if (typeof value === "string" && value.trim()) return value;
   }
