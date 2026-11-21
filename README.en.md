@@ -15,16 +15,17 @@ This repository is a personal customization of ZCode, an AI coding workspace wit
 
 ## Upstream Version and Sync Status
 
-- **Latest official source**: As of 2026-11-12, official `main` points to [the v3.18.1 commit `c5904686`](https://github.com/zai-org/ZCode/commit/c5904686ea8341826b3affe5d993d06a134fa779).
-- **This fork's upstream baseline**: This repository is based on the official v3.18.1 commit `c5904686`; the root `package.json` version is `3.18.1`. The official 3.18.x releases are published as `main` sync commits without a git tag, so ancestry checks use that commit SHA. The customizations are applied as a series of commits on top of the official baseline (migration plus later feature commits); see [docs/upstream-sync.md](docs/upstream-sync.md) for the follow-up sync workflow.
+- **Latest official source**: As of 2026-11-13, official `main` points to [the v3.18.2 commit `fec97590`](https://github.com/zai-org/ZCode/commit/fec975905a2abd4c07e35c40d51fa097a2258ec9), also tagged `v3.18.2`.
+- **This fork's upstream baseline**: This repository is based on the official v3.18.2 commit `fec97590`; the root `package.json` version is `3.18.2`. Official 3.18.0/3.18.1 were published as `main` sync commits without a git tag; 3.18.2 restored a tag, but ancestry checks still use the commit SHA. The customizations are applied as a series of commits on top of the official baseline (migration plus later feature commits); see [docs/upstream-sync.md](docs/upstream-sync.md) for the follow-up sync workflow.
 - **Official documentation**: [Chinese README](https://github.com/zai-org/ZCode/blob/main/README.md), [English README](https://github.com/zai-org/ZCode/blob/main/README.en.md), and [UI Plugin development guide](https://github.com/zai-org/ZCode/blob/aac4755666d09fdcd70272fcf063c077a639015f/UI_PLUGIN.en.md). Features, directories, and commands in newer official versions may not exist in this fork. Use the checked-out source and `package.json` as the source of truth.
 
 ## Version History
 
-Since 3.18.x the official project no longer publishes git tags; the baseline is the upstream `main` sync commit, and ancestry checks use the commit SHA. Every sync keeps all existing customizations.
+Since 3.18.x the baseline is the upstream `main` sync commit, and ancestry checks use the commit SHA. Every sync keeps all existing customizations.
 
 | Fork sync date | Upstream version | Upstream baseline commit                                                                                                                        |
 | -------------- | ---------------- | ----------------------------------------------------------------------------------------------------------------------------------------------- |
+| 2026-11-22     | v3.18.2          | [`fec97590`](https://github.com/zai-org/ZCode/commit/fec975905a2abd4c07e35c40d51fa097a2258ec9)                                                  |
 | 2026-11-13     | v3.18.1          | [`c5904686`](https://github.com/zai-org/ZCode/commit/c5904686ea8341826b3affe5d993d06a134fa779)                                                  |
 | 2026-11-08     | v3.17.2          | [`a9fe401e`](https://github.com/zai-org/ZCode/commit/a9fe401eede6e6e5e01be9048679c206fe6f02d9)                                                  |
 | 2026-10-31     | v3.17.1          | [`a60ba6a7`](https://github.com/zai-org/ZCode/commit/a60ba6a7e5a06742270ca605f5d2cc2766afa7e1)                                                  |
@@ -61,7 +62,7 @@ This fork adds external agent orchestration — bind a session to an external CL
 
 **Streaming render performance settings** add a dedicated Settings → Performance page for streaming-render optimizations. **Every toggle is off by default**; when off, the render path is identical to the standard one, and each option can be enabled individually: streaming Markdown incremental parsing (only the tail block being generated is re-parsed; finished paragraphs are reused), render-unit reuse (unchanged turns are not rebuilt), scoped run-clock refresh (the per-second timer only refreshes the turn that is actually working; best enabled together with render-unit reuse), coalesced bottom-follow scrolling (multiple scroll writes within one frame merge into one), and coalesced delta frames (multiple streaming deltas arriving within one render frame commit once; text may lag by at most one frame). Parsing/render cost per frame drops noticeably for long replies and long sessions, with no change to the displayed result.
 
-These customizations are described relative to the official v3.18.1 baseline, not as a claim of exclusive features. Later official versions may offer similar capabilities.
+These customizations are described relative to the official v3.18.2 baseline, not as a claim of exclusive features. Later official versions may offer similar capabilities.
 
 The development and packaging instructions below describe this fork's current commands, including its runtime asset preparation changes; they are not a complete mirror of the latest official README.
 
@@ -269,7 +270,7 @@ Open `http://127.0.0.1:3030` to validate the complete flow, with one backend ser
 
 ## Repository Structure
 
-The following lists this fork's main directories, not the complete latest upstream source tree. Fork additions are identified relative to the v3.18.1 baseline.
+The following lists this fork's main directories, not the complete latest upstream source tree. Fork additions are identified relative to the v3.18.2 baseline.
 
 | Directory                                            | Responsibility                                                                          |
 | ---------------------------------------------------- | --------------------------------------------------------------------------------------- |

@@ -20,17 +20,18 @@
 
 ## 上游基线
 
-- 上游项目为 [zai-org/ZCode](https://github.com/zai-org/ZCode)（Apache-2.0）；本仓库基于官方 **v3.18.1**（提交 [`c5904686`](https://github.com/zai-org/ZCode/commit/c5904686ea8341826b3affe5d993d06a134fa779)），根目录 `package.json` 版本同为 `3.18.1`。
-- 官方 3.18.x 未打 git tag，以上游 `main` 的同步提交发布，因此后续的 `--is-ancestor` 校验用该 commit SHA 而非 tag。
+- 上游项目为 [zai-org/ZCode](https://github.com/zai-org/ZCode)（Apache-2.0）；本仓库基于官方 **v3.18.2**（tag `v3.18.2`，提交 [`fec97590`](https://github.com/zai-org/ZCode/commit/fec975905a2abd4c07e35c40d51fa097a2258ec9)），根目录 `package.json` 版本同为 `3.18.2`。
+- 3.18.0—3.18.1 未打 git tag，以上游 `main` 的同步提交发布；3.18.2 起官方恢复打 tag，但 `--is-ancestor` 校验仍以 commit SHA 为准。
 - 跟进官方新版本时如何保留定制能力，见 [docs/upstream-sync.md](docs/upstream-sync.md)。
 - 官方文档：[中文 README](https://github.com/zai-org/ZCode/blob/main/README.md)、[英文 README](https://github.com/zai-org/ZCode/blob/main/README.en.md)、[UI Plugin 开发说明](https://github.com/zai-org/ZCode/blob/aac4755666d09fdcd70272fcf063c077a639015f/UI_PLUGIN.md)。官方新版中的功能、目录和命令不一定存在于本定制版，请以当前检出的源码与 `package.json` 为准。
 
 ## 版本更新记录
 
-官方 3.18.x 起不再打 git tag，基线以上游 `main` 的同步提交为准；校验祖先关系用提交 SHA 而非 tag。各版本同步时均保留全部既有定制能力。
+官方 3.18.x 起基线以上游 `main` 的同步提交为准；校验祖先关系用提交 SHA 而非 tag。各版本同步时均保留全部既有定制能力。
 
 | 本仓库同步时间 | 上游版本 | 上游基线提交                                                                                                                     |
 | -------------- | -------- | -------------------------------------------------------------------------------------------------------------------------------- |
+| 2026-11-22     | v3.18.2  | [`fec97590`](https://github.com/zai-org/ZCode/commit/fec975905a2abd4c07e35c40d51fa097a2258ec9)                                   |
 | 2026-11-13     | v3.18.1  | [`c5904686`](https://github.com/zai-org/ZCode/commit/c5904686ea8341826b3affe5d993d06a134fa779)                                   |
 | 2026-11-08     | v3.17.2  | [`a9fe401e`](https://github.com/zai-org/ZCode/commit/a9fe401eede6e6e5e01be9048679c206fe6f02d9)                                   |
 | 2026-10-31     | v3.17.1  | [`a60ba6a7`](https://github.com/zai-org/ZCode/commit/a60ba6a7e5a06742270ca605f5d2cc2766afa7e1)                                   |
@@ -41,7 +42,7 @@
 
 ## 本定制版的新增与改动
 
-以下列出本仓库在官方 v3.18.1 基线之上的定制能力与修改，不表示这些能力全部为本项目独有。官方后续版本可能提供相似功能。
+以下列出本仓库在官方 v3.18.2 基线之上的定制能力与修改，不表示这些能力全部为本项目独有。官方后续版本可能提供相似功能。
 
 ### 一、新增功能
 
@@ -393,7 +394,7 @@ node dist/zcode/debug/zcode/bin/zcode.mjs --web \
 
 ## 仓库结构
 
-以下为本定制仓库的主要目录；`本定制版新增` 表示相对上游 v3.18.1 基线新增，不是官方最新源码树的完整目录清单。
+以下为本定制仓库的主要目录；`本定制版新增` 表示相对上游 v3.18.2 基线新增，不是官方最新源码树的完整目录清单。
 
 | 目录                                                 | 职责                                       |
 | ---------------------------------------------------- | ------------------------------------------ |

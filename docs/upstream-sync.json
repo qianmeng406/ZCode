@@ -19,13 +19,13 @@
     "pushPolicy": "fetch-only"
   },
   "currentBase": {
-    "tag": null,
-    "commit": "c5904686ea8341826b3affe5d993d06a134fa779",
-    "sourceCommit": "c5904686ea8341826b3affe5d993d06a134fa779",
-    "note": "3.18.1 未打 git tag，以上游 main 的同步提交发布；后续同步的 --is-ancestor 校验改用该 commit SHA。上一基线为 v3.17.2（a9fe401e），再上一版 v3.17.1（a60ba6a7）。"
+    "tag": "v3.18.2",
+    "commit": "fec975905a2abd4c07e35c40d51fa097a2258ec9",
+    "sourceCommit": "fec975905a2abd4c07e35c40d51fa097a2258ec9",
+    "note": "3.18.2 官方恢复打 tag（v3.18.2），基线以同步提交 fec97590 为准，--is-ancestor 校验仍用 commit SHA。上一基线为 v3.18.1（c5904686，未打 tag），再上一版 v3.17.2（a9fe401e）。"
   },
   "versions": {
-    "desktop": "3.18.1",
+    "desktop": "3.18.2",
     "cli": "0.17.1"
   },
   "retiredFeatures": [
