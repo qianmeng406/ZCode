@@ -4,7 +4,6 @@ import {
   TID_CHAT_INPUT,
   TID_CHAT_MESSAGES,
   TID_CHAT_SEND_BUTTON,
-  TID_CHAT_SUMMARY_PANEL,
   TID_CHAT_STOP_BUTTON,
   TID_CHAT_USER_MESSAGE,
   TID_CHAT_VIEW,
@@ -721,21 +720,11 @@ export async function getChatRootSnapshot(): Promise<ChatRootSnapshot> {
   // 修复原因：V4 的 active goal 是 session status panel 的实时投影，taskListCache
   // 只承载侧栏摘要，首次创建的 session 在 title/cache 尚未回流时 taskMeta 可以为空。
   // 继续只读 taskMeta 会把已经运行的 goal 误判成无 target。
-  const goalProjection = await browser.execute(
-    (paneTestId, panelTestId) => {
-      const pane = document.querySelector<HTMLElement>(`[data-testid="${paneTestId}"]`);
-      const panel = pane?.querySelector<HTMLElement>(`[data-testid="${panelTestId}"]`);
-      if (!panel) {
-        return null;
-      }
-      return {
-        objective: panel.getAttribute("data-goal-objective"),
-        status: panel.getAttribute("data-goal-status"),
-      };
-    },
-    testId(TID_V4_SESSION_PANE, "workspace-main"),
-    TID_CHAT_SUMMARY_PANEL,
-  );
+  const goalProjection = await browser.execute((paneTestId) => {
+    const pane = document.querySelector<HTMLElement>(`[data-testid="${paneTestId}"]`);
+    if (!pane?.dataset.goalStatus) return null;
+    return { status: pane.dataset.goalStatus, objective: pane.dataset.goalObjective ?? null };
+  }, testId(TID_V4_SESSION_PANE, "workspace-main"));
   const hasBlockingGoalWork =
     goalProjection?.status === "active" || goalProjection?.status === "verifying";
   // Bug 根因：V4 Stop 控件已经可见时，store bridge 仍可能停在上一帧 completed。

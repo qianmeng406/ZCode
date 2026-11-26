@@ -200,8 +200,10 @@ describe("compaction restore under a Read deny rule written as a relative path",
         "content" in entry ? String(entry.content) : JSON.stringify(entry),
       );
 
-      expect(texts).toHaveLength(1);
-      expect(texts[0]).toContain("export const plain = 1;");
+      // 一个文件两条：调用说明一条，结果一条。
+      expect(texts).toHaveLength(2);
+      expect(texts[0]).toContain(`${workspace}/plain.ts`);
+      expect(texts[1]).toContain("export const plain = 1;");
       expect(texts.join("\n")).not.toContain("TOKEN=1");
       // 路径按宿主的 node:path 解析（Windows 上带盘符与反斜杠），断言前统一成 POSIX 形状。
       expect(restore.readFileStateEntries.map((entry) => toPosixPath(entry.path))).toEqual([

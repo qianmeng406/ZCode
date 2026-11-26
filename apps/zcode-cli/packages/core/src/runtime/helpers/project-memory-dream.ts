@@ -222,6 +222,7 @@ async function executeProjectMemoryDream(
 
       const loopResult = await runMemoryAgentLoop({
         ...(options.abortSignal ? { abortSignal: options.abortSignal } : {}),
+        bashShellSelection: context.bashShellSelection,
         entries: projectMemoryAgentEntries(context, prompt),
         executeToolCalls: (toolCalls, toolOptions) => {
           for (const toolCall of toolCalls) {

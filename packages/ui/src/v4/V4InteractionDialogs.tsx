@@ -1,11 +1,13 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import type { ZCodeElicitationRequest, ZCodePermissionOption, ZCodeProvider } from "@zcode/shared";
+import { captureRecentOrder } from "@/lib/composerRecent.js";
+import type { ComposerScope } from "@/v4/composer/composerDraftStore.js";
 import type {
   ConversationSnapshot,
   UserInputRequestPayload,
 } from "@zcode/shared/zcode-protocol-v4";
+import { committedPermissionGrantMode, permissionGrantMode } from "@zcode/shared/zcode-protocol-v4";
 import type { ModelSelectionView } from "@zcode/provider";
-import type { ComposerScope } from "@/v4/composer/composerDraftStore.js";
 import type { PlanExecutionModelChoice, PlanExecutionModelGroup } from "@/ElicitationDialog.js";
 import { PermissionDialog } from "@/PermissionDialog.js";
 import { workflowSessionModelOf } from "@/components/workflow-timeline/workflowRunSettings.js";
@@ -33,6 +35,17 @@ import {
 } from "@/v4/pendingInteractionAdapter.js";
 import { V4PlanElicitationDialog } from "@/v4/V4PlanElicitationDialog.js";
 import { V4UserInputDialog } from "@/v4/V4UserInputDialog.js";
+import { reportAppTelemetryEvent } from "@/lib/appTelemetry.js";
+import {
+  buildPermissionPromptResultTelemetryEvent,
+  createPermissionPromptShownClock,
+  resolveConversationRewindTarget,
+} from "@zcode/shared/conversation-telemetry";
+
+// 授权弹窗首次在本窗口出现的时间（wait_ms 起点）。按 interactionId 存在模块级：切换会话、
+// SessionPane 重挂载都不能重置计时；不用 CLI 的 createdAt，远程工作区两端时钟可能不一致。
+const permissionPromptShownClock = createPermissionPromptShownClock();
+import { PluginInstallCard } from "@/v4/PluginInstallCard.js";
 import { useV4Conversation } from "@/v4/V4ConversationContext.js";
 
 export interface V4InteractionDialogsProps {
@@ -83,6 +96,7 @@ export function V4InteractionDialogs({
   snapshot,
   modelSelectionView,
   onCommandSettled,
+  resolveRecentScope,
   onPlanInteractionAccepted,
 }: V4InteractionDialogsProps) {
   const { sendCommand } = useV4Conversation();
@@ -105,8 +119,11 @@ export function V4InteractionDialogs({
   // 这里只选择本组件可渲染的首个交互，同时保留 permission/userInput 的队列顺序。
   const pending =
     currentSnapshot?.pendingInteractions.find(
-      (interaction) =>
-        interaction.payload.kind === "permission" || interaction.payload.kind === "userInput",
+        (interaction) =>
+          interaction.payload.kind === "permission" ||
+          interaction.payload.kind === "userInput" ||
+          interaction.payload.kind === "pluginInstall",
+
     ) ?? null;
   const workspaceHookReview = currentSnapshot?.pendingInteractions.find(
     (interaction) => interaction.payload.kind === "workspaceHookReview",
@@ -212,9 +229,20 @@ export function V4InteractionDialogs({
         sessionId,
         payload: { interactionId, answer },
       });
-      // 权限/freeText/content 不落盘；registry 只持摘要，用于 ACK 丢失后的 query 对账。
-      pendingCommandRegistry.record(envelope);
       try {
+        const mode = permissionGrantMode(answer.optionId);
+        if (mode) {
+          const order = captureRecentOrder();
+          pendingCommandRegistry.record(
+            envelope,
+            { workspace: { workspacePath, workspaceIdentity } },
+            async () => ({
+              order,
+              mode,
+              scope: await resolveRecentScope(sessionId),
+            }),
+          );
+        } else pendingCommandRegistry.record(envelope);
         const ack = await sendCommand(envelope);
         pendingCommandRegistry.applyAck(envelope, ack);
         const accepted =
@@ -226,15 +254,22 @@ export function V4InteractionDialogs({
             reasonCode: ack.reasonCode,
           });
         }
-        return accepted;
+        return {
+          accepted,
+          ackStatus: ack.status,
+          committedMode:
+            mode && ack.status === "failed"
+              ? committedPermissionGrantMode(ack.reasonCode)
+              : undefined,
+        };
       } catch (error) {
         logger.error("[v4-interaction] resolveInteraction 失败", { interactionId, error });
-        return false;
+        return { accepted: false, ackStatus: "failed", committedMode: undefined };
       } finally {
         onCommandSettled?.(envelope.commandId);
       }
     },
-    [onCommandSettled, sendCommand, sessionId],
+    [onCommandSettled, resolveRecentScope, sendCommand, sessionId, workspaceIdentity, workspacePath],
   );
 
   const snoozeAutoResolution = useCallback(
@@ -325,7 +360,23 @@ export function V4InteractionDialogs({
     return null;
   }
 
+  if (pending.payload.kind === "pluginInstall") {
+    return (
+      <PluginInstallCard
+        key={pending.interactionId}
+        request={pending.payload}
+        onRespond={(optionId) =>
+          resolveInteraction(pending.interactionId, { optionId }).then(({ accepted }) => accepted)
+        }
+      />
+    );
+  }
+
   if (pending.payload.kind === "permission") {
+    permissionPromptShownClock.markShown(pending.interactionId, Date.now());
+    const permissionPayload = pending.payload;
+    const response =
+      permissionResponse?.interactionId === pending.interactionId ? permissionResponse : null;
     const request = pendingPermissionToLegacyRequest(sessionId, {
       ...pending,
       payload: pending.payload,
@@ -363,7 +414,35 @@ export function V4InteractionDialogs({
             optionId: option.optionId,
             ...(feedback ? { freeText: feedback } : {}),
             ...(content === undefined ? {} : { content }),
-          }).then((accepted) => {
+          }).then(({ accepted, ackStatus, committedMode }) => {
+            // 已收口过的 interaction 不再上报（双击 / 连点）；规则见 createPermissionPromptShownClock。
+            const claim = permissionPromptShownClock.claimReport(interactionId, ackStatus);
+            if (platform && claim.report) {
+              void reportAppTelemetryEvent(
+                platform,
+                buildPermissionPromptResultTelemetryEvent({
+                  sessionId,
+                  messageId:
+                    pending.anchorRowId === null || !currentSnapshot
+                      ? undefined
+                      : resolveConversationRewindTarget(
+                          currentSnapshot.rows.window,
+                          pending.anchorRowId,
+                        ).targetMessageId,
+                  toolName: permissionPayload.toolName,
+                  toolCallId: permissionPayload.toolCallId,
+                  option,
+                  feedback,
+                  fromSubagent: permissionPayload.origin?.kind === "subagent",
+                  askMode: currentSnapshot?.config?.mode,
+                  modeSwitch: permissionPayload.modeSwitch,
+                  shownAt: claim.shownAt,
+                  respondedAt: Date.now(),
+                  ackStatus,
+                }),
+                "V4InteractionDialogs",
+              );
+            }
             if (permissionResponseFlight.current !== interactionId) return;
             permissionResponseFlight.current = null;
             setPermissionResponse({ interactionId, pending: false, failed: !accepted });
@@ -414,7 +493,9 @@ export function V4InteractionDialogs({
               }
             : undefined
         }
-        resolveInteraction={resolveInteraction}
+        resolveInteraction={(interactionId, answer) =>
+          resolveInteraction(interactionId, answer).then(({ accepted }) => accepted)
+        }
         onPlanInteractionAccepted={isExitPlanMode ? onPlanInteractionAccepted : undefined}
       />
     );

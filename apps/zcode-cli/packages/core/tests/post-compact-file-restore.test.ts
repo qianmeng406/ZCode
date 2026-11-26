@@ -55,9 +55,9 @@ describe("post-compact file restore", () => {
     ]);
     // 补回的是磁盘上的当前内容，不是读取状态里缓存的视图。
     expect(restore.entries.map(attachmentText)).toEqual([
-      restoredText(files.read, `1\tdisk ${files.read}`),
-      restoredText(files.written, `1\tdisk ${files.written}`),
-      restoredText(files.edited, `1\tdisk ${files.edited}`),
+      ...restoredText(files.read, `1\tdisk ${files.read}`),
+      ...restoredText(files.written, `1\tdisk ${files.written}`),
+      ...restoredText(files.edited, `1\tdisk ${files.edited}`),
     ]);
     expect(restore.entries.every(isFileRestoreAttachment)).toBe(true);
     expect(restore.readFileStateEntries.map((restored) => restored.path)).toEqual([
@@ -79,9 +79,9 @@ describe("post-compact file restore", () => {
       readFileState,
     });
 
-    expect(restore.entries.map(attachmentText)).toEqual([
+    expect(restore.entries.map(attachmentText)).toEqual(
       restoredText(file, "1\tone\n2\ttwo\n3\tthree"),
-    ]);
+    );
     expect(restore.readFileStateEntries).toEqual([
       expect.objectContaining({
         content: "one\ntwo\nthree",
@@ -101,12 +101,12 @@ describe("post-compact file restore", () => {
       readFileState: createState([entry(file, { sourceTool: "Read" })]),
     });
 
-    expect(restore.entries.map(attachmentText)).toEqual([
+    expect(restore.entries.map(attachmentText)).toEqual(
       restoredText(
         file,
         "<system-reminder>Warning: the file exists but the contents are empty.</system-reminder>",
       ),
-    ]);
+    );
   });
 
   it("skips files Read in the preserved segment unless that Read returned file_unchanged", async () => {
@@ -224,6 +224,8 @@ describe("post-compact file restore", () => {
       referenceText(truncated),
       referenceText(tooLarge),
     ]);
+    // 引用提示用自己的来源，和其余 compaction 附件一样投影；补回的正文才是 user 侧。
+    expect(restore.entries.every(isFileReferenceAttachment)).toBe(true);
     expect(
       restore.readFileStateEntries.map((restored) => [restored.path, restored.isPartialView]),
     ).toEqual([
@@ -369,12 +371,12 @@ function textRead(
   };
 }
 
-function restoredText(filePath: string, body: string): string {
+// 每个文件两条：调用说明一条，结果一条。
+function restoredText(filePath: string, body: string): string[] {
   return [
     `Called the Read tool with the following input: ${JSON.stringify({ file_path: filePath })}`,
-    "Result of calling the Read tool:",
-    body,
-  ].join("\n");
+    `Result of calling the Read tool:\n${body}`,
+  ];
 }
 
 function referenceText(filePath: string): string {
@@ -387,4 +389,8 @@ function attachmentText(entry: RuntimeMessageEntry): string {
 
 function isFileRestoreAttachment(entry: RuntimeMessageEntry): boolean {
   return !("message" in entry) && entry.metadata.source === "resume_referenced_session_context";
+}
+
+function isFileReferenceAttachment(entry: RuntimeMessageEntry): boolean {
+  return !("message" in entry) && entry.metadata.source === "compact_file_reference";
 }

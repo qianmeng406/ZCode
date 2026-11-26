@@ -45,6 +45,7 @@ const SORTED_PROVIDER_TOOL_NAMES = new Set([
   "TodoRead",
   "TodoWrite",
   "ToolSearch",
+  "WaitForMcpServers",
   "WebFetch",
   "WebSearch",
   "Workflow",

@@ -378,6 +378,7 @@ export function AnimatedSidePanePanel({
   onOpenDeveloperTools,
   onOpenFileManager,
   onNavigateFileManager,
+  onCodeViewerFocusRequestApplied,
   onOpenPluginMarket,
   onCreateTask,
   onOpenTerminalTab,
@@ -471,6 +472,7 @@ export function AnimatedSidePanePanel({
   onOpenDeveloperTools: () => void;
   onOpenFileManager: (target?: FileManagerTarget) => void;
   onNavigateFileManager: (tabId: string, source: CodeViewerSource) => void;
+  onCodeViewerFocusRequestApplied: (tabId: string, requestId: string) => void;
   onOpenPluginMarket?: () => void;
   onCreateTask?: (request?: CreateTaskRequest) => void;
   onOpenTerminalTab: () => void;
@@ -1376,6 +1378,14 @@ export function AnimatedSidePanePanel({
                             mobileOverlay={mobileOverlay}
                             canOpenLocalFileManager={Boolean(isDesktop)}
                             onNavigate={(source) => onNavigateFileManager(tab.id, source)}
+                            // 文件链接定位只执行一次：已执行的请求记在 code-viewer tab 上，预览据此不再滚动。
+                            {...(tab.type === "code-viewer"
+                              ? {
+                                  appliedFocusRequestId: tab.appliedFocusRequestId,
+                                  onFocusRequestApplied: (requestId: string) =>
+                                    onCodeViewerFocusRequestApplied(tab.id, requestId),
+                                }
+                              : {})}
                             onClose={() => onCloseTab(tab.id)}
                             workspacePath={taskCwd ?? workspaceAbsPath}
                             onOpenBrowserUrl={onOpenBrowserUrl}
@@ -1582,7 +1592,8 @@ export function AnimatedSidePanePanel({
           data-workspace-side-pane-resize-handle="true"
           className={cn(
             WORKSPACE_VERTICAL_RESIZE_HANDLE_CLASS_NAME,
-            "aria-[orientation=vertical]:w-[3px] after:left-px",
+            // 3px 间隙配 2px 指示线，固定 left:1px 会右偏 0.5px；沿用手柄 flex 居中。
+            "aria-[orientation=vertical]:w-[3px]",
             mobileStacked && "max-md:hidden",
           )}
         />

@@ -16,7 +16,6 @@ import { buildCliPrefixSection } from "./sections/cli-prefix.js";
 import { buildIdentitySection } from "./sections/identity.js";
 import { buildWorkflowActorIdentitySection } from "./sections/workflow-actor.js";
 import { buildEnvironmentSections, buildGitSystemContextSection } from "./sections/env-info.js";
-import { buildSkillsSection } from "./sections/skills.js";
 import { buildRequestUserContextSection } from "./sections/request-user-context.js";
 import { buildCurrentDateSection } from "./sections/current-date.js";
 import { buildMemorySection } from "./sections/memory.js";
@@ -31,6 +30,8 @@ import {
 import {
   buildContextManagementSection,
   buildDynamicBehaviorSection,
+  buildFinishingWorkSection,
+  buildMemoryNotesSection,
   buildSessionGuidanceSection,
   buildTotalTokensSection,
 } from "./dynamic-sections.js";
@@ -40,8 +41,6 @@ import {
 // -----------------------------------------------
 
 const EPHEMERAL_CACHE_CONTROL = { type: "ephemeral" as const };
-/** Skill 工具的注册名（与 tool/handlers/skill.ts 的 metadata.name 同字面；contracts 没有常量）。 */
-const SKILL_TOOL_NAME = "Skill";
 
 export class ContextBuilder {
   private config: ContextBuilderConfig;
@@ -170,6 +169,7 @@ export class ContextBuilder {
       sections.push(...environmentSections);
       sections.push(buildMinimalGuardrailsSection());
     } else if (!hasCustomSystemPrompt) {
+
       if (!isWorkflowActor && this.config.presentationSurface === "zcode_desktop") {
         sections.push(buildDesktopContextSection(Boolean(this.config.genUiOutputDirectory)));
       }
@@ -210,12 +210,16 @@ export class ContextBuilder {
       }
       sections.push(...environmentSections);
 
-      // Context Management
+      // Context management preserves the fork's fusion variant while upstream adds optional reminders.
       sections.push(
         useFusionSections ? buildFusionContextManagementSection() : buildContextManagementSection(),
       );
-      // 固定的 token 预算行，system 的最后一段（倒数由请求提醒附件表达）。
-      sections.push(buildTotalTokensSection());
+      // Workflow actors have their own completion contract.
+      if (!isWorkflowActor) {
+        sections.push(buildFinishingWorkSection(), buildMemoryNotesSection());
+      }
+      const totalTokensSection = buildTotalTokensSection(this.config.totalTokensReminder === true);
+      if (totalTokensSection) sections.push(totalTokensSection);
 
       const gitSystemContextSection = buildGitSystemContextSection(this.config.envInfo);
       if (gitSystemContextSection) {
@@ -234,19 +238,7 @@ export class ContextBuilder {
       sections.push(sessionExecutionSection);
     }
 
-    // 4. Skills appear as a meta user system-reminder, matching provider block layout.
-    // guidanceToolNames 是 runtime 当下的
-    // 工具表；一个 Skill 工具未注册的工作流子代理被告知「以下技能可经 Skill 工具使用」，
-    // 只会让它相信自己有一个没有的工具。表缺席（测试 / 旧调用方）时保持既有行为。
-    if (!isMinimalProfile && this.config.skills && this.skillToolAvailable()) {
-      const skillsSection = buildSkillsSection({
-        outcome: this.config.skills,
-        metadataBudget: this.config.skillMetadataBudget,
-      });
-      if (skillsSection) {
-        sections.push(skillsSection);
-      }
-    }
+    // Skills are announced incrementally by the runtime's live skills_listing collector.
 
     // 5. Meta user context（workspace instructions / project memory）；日期是其后的独立公告。
     // 极简模式连 meta_user 附件一起不发：workspace instructions / 项目记忆 / 当前日期
@@ -290,11 +282,6 @@ export class ContextBuilder {
       systemMessages,
       metaUserAttachments,
     };
-  }
-
-  private skillToolAvailable(): boolean {
-    const names = this.config.guidanceToolNames;
-    return names === undefined || names.includes(SKILL_TOOL_NAME);
   }
 
   private assembleSystemMessages(sections: ContextSection[]): ModelInputMessage[] {
@@ -358,7 +345,6 @@ export function buildMetaUserAttachments(sections: ContextSection[]): ContextMet
   // 来源明确分流；不再把日期、环境和 Git 折进指令 carrier。
   const sourceMap: Partial<Record<ContextSection["source"], ContextMetaUserAttachment["source"]>> =
     {
-      skills: "skills_listing",
       request_user_context: "context_prefix",
       session_context: "session_context",
     };

@@ -20,17 +20,36 @@
 
 ## 上游基线
 
-- 上游项目为 [zai-org/ZCode](https://github.com/zai-org/ZCode)（Apache-2.0）；本仓库基于官方 **v3.18.2**（tag `v3.18.2`，提交 [`fec97590`](https://github.com/zai-org/ZCode/commit/fec975905a2abd4c07e35c40d51fa097a2258ec9)），根目录 `package.json` 版本同为 `3.18.2`。
-- 3.18.0—3.18.1 未打 git tag，以上游 `main` 的同步提交发布；3.18.2 起官方恢复打 tag，但 `--is-ancestor` 校验仍以 commit SHA 为准。
-- 跟进官方新版本时如何保留定制能力，见 [docs/upstream-sync.md](docs/upstream-sync.md)。
-- 官方文档：[中文 README](https://github.com/zai-org/ZCode/blob/main/README.md)、[英文 README](https://github.com/zai-org/ZCode/blob/main/README.en.md)、[UI Plugin 开发说明](https://github.com/zai-org/ZCode/blob/aac4755666d09fdcd70272fcf063c077a639015f/UI_PLUGIN.md)。官方新版中的功能、目录和命令不一定存在于本定制版，请以当前检出的源码与 `package.json` 为准。
+- **最新官方版本**：截至 2026-11-23，官方发布版本为 [v4.0.0](https://github.com/zai-org/ZCode/tree/v4.0.0)，上游基线提交为 [`a4b44451`](https://github.com/zai-org/ZCode/commit/a4b4445141eb7d3b3e99eada9292775383bfc44e)。
+- **本 fork 的上游基线**：本仓库已同步至官方 v4.0.0（上游基线提交 `a4b4445141eb7d3b3e99eada9292775383bfc44e`），根目录 `package.json` 产品版本为 `4.0.0`。定制内容是在官方基线上继续维护的 fork，并非官方发行版；同步流程见 [docs/upstream-sync.md](docs/upstream-sync.md)。
+- **官方文档**：[中文 README](https://github.com/zai-org/ZCode/blob/main/README.md)、[英文 README](https://github.com/zai-org/ZCode/blob/main/README.en.md) 与 [UI Plugin 开发说明](https://github.com/zai-org/ZCode/blob/v4.0.0/UI_PLUGIN.md)。官方新版中的功能、目录和命令不一定存在于本定制版，请以当前检出的源码与 `package.json` 为准。
+
+## 官方版本更新记录
+
+- **2026-11-23**：同步至 ZCode v4.0.0。
+- 2026-11-12：同步至 ZCode v3.18.2。
+- 2026-11-12：同步至 ZCode v3.18.1。
+- 2026-11-11：同步至 ZCode v3.18.0。
+- 2026-11-03：同步至 ZCode v3.17.2。
+- 2026-10-30：同步至 ZCode v3.17.1。
+- 2026-10-29：同步至 ZCode v3.17.0。
+- 2026-10-19：同步至 ZCode v3.16.2。
+- 2026-10-16：同步至 ZCode v3.16.1。
+- 2026-10-16：同步至 ZCode v3.15.4。
+- 2026-10-10：同步至 ZCode v3.15.1。
+- 2026-09-23：同步至 ZCode v3.14.3。
+
+- 上游项目为 [zai-org/ZCode](https://github.com/zai-org/ZCode)（Apache-2.0）；本仓库已同步至官方 **v4.0.0**（上游基线提交 [`a4b44451`](https://github.com/zai-org/ZCode/commit/a4b4445141eb7d3b3e99eada9292775383bfc44e)）。本仓库产品版本与上游基线版本分别以根目录 `package.json` 与同步记录为准。
+- 较早版本的发布/tag 情况及祖先校验说明仅适用于对应历史版本；跟进官方新版本时如何保留定制能力，见 [docs/upstream-sync.md](docs/upstream-sync.md)。
+- 官方文档：[中文 README](https://github.com/zai-org/ZCode/blob/main/README.md)、[英文 README](https://github.com/zai-org/ZCode/blob/main/README.en.md)、[UI Plugin 开发说明](https://github.com/zai-org/ZCode/blob/v4.0.0/UI_PLUGIN.md)。官方新版中的功能、目录和命令不一定存在于本定制版，请以当前检出的源码与 `package.json` 为准。
 
 ## 版本更新记录
 
-官方 3.18.x 起基线以上游 `main` 的同步提交为准；校验祖先关系用提交 SHA 而非 tag。各版本同步时均保留全部既有定制能力。
+当前基线为官方 v4.0.0；下表保留此前同步版本记录，校验上游祖先关系时使用对应提交 SHA。每次同步均评估并保留仍适用的定制能力。
 
 | 本仓库同步时间 | 上游版本 | 上游基线提交                                                                                                                     |
 | -------------- | -------- | -------------------------------------------------------------------------------------------------------------------------------- |
+| 2026-11-26     | v4.0.0   | [`a4b44451`](https://github.com/zai-org/ZCode/commit/a4b4445141eb7d3b3e99eada9292775383bfc44e)                                   |
 | 2026-11-22     | v3.18.2  | [`fec97590`](https://github.com/zai-org/ZCode/commit/fec975905a2abd4c07e35c40d51fa097a2258ec9)                                   |
 | 2026-11-13     | v3.18.1  | [`c5904686`](https://github.com/zai-org/ZCode/commit/c5904686ea8341826b3affe5d993d06a134fa779)                                   |
 | 2026-11-08     | v3.17.2  | [`a9fe401e`](https://github.com/zai-org/ZCode/commit/a9fe401eede6e6e5e01be9048679c206fe6f02d9)                                   |
@@ -40,9 +59,13 @@
 | 2026-10-13     | v3.15.1  | [`aac4755`](https://github.com/zai-org/ZCode/commit/aac4755666d09fdcd70272fcf063c077a639015f)（自 Myzcode 迁移定制内容时的基线） |
 | 2026-09-23     | v3.14.3  | [`29628c9`](https://github.com/zai-org/ZCode/commit/29628c9acdb81b703bbd4080c207a0e7ce5e276e)（旧仓库 Myzcode 的原始基线）       |
 
+## 最近一次同步验证（2026-11-27）
+
+v4.0.0 上游同步分支已完成 Windows `pnpm dev:package --full` 出包，Preview `--dir` 产物构建成功。定向 UI 测试 9/9 通过；CLI 定向测试 `edit-tool-contract` 36/36、`subagent-background` 34/34、`runtime-memory-dream` 10/10 通过，`@zcode/core` 单包 typecheck 通过。尚未运行 CLI 全包 typecheck、全量 E2E 或启动应用后的交互验收；本记录不代表完整发布验收。
+
 ## 本定制版的新增与改动
 
-以下列出本仓库在官方 v3.18.2 基线之上的定制能力与修改，不表示这些能力全部为本项目独有。官方后续版本可能提供相似功能。
+以下列出本仓库在官方 v4.0.0 基线之上的定制能力与修改，不表示这些能力全部为本项目独有。官方后续版本可能提供相似功能。
 
 ### 一、新增功能
 
@@ -394,7 +417,7 @@ node dist/zcode/debug/zcode/bin/zcode.mjs --web \
 
 ## 仓库结构
 
-以下为本定制仓库的主要目录；`本定制版新增` 表示相对上游 v3.18.2 基线新增，不是官方最新源码树的完整目录清单。
+以下为本定制仓库的主要目录；`本定制版新增` 表示相对上游 v4.0.0 基线新增，不是官方最新源码树的完整目录清单。
 
 | 目录                                                 | 职责                                       |
 | ---------------------------------------------------- | ------------------------------------------ |

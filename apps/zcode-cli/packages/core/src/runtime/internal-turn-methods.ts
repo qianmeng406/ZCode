@@ -1,3 +1,4 @@
+import type { ToolSearchDelivery } from "@zcode/contracts";
 import type { BackgroundBashOutputResult } from "@zcode/shared";
 import type {
   ExternalSubagentTranscriptEntry,
@@ -367,10 +368,12 @@ export interface AgentRuntimeTurnMethods {
     compactBoundary: CompactBoundaryPayload,
     traceContext: TraceContext,
     options?: {
+      created?: number;
       model?: Model;
       operationId?: string;
       leadingReminderEntries?: readonly RuntimeMessageEntry[];
       postCompactReminderEntries?: readonly RuntimeMessageEntry[];
+      toolSearchDelivery?: ToolSearchDelivery;
     },
   ): Promise<void>;
   persistUserPrompt(
@@ -434,6 +437,7 @@ export interface AgentRuntimeTurnMethods {
           finish?: string;
           tokens?: unknown;
           signedReasoningReset?: boolean;
+          toolSearchDelivery?: ToolSearchDelivery;
         }
       | undefined,
     traceContext: TraceContext,

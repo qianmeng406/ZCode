@@ -15,16 +15,17 @@ This repository is a personal customization of ZCode, an AI coding workspace wit
 
 ## Upstream Version and Sync Status
 
-- **Latest official source**: As of 2026-11-13, official `main` points to [the v3.18.2 commit `fec97590`](https://github.com/zai-org/ZCode/commit/fec975905a2abd4c07e35c40d51fa097a2258ec9), also tagged `v3.18.2`.
-- **This fork's upstream baseline**: This repository is based on the official v3.18.2 commit `fec97590`; the root `package.json` version is `3.18.2`. Official 3.18.0/3.18.1 were published as `main` sync commits without a git tag; 3.18.2 restored a tag, but ancestry checks still use the commit SHA. The customizations are applied as a series of commits on top of the official baseline (migration plus later feature commits); see [docs/upstream-sync.md](docs/upstream-sync.md) for the follow-up sync workflow.
-- **Official documentation**: [Chinese README](https://github.com/zai-org/ZCode/blob/main/README.md), [English README](https://github.com/zai-org/ZCode/blob/main/README.en.md), and [UI Plugin development guide](https://github.com/zai-org/ZCode/blob/aac4755666d09fdcd70272fcf063c077a639015f/UI_PLUGIN.en.md). Features, directories, and commands in newer official versions may not exist in this fork. Use the checked-out source and `package.json` as the source of truth.
+- **Latest official version**: As of 2026-11-23, the official release is [v4.0.0](https://github.com/zai-org/ZCode/tree/v4.0.0), based on upstream commit [`a4b44451`](https://github.com/zai-org/ZCode/commit/a4b4445141eb7d3b3e99eada9292775383bfc44e).
+- **This fork's upstream baseline**: This repository is synced to official v4.0.0 (upstream baseline `a4b4445141eb7d3b3e99eada9292775383bfc44e`), and its root `package.json` product version is `4.0.0`. Customizations continue on top of the official baseline; this remains a personal fork, not an official release. See [docs/upstream-sync.md](docs/upstream-sync.md) for the sync workflow.
+- **Official documentation**: [Chinese README](https://github.com/zai-org/ZCode/blob/main/README.md), [English README](https://github.com/zai-org/ZCode/blob/main/README.en.md), and [UI Plugin development guide](https://github.com/zai-org/ZCode/blob/v4.0.0/UI_PLUGIN.en.md). Features, directories, and commands in newer official versions may not exist in this fork. Use the checked-out source and `package.json` as the source of truth.
 
 ## Version History
 
-Since 3.18.x the baseline is the upstream `main` sync commit, and ancestry checks use the commit SHA. Every sync keeps all existing customizations.
+Every upstream sync keeps applicable fork customizations. The current baseline is v4.0.0; earlier milestones are retained below.
 
 | Fork sync date | Upstream version | Upstream baseline commit                                                                                                                        |
 | -------------- | ---------------- | ----------------------------------------------------------------------------------------------------------------------------------------------- |
+| 2026-11-26     | v4.0.0           | [`a4b44451`](https://github.com/zai-org/ZCode/commit/a4b4445141eb7d3b3e99eada9292775383bfc44e)                                                  |
 | 2026-11-22     | v3.18.2          | [`fec97590`](https://github.com/zai-org/ZCode/commit/fec975905a2abd4c07e35c40d51fa097a2258ec9)                                                  |
 | 2026-11-13     | v3.18.1          | [`c5904686`](https://github.com/zai-org/ZCode/commit/c5904686ea8341826b3affe5d993d06a134fa779)                                                  |
 | 2026-11-08     | v3.17.2          | [`a9fe401e`](https://github.com/zai-org/ZCode/commit/a9fe401eede6e6e5e01be9048679c206fe6f02d9)                                                  |
@@ -34,37 +35,9 @@ Since 3.18.x the baseline is the upstream `main` sync commit, and ancestry check
 | 2026-10-13     | v3.15.1          | [`aac4755`](https://github.com/zai-org/ZCode/commit/aac4755666d09fdcd70272fcf063c077a639015f) (baseline of the Myzcode customization migration) |
 | 2026-09-23     | v3.14.3          | [`29628c9`](https://github.com/zai-org/ZCode/commit/29628c9acdb81b703bbd4080c207a0e7ce5e276e) (original baseline of the old Myzcode repo)       |
 
-## Fork Customizations
+## Latest Sync Verification (2026-11-27)
 
-This fork adds external agent orchestration — bind a session to an external CLI agent (CodeBuddy, OpenCode, Qoder CLI CN, Qoder CLI, Command Code) and supervise read-only while delegating — plus external CLIs as subagents and as built-in execution channels (general-purpose / Explore, with per-CLI verified read-only modes), dual-model review (Oracle), execution-model selection during plan approval, turn navigation, goal controls, permission modes, prompt optimization, and a per-session WSL execution environment. See [README.md](README.md) for details.
-
-**Beta mode (prompt-fusion mode test version)** is an independent, mutually exclusive work mode (`mode=beta`) in the composer menu, alongside the confirmation, autonomous, research, and full-access modes. It combines progress within authorization, minimal complete changes, purposeful delegation, and evidence-based verification while retaining skills, memory, and project instructions. It uses full-access permissions with fewer confirmations. Plan remains an independent switch (read-only while on); selecting another work mode exits Beta. See the [Beta mode specification](apps/zcode-cli/docs/design/v2/loop/fusion-context-profile.md).
-
-**Upstream model fetching** lets the add-model dialog pull model IDs from the current provider's OpenAI-compatible `/models` endpoint into a searchable picker. Selecting an entry only fills the draft; saving still requires confirmation. Built-in official account providers are explicitly unsupported, and failures keep manual input intact. Credentials never cross the protocol boundary, and errors are reported as redacted categories.
-
-**Compact-context button** adds a one-click action inside the context usage panel that triggers the existing `/compact` flow. It is disabled while a compaction is already running or the session cannot accept input; no second compaction protocol is introduced.
-
-**Composer main-turn metrics capsule** persistently shows the latest main-turn (`main_turn`) request's time to first token, generation speed (tok/s), and output tokens below the input box. Subagents, compaction, and title generation never affect the metrics; missing facts render an `--` placeholder instead of an estimate. Specifications live in [docs/features/](docs/features/).
-
-**Input prediction (candidates ride on the main turn)**: when enabled (Settings toggle), each main request's prompt tail carries a request-only directive (never persisted to the transcript) asking the model to end its reply with a `<next_input>{"candidates":[{"text":"...","confidence":0.9}]}</next_input>` block of 1–3 likely next user inputs (each ≤40 chars, ordered by confidence). The CLI suppresses the block from the visible stream, parses the candidates at the completion boundary (clamp/dedupe/≤3), and strips it from the persisted text — share, export, and mobile rendering stay clean. Roughly one second after a reply finishes and the composer idles, a suggestion pill appears: **Tab / click to accept**, Esc or × to dismiss; while typing, only candidates starting with the draft are shown and the remainder completes it. The display gate is top confidence ≥ 0.6 (when in doubt, nothing shows). No extra model request is made and no additional budget is consumed.
-
-**Session handoff export** (right-click a session → "Export handoff") turns the current session into a handoff document for the next person or agent. Fully manual: **Generate summary** (calls a configurable handoff model, fixed five-section Markdown, ≤1000 words), **Generate full export** (zero-cost deterministic template), and **Cancel** while generating. The material covers only the last 3 full turns (single messages capped at 6k chars, at most 60 tool entries per turn with an omission note); tool entries render as compact one-liners instead of raw JSON. If the model is unavailable, a deterministic template is used and clearly labeled.
-
-**Goal controls** add pause/resume, deletion of the current goal, and "continue from this iteration" to the goal panel. A running goal cannot be deleted; continuing a historical iteration restarts the goal with that iteration's title, and pause/resume retries a bounded number of times when the snapshot revision is stale instead of silently doing nothing.
-
-**Per-subagent stop** lets foreground subagents be stopped individually from the status panel. The action appears only for rows that resolve to a background handle or runtime task id; rows explicitly marked non-cancellable stay disabled. (The fork's adapted variant was retired: upstream v3.18.1 ships the equivalent native `stopSubagent` capability, and this fork now uses it as is.)
-
-**Settings consolidation** moves the prompt optimizer (model, reasoning level, optimization method, and context range) and the review model into the Settings page. The composer keeps only the optimize, standard-review, and deep-review actions, and the previous locally stored model selection is migrated once.
-
-**Session execution environment** can run a single chat session in a local WSL distribution while the project files remain the same files on disk. The WSL user is optional: leaving it empty uses the distribution's default user without changing the system-wide default, and the composer/header shows the currently effective environment.
-
-**Conversation window collapse** keeps only the most recent conversation windows; earlier content is folded into a "load earlier" entry at the top and fetched incrementally on demand. Enabling it noticeably lowers memory and CPU usage in long sessions. The toggle lives in Settings → Performance.
-
-**Streaming render performance settings** add a dedicated Settings → Performance page for streaming-render optimizations. **Every toggle is off by default**; when off, the render path is identical to the standard one, and each option can be enabled individually: streaming Markdown incremental parsing (only the tail block being generated is re-parsed; finished paragraphs are reused), render-unit reuse (unchanged turns are not rebuilt), scoped run-clock refresh (the per-second timer only refreshes the turn that is actually working; best enabled together with render-unit reuse), coalesced bottom-follow scrolling (multiple scroll writes within one frame merge into one), and coalesced delta frames (multiple streaming deltas arriving within one render frame commit once; text may lag by at most one frame). Parsing/render cost per frame drops noticeably for long replies and long sessions, with no change to the displayed result.
-
-These customizations are described relative to the official v3.18.2 baseline, not as a claim of exclusive features. Later official versions may offer similar capabilities.
-
-The development and packaging instructions below describe this fork's current commands, including its runtime asset preparation changes; they are not a complete mirror of the latest official README.
+The v4.0.0 upstream-sync branch completed a Windows `pnpm dev:package --full` build, including the Preview `--dir` artifacts. Targeted UI tests passed (9/9); targeted CLI tests passed for `edit-tool-contract` (36/36), `subagent-background` (34/34), and `runtime-memory-dream` (10/10), and the `@zcode/core` package typecheck passed. The full CLI typecheck, full E2E suite, and post-launch interactive verification have not been run; this is not a complete release acceptance.
 
 ## Setup
 
@@ -270,7 +243,7 @@ Open `http://127.0.0.1:3030` to validate the complete flow, with one backend ser
 
 ## Repository Structure
 
-The following lists this fork's main directories, not the complete latest upstream source tree. Fork additions are identified relative to the v3.18.2 baseline.
+The following lists this fork's main directories, not the complete latest upstream source tree. Fork additions are identified relative to the v4.0.0 baseline.
 
 | Directory                                            | Responsibility                                                                          |
 | ---------------------------------------------------- | --------------------------------------------------------------------------------------- |

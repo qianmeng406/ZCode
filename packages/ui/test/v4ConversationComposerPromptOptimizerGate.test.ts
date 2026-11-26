@@ -3,6 +3,7 @@ import { renderToStaticMarkup } from "react-dom/server";
 import { describe, expect, it, vi } from "vitest";
 import type { ConversationSnapshot } from "@zcode/shared/zcode-protocol-v4";
 import { ServiceProvider } from "@/hooks/useServices.js";
+import { PlatformProvider } from "@/hooks/usePlatform.js";
 import { ZCodeIntlProvider } from "@/i18n/IntlProvider.js";
 import { ConversationComposer } from "@/v4/ConversationComposer.js";
 import { RemoteConversationAvailability } from "@/v4/RemoteConversationAvailability.js";
@@ -135,23 +136,26 @@ const AnyConversationComposer = ConversationComposer as unknown as (props: {
 
 function renderMarkup(promptOptimizerEnabled: boolean | undefined): string {
   return renderToStaticMarkup(
-    createElement(ZCodeIntlProvider, {
-      initialLocale: "zh-CN",
-      children: createElement(ServiceProvider, {
-        services: {} as never,
-        children: createElement(RemoteConversationAvailability, {
-          available: true,
-          children: createElement(AnyConversationComposer as never, {
-            snapshot: makeSnapshot(),
-            sessionId: "session-1",
-            workspacePath: "/workspace",
-            provider: undefined,
-            onSendText: vi.fn(async () => {}),
-            onStop: vi.fn(),
-            onSelectModel: vi.fn(),
-            onSelectThought: vi.fn(),
-            onSwitchMode: vi.fn(),
-            promptOptimizerEnabled,
+    createElement(PlatformProvider, {
+      platform: {} as never,
+      children: createElement(ZCodeIntlProvider, {
+        initialLocale: "zh-CN",
+        children: createElement(ServiceProvider, {
+          services: {} as never,
+          children: createElement(RemoteConversationAvailability, {
+            available: true,
+            children: createElement(AnyConversationComposer as never, {
+              snapshot: makeSnapshot(),
+              sessionId: "session-1",
+              workspacePath: "/workspace",
+              provider: undefined,
+              onSendText: vi.fn(async () => {}),
+              onStop: vi.fn(),
+              onSelectModel: vi.fn(),
+              onSelectThought: vi.fn(),
+              onSwitchMode: vi.fn(),
+              promptOptimizerEnabled,
+            }),
           }),
         }),
       }),

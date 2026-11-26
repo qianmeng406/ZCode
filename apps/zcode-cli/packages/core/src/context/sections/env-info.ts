@@ -3,13 +3,20 @@
 // ============================================================
 
 import type { ContextSection, EnvInfo } from "../types.js";
-import type { Model } from "@zcode/contracts";
 import type { SessionExecutionEnvironment } from "@zcode/shared";
+import type { Model } from "@zcode/contracts";
 import { estimateTokens } from "../utils.js";
 import { buildDesktopContextContent } from "./desktop.js";
 
 const ENVIRONMENT_HEADING = "# Environment";
 const ENVIRONMENT_UPDATE_HEADING = "# Environment update";
+// 修复原因：Windows 上 Bash 工具实际由 cmd.exe 执行，但工具名与描述都说 bash，模型照 bash 写命令
+// （冻结重放 36–42% 的下一步用了 cmd 不认的 Unix 命令）。Shell 为 cmd.exe 时把这段放进 Shell 行括号，
+// 完整块与换入 cmd.exe 的 update 都是。实验验证的是中文原文放在标题前（降到 1.3%，保留集 0.3%）；
+// 英文译文与放进括号都是产品决定，未经实验；改字需重新验证。
+const WINDOWS_CMD_SHELL_DISPLAY_NAME = "cmd.exe";
+const CMD_SHELL_RULE =
+  "Bash tool commands are parsed by cmd.exe. Do not use Unix commands such as ls, cat, head, tail, grep, or wc; prefer the dedicated file tools for listing directories and reading files, and use dir, type, or findstr when you need a shell command.";
 const WORKING_DIRECTORY_LABEL = "Primary working directory";
 const ADDITIONAL_DIRECTORIES_LABEL = "Additional working directories";
 const ADDITIONAL_DIRECTORIES_ADDED_LABEL = "Additional working directories added";
@@ -140,13 +147,20 @@ export function buildEnvironmentAnnouncement(
     !hasFullBlock ||
     previous.platform !== next.platform ||
     previous.osVersion !== next.osVersion;
-  if (full)
+  if (full) {
+    // 重发完整块时保留离开 cmd.exe 的事实；WSL 执行路由则覆盖宿主 Shell 行。
+    const leftCmd =
+      previous?.shell === WINDOWS_CMD_SHELL_DISPLAY_NAME &&
+      next.shell !== WINDOWS_CMD_SHELL_DISPLAY_NAME;
     return {
-      // WSL 会话的真实 Shell 与命令执行面只在执行环境里，公告必须和 System prompt 同源渲染，
-      // 否则模型看到的 Environment 仍写着宿主 Windows shell。
-      content: buildEnvInfoContent(next, sessionExecutionEnvironment),
+      content: buildEnvInfoContent(
+        next,
+        leftCmd ? previous?.shell : undefined,
+        sessionExecutionEnvironment,
+      ),
       environment: { full, snapshot: next },
     };
+  }
   const lines = [ENVIRONMENT_UPDATE_HEADING];
   if (previous.cwd !== next.cwd) {
     lines.push(` - ${WORKING_DIRECTORY_LABEL}: ${next.cwd} (was ${previous.cwd})`);
@@ -174,8 +188,7 @@ export function buildEnvironmentAnnouncement(
   }
   if (previous.shell !== next.shell) {
     // 旧 Windows 会话的 Shell 可能为空，没有可写的旧值。
-    const was = previous.shell ? ` (was ${previous.shell})` : "";
-    lines.push(` - ${SHELL_LABEL}: ${next.shell}${was}`);
+    lines.push(shellLine(next.shell, previous.shell));
   }
   const parts = lines.length === 1 ? [] : [lines.join("\n")];
   // Desktop 段按写法比较：换了写法追加整段新写法，离开 Desktop 追加一句不再适用。
@@ -201,6 +214,7 @@ export function buildEnvInfoSection(
 ): ContextSection {
   const content = buildEnvInfoContent(
     environmentSnapshot(envInfo, additionalDirectories),
+    undefined,
     sessionExecutionEnvironment,
   );
 
@@ -242,10 +256,11 @@ export function buildGitSystemContextSection(envInfo: EnvInfo): ContextSection |
 
 function buildEnvInfoContent(
   info: EnvironmentSnapshot,
+  previousShell?: string,
   sessionExecutionEnvironment?: SessionExecutionEnvironment,
 ): string {
   const directories = info.additionalWorkingDirectories;
-  // WSL 只切换命令执行，不把整个 runtime 冒充 Linux；Platform 始终是控制端 host 的事实。
+  // WSL 仅改变命令执行面；Platform 仍报告控制端 host。
   const wsl = sessionExecutionEnvironment?.kind === "wsl" ? sessionExecutionEnvironment : undefined;
   const lines: string[] = [
     ENVIRONMENT_HEADING,
@@ -260,19 +275,28 @@ function buildEnvInfoContent(
       ? [` - ${VISUALIZATION_DIRECTORY_LABEL}: ${info.visualizationDirectory}`]
       : []),
     ` - ${PLATFORM_LABEL}: ${info.platform}`,
-    ` - ${SHELL_LABEL}: ${wsl ? WSL_POSIX_SHELL : info.shell}`,
     ...(wsl
       ? [
-          ` - ${COMMAND_EXECUTION_LABEL}: WSL ${wsl.distro} (${
-            wsl.user?.trim() ? `user ${wsl.user.trim()}` : "default user"
-          })`,
+          ` - ${COMMAND_EXECUTION_LABEL}: WSL ${wsl.distro} (${wsl.user?.trim() ? `user ${wsl.user.trim()}` : "default user"})`,
         ]
       : []),
+    wsl
+      ? ` - ${SHELL_LABEL}: ${WSL_POSIX_SHELL}`
+      : shellLine(info.shell, previousShell),
     ` - ${OS_VERSION_LABEL}: ${info.osVersion}`,
     ` - ${UNTRUSTED_DOWNLOADS_NOTE}`,
   ];
   const desktop = desktopContextText(info);
   return desktop ? `${lines.join("\n")}\n\n${desktop}` : lines.join("\n");
+}
+
+/** Shell 行：括号里依次放 was 旧值与 CMD 规则，两者都没有时不带括号。 */
+function shellLine(shell: string, previousShell?: string): string {
+  const notes = [
+    ...(previousShell ? [`was ${previousShell}`] : []),
+    ...(shell === WINDOWS_CMD_SHELL_DISPLAY_NAME ? [CMD_SHELL_RULE] : []),
+  ];
+  return ` - ${SHELL_LABEL}: ${shell}${notes.length > 0 ? ` (${notes.join("; ")})` : ""}`;
 }
 
 function pathLines(paths: readonly string[]): string[] {

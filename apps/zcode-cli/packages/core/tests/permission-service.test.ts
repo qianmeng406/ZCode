@@ -1333,6 +1333,7 @@ describe("PermissionService alwaysAsk", () => {
     expect(check("yolo", service)).toMatchObject({
       allowed: false,
       decision: "deny",
+      reason: "Permission to use CreateWorkflow has been denied.",
       ruleId: "rule.disallowedTools",
     });
   });

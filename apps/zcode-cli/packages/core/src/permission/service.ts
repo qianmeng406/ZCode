@@ -34,6 +34,14 @@ import type { ToolPermissionRulePolicy } from "../tool/types.js";
 /** 草稿免确认的规则号。 */
 const WORKFLOW_DRAFT_PREAPPROVED_RULE_ID = "tool.workflowDraft.preapproved";
 
+/**
+ * `disallowedTools` 拒绝整个工具时模型看到的文字（2026-11-14，原来是 `Tool X is explicitly disallowed`）。
+ * 项目权限规则的拒绝可能只针对部分输入（路径、命令），文字不变，不能说成整个工具被拒绝。
+ */
+function toolDeniedMessage(toolName: string): string {
+  return `Permission to use ${toolName} has been denied.`;
+}
+
 export interface PermissionContext {
   toolName: string;
   input: unknown;
@@ -123,7 +131,7 @@ export class PermissionService {
           context,
           capability,
           "rule.disallowedTools",
-          `Tool ${context.toolName} is explicitly disallowed`,
+          toolDeniedMessage(context.toolName),
         );
       }
 
@@ -169,7 +177,7 @@ export class PermissionService {
         context,
         capability,
         "rule.disallowedTools",
-        `Tool ${context.toolName} is explicitly disallowed`,
+        toolDeniedMessage(context.toolName),
       );
     }
 
@@ -467,7 +475,7 @@ export class PermissionService {
         context,
         capability,
         "rule.disallowedTools",
-        `Tool ${context.toolName} is explicitly disallowed`,
+        toolDeniedMessage(context.toolName),
       );
     }
     if (this.matchesProjectRules(projectRules, "deny", context, capability, rulePolicy)) {

@@ -1,4 +1,5 @@
 import type { ComposerInitialConfig } from "@/store/zcodeSessionStoreTypes.js";
+import type { ModelSelection } from "@zcode/shared/model-selection";
 import type { ModelSelectionView } from "@zcode/services";
 import {
   isInheritableSubmissionMode,
@@ -14,25 +15,31 @@ import {
   readComposerWorkspaceScope,
 } from "@/v4/composer/composerDraftStore.js";
 
-/** 普通新任务与首次分享导入共用初始化；保留 Recent 原意图，由公共 View 解析有效选择。 */
+/**
+ * 普通新任务与首次分享导入共用初始化；保留 Recent 原意图，由公共 View 解析有效选择。
+ * recentModelSelection 只在模型取自 Recent 时返回，供草稿模型迁移识别来源。
+ */
 export function initializeNewTaskDraft(
   draft: V4ComposerDraft,
   workspacePath: string,
   workspaceIdentity: string | undefined,
   view: ModelSelectionView,
   scope?: ComposerScope,
-): V4ComposerDraft {
+): { draft: V4ComposerDraft; recentModelSelection?: ModelSelection } {
   const recent = readComposerRecent(workspacePath, workspaceIdentity, undefined, scope);
   return {
-    ...draft,
-    mode: recent?.mode === "plan" ? "build" : (recent?.mode ?? "build"),
-    planEnabled: false,
-    // 档位不随 Recent 自动继承：每个普通新任务回到 standard，需要极简时由用户显式开启。
-    contextProfile: "standard",
-    modelSelection:
-      recent?.modelSelection ??
-      resolveDraftInitialModelSelection(view, null).selection ??
-      undefined,
+    draft: {
+      ...draft,
+      mode: recent?.mode === "plan" ? "build" : (recent?.mode ?? "build"),
+      planEnabled: false,
+      // 档位不随 Recent 自动继承：普通新任务回到 standard，极简由用户显式开启。
+      contextProfile: "standard",
+      modelSelection:
+        recent?.modelSelection ??
+        resolveDraftInitialModelSelection(view, null).selection ??
+        undefined,
+    },
+    ...(recent?.modelSelection ? { recentModelSelection: recent.modelSelection } : {}),
   };
 }
 

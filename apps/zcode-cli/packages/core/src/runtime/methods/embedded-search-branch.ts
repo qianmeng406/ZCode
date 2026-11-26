@@ -4,6 +4,8 @@ import type { AgentRuntimeInternal } from "../internal.js";
 import { resolveEmbeddedSearchBranchCapability } from "../../embedded-search/capability.js";
 import {
   resolveBuiltInToolAllowlist,
+  resolveRuntimeAgentAlwaysBackground,
+  resolveRuntimeDisallowedTools,
   resolveRuntimeDynamicWorkflowToolsIncluded,
 } from "../helpers/tool-allowlist.js";
 import { isToolNameDisallowed } from "../../tool/tool-visibility.js";
@@ -11,9 +13,11 @@ import { isToolNameDisallowed } from "../../tool/tool-visibility.js";
 export function resolveRuntimeEmbeddedSearchEnabled(runtime: AgentRuntimeInternal): boolean {
   const builtInToolAllowlist = resolveBuiltInToolAllowlist(runtime.config);
   const decision = resolveEmbeddedSearchBranchCapability({
+    // bashAvailable 的含义是「Bash 最终会被注册」，所以要和注册时用同一份 resolved 名单。
+    // 现在的结构性禁用里没有 Bash，这里的结果不变；用同一个 helper 是为了以后名单变化时两边不漂移。
     bashAvailable:
       (builtInToolAllowlist === undefined || builtInToolAllowlist.includes("Bash")) &&
-      !isToolNameDisallowed("Bash", runtime.config.toolDisallowlist),
+      !isToolNameDisallowed("Bash", resolveRuntimeDisallowedTools(runtime.config)),
   });
   return decision.useEmbeddedSearchBranch;
 }
@@ -44,8 +48,15 @@ export function refreshBranchAwareBuiltInTools(runtime: AgentRuntimeInternal): v
     // 与 runtime-tools.ts 同源：委派工具的门是只读锁（绑定事实）。
     // 两个注册入口必须读同一份判据，否则 shell 快照初始化会把已绑定的工具面算成另一套。
     includeExternalAgent: runtime.externalAgentReadOnly === true,
+    // Agent 后台开关同样「缺席即开启」，省略会在刷新时把关闭开关的 Agent 换回总在后台的形态。
+    agentAlwaysBackground: resolveRuntimeAgentAlwaysBackground(runtime.config),
+    // 会话工具同名两种实现，刷新必须沿用首次装配选定的运行位置，不能回落到另一种。
+    sessionControlKind: runtime.sessionControlKind,
     allowedTools: resolveBuiltInToolAllowlist(runtime.config),
-    disallowedTools: runtime.config.toolDisallowlist,
+    // 与灰度门同理：结构性禁用（按 taskType 推导）必须和首次装配共用 resolveRuntimeDisallowedTools。
+    // 曾经这里只传了用户配置的 toolDisallowlist，于是 shell 初始化或按需激活之后，子 runtime 在
+    // 会话中途把首次装配剃掉的工作流工具加了回来（Z-011）。
+    disallowedTools: resolveRuntimeDisallowedTools(runtime.config),
     silentDuplicateWarnings: true,
   });
   runtime.invalidateToolCache();

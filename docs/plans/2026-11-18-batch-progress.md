@@ -44,11 +44,12 @@
 
 ## 变更集
 
-| 日期       | 范围                            | 提交                                                                             |
-| ---------- | ------------------------------- | -------------------------------------------------------------------------------- |
-| 2026-11-18 | B1-01~B1-08（8 项）             | `676bdc6b`（含 B0 台账/证据文档）                                                |
-| 2026-11-21 | 推送 + Preview 全量出包（验收） | `zcodefork/main`、`zcodefork/integrate/merge-upstream-v3.18.1` 均指向 `676bdc6b` |
-| 2026-11-22 | 上游同步 v3.18.2（非批次项）    | `1baed2ae`，基线由 `7b4c9ef4`（v3.18.1）升到 `fec97590`（v3.18.2）               |
+| 日期       | 范围                            | 提交                                                                                            |
+| ---------- | ------------------------------- | ----------------------------------------------------------------------------------------------- |
+| 2026-11-18 | B1-01~B1-08（8 项）             | `676bdc6b`（含 B0 台账/证据文档）                                                               |
+| 2026-11-21 | 推送 + Preview 全量出包（验收） | `zcodefork/main`、`zcodefork/integrate/merge-upstream-v3.18.1` 均指向 `676bdc6b`                |
+| 2026-11-22 | 上游同步 v3.18.2（非批次项）    | `1baed2ae`，基线由 `7b4c9ef4`（v3.18.1）升到 `fec97590`（v3.18.2）                              |
+| 2026-11-26 | 上游同步 v4.0.0（进行中）       | `integrate/merge-upstream-v4.0.0`；冲突路径已全部解决并暂存；UI tsc 与定向测试通过；未提交/推送 |
 
 ### 上游同步 v3.18.2（2026-11-22）
 
@@ -61,6 +62,16 @@
   3 处 TS2322）、上游新测试在 Windows 上的 `chmod 0600` 断言。
 - 验证：core 5184 pass / shared 105 / services 27 / tui 219 / adapters 凭据 42 /
   desktop 相关 60 / bootstrap 定向 97；CLI 34 个包 typecheck 全绿；架构检查 0 违规。
+
+### 上游同步 v4.0.0（2026-11-26，进行中）
+
+- 上游基线：`a4b4445141eb7d3b3e99eada9292775383bfc44e`（tag `v4.0.0`，Source-Commit `acfaa5b7a5d245d5b84fbe37ef2c0d0748f97cdf`）；此前 fork 基线为 `v3.18.2` / `fec97590`。
+- 上游增量约 2,209 个文件（+149,753/−24,801），243 个文件双方均修改；merge-tree 预估 71 处冲突。当前 71 个冲突路径已逐项融合、精确暂存，`git ls-files -u` 为零。
+- UI 验证：`npx tsc -b packages/ui` 通过；4 组定向测试 9/9 通过。恢复 Composer 后台任务触发器，并以 `activityOpenRequest` 接通新的 activity capsule；保留唯一 workflow 详情直达。
+- CLI 定向测试：`edit-tool-contract` 36/36、`subagent-background` 34/34、`runtime-memory-dream` 10/10 通过（core 专用 Vitest，单 worker）；contracts dist 已在 Zod 4.6.5 依赖下重建，`@zcode/core` 单包 typecheck 通过。尚未运行 CLI 全包 typecheck、全量 E2E 或发布验收。
+- 出包验收（2026-11-27）：定向 UI 测试 4 文件 9/9 后，`pnpm dev:package --full` 最终 exit 0；生成 `packages/desktop/dist-preview-perf/win-unpacked`。`ZCode Preview.exe`（246,320,128 bytes，01:56）、`resources/app.asar`（471,996,019 bytes，01:56）、`resources/glm/zcode.cjs`（16,120,389 bytes，01:51）均为本次构建；产物目录与 exe 的 Windows 完整性标签均为 Medium。asar 可检出 `activityOpenRequest`；4 个平台的远程官方插件 seed 校验通过，Documents `visual-judge.md` 已进入 4.0.0 Linux ARM64 mock-CDN seed。未启动 Preview；无签名证书，跳过签名；`--dir` 无安装器，跳过体积审计。
+- 出包期间修复两个阻断：合并曾删除仍属必需资源的 Documents/PDF/Presentations/Spreadsheets 四个 `agents/visual-judge.md`，已从 fork 第一父提交恢复；Windows GNU tar 在临时 cwd 位于仓库外时将 `C:/...` 归档路径当作远程主机，`scripts/prebuilt-binary-extract.mjs` 改为在 Windows 从归档目录以文件名解压，隔离冒烟通过。打包仍有 Node 24.11.0 与要求 24.14.0 的 engine warning；未运行 CLI 全包 typecheck、全量 E2E 或启动后交互验收。
+- 当前未提交、未推送；全量源码/交互验收与提交/发布流程尚未完成。不得将本次同步标记为已验收。
 
 ### 出包验收（2026-11-21）
 

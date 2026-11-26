@@ -39,7 +39,11 @@ import type {
   SessionPhase,
   SessionUsageState,
 } from "@zcode/shared/zcode-protocol-v4";
-import { ModelConfigSelect, type ModelSelectGroup } from "@/ModelConfigSelect.js";
+import {
+  ModelConfigSelect,
+  type ModelConfigSelectGuide,
+  type ModelSelectGroup,
+} from "@/ModelConfigSelect.js";
 import type { ComposerModelOptions } from "@/chat-input-toolbar/ComposerModelMenu.js";
 import { Button } from "@/components/ui/button.js";
 import { HighspeedModelIndicator } from "@/highspeed/HighspeedModelIndicator.js";
@@ -70,6 +74,7 @@ import {
   setPendingSettingsUsageCodingPlanIntent,
 } from "@/lib/settingsNavigation.js";
 import { useTabStore } from "@/store/TabStoreProvider.js";
+import { isSettingsTab } from "@/store/tabStore.js";
 import type { ModelSelectionView } from "@zcode/services";
 import type {
   ModelSelectionState,
@@ -441,16 +446,14 @@ export interface V4ComposerToolbarProps {
   onSendCompressionCommand?: (command: string) => void;
   /** 快照投影的 compact 进行中（control.activeWorks）；运行中禁用压缩入口，防重复派发。 */
   compactRunning?: boolean;
-  /** fork 开关 memoryDreamManual 打开时的「整理记忆」入口；缺席即 context 面板不渲染该按钮。 */
+  /** fork memoryDreamManual 的「整理记忆」入口。 */
   onRunMemoryDream?: () => void;
   memoryDreamRunning?: boolean;
   memoryDreamDisabled?: boolean;
-  /**
-   * 会话级执行环境入口（session-linux-execution）：由 SessionPane 组装（触发按钮的
-   * 平台/远程/草稿可见性在 pane 判定），工具条只负责在模型控件簇尾部展示。
-   * 环境切换语义（含草稿创建/promote）全部闭合在 SessionPane，工具条不承载状态。
-   */
+  /** 会话级执行环境入口由 SessionPane 组装。 */
   sessionExecutionEnvironmentSlot?: ReactNode;
+  /** 模型按钮上的一次性引导气泡；设置页覆盖工作区时不显示。 */
+  modelGuide?: ModelConfigSelectGuide | null;
 }
 
 /** 模型 / 思考深度 / context usage 簇（渲染在发送键左侧，与旧 UI 同位）。 */
@@ -488,6 +491,7 @@ function V4ComposerModelControlsImpl({
   memoryDreamDisabled,
   onRecoverCustomModelSelection,
   sessionExecutionEnvironmentSlot,
+  modelGuide = null,
 }: V4ComposerToolbarProps) {
   const { intl, locale } = useZCodeIntl();
   const { openCodingPlanUpgrade } = useCodingPlanUpgradeDialog();
@@ -516,6 +520,10 @@ function V4ComposerModelControlsImpl({
     suppressProviderFingerprintAutoRefresh: true,
   });
   const openSettingsTab = useTabStore((state) => state.openSettingsTab);
+  // 气泡 Portal 位于 body，工作区的 opacity/inert 隐藏不了它；必须跟随设置标签的可见性。
+  const isWorkspaceVisible = useTabStore(
+    (state) => !state.tabs.some((tab) => tab.id === state.activeTabId && isSettingsTab(tab)),
+  );
   const modelTriggerRef = useRef<HTMLSpanElement | null>(null);
   const thoughtTriggerRef = useRef<HTMLSpanElement | null>(null);
   // Ctrl+M 热键：递增 openRequestKey 请求 ModelConfigSelect 打开菜单（旧 handleOpenModelMenuShortcut 语义）。
@@ -1400,6 +1408,7 @@ function V4ComposerModelControlsImpl({
               !(modelSelectionState.status === "loading" && modelSelectionState.catalog))
           }
           tooltipTitle={modelTriggerDisplay.fullLabel}
+          guide={isWorkspaceVisible ? modelGuide : null}
           shortcutLabel={modelShortcutLabel}
           triggerRef={modelTriggerRef}
           open={!modelLocked && activeConfigPicker === "model"}

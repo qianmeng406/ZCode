@@ -19,14 +19,14 @@
     "pushPolicy": "fetch-only"
   },
   "currentBase": {
-    "tag": "v3.18.2",
-    "commit": "fec975905a2abd4c07e35c40d51fa097a2258ec9",
-    "sourceCommit": "fec975905a2abd4c07e35c40d51fa097a2258ec9",
-    "note": "3.18.2 官方恢复打 tag（v3.18.2），基线以同步提交 fec97590 为准，--is-ancestor 校验仍用 commit SHA。上一基线为 v3.18.1（c5904686，未打 tag），再上一版 v3.17.2（a9fe401e）。"
+    "tag": "v4.0.0",
+    "commit": "a4b4445141eb7d3b3e99eada9292775383bfc44e",
+    "sourceCommit": "acfaa5b7a5d245d5b84fbe37ef2c0d0748f97cdf",
+    "note": "4.0.0 官方大版本基线（v4.0.0），同步提交 a4b44451；上一基线为 v3.18.2（fec97590）。"
   },
   "versions": {
-    "desktop": "3.18.2",
-    "cli": "0.17.1"
+    "desktop": "4.0.0",
+    "cli": "0.18.0"
   },
   "retiredFeatures": [
     "companion/mobile 自建移动端远控",
