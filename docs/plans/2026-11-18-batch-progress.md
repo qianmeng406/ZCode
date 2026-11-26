@@ -71,7 +71,7 @@
 - CLI 定向测试：`edit-tool-contract` 36/36、`subagent-background` 34/34、`runtime-memory-dream` 10/10 通过（core 专用 Vitest，单 worker）；contracts dist 已在 Zod 4.6.5 依赖下重建，`@zcode/core` 单包 typecheck 通过。尚未运行 CLI 全包 typecheck、全量 E2E 或发布验收。
 - 出包验收（2026-11-27）：定向 UI 测试 4 文件 9/9 后，`pnpm dev:package --full` 最终 exit 0；生成 `packages/desktop/dist-preview-perf/win-unpacked`。`ZCode Preview.exe`（246,320,128 bytes，01:56）、`resources/app.asar`（471,996,019 bytes，01:56）、`resources/glm/zcode.cjs`（16,120,389 bytes，01:51）均为本次构建；产物目录与 exe 的 Windows 完整性标签均为 Medium。asar 可检出 `activityOpenRequest`；4 个平台的远程官方插件 seed 校验通过，Documents `visual-judge.md` 已进入 4.0.0 Linux ARM64 mock-CDN seed。未启动 Preview；无签名证书，跳过签名；`--dir` 无安装器，跳过体积审计。
 - 出包期间修复两个阻断：合并曾删除仍属必需资源的 Documents/PDF/Presentations/Spreadsheets 四个 `agents/visual-judge.md`，已从 fork 第一父提交恢复；Windows GNU tar 在临时 cwd 位于仓库外时将 `C:/...` 归档路径当作远程主机，`scripts/prebuilt-binary-extract.mjs` 改为在 Windows 从归档目录以文件名解压，隔离冒烟通过。打包仍有 Node 24.11.0 与要求 24.14.0 的 engine warning；未运行 CLI 全包 typecheck、全量 E2E 或启动后交互验收。
-- 当前未提交、未推送；全量源码/交互验收与提交/发布流程尚未完成。不得将本次同步标记为已验收。
+- 合并提交 `ac268729` 已推送至 `zcodefork/integrate/merge-upstream-v4.0.0`；全量源码检查、CLI 全包 typecheck、E2E 与启动后交互验收仍未完成，因此本次同步尚不能标记为整体已验收。
 
 ### 出包验收（2026-11-21）
 
